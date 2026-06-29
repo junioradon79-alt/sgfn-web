@@ -35,12 +35,21 @@ type LotRecord = {
     } | null;
   } | null;
   attributions?: Array<{
+    rang?: number | null;
     qualite?: string | null;
     actuel?: boolean | null;
     depuis?: string | null;
-    attributaires?: { id?: string | null; nom?: string | null } | null;
+    observation?: string | null;
+    attributaires?: { id?: string | null; nom?: string | null; type?: string | null } | null;
+  }> | null;
+  attestations_cession?: Array<{
+    reference?: string | null;
+    statut?: string | null;
+    cession_id?: string | null;
   }> | null;
 };
+
+type PvInfo = { reference: string | null; statut: string | null };
 
 type IlotOption = {
   id: string;
@@ -97,6 +106,33 @@ function getBadgeConfig(lot: LotRecord): { status: LotStatus; label: string } {
   }
 }
 
+// ─── PV de réunion de famille ───────────────────────────────────────────────
+// Un lot transmis depuis un collectif d'ayants-droit (rang 1) vers un nouveau
+// titulaire (rang > 1) exige un PV de réunion de famille validé. Renvoie l'info
+// PV si elle manque/n'est pas valide, sinon null (rien à signaler).
+function lotPvAlert(
+  lot: LotRecord,
+  pvByCollectif: Map<string, PvInfo>
+): PvInfo | null {
+  const attrs = lot.attributions ?? [];
+  const r1 = attrs.find((a) => a.rang === 1);
+  if (!r1 || r1.attributaires?.type !== "collectif_ayants_droit") return null;
+  if (!attrs.some((a) => (a.rang ?? 0) > 1)) return null; // pas encore transmis
+  const collectifId = r1.attributaires?.id ?? "";
+  const pv = pvByCollectif.get(collectifId);
+  if (pv && pv.statut === "valide") return null;
+  return pv ?? { reference: "—", statut: "a_fournir" };
+}
+
+const QUALITE_LABELS: Record<string, string> = {
+  ayant_droit: "Ayant droit",
+  ayant_droit_transmission: "Ayant droit (transmission)",
+  acquereur: "Acquéreur",
+  operateur: "Opérateur",
+  entrepreneur: "Entrepreneur",
+  reservataire: "Réservataire",
+};
+
 // ─── Select helper ────────────────────────────────────────────────────────────
 
 function SelectField({ id, label, value, onChange, children, required }: {
@@ -123,15 +159,18 @@ function SelectField({ id, label, value, onChange, children, required }: {
 
 // ─── Lot Detail Modal ─────────────────────────────────────────────────────────
 
-function LotDetailModal({ lot, litiges, onClose }: {
-  lot: LotRecord; litiges: LitigeRow[]; onClose: () => void;
+function LotDetailModal({ lot, litiges, pvAlert, onClose }: {
+  lot: LotRecord; litiges: LitigeRow[]; pvAlert: PvInfo | null; onClose: () => void;
 }) {
   const badge = getBadgeConfig(lot);
   const lotissementNom = lot.ilots?.lotissements?.nom ?? "—";
   const commune = lot.ilots?.lotissements?.commune ?? "—";
   const village = lot.ilots?.lotissements?.village;
   const ilotNum = lot.ilots?.numero;
-  const attrActuel = lot.attributions?.find((a) => a.actuel) ?? lot.attributions?.[0];
+  const historique = [...(lot.attributions ?? [])].sort(
+    (a, b) => (a.rang ?? 0) - (b.rang ?? 0)
+  );
+  const attestation = lot.attestations_cession?.[0];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
@@ -192,26 +231,58 @@ function LotDetailModal({ lot, litiges, onClose }: {
             </div>
           </section>
 
-          {/* Attribution actuelle */}
+          {/* Alerte PV de réunion de famille */}
+          {pvAlert && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-amber-200/70 bg-amber-50 p-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+              <p className="text-xs text-amber-700">
+                PV de réunion de famille :{" "}
+                <span className="font-semibold">{(pvAlert.statut ?? "").replace(/_/g, " ")}</span>
+                {pvAlert.reference && pvAlert.reference !== "—" && ` · réf. ${pvAlert.reference}`}
+                {" "}— requis pour la transmission depuis le collectif d&apos;origine.
+              </p>
+            </div>
+          )}
+
+          {/* Attestation de cession */}
+          {attestation && (
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-200/70 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-700">
+              <span className="font-semibold">{attestation.reference}</span>
+              <span>· {attestation.statut}</span>
+              {!attestation.cession_id && <span className="text-emerald-600/80">· gratuite (1er ayant-droit)</span>}
+            </div>
+          )}
+
+          {/* Historique de propriété */}
           <section>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Attribution</p>
-            {attrActuel ? (
-              <div className="rounded-xl border border-slate-200/60 bg-white p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{attrActuel.attributaires?.nom ?? "—"}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {QUALITE_OPTIONS.find((q) => q.value === attrActuel.qualite)?.label ?? attrActuel.qualite ?? "—"}
-                      {attrActuel.depuis && ` · depuis ${new Date(attrActuel.depuis).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}`}
-                    </p>
-                  </div>
-                  <Badge status="attribue">Actuel</Badge>
-                </div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Historique de propriété</p>
+            {historique.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                Aucune attribution enregistrée — lot libre.
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                Aucune attribution enregistrée pour ce lot.
-              </div>
+              <ol className="relative space-y-4 border-l-2 border-slate-200 pl-5">
+                {historique.map((a, idx) => (
+                  <li key={`${a.attributaires?.id ?? "attr"}-${idx}`} className="relative">
+                    <span
+                      className={`absolute -left-[1.6rem] top-1 h-3 w-3 rounded-full border-2 border-white ${
+                        a.actuel ? "bg-[#2D8F5A]" : "bg-slate-300"
+                      }`}
+                    />
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-800">{a.attributaires?.nom ?? "—"}</p>
+                      {a.actuel && (
+                        <span className="rounded bg-[#2D8F5A]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#2D8F5A]">ACTUEL</span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {QUALITE_LABELS[a.qualite ?? ""] ?? a.qualite ?? "—"}
+                      {a.attributaires?.type === "collectif_ayants_droit" && " · collectif"}
+                      {a.observation && ` · ${a.observation}`}
+                    </p>
+                  </li>
+                ))}
+              </ol>
             )}
           </section>
 
@@ -418,6 +489,8 @@ export default function LotsPage() {
   const [lotRows, setLotRows] = useState<LotRecord[]>([]);
   const [ilotOptions, setIlotOptions] = useState<IlotOption[]>([]);
   const [attributaireOptions, setAttributaireOptions] = useState<AttributaireOption[]>([]);
+  const [pvByCollectif, setPvByCollectif] = useState<Map<string, PvInfo>>(new Map());
+  const [pvFilter, setPvFilter] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   // Modals
@@ -438,7 +511,7 @@ export default function LotsPage() {
     const { data } = await supabase
       .from("lots")
       .select(
-        "id, numero_lot, numero_parcelle, ilot_id, statut, verrouille, superficie_m2, est_equipement, nature_droit, observation, guide_page, ilots(id, numero, lotissements(nom, commune, village)), attributions(qualite, actuel, depuis, attributaires(id, nom))"
+        "id, numero_lot, numero_parcelle, ilot_id, statut, verrouille, superficie_m2, est_equipement, nature_droit, observation, guide_page, ilots(id, numero, lotissements(nom, commune, village)), attributions(rang, qualite, actuel, depuis, observation, attributaires(id, nom, type)), attestations_cession(reference, statut, cession_id)"
       )
       .order("numero_lot", { ascending: true });
     setLotRows((data ?? []) as unknown as LotRecord[]);
@@ -459,6 +532,20 @@ export default function LotsPage() {
       .select("id, nom")
       .order("nom")
       .then(({ data }) => setAttributaireOptions((data ?? []) as AttributaireOption[]));
+
+    // PV de réunion de famille, indexés par collectif d'ayants-droit.
+    supabase
+      .from("pv_reunions_famille")
+      .select("reference, statut, collectif_attributaire_id")
+      .then(({ data }) => {
+        const map = new Map<string, PvInfo>();
+        (data ?? []).forEach((p) => {
+          if (p.collectif_attributaire_id) {
+            map.set(p.collectif_attributaire_id, { reference: p.reference, statut: p.statut });
+          }
+        });
+        setPvByCollectif(map);
+      });
   }, []);
 
   // Load litiges when a lot detail is opened
@@ -561,6 +648,11 @@ export default function LotsPage() {
     return acc;
   }, {});
 
+  const pvAlertCount = lotRows.filter((l) => lotPvAlert(l, pvByCollectif)).length;
+  const displayedRows = pvFilter
+    ? lotRows.filter((l) => lotPvAlert(l, pvByCollectif))
+    : lotRows;
+
   return (
     <div className="mx-auto max-w-6xl">
       {/* En-tête */}
@@ -592,6 +684,28 @@ export default function LotsPage() {
         </button>
       </div>
 
+      {/* Bandeau d'alerte PV de réunion de famille */}
+      {pvAlertCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setPvFilter((v) => !v)}
+          className={`mb-4 flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
+            pvFilter
+              ? "border-amber-300 bg-amber-100 text-amber-800"
+              : "border-amber-200/70 bg-amber-50 text-amber-700 hover:bg-amber-100/70"
+          }`}
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+          <span>
+            <span className="font-semibold">{pvAlertCount} lot{pvAlertCount > 1 ? "s" : ""}</span>{" "}
+            en attente d&apos;un PV de réunion de famille (transmission par un collectif d&apos;ayants-droit).
+          </span>
+          <span className="ml-auto shrink-0 font-semibold underline">
+            {pvFilter ? "Tout afficher" : "Voir"}
+          </span>
+        </button>
+      )}
+
       {/* Tableau */}
       <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white">
         <div className="overflow-x-auto">
@@ -608,10 +722,10 @@ export default function LotsPage() {
             <tbody className="divide-y divide-slate-200/60">
               {isLoading ? (
                 <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">Chargement des lots…</td></tr>
-              ) : lotRows.length === 0 ? (
-                <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">Aucun lot enregistré.</td></tr>
+              ) : displayedRows.length === 0 ? (
+                <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">{pvFilter ? "Aucun lot avec un PV à régulariser." : "Aucun lot enregistré."}</td></tr>
               ) : (
-                lotRows.map((lot) => {
+                displayedRows.map((lot) => {
                   const badge = getBadgeConfig(lot);
                   const lotissementNom = lot.ilots?.lotissements?.nom;
                   const commune = lot.ilots?.lotissements?.commune;
@@ -648,6 +762,11 @@ export default function LotsPage() {
                       {/* Statut */}
                       <td className="px-5 py-4">
                         <Badge status={badge.status}>{badge.label}</Badge>
+                        {lotPvAlert(lot, pvByCollectif) && (
+                          <span className="mt-1 flex items-center gap-1 text-xs font-medium text-amber-600">
+                            <AlertTriangle className="h-3 w-3" />PV à régulariser
+                          </span>
+                        )}
                       </td>
 
                       {/* Actions */}
@@ -754,7 +873,7 @@ export default function LotsPage() {
       )}
 
       {/* Modals d'action */}
-      {detailLot && <LotDetailModal lot={detailLot} litiges={lotLitiges} onClose={() => setDetailLot(null)} />}
+      {detailLot && <LotDetailModal lot={detailLot} litiges={lotLitiges} pvAlert={lotPvAlert(detailLot, pvByCollectif)} onClose={() => setDetailLot(null)} />}
       {transfertLot && <AttributionModal lot={transfertLot} attributaires={attributaireOptions} isSubmitting={isSubmitting} onClose={() => setTransfertLot(null)} onSubmit={handleAttributionSubmit} />}
       {litigeLot && <LitigeModal lot={litigeLot} isSubmitting={isSubmitting} onClose={() => setLitigeLot(null)} onSubmit={handleLitigeSubmit} />}
     </div>

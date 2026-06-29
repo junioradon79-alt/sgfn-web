@@ -12,7 +12,12 @@ import {
   FileText,
   Cpu,
   MailOpen,
+  MessageSquare,
   Link2,
+  Landmark,
+  Compass,
+  ShieldCheck,
+  HandCoins,
   Sparkles,
 } from "lucide-react";
 import React from "react";
@@ -41,6 +46,30 @@ const navItems: SidebarNavItem[] = [
     href: "/dashboard",
     icon: <LayoutDashboard className="w-4 h-4" />,
     // visible par tous
+  },
+  {
+    label: "Mon espace",
+    href: "/dashboard/proprietaire",
+    icon: <Landmark className="w-4 h-4" />,
+    roles: ["proprietaire", "acquereur"],
+  },
+  {
+    label: "Acquérir un lot",
+    href: "/dashboard/acquisition",
+    icon: <Compass className="w-4 h-4" />,
+    roles: ["acquereur", "amenageur"],
+  },
+  {
+    label: "Supervision",
+    href: "/dashboard/commissaire",
+    icon: <ShieldCheck className="w-4 h-4" />,
+    roles: ["commissaire", "verificateur"],
+  },
+  {
+    label: "Mon activité",
+    href: "/dashboard/operateur",
+    icon: <HandCoins className="w-4 h-4" />,
+    roles: ["operateur"],
   },
   {
     label: "Lotissements",
@@ -77,6 +106,12 @@ const navItems: SidebarNavItem[] = [
     href: "/dashboard/documents",
     icon: <FileText className="w-4 h-4" />,
     // visible par tous
+  },
+  {
+    label: "Messages",
+    href: "/dashboard/messages",
+    icon: <MessageSquare className="w-4 h-4" />,
+    // visible par tous : canal d'échange partagé entre l'agence et les profils
   },
   {
     label: "Invitations",

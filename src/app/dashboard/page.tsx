@@ -2,11 +2,27 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Building2, Gavel, ReceiptText, Rows3, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Building2, Gavel, Loader2, ReceiptText, Rows3, Users } from "lucide-react";
 import SGFNStatCard from "@/components/dashboard/SGFNStatCard";
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
+
+/**
+ * Routage par rôle : à l'arrivée sur /dashboard, chaque groupe est redirigé vers
+ * son espace. Les groupes absents de cette table (admin, geometre, agent_ia…)
+ * restent sur le dashboard d'administration ci-dessous.
+ */
+const ROLE_HOME: Record<string, string> = {
+  proprietaire: "/dashboard/proprietaire",
+  acquereur: "/dashboard/acquisition",
+  amenageur: "/dashboard/acquisition",
+  operateur: "/dashboard/operateur",
+  commissaire: "/dashboard/commissaire",
+  verificateur: "/dashboard/commissaire",
+  chefferie: "/dashboard/messages",
+};
 
 type AuditLog = {
   id?: string;
@@ -23,8 +39,17 @@ type DossierAdu = {
 type LotStatut = { statut: string };
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { profile, loading: profileLoading } = useProfile();
   const supabase = createClient();
+
+  // Cible de redirection selon le rôle (null = reste sur le dashboard admin).
+  const redirectTo =
+    !profileLoading && profile?.groupe ? ROLE_HOME[profile.groupe] ?? null : null;
+
+  useEffect(() => {
+    if (redirectTo) router.replace(redirectTo);
+  }, [redirectTo, router]);
 
   const [counts, setCounts] = useState({ lots: 0, attributaires: 0, ilots: 0, paiements: 0, litiges: 0 });
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -34,6 +59,7 @@ export default function DashboardPage() {
   const [userGroup, setUserGroup] = useState<string | null>(null);
 
   useEffect(() => {
+    if (profileLoading || redirectTo) return; // attend le rôle ; ne charge rien si on redirige
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       let resolvedGroup: string | null = null;
@@ -93,7 +119,7 @@ export default function DashboardPage() {
 
       setDataLoading(false);
     })();
-  }, []);
+  }, [profileLoading, redirectTo]);
 
   const statCards = [
     { title: "Lots", value: counts.lots, icon: Building2, color: "text-[#0D3B66]", subtitle: "Parcelles enregistrées", href: "/dashboard/lots" },
@@ -102,6 +128,19 @@ export default function DashboardPage() {
     { title: "Paiements", value: counts.paiements, icon: ReceiptText, color: "text-[#0D3B66]", subtitle: "Transactions suivies", href: "/dashboard/paiements" },
     { title: "Litiges", value: counts.litiges, icon: Gavel, color: "text-[#EF4444]", subtitle: "Cas ouverts", href: "/dashboard/litiges" },
   ];
+
+  // Pendant la résolution du rôle ou une redirection en cours : écran d'attente
+  // (n'affiche jamais le dashboard admin à un utilisateur d'un autre espace).
+  if (profileLoading || redirectTo) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-slate-400">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span className="text-sm font-medium">Ouverture de votre espace…</span>
+        </div>
+      </div>
+    );
+  }
 
   const pct = (n: number) => repartition.total > 0 ? Math.round((n / repartition.total) * 100) : 0;
 

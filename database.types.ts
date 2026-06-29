@@ -1041,6 +1041,7 @@ export type Database = {
       familles: {
         Row: {
           chef_de_famille: string | null
+          chef_profile_id: string | null
           contact: string | null
           id: string
           lignee: string | null
@@ -1048,6 +1049,7 @@ export type Database = {
         }
         Insert: {
           chef_de_famille?: string | null
+          chef_profile_id?: string | null
           contact?: string | null
           id?: string
           lignee?: string | null
@@ -1055,12 +1057,21 @@ export type Database = {
         }
         Update: {
           chef_de_famille?: string | null
+          chef_profile_id?: string | null
           contact?: string | null
           id?: string
           lignee?: string | null
           nom?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "familles_chef_profile_id_fkey"
+            columns: ["chef_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       geometres_experts: {
         Row: {
@@ -2292,6 +2303,10 @@ export type Database = {
       generer_code_invitation: { Args: never; Returns: string }
       get_public_stats: { Args: never; Returns: Json }
       ma_chefferie_id: { Args: never; Returns: string }
+      manifester_interet: {
+        Args: { p_lot_id: string; p_message?: string }
+        Returns: string
+      }
       marquer_echeances_en_retard: { Args: never; Returns: undefined }
       mon_attributaire_id: { Args: never; Returns: string }
       mon_commissaire_id: { Args: never; Returns: string }
