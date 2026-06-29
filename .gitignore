@@ -20,6 +20,9 @@
 # production
 /build
 
+# deploy archives (artefacts de build, ne pas versionner)
+sgfn-deploy.*
+
 # misc
 .DS_Store
 *.pem
