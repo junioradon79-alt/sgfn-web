@@ -13,13 +13,21 @@ import {
   Cpu,
   MailOpen,
   Link2,
+  Sparkles,
 } from "lucide-react";
 import React from "react";
+import { useProfile } from "@/hooks/useProfile";
 
 interface SidebarNavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
+  /**
+   * Groupes autorisés à voir cet item (valeurs de l'enum `groupe_utilisateur`).
+   * Omis = visible par tous les utilisateurs connectés. `admin` voit tout dans tous les cas.
+   * ⚠️ Matrice de départ à ajuster selon les règles métier réelles.
+   */
+  roles?: string[];
 }
 
 interface SidebarProps {
@@ -32,51 +40,70 @@ const navItems: SidebarNavItem[] = [
     label: "Dashboard",
     href: "/dashboard",
     icon: <LayoutDashboard className="w-4 h-4" />,
+    // visible par tous
   },
   {
     label: "Lotissements",
     href: "/lotissements",
     icon: <Map className="w-4 h-4" />,
+    roles: ["operateur", "amenageur", "geometre", "chefferie", "verificateur"],
   },
   {
     label: "Lots",
     href: "/dashboard/lots",
     icon: <Boxes className="w-4 h-4" />,
+    roles: ["operateur", "amenageur", "geometre", "chefferie", "verificateur", "commissaire"],
   },
   {
     label: "Attributaires",
     href: "/dashboard/attributaires",
     icon: <Users className="w-4 h-4" />,
+    roles: ["operateur", "amenageur", "chefferie", "verificateur", "commissaire"],
   },
   {
     label: "Attributions",
     href: "/dashboard/attributions",
     icon: <Link2 className="w-4 h-4" />,
+    roles: ["operateur", "amenageur", "chefferie", "verificateur", "commissaire"],
   },
   {
     label: "Litiges",
     href: "/dashboard/litiges",
     icon: <FileWarning className="w-4 h-4" />,
+    roles: ["commissaire", "verificateur", "chefferie"],
   },
   {
     label: "Documents",
     href: "/dashboard/documents",
     icon: <FileText className="w-4 h-4" />,
+    // visible par tous
   },
   {
     label: "Invitations",
     href: "/dashboard/invitations",
     icon: <MailOpen className="w-4 h-4" />,
+    roles: ["operateur", "amenageur", "chefferie"],
   },
   {
-    label: "IA",
-    href: "/ia",
-    icon: <Cpu className="w-4 h-4" />,
+    label: "SGFN AI",
+    href: "/dashboard/ia",
+    icon: <Sparkles className="w-4 h-4" />,
+    roles: ["verificateur", "agent_ia", "geometre"],
   },
 ];
 
 export function Sidebar({ onNavigate }: SidebarProps = {}) {
   const pathname = usePathname();
+  const { profile, loading } = useProfile();
+  const groupe = profile?.groupe ?? null;
+
+  // Filtrage par rôle : l'admin voit tout ; pendant le chargement on affiche tout
+  // (évite un flash de menu vide) ; un item sans `roles` est visible par tous.
+  const visibleItems = navItems.filter((item) => {
+    if (loading || !groupe || groupe === "admin") return true;
+    if (!item.roles) return true;
+    return item.roles.includes(groupe);
+  });
 
   return (
     <div
@@ -104,7 +131,7 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
       {/* Navigation */}
       <nav className="flex-1 py-6">
         <ul className="flex flex-col gap-1">
-          {navItems.map((item) => {
+          {visibleItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <li key={item.href}>

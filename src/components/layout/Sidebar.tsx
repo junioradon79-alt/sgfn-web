@@ -11,6 +11,7 @@ import {
   FileText,
   Settings,
   Shield,
+  Sparkles,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -46,9 +47,9 @@ const menu = [
     icon: FileText,
   },
   {
-    label: "Administration",
-    href: "/admin",
-    icon: Settings,
+    label: "SGFN AI",
+    href: "/dashboard/ia",
+    icon: Sparkles,
   },
 ];
 

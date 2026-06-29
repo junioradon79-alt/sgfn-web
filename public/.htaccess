@@ -1,0 +1,23 @@
+Options -Indexes
+DirectoryIndex index.html
+ErrorDocument 404 /404.html
+
+RewriteEngine On
+
+# 1. Assets Next.js — servir directement sans aucune réécriture
+RewriteRule ^_next/ - [L]
+
+# 2. Fichiers réels — servir directement
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# 3. Pages Next.js : /route et /route/ → route.html (priorité sur les dossiers homonymes)
+RewriteCond %{DOCUMENT_ROOT}/$1.html -f
+RewriteRule ^(.*?)/?$ /$1.html [L]
+
+# 4. Dossiers réels (racine, images/, etc.)
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# 5. Tout le reste → 404
+RewriteRule ^ /404.html [L]

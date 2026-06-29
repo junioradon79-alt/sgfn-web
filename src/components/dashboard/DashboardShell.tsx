@@ -1,11 +1,56 @@
 "use client";
 
-import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2, Menu, X } from "lucide-react";
 import { Sidebar } from "@/components/ui/Sidebar";
+import { createClient } from "@/utils/supabase/client";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Garde d'authentification côté client : indispensable car en export statique
+  // le middleware (proxy.ts) ne s'exécute jamais. Le RLS protège les données,
+  // mais c'est ici qu'on bloque l'accès visuel au dashboard sans session.
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let active = true;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!active) return;
+      if (!session) {
+        router.replace("/login");
+        return;
+      }
+      setAuthChecked(true);
+    });
+
+    // Réagit à une déconnexion (ou expiration de session) en temps réel.
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) router.replace("/login");
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
+
+  // Écran d'attente pendant la vérification de session (évite le flash du dashboard).
+  if (!authChecked) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#F8FAFC]">
+        <div className="flex flex-col items-center gap-3 text-slate-400">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span className="text-sm font-medium">Vérification de la session…</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden">

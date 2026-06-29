@@ -6,7 +6,7 @@ export default function Hero() {
     <section className="bg-slate-50">
       <div className="mx-auto flex max-w-7xl flex-col items-center px-6 py-20 text-center">
         <Image
-          src="/images/logo-sgfn.png"
+          src="/logo-officiel.png"
           alt="Logo SGFN"
           width={180}
           height={180}
