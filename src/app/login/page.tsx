@@ -1,88 +1,126 @@
 "use client";
 
-import { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signIn } from "@/services/auth";
+import { useState, type FormEvent } from "react";
+import { Input } from "@/components/ui/Input";
+import SGFNButton from "@/components/ui/SGFNButton";
+import { createClient } from "@/utils/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  async function handleLogin(e: React.FormEvent) {
+  const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setIsLoading(true);
+    setErrorMessage("");
 
-    setLoading(true);
-    setMessage("");
-
-    const { error } = await signIn(email, password);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      setMessage(error.message);
-      setLoading(false);
+      setPassword("");
+      setErrorMessage("Identifiants invalides. Vérifiez votre adresse e-mail et votre mot de passe.");
+      setIsLoading(false);
       return;
     }
 
     router.push("/dashboard");
-  }
+    router.refresh();
+  };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-100">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-lg">
-        <h1 className="text-3xl font-bold text-center">
-          Connexion
-        </h1>
+    <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-4 py-10 font-sans antialiased">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200/40 bg-white p-6 sm:p-8 shadow-sm">
+        {/* En-tête */}
+        <div className="mb-7 sm:mb-8 flex flex-col items-center text-center">
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-[#0D3B66] p-[2px] shadow-sm">
+              <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-[10px] bg-white">
+                <Image
+                  src="/logo-officiel.png"
+                  alt="SGFN"
+                  width={48}
+                  height={48}
+                  className="h-11 w-11 sm:h-12 sm:w-12 object-contain"
+                  priority
+                />
+              </div>
+            </div>
+            <span className="text-xl sm:text-2xl font-black tracking-tight text-[#0D3B66] uppercase">
+              SGFN
+            </span>
+          </div>
 
-        <p className="mt-2 text-center text-slate-600">
-          Système de Gestion du Foncier Numérique
-        </p>
+          <h1 className="text-xl sm:text-2xl font-bold text-[#0D3B66]">
+            Accéder à SGFN
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Entrez vos identifiants pour piloter votre espace foncier.
+          </p>
+        </div>
 
-        <form onSubmit={handleLogin} className="mt-8 space-y-5">
-
+        {/* Formulaire */}
+        <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
           <div>
-            <label className="block mb-2">
-              Adresse e-mail
+            <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">
+              E-mail
             </label>
-
-            <input
+            <Input
+              id="email"
               type="email"
+              name="email"
+              autoComplete="email"
+              placeholder="vous@exemple.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border p-3"
+              required
             />
           </div>
 
           <div>
-            <label className="block mb-2">
+            <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-700">
               Mot de passe
             </label>
-
-            <input
+            <Input
+              id="password"
               type="password"
+              name="password"
+              autoComplete="current-password"
+              placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border p-3"
+              required
             />
           </div>
 
-          {message && (
-            <p className="text-red-600 text-sm">
-              {message}
-            </p>
+          {errorMessage && (
+            <p className="text-sm font-medium text-red-600">{errorMessage}</p>
           )}
 
-          <button
+          <SGFNButton
             type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-blue-700 py-3 text-white font-semibold"
+            size="lg"
+            disabled={isLoading}
+            className="mt-2 w-full rounded-xl bg-[#0D3B66] text-white shadow-sm transition-all hover:bg-[#1E6091] active:scale-[0.98] active:bg-[#0D3B66]"
           >
-            {loading ? "Connexion..." : "Se connecter"}
-          </button>
-
+            {isLoading ? "Connexion en cours..." : "Se connecter"}
+          </SGFNButton>
         </form>
+
+        <p className="mt-7 sm:mt-8 text-center">
+          <Link
+            href="/"
+            className="text-sm text-slate-400 transition-colors hover:text-[#1E6091]"
+          >
+            ← Retour à l&apos;accueil
+          </Link>
+        </p>
       </div>
     </main>
   );
