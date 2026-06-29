@@ -279,6 +279,9 @@ export default function AttributairesPage() {
       type: form.type as "personne_physique" | "collectif_ayants_droit" | "personne_morale",
       piece_nature: form.piece_nature.trim() || null,
       piece_num: form.piece_num.trim() || null,
+      telephone: form.telephone.trim() || null,
+      email: form.email.trim() || null,
+      adresse: form.adresse.trim() || null,
     }]);
 
     if (error) {
@@ -324,74 +327,6 @@ export default function AttributairesPage() {
             value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Rechercher un attributaire" />
         </div>
       </div>
-
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-y-auto rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-[0_30px_80px_-20px_rgba(2,8,23,0.35)] sm:p-8" style={{ maxHeight: "92vh" }}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Nouvel attributaire</p>
-                <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">Créer un profil foncier</h2>
-              </div>
-              <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600" aria-label="Fermer">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-              <div className="space-y-1.5">
-                <label htmlFor="attr-nom" className="text-sm font-medium text-slate-700">Nom complet <span className="text-red-500">*</span></label>
-                <Input id="attr-nom" type="text" value={form.nom} onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))} placeholder="Ex. Awa Diop" required />
-              </div>
-
-              <div className="space-y-1.5">
-                <label htmlFor="attr-type" className="text-sm font-medium text-slate-700">Type de profil</label>
-                <select
-                  id="attr-type"
-                  value={form.type}
-                  onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition-colors focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-                >
-                  {TYPE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label htmlFor="attr-piece-nature" className="text-sm font-medium text-slate-700">Nature de la pièce</label>
-                <select
-                  id="attr-piece-nature"
-                  value={form.piece_nature}
-                  onChange={(e) => setForm((f) => ({ ...f, piece_nature: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition-colors focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-                >
-                  <option value="">— Sélectionner —</option>
-                  <option value="CNI">CNI</option>
-                  <option value="Passeport">Passeport</option>
-                  <option value="CMU">CMU</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label htmlFor="attr-piece-num" className="text-sm font-medium text-slate-700">Numéro de la pièce</label>
-                <Input id="attr-piece-num" type="text" value={form.piece_num} onChange={(e) => setForm((f) => ({ ...f, piece_num: e.target.value }))} placeholder="Ex. 123456789" />
-              </div>
-
-              {errorMessage && (
-                <div className="rounded-2xl border border-red-200/70 bg-red-50 px-3 py-2 text-sm text-red-700">{errorMessage}</div>
-              )}
-
-              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50">Annuler</button>
-                <button type="submit" disabled={isSubmitting} className="rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#1E6091] disabled:opacity-70">
-                  {isSubmitting ? "Enregistrement…" : "Enregistrer l'attributaire"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Tableau */}
       <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white">

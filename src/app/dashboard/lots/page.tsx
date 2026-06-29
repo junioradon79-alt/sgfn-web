@@ -491,6 +491,8 @@ export default function LotsPage() {
   const [attributaireOptions, setAttributaireOptions] = useState<AttributaireOption[]>([]);
   const [pvByCollectif, setPvByCollectif] = useState<Map<string, PvInfo>>(new Map());
   const [pvFilter, setPvFilter] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statutFilter, setStatutFilter] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
   // Modals
@@ -649,9 +651,18 @@ export default function LotsPage() {
   }, {});
 
   const pvAlertCount = lotRows.filter((l) => lotPvAlert(l, pvByCollectif)).length;
-  const displayedRows = pvFilter
-    ? lotRows.filter((l) => lotPvAlert(l, pvByCollectif))
-    : lotRows;
+  const displayedRows = lotRows
+    .filter((l) => !pvFilter || lotPvAlert(l, pvByCollectif))
+    .filter((l) => {
+      if (!search) return true;
+      const q = search.toLowerCase();
+      const num = String(l.numero_lot ?? "").toLowerCase();
+      const parcelle = (l.numero_parcelle ?? "").toLowerCase();
+      const attrNom = (l.attributions?.find((a) => a.actuel) ?? l.attributions?.[0])?.attributaires?.nom?.toLowerCase() ?? "";
+      const lotissement = (l.ilots?.lotissements?.nom ?? "").toLowerCase();
+      return num.includes(q) || parcelle.includes(q) || attrNom.includes(q) || lotissement.includes(q);
+    })
+    .filter((l) => !statutFilter || (l.statut ?? "disponible") === statutFilter);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -673,15 +684,36 @@ export default function LotsPage() {
       )}
 
       {/* Barre de recherche */}
-      <div className="mb-6 flex items-center gap-3">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative w-full max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <Input type="search" placeholder="Rechercher un lot, un attributaire…" className="pl-9" aria-label="Rechercher un lot" />
+          <Input
+            type="search"
+            placeholder="Rechercher un lot, un attributaire…"
+            className="pl-9"
+            aria-label="Rechercher un lot"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
-        <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-slate-200/60 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50">
-          <Filter className="h-4 w-4 text-slate-400" />
-          Filtrer
-        </button>
+        <div className="relative">
+          <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <select
+            value={statutFilter}
+            onChange={(e) => setStatutFilter(e.target.value)}
+            className="appearance-none rounded-lg border border-slate-200/60 bg-white py-2 pl-9 pr-8 text-sm font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 focus:border-[#0D3B66] focus:outline-none"
+            aria-label="Filtrer par statut"
+          >
+            <option value="">Tous les statuts</option>
+            <option value="disponible">Disponible</option>
+            <option value="attribue">Attribué</option>
+            <option value="occupe">Occupé</option>
+            <option value="vendu">Vendu</option>
+            <option value="en_validation">En validation</option>
+            <option value="en_litige">Litige</option>
+            <option value="reserve_equipement">Équipement</option>
+          </select>
+        </div>
       </div>
 
       {/* Bandeau d'alerte PV de réunion de famille */}
@@ -723,7 +755,7 @@ export default function LotsPage() {
               {isLoading ? (
                 <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">Chargement des lots…</td></tr>
               ) : displayedRows.length === 0 ? (
-                <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">{pvFilter ? "Aucun lot avec un PV à régulariser." : "Aucun lot enregistré."}</td></tr>
+                <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">{search || statutFilter ? "Aucun lot ne correspond à votre recherche." : pvFilter ? "Aucun lot avec un PV à régulariser." : "Aucun lot enregistré."}</td></tr>
               ) : (
                 displayedRows.map((lot) => {
                   const badge = getBadgeConfig(lot);
