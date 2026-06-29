@@ -153,23 +153,27 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
       style={{ fontFamily: "Inter, sans-serif" }}
     >
       {/* Logo & Title */}
-      <div className="h-16 flex items-center gap-3 px-5 border-b border-slate-100/90">
-        <div className="w-8 h-8 rounded-lg bg-[#0D3B66] flex items-center justify-center p-[2px] shadow-sm">
+      <Link
+        href="/"
+        onClick={onNavigate}
+        className="h-16 flex items-center gap-3 px-5 border-b border-slate-100/90 hover:bg-slate-50/60 transition-colors"
+      >
+        <div className="w-10 h-10 rounded-xl bg-[#0D3B66] flex items-center justify-center p-[3px] shadow-md">
           <div className="bg-white w-full h-full rounded-lg flex items-center justify-center overflow-hidden">
             <Image
               src="/logo-officiel.png"
               alt="SGFN Logo"
-              width={23}
-              height={23}
+              width={30}
+              height={30}
               className="object-contain"
               priority
             />
           </div>
         </div>
-        <span className="text-sm font-extrabold tracking-tight text-[#0D3B66] uppercase">
+        <span className="text-base font-extrabold tracking-tight text-[#0D3B66] uppercase">
           SGFN
         </span>
-      </div>
+      </Link>
       {/* Navigation */}
       <nav className="flex-1 py-6">
         <ul className="flex flex-col gap-1">

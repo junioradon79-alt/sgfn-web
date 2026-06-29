@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Building2, Gavel, Loader2, ReceiptText, Rows3, Users } from "lucide-react";
+import { Building2, ChevronRight, FileText, Gavel, Loader2, Plus, ReceiptText, Rows3, Users, X } from "lucide-react";
 import SGFNStatCard from "@/components/dashboard/SGFNStatCard";
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/utils/supabase/client";
@@ -25,16 +25,40 @@ const ROLE_HOME: Record<string, string> = {
 };
 
 type AuditLog = {
-  id?: string;
-  action?: string;
-  description?: string;
-  effectue_le?: string;
+  id?: number;
+  table_concernee?: string | null;
+  enregistrement_id?: string | null;
+  action?: string | null;
+  ancienne_valeur?: Record<string, unknown> | null;
+  nouvelle_valeur?: Record<string, unknown> | null;
+  effectue_par?: string | null;
+  effectue_le?: string | null;
 };
 
 type DossierAdu = {
+  id?: string;
+  lot_id?: string | null;
   adu_numero?: string | null;
   statut?: string | null;
+  depose_le?: string | null;
+  notes?: string | null;
+  adu_date?: string | null;
+  acd_reference?: string | null;
 };
+
+type LotOption = { id: string; numero_lot: string | null; ilots?: { numero: string | null; lotissements?: { nom: string | null } | null } | null };
+
+const STATUT_ADU_LABELS: Record<string, string> = {
+  en_preparation: "En préparation",
+  piece_manquante: "Pièce manquante",
+  depose: "Déposé",
+  en_instruction: "En instruction",
+  adu_delivree: "ADU délivrée",
+  acd_obtenu: "ACD obtenu",
+  rejete: "Rejeté",
+};
+
+const STATUT_ADU_OPTIONS = Object.entries(STATUT_ADU_LABELS).map(([value, label]) => ({ value, label }));
 
 type LotStatut = { statut: string };
 
@@ -57,6 +81,12 @@ export default function DashboardPage() {
   const [repartition, setRepartition] = useState({ disponibles: 0, attribues: 0, enLitige: 0, total: 0 });
   const [dataLoading, setDataLoading] = useState(true);
   const [userGroup, setUserGroup] = useState<string | null>(null);
+  const [selectedAudit, setSelectedAudit] = useState<AuditLog | null>(null);
+  const [showAduCreate, setShowAduCreate] = useState(false);
+  const [lotOptions, setLotOptions] = useState<LotOption[]>([]);
+  const [aduForm, setAduForm] = useState({ lot_id: "", statut: "en_preparation", adu_numero: "", depose_le: "", notes: "" });
+  const [aduSubmitting, setAduSubmitting] = useState(false);
+  const [aduError, setAduError] = useState<string | null>(null);
 
   useEffect(() => {
     if (profileLoading || redirectTo) return; // attend le rôle ; ne charge rien si on redirige
@@ -95,8 +125,8 @@ export default function DashboardPage() {
         supabase.from("attributaires").select("*", { count: "exact", head: true }),
         supabase.from("paiements").select("*", { count: "exact", head: true }),
         supabase.from("litiges").select("*", { count: "exact", head: true }),
-        supabase.from("journal_audit").select("*").order("effectue_le", { ascending: false }).limit(3),
-        supabase.from("dossiers_adu").select("statut, adu_numero").limit(3),
+        supabase.from("journal_audit").select("id, table_concernee, enregistrement_id, action, ancienne_valeur, nouvelle_valeur, effectue_par, effectue_le").order("effectue_le", { ascending: false }).limit(5),
+        supabase.from("dossiers_adu").select("id, lot_id, adu_numero, statut, depose_le, notes, adu_date, acd_reference").order("cree_le", { ascending: false }).limit(5),
         supabase.from("ilots").select("*", { count: "exact", head: true }),
         lotsStatusQuery,
       ]);
@@ -128,6 +158,38 @@ export default function DashboardPage() {
     { title: "Paiements", value: counts.paiements, icon: ReceiptText, color: "text-[#0D3B66]", subtitle: "Transactions suivies", href: "/dashboard/paiements" },
     { title: "Litiges", value: counts.litiges, icon: Gavel, color: "text-[#EF4444]", subtitle: "Cas ouverts", href: "/dashboard/litiges" },
   ];
+
+  const openAduCreate = async () => {
+    if (lotOptions.length === 0) {
+      const { data } = await supabase.from("lots").select("id, numero_lot, ilots(numero, lotissements(nom))").order("numero_lot").limit(200);
+      setLotOptions((data ?? []) as unknown as LotOption[]);
+    }
+    setAduForm({ lot_id: "", statut: "en_preparation", adu_numero: "", depose_le: "", notes: "" });
+    setAduError(null);
+    setShowAduCreate(true);
+  };
+
+  const handleAduCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aduForm.lot_id) { setAduError("Sélectionnez un lot."); return; }
+    setAduSubmitting(true);
+    setAduError(null);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await (supabase.from("dossiers_adu") as any).insert([{
+      lot_id: aduForm.lot_id,
+      statut: aduForm.statut,
+      adu_numero: aduForm.adu_numero.trim() || null,
+      depose_le: aduForm.depose_le || null,
+      notes: aduForm.notes.trim() || null,
+      cree_par: user?.id ?? null,
+    }]);
+    setAduSubmitting(false);
+    if (error) { setAduError(error.message); return; }
+    setShowAduCreate(false);
+    // Rafraîchir la liste
+    const { data } = await supabase.from("dossiers_adu").select("id, lot_id, adu_numero, statut, depose_le, notes, adu_date, acd_reference").order("cree_le", { ascending: false }).limit(5);
+    setDossiersAdu((data ?? []) as DossierAdu[]);
+  };
 
   // Pendant la résolution du rôle ou une redirection en cours : écran d'attente
   // (n'affiche jamais le dashboard admin à un utilisateur d'un autre espace).
@@ -268,35 +330,31 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="mt-6 space-y-4">
+            <div className="mt-6 space-y-3">
               {auditLogs.length > 0 ? (
                 auditLogs.map((entry, index) => (
-                  <div
+                  <button
                     key={entry.id ?? `${entry.effectue_le ?? "entry"}-${index}`}
-                    className="rounded-2xl border border-slate-200/60 bg-slate-50/70 p-4"
+                    type="button"
+                    onClick={() => setSelectedAudit(entry)}
+                    className="w-full rounded-2xl border border-slate-200/60 bg-slate-50/70 p-4 text-left transition hover:border-[#0D3B66]/20 hover:bg-[#0D3B66]/4"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-800">
                           {entry.action ?? "Modification enregistrée"}
                         </p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {entry.description ?? "Événement consigné dans la traçabilité du système."}
-                        </p>
+                        {entry.table_concernee && (
+                          <p className="mt-0.5 text-xs text-[#1E6091]">Table : {entry.table_concernee}</p>
+                        )}
                       </div>
-                      <span className="shrink-0 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">
+                      <span className="shrink-0 text-xs font-medium text-slate-400">
                         {entry.effectue_le
-                          ? new Date(entry.effectue_le).toLocaleString("fr-FR", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
+                          ? new Date(entry.effectue_le).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
                           : "À l'instant"}
                       </span>
                     </div>
-                  </div>
+                  </button>
                 ))
               ) : (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-5 text-sm text-slate-500">
@@ -317,46 +375,202 @@ export default function DashboardPage() {
                   Dossiers ADU & ACD
                 </h2>
               </div>
+              <button
+                type="button"
+                onClick={openAduCreate}
+                className="inline-flex items-center gap-1.5 rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1E6091]"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Nouveau dossier
+              </button>
             </div>
 
             <div className="mt-6 space-y-3">
               {dossiersAdu.length > 0 ? (
                 dossiersAdu.map((dossier, index) => {
-                  const s = (dossier.statut ?? "").toLowerCase();
+                  const s = dossier.statut ?? "";
                   const badgeStatus =
-                    s.includes("valid") || s.includes("approuv")
+                    s === "adu_delivree" || s === "acd_obtenu"
                       ? ("attribue" as const)
-                      : s.includes("cours") || s.includes("instruction")
+                      : s === "en_instruction" || s === "depose"
                       ? ("en_validation" as const)
-                      : s.includes("litige") || s.includes("bloqu")
+                      : s === "rejete"
                       ? ("litige" as const)
                       : ("disponible" as const);
-                  const labels = { attribue: "Validé", en_validation: "En cours", litige: "Bloqué", disponible: "En attente" };
 
                   return (
                     <div
-                      key={`${dossier.adu_numero ?? "dossier"}-${index}`}
+                      key={dossier.id ?? index}
                       className="flex items-center justify-between rounded-2xl border border-slate-200/60 bg-slate-50/70 px-4 py-3"
                     >
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">
-                          {dossier.adu_numero || "Dossier sans numéro"}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-500">Instruction foncière en suivi</p>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <FileText className="h-4 w-4 shrink-0 text-[#1E6091]" />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-800">
+                            {dossier.adu_numero || "Dossier sans numéro"}
+                          </p>
+                          {dossier.depose_le && (
+                            <p className="text-xs text-slate-400">
+                              Déposé le {new Date(dossier.depose_le).toLocaleDateString("fr-FR")}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <Badge status={badgeStatus}>{labels[badgeStatus]}</Badge>
+                      <Badge status={badgeStatus}>
+                        {STATUT_ADU_LABELS[s] ?? s}
+                      </Badge>
                     </div>
                   );
                 })
               ) : (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-5 text-sm text-slate-500">
-                  Aucun dossier ADU n'a encore été enregistré.
+                  Aucun dossier ADU enregistré. Cliquez sur « Nouveau dossier » pour commencer.
                 </div>
               )}
             </div>
+
+            {dossiersAdu.length > 0 && (
+              <div className="mt-4 flex justify-end">
+                <Link href="/dashboard/dossiers-adu" className="inline-flex items-center gap-1 text-sm font-medium text-[#1E6091] hover:underline">
+                  Voir tous les dossiers
+                  <ChevronRight className="h-4 w-4" />
+                </Link>
+              </div>
+            )}
           </div>
         </section>
       </div>
+
+      {/* ── Modale détail entrée d'audit ── */}
+    {selectedAudit && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
+        <div className="w-full max-w-xl overflow-y-auto rounded-[1.75rem] border border-slate-200/70 bg-white shadow-2xl" style={{ maxHeight: "90vh" }}>
+          <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Journal d'audit</p>
+              <h2 className="mt-1 text-lg font-semibold text-[#0D3B66]">{selectedAudit.action ?? "Événement"}</h2>
+            </div>
+            <button type="button" onClick={() => setSelectedAudit(null)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="space-y-4 p-6">
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: "Table", value: selectedAudit.table_concernee ?? "—" },
+                { label: "Enregistrement", value: selectedAudit.enregistrement_id ? selectedAudit.enregistrement_id.slice(0, 8) + "…" : "—" },
+                { label: "Date", value: selectedAudit.effectue_le ? new Date(selectedAudit.effectue_le).toLocaleString("fr-FR") : "—" },
+                { label: "Auteur (ID)", value: selectedAudit.effectue_par ? selectedAudit.effectue_par.slice(0, 8) + "…" : "Système" },
+              ].map((item) => (
+                <div key={item.label} className="rounded-xl bg-slate-50 p-3">
+                  <p className="text-xs text-slate-400">{item.label}</p>
+                  <p className="mt-0.5 text-sm font-semibold text-slate-700">{item.value}</p>
+                </div>
+              ))}
+            </div>
+            {selectedAudit.nouvelle_valeur && (
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-[#2D8F5A]">Nouvelle valeur</p>
+                <pre className="overflow-x-auto rounded-xl bg-emerald-50/60 p-3 text-xs text-emerald-900">
+                  {JSON.stringify(selectedAudit.nouvelle_valeur, null, 2)}
+                </pre>
+              </div>
+            )}
+            {selectedAudit.ancienne_valeur && (
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-slate-400">Ancienne valeur</p>
+                <pre className="overflow-x-auto rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+                  {JSON.stringify(selectedAudit.ancienne_valeur, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Modale création dossier ADU ── */}
+    {showAduCreate && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
+        <div className="w-full max-w-lg overflow-y-auto rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-2xl sm:p-8" style={{ maxHeight: "92vh" }}>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Instruction foncière</p>
+              <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">Nouveau dossier ADU</h2>
+            </div>
+            <button type="button" onClick={() => setShowAduCreate(false)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <form className="mt-6 space-y-4" onSubmit={handleAduCreate}>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-700">Lot concerné <span className="text-red-500">*</span></label>
+              <select
+                value={aduForm.lot_id}
+                onChange={(e) => setAduForm((f) => ({ ...f, lot_id: e.target.value }))}
+                required
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
+              >
+                <option value="">— Sélectionner un lot —</option>
+                {lotOptions.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    Lot {l.numero_lot ?? "—"}
+                    {l.ilots?.numero ? ` · Îlot ${l.ilots.numero}` : ""}
+                    {l.ilots?.lotissements?.nom ? ` — ${l.ilots.lotissements.nom}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-700">Statut</label>
+              <select
+                value={aduForm.statut}
+                onChange={(e) => setAduForm((f) => ({ ...f, statut: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
+              >
+                {STATUT_ADU_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-700">Numéro ADU</label>
+              <input
+                type="text"
+                value={aduForm.adu_numero}
+                onChange={(e) => setAduForm((f) => ({ ...f, adu_numero: e.target.value }))}
+                placeholder="Ex. ADU-2026-001"
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-700">Date de dépôt</label>
+              <input
+                type="date"
+                value={aduForm.depose_le}
+                onChange={(e) => setAduForm((f) => ({ ...f, depose_le: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-700">Notes</label>
+              <textarea
+                rows={3}
+                value={aduForm.notes}
+                onChange={(e) => setAduForm((f) => ({ ...f, notes: e.target.value }))}
+                placeholder="Observations, documents manquants…"
+                className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-[#0D3B66] focus:outline-none"
+              />
+            </div>
+            {aduError && <div className="rounded-2xl border border-red-200/70 bg-red-50 px-3 py-2 text-sm text-red-700">{aduError}</div>}
+            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setShowAduCreate(false)} className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Annuler</button>
+              <button type="submit" disabled={aduSubmitting} className="rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E6091] disabled:opacity-70">
+                {aduSubmitting ? "Enregistrement…" : "Créer le dossier"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
     </div>
   );
 }
