@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   HandCoins,
   Sparkles,
+  Home,
 } from "lucide-react";
 import React from "react";
 import { useProfile } from "@/hooks/useProfile";
@@ -112,6 +113,12 @@ const navItems: SidebarNavItem[] = [
     href: "/dashboard/messages",
     icon: <MessageSquare className="w-4 h-4" />,
     // visible par tous : canal d'échange partagé entre l'agence et les profils
+  },
+  {
+    label: "Familles",
+    href: "/dashboard/familles",
+    icon: <Home className="w-4 h-4" />,
+    roles: [],
   },
   {
     label: "Invitations",
