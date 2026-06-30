@@ -171,10 +171,10 @@ export default function EspaceProprietairePage() {
       {/* En-tête */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-brand-primary">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-brand-primary">
             Espace Propriétaire{prenom && ` — ${prenom}`}
           </h1>
-          <p className="mt-1.5 text-sm text-slate-500">
+          <p className="mt-1.5 text-sm sm:text-base text-slate-500">
             Suivez vos lots, attestations, paiements et démarches foncières.
           </p>
         </div>

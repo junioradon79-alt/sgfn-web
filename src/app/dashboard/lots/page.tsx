@@ -669,8 +669,8 @@ export default function LotsPage() {
       {/* En-tête */}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-brand-primary">Gestion des Lots</h1>
-          <p className="mt-1.5 text-sm text-slate-500">Suivi, traçabilité et statut juridique des parcelles cadastrales enregistrées.</p>
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-brand-primary">Gestion des Lots</h1>
+          <p className="mt-1.5 text-sm sm:text-base text-slate-500">Suivi, traçabilité et statut juridique des parcelles cadastrales enregistrées.</p>
         </div>
         <button type="button" onClick={() => { setIsModalOpen(true); setErrorMessage(null); setSuccessMessage(null); }}
           className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:bg-[#1E6091] hover:shadow-md active:scale-[0.98]">

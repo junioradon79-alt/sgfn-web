@@ -187,13 +187,13 @@ export default function CommissairePage() {
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="font-display text-2xl font-bold text-brand-primary">Supervision du registre</h1>
+            <h1 className="font-display text-2xl sm:text-3xl font-bold text-brand-primary">Supervision du registre</h1>
             <span className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
               <ShieldCheck className="h-3 w-3" />
               Lecture seule
             </span>
           </div>
-          <p className="mt-1.5 text-sm text-slate-500">Contrôle et conformité — accès en consultation.</p>
+          <p className="mt-1.5 text-sm sm:text-base text-slate-500">Contrôle et conformité — accès en consultation.</p>
         </div>
         <Link
           href="/dashboard/messages"

@@ -466,8 +466,8 @@ export default function DocumentsPage() {
     <div className="space-y-6">
       {/* En-tête */}
       <div>
-        <h1 className="text-xl font-bold text-slate-800">Coffre-fort Documentaire</h1>
-        <p className="mt-0.5 text-sm text-slate-500">
+        <h1 className="text-2xl sm:text-3xl font-bold text-[#0D3B66]">Coffre-fort Documentaire</h1>
+        <p className="mt-1 text-sm sm:text-base text-slate-500">
           Attestations de cession, PV de famille et documents officiels.
         </p>
       </div>

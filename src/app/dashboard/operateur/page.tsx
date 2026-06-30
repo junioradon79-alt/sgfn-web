@@ -106,8 +106,8 @@ export default function OperateurPage() {
       {/* En-tête */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-brand-primary">Espace Opérateur</h1>
-          <p className="mt-1.5 text-sm text-slate-500">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-brand-primary">Espace Opérateur</h1>
+          <p className="mt-1.5 text-sm sm:text-base text-slate-500">
             Vos lotissements et vos lots en nature — les seuls que vous pouvez céder à des tiers.
           </p>
         </div>

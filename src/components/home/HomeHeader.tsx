@@ -81,42 +81,49 @@ export function HomeHeader() {
         </div>
       </header>
 
-      {/* Menu mobile — overlay */}
-      {open && (
-        <div className="lg:hidden fixed inset-0 z-40 flex flex-col">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/20 backdrop-blur-sm"
-            onClick={close}
-          />
+      {/* Menu mobile — overlay (toujours dans le DOM, masqué par CSS quand fermé) */}
+      <div
+        aria-hidden={!open}
+        className={`lg:hidden fixed inset-0 z-40 flex flex-col transition-opacity duration-200 ${
+          open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
+      >
+        {/* Backdrop */}
+        <div
+          className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+          onClick={close}
+        />
 
-          {/* Panel (en dessous du header) */}
-          <div className="relative mt-16 bg-white border-b border-slate-200 shadow-lg px-4 pt-4 pb-6">
-            <nav className="flex flex-col gap-1">
-              {navLinks.map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  onClick={close}
-                  className="flex items-center rounded-xl px-4 py-3.5 text-base font-semibold text-slate-700 transition hover:bg-[#0D3B66]/6 hover:text-[#0D3B66] active:scale-[0.98]"
-                >
-                  {l.label}
-                </Link>
-              ))}
-            </nav>
-
-            <div className="mt-4 pt-4 border-t border-slate-100">
+        {/* Panel (en dessous du header) */}
+        <div
+          className={`relative mt-16 bg-white border-b border-slate-200 shadow-xl px-4 pt-4 pb-6 transition-transform duration-200 ${
+            open ? "translate-y-0" : "-translate-y-2"
+          }`}
+        >
+          <nav className="flex flex-col gap-1">
+            {navLinks.map((l) => (
               <Link
-                href="/login"
+                key={l.href}
+                href={l.href}
                 onClick={close}
-                className="flex h-12 items-center justify-center rounded-2xl bg-[#0D3B66] text-sm font-bold text-white shadow-sm transition hover:bg-[#1E6091] active:scale-[0.98]"
+                className="flex items-center rounded-xl px-4 py-3.5 text-base font-semibold text-slate-700 transition hover:bg-[#0D3B66]/6 hover:text-[#0D3B66] active:scale-[0.98]"
               >
-                Ouvrir la plateforme
+                {l.label}
               </Link>
-            </div>
+            ))}
+          </nav>
+
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            <Link
+              href="/login"
+              onClick={close}
+              className="flex h-12 items-center justify-center rounded-2xl bg-[#0D3B66] text-sm font-bold text-white shadow-sm transition hover:bg-[#1E6091] active:scale-[0.98]"
+            >
+              Ouvrir la plateforme
+            </Link>
           </div>
         </div>
-      )}
+      </div>
     </>
   );
 }
