@@ -1,0 +1,32 @@
+{
+  "appId": "ci.sgfn.app",
+  "appName": "SGFN",
+  "webDir": "out",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "buildOptions": {
+      "keystorePath": "sgfn-release.jks",
+      "keystoreAlias": "sgfn"
+    },
+    "minWebViewVersion": 60,
+    "backgroundColor": "#ffffff"
+  },
+  "ios": {
+    "contentInset": "automatic"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#0D3B66",
+      "androidSpinnerStyle": "small",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "Dark",
+      "backgroundColor": "#0D3B66"
+    }
+  }
+}
