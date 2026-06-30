@@ -36,6 +36,8 @@ type PvRow = {
   date_reunion: string | null;
   valide_le: string | null;
   lieu: string | null;
+  document_id: string | null;
+  document: { url_fichier: string | null } | null;
   attributaires: { nom: string | null } | null;
 };
 
@@ -197,22 +199,18 @@ function AttestationsTab({ rows, dlState, onDownload }: {
                   {fmtDate(att.date_emission ?? att.cree_le)}
                 </td>
                 <td className="px-5 py-3.5 text-right">
-                  {att.statut === "generee" || att.statut === "delivree" ? (
-                    <button
-                      onClick={() => onDownload(att.reference)}
-                      disabled={dl === "loading"}
-                      title="Télécharger"
-                      className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
-                        dl === "error"
-                          ? "text-red-500"
-                          : "text-slate-400 hover:bg-slate-100 hover:text-[#0D3B66]"
-                      } disabled:opacity-50`}
-                    >
-                      <Download className={`h-4 w-4 ${dl === "loading" ? "animate-pulse" : ""}`} />
-                    </button>
-                  ) : (
-                    <span className="text-slate-300">—</span>
-                  )}
+                  <button
+                    onClick={() => onDownload(att.reference)}
+                    disabled={dl === "loading"}
+                    title="Télécharger"
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
+                      dl === "error"
+                        ? "text-red-500"
+                        : "text-slate-400 hover:bg-slate-100 hover:text-[#0D3B66]"
+                    } disabled:opacity-50`}
+                  >
+                    <Download className={`h-4 w-4 ${dl === "loading" ? "animate-pulse" : ""}`} />
+                  </button>
                 </td>
               </tr>
             );
@@ -245,32 +243,51 @@ function PvTab({ rows }: { rows: PvRow[] }) {
             <th className="px-5 py-3">Statut</th>
             <th className="px-5 py-3">Date réunion</th>
             <th className="px-5 py-3">Validé le</th>
+            <th className="px-5 py-3"></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {rows.map((pv) => (
-            <tr key={pv.id} className="transition hover:bg-slate-50/50">
-              <td className="px-5 py-3.5 font-mono text-xs font-semibold text-[#0D3B66]">
-                {pv.reference}
-              </td>
-              <td className="px-5 py-3.5 text-slate-800">
-                <p className="max-w-[260px] truncate">{pv.objet}</p>
-                {pv.lieu && (
-                  <p className="text-xs text-slate-400">{pv.lieu}</p>
-                )}
-              </td>
-              <td className="px-5 py-3.5 text-slate-600">
-                {pv.attributaires?.nom ?? "—"}
-              </td>
-              <td className="px-5 py-3.5">
-                <Badge status={PV_STATUT_BADGE[pv.statut] ?? "en_validation"}>
-                  {PV_STATUT_LABEL[pv.statut] ?? pv.statut}
-                </Badge>
-              </td>
-              <td className="px-5 py-3.5 text-slate-500">{fmtDate(pv.date_reunion)}</td>
-              <td className="px-5 py-3.5 text-slate-500">{fmtDate(pv.valide_le)}</td>
-            </tr>
-          ))}
+          {rows.map((pv) => {
+            const fileUrl = pv.document?.url_fichier ?? null;
+            return (
+              <tr key={pv.id} className="transition hover:bg-slate-50/50">
+                <td className="px-5 py-3.5 font-mono text-xs font-semibold text-[#0D3B66]">
+                  {pv.reference}
+                </td>
+                <td className="px-5 py-3.5 text-slate-800">
+                  <p className="max-w-[260px] truncate">{pv.objet}</p>
+                  {pv.lieu && (
+                    <p className="text-xs text-slate-400">{pv.lieu}</p>
+                  )}
+                </td>
+                <td className="px-5 py-3.5 text-slate-600">
+                  {pv.attributaires?.nom ?? "—"}
+                </td>
+                <td className="px-5 py-3.5">
+                  <Badge status={PV_STATUT_BADGE[pv.statut] ?? "en_validation"}>
+                    {PV_STATUT_LABEL[pv.statut] ?? pv.statut}
+                  </Badge>
+                </td>
+                <td className="px-5 py-3.5 text-slate-500">{fmtDate(pv.date_reunion)}</td>
+                <td className="px-5 py-3.5 text-slate-500">{fmtDate(pv.valide_le)}</td>
+                <td className="px-5 py-3.5 text-right">
+                  {fileUrl ? (
+                    <a
+                      href={fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Ouvrir le document"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[#0D3B66]"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  ) : (
+                    <span className="text-slate-300">—</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -393,7 +410,7 @@ export default function DocumentsPage() {
       supabase
         .from("pv_reunions_famille")
         .select(
-          "id, reference, objet, statut, date_reunion, valide_le, lieu, attributaires:attributaires!pv_reunions_famille_collectif_attributaire_id_fkey(nom)"
+          "id, reference, objet, statut, date_reunion, valide_le, lieu, document_id, document:documents!document_id(url_fichier), attributaires:attributaires!pv_reunions_famille_collectif_attributaire_id_fkey(nom)"
         )
         .order("cree_le", { ascending: false }),
       supabase
