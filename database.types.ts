@@ -1432,6 +1432,8 @@ export type Database = {
           famille_id: string | null
           guide_reference: string | null
           id: string
+          latitude: number | null
+          longitude: number | null
           nb_ilots: number | null
           nb_lots: number | null
           nom: string
@@ -1450,6 +1452,8 @@ export type Database = {
           famille_id?: string | null
           guide_reference?: string | null
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           nb_ilots?: number | null
           nb_lots?: number | null
           nom: string
@@ -1468,6 +1472,8 @@ export type Database = {
           famille_id?: string | null
           guide_reference?: string | null
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           nb_ilots?: number | null
           nb_lots?: number | null
           nom?: string

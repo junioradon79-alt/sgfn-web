@@ -23,6 +23,7 @@ import {
   ClipboardList,
   Crown,
   Handshake,
+  MapPinned,
 } from "lucide-react";
 import React from "react";
 import { useProfile } from "@/hooks/useProfile";
@@ -91,6 +92,13 @@ const navItems: SidebarNavItem[] = [
     href: "/dashboard/concertation",
     icon: <Handshake className="w-4 h-4" />,
     roles: ["chefferie", "proprietaire", "operateur"],
+    // admin voit aussi (pas de adminHide)
+  },
+  {
+    label: "Carte foncière",
+    href: "/dashboard/carte",
+    icon: <MapPinned className="w-4 h-4" />,
+    roles: ["geometre", "commissaire", "verificateur"],
     // admin voit aussi (pas de adminHide)
   },
   {
