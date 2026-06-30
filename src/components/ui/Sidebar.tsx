@@ -21,6 +21,8 @@ import {
   Sparkles,
   Home,
   ClipboardList,
+  Crown,
+  Handshake,
 } from "lucide-react";
 import React from "react";
 import { useProfile } from "@/hooks/useProfile";
@@ -30,11 +32,12 @@ interface SidebarNavItem {
   href: string;
   icon: React.ReactNode;
   /**
-   * Groupes autorisés à voir cet item (valeurs de l'enum `groupe_utilisateur`).
-   * Omis = visible par tous les utilisateurs connectés. `admin` voit tout dans tous les cas.
-   * ⚠️ Matrice de départ à ajuster selon les règles métier réelles.
+   * Groupes autorisés à voir cet item. Omis = visible par tous.
+   * `admin` voit tout SAUF les items marqués `adminHide: true`.
    */
   roles?: string[];
+  /** Masquer cet item pour l'admin (espaces dédiés aux autres rôles). */
+  adminHide?: boolean;
 }
 
 interface SidebarProps {
@@ -54,12 +57,14 @@ const navItems: SidebarNavItem[] = [
     href: "/dashboard/proprietaire",
     icon: <Landmark className="w-4 h-4" />,
     roles: ["proprietaire", "acquereur"],
+    adminHide: true,
   },
   {
     label: "Acquérir un lot",
     href: "/dashboard/acquisition",
     icon: <Compass className="w-4 h-4" />,
     roles: ["acquereur", "amenageur"],
+    adminHide: true,
   },
   {
     label: "Supervision",
@@ -72,6 +77,21 @@ const navItems: SidebarNavItem[] = [
     href: "/dashboard/operateur",
     icon: <HandCoins className="w-4 h-4" />,
     roles: ["operateur"],
+    adminHide: true,
+  },
+  {
+    label: "Espace Chefferie",
+    href: "/dashboard/chefferie",
+    icon: <Crown className="w-4 h-4" />,
+    roles: ["chefferie"],
+    adminHide: true,
+  },
+  {
+    label: "Concertation",
+    href: "/dashboard/concertation",
+    icon: <Handshake className="w-4 h-4" />,
+    roles: ["chefferie", "proprietaire", "operateur"],
+    // admin voit aussi (pas de adminHide)
   },
   {
     label: "Lotissements",
@@ -146,10 +166,9 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
   const { profile, loading } = useProfile();
   const groupe = profile?.groupe ?? null;
 
-  // Filtrage par rôle : l'admin voit tout ; pendant le chargement on affiche tout
-  // (évite un flash de menu vide) ; un item sans `roles` est visible par tous.
   const visibleItems = navItems.filter((item) => {
-    if (loading || !groupe || groupe === "admin") return true;
+    if (loading || !groupe) return true;
+    if (groupe === "admin") return !item.adminHide;
     if (!item.roles) return true;
     return item.roles.includes(groupe);
   });

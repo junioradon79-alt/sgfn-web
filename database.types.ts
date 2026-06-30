@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -184,6 +184,7 @@ export type Database = {
           cree_le: string
           cree_par: string | null
           email: string | null
+          famille_id: string | null
           id: string
           nom: string
           piece_nature: string | null
@@ -197,6 +198,7 @@ export type Database = {
           cree_le?: string
           cree_par?: string | null
           email?: string | null
+          famille_id?: string | null
           id?: string
           nom: string
           piece_nature?: string | null
@@ -210,6 +212,7 @@ export type Database = {
           cree_le?: string
           cree_par?: string | null
           email?: string | null
+          famille_id?: string | null
           id?: string
           nom?: string
           piece_nature?: string | null
@@ -224,6 +227,13 @@ export type Database = {
             columns: ["cree_par"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attributaires_famille_id_fkey"
+            columns: ["famille_id"]
+            isOneToOne: false
+            referencedRelation: "familles"
             referencedColumns: ["id"]
           },
         ]
@@ -607,6 +617,54 @@ export type Database = {
           },
         ]
       }
+      conversation_documents: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          nom_fichier: string
+          storage_path: string
+          taille_octets: number | null
+          type_mime: string | null
+          uploaded_by: string | null
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          nom_fichier: string
+          storage_path: string
+          taille_octets?: number | null
+          type_mime?: string | null
+          uploaded_by?: string | null
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          nom_fichier?: string
+          storage_path?: string
+          taille_octets?: number | null
+          type_mime?: string | null
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_documents_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           cree_le: string
@@ -615,7 +673,9 @@ export type Database = {
           id: string
           litige_id: string | null
           lot_id: string | null
+          lotissement_id: string | null
           sujet: string | null
+          type: string
         }
         Insert: {
           cree_le?: string
@@ -624,7 +684,9 @@ export type Database = {
           id?: string
           litige_id?: string | null
           lot_id?: string | null
+          lotissement_id?: string | null
           sujet?: string | null
+          type?: string
         }
         Update: {
           cree_le?: string
@@ -633,7 +695,9 @@ export type Database = {
           id?: string
           litige_id?: string | null
           lot_id?: string | null
+          lotissement_id?: string | null
           sujet?: string | null
+          type?: string
         }
         Relationships: [
           {
@@ -662,6 +726,13 @@ export type Database = {
             columns: ["lot_id"]
             isOneToOne: false
             referencedRelation: "lots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_lotissement_id_fkey"
+            columns: ["lotissement_id"]
+            isOneToOne: false
+            referencedRelation: "lotissements"
             referencedColumns: ["id"]
           },
         ]
@@ -1040,35 +1111,69 @@ export type Database = {
       }
       familles: {
         Row: {
+          attributaire_id: string | null
           chef_de_famille: string | null
           chef_profile_id: string | null
           contact: string | null
+          grande_famille_id: string | null
           id: string
-          lignee: string | null
+          lignee_id: string | null
           nom: string
         }
         Insert: {
+          attributaire_id?: string | null
           chef_de_famille?: string | null
           chef_profile_id?: string | null
           contact?: string | null
+          grande_famille_id?: string | null
           id?: string
-          lignee?: string | null
+          lignee_id?: string | null
           nom: string
         }
         Update: {
+          attributaire_id?: string | null
           chef_de_famille?: string | null
           chef_profile_id?: string | null
           contact?: string | null
+          grande_famille_id?: string | null
           id?: string
-          lignee?: string | null
+          lignee_id?: string | null
           nom?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "familles_attributaire_id_fkey"
+            columns: ["attributaire_id"]
+            isOneToOne: false
+            referencedRelation: "attributaires"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "familles_attributaire_id_fkey"
+            columns: ["attributaire_id"]
+            isOneToOne: false
+            referencedRelation: "v_collectifs_pv_manquant"
+            referencedColumns: ["collectif_id"]
+          },
           {
             foreignKeyName: "familles_chef_profile_id_fkey"
             columns: ["chef_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "familles_grande_famille_id_fkey"
+            columns: ["grande_famille_id"]
+            isOneToOne: false
+            referencedRelation: "grandes_familles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "familles_lignee_id_fkey"
+            columns: ["lignee_id"]
+            isOneToOne: false
+            referencedRelation: "familles"
             referencedColumns: ["id"]
           },
         ]
@@ -1094,6 +1199,30 @@ export type Database = {
           id?: string
           nom?: string
           numero_ordre?: string | null
+        }
+        Relationships: []
+      }
+      grandes_familles: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          nom: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          nom: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          nom?: string
+          updated_at?: string
         }
         Relationships: []
       }

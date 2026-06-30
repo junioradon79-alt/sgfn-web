@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Building2, ChevronRight, FileText, Gavel, Loader2, Plus, ReceiptText, Rows3, Users, X } from "lucide-react";
+import { Building2, ChevronRight, FileText, Gavel, Loader2, MessageSquare, Plus, ReceiptText, Rows3, Users, X } from "lucide-react";
 import SGFNStatCard from "@/components/dashboard/SGFNStatCard";
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/utils/supabase/client";
@@ -21,7 +21,7 @@ const ROLE_HOME: Record<string, string> = {
   operateur: "/dashboard/operateur",
   commissaire: "/dashboard/commissaire",
   verificateur: "/dashboard/commissaire",
-  chefferie: "/dashboard/messages",
+  chefferie: "/dashboard/chefferie",
 };
 
 type AuditLog = {
@@ -231,6 +231,13 @@ export default function DashboardPage() {
                 Vue en temps réel de votre gouvernance foncière numérique.
               </p>
             </div>
+            <Link
+              href="/dashboard/messages"
+              className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091]"
+            >
+              <MessageSquare className="h-4 w-4" />
+              Nouveau message
+            </Link>
           </div>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
