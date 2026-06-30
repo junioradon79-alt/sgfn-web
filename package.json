@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build && node scripts/create-out.js",
+    "deploy": "npm run build && powershell -ExecutionPolicy Bypass -File scripts/make-zip.ps1",
     "start": "next start",
     "lint": "eslint"
   },

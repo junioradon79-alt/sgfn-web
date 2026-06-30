@@ -16,14 +16,19 @@ function copyDir(src, dest) {
   }
 }
 
+// Dossiers internes Next.js à ignorer — inutiles en export statique
+const SKIP_DIRS = new Set(["page"]);
+const SKIP_SUFFIX = [".segments"];
+
 function copyHtml(srcDir, destDir) {
-  fs.mkdirSync(destDir, { recursive: true });
   for (const item of fs.readdirSync(srcDir)) {
     const s = path.join(srcDir, item);
-    const d = path.join(destDir, item);
     if (fs.statSync(s).isDirectory()) {
-      copyHtml(s, d);
+      // Ignorer les dossiers .segments et /page
+      if (SKIP_DIRS.has(item) || SKIP_SUFFIX.some((sfx) => item.endsWith(sfx))) continue;
+      copyHtml(s, path.join(destDir, item));
     } else if (item.endsWith(".html") && item !== "_global-error.html") {
+      fs.mkdirSync(destDir, { recursive: true });
       const destName = item === "_not-found.html" ? "404.html" : item;
       fs.copyFileSync(s, path.join(destDir, destName));
     }

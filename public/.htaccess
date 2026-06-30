@@ -2,22 +2,30 @@ Options -Indexes
 DirectoryIndex index.html
 ErrorDocument 404 /404.html
 
+# MIME types explicites pour les assets
+AddType text/css .css
+AddType application/javascript .js
+AddType application/json .json
+AddType image/svg+xml .svg
+AddType font/woff2 .woff2
+
+# Autoriser explicitement l'accès aux fichiers (contourne un éventuel
+# blocage des chemins commençant par underscore, ex. _next/)
+<IfModule mod_authz_core.c>
+  Require all granted
+</IfModule>
+
 RewriteEngine On
+RewriteBase /
 
-# 1. Assets Next.js — servir directement sans aucune réécriture
-RewriteRule ^_next/ - [L]
-
-# 2. Fichiers réels — servir directement
-RewriteCond %{REQUEST_FILENAME} -f
-RewriteRule ^ - [L]
-
-# 3. Pages Next.js : /route et /route/ → route.html (priorité sur les dossiers homonymes)
-RewriteCond %{DOCUMENT_ROOT}/$1.html -f
-RewriteRule ^(.*?)/?$ /$1.html [L]
-
-# 4. Dossiers réels (racine, images/, etc.)
+# 1. Fichiers et dossiers réels (inclut _next/) — servis directement
+RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
-# 5. Tout le reste → 404
+# 2. Pages Next.js : /route et /route/ → route.html
+RewriteCond %{DOCUMENT_ROOT}/$1.html -f
+RewriteRule ^(.*?)/?$ /$1.html [L]
+
+# 3. Tout le reste → 404
 RewriteRule ^ /404.html [L]
