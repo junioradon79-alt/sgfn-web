@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/utils/supabase/client";
 import {
-  Banknote, CheckCircle2, Clock, CreditCard, Plus, Receipt, ShieldCheck, TrendingUp, X,
+  Banknote, CheckCircle2, Clock, CreditCard, Download, Plus, Receipt, ShieldCheck, TrendingUp, X,
 } from "lucide-react";
 import {
   MOYEN_OPTIONS, MOYEN_LABELS, STATUT_CONFIG, TYPE_OPTIONS, fcfa, isMoyenManuel, labelTypePaiement,
@@ -22,6 +22,7 @@ type PaiementRecord = {
   cree_le: string | null;
   acquereur_id: string | null;
   reference_externe: string | null;
+  reference: string | null;
   echeance_id: string | null;
   vente_id: string | null;
   attributaires?: { nom: string | null } | null;
@@ -412,6 +413,7 @@ export default function PaiementsPage() {
   const [payingId, setPayingId] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
   const [validatingId, setValidatingId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [vue, setVue] = useState<"registre" | "a_valider">("registre");
 
   const canCreate = groupe === "admin" || groupe === "operateur";
@@ -421,7 +423,7 @@ export default function PaiementsPage() {
     setDataLoading(true);
     const { data } = await supabase
       .from("paiements")
-      .select("id, type, montant_total, commission_sgfn, beneficiaire, moyen, statut, cree_le, acquereur_id, reference_externe, echeance_id, vente_id, attributaires(nom), ventes(type_vente)")
+      .select("id, type, montant_total, commission_sgfn, beneficiaire, moyen, statut, cree_le, acquereur_id, reference_externe, reference, echeance_id, vente_id, attributaires(nom), ventes(type_vente)")
       .order("cree_le", { ascending: false });
     setPaiements((data ?? []) as unknown as PaiementRecord[]);
     setDataLoading(false);
@@ -478,6 +480,32 @@ export default function PaiementsPage() {
     });
     if (!error) await loadPaiements();
     setValidatingId(null);
+  };
+
+  const handleTelechargerRecu = async (p: PaiementRecord) => {
+    if (!p.reference) return;
+    setDownloadingId(p.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/telecharger-document`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token ?? ""}`,
+          },
+          body: JSON.stringify({ table: "paiements", reference: p.reference }),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok || !json.url) throw new Error(json.erreur || "Erreur");
+      window.open(json.url, "_blank");
+    } catch {
+      setPayError("Le reçu n'est pas encore disponible pour ce paiement.");
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
   const confirmes = paiements.filter((p) => p.statut === "confirme");
@@ -668,6 +696,17 @@ export default function PaiementsPage() {
                           >
                             <CheckCircle2 className="h-3.5 w-3.5" />
                             {validatingId === p.id ? "…" : "Valider"}
+                          </button>
+                        )}
+                        {vue === "registre" && p.statut === "confirme" && p.reference && (
+                          <button
+                            onClick={() => void handleTelechargerRecu(p)}
+                            disabled={downloadingId === p.id}
+                            title="Télécharger le reçu"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            {downloadingId === p.id ? "…" : "Reçu"}
                           </button>
                         )}
                       </td>

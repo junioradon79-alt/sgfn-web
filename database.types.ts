@@ -1742,6 +1742,7 @@ export type Database = {
           montant_reverse: number | null
           montant_total: number
           moyen: Database["public"]["Enums"]["moyen_paiement"] | null
+          reference: string | null
           reference_externe: string | null
           statut: Database["public"]["Enums"]["statut_paiement"]
           type: Database["public"]["Enums"]["type_paiement"]
@@ -1762,6 +1763,7 @@ export type Database = {
           montant_reverse?: number | null
           montant_total: number
           moyen?: Database["public"]["Enums"]["moyen_paiement"] | null
+          reference?: string | null
           reference_externe?: string | null
           statut?: Database["public"]["Enums"]["statut_paiement"]
           type?: Database["public"]["Enums"]["type_paiement"]
@@ -1782,6 +1784,7 @@ export type Database = {
           montant_reverse?: number | null
           montant_total?: number
           moyen?: Database["public"]["Enums"]["moyen_paiement"] | null
+          reference?: string | null
           reference_externe?: string | null
           statut?: Database["public"]["Enums"]["statut_paiement"]
           type?: Database["public"]["Enums"]["type_paiement"]
