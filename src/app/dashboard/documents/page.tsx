@@ -10,7 +10,12 @@ import {
   FileText,
   ExternalLink,
   Hash,
+  QrCode,
+  X,
+  Copy,
+  Check,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -134,10 +139,11 @@ function SigDots({ proprietaire, operateur, chefferie }: { proprietaire: string 
 
 // ─── Onglets Attestations ─────────────────────────────────────────────────────
 
-function AttestationsTab({ rows, dlState, onDownload }: {
+function AttestationsTab({ rows, dlState, onDownload, onShowQr }: {
   rows: AttestationRow[];
   dlState: DlState;
   onDownload: (ref: string) => void;
+  onShowQr: (att: AttestationRow) => void;
 }) {
   if (rows.length === 0) {
     return (
@@ -199,6 +205,16 @@ function AttestationsTab({ rows, dlState, onDownload }: {
                   {fmtDate(att.date_emission ?? att.cree_le)}
                 </td>
                 <td className="px-5 py-3.5 text-right">
+                  <div className="flex items-center justify-end gap-1">
+                  {att.qr_token && (
+                    <button
+                      onClick={() => onShowQr(att)}
+                      title="QR code de vérification"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[#0D3B66]"
+                    >
+                      <QrCode className="h-4 w-4" />
+                    </button>
+                  )}
                   <button
                     onClick={() => onDownload(att.reference)}
                     disabled={dl === "loading"}
@@ -211,6 +227,7 @@ function AttestationsTab({ rows, dlState, onDownload }: {
                   >
                     <Download className={`h-4 w-4 ${dl === "loading" ? "animate-pulse" : ""}`} />
                   </button>
+                  </div>
                 </td>
               </tr>
             );
@@ -385,6 +402,63 @@ function DocumentsTab({ rows }: { rows: DocumentRow[] }) {
   );
 }
 
+// ─── Modale QR code ───────────────────────────────────────────────────────────
+
+function QrModal({ att, onClose }: { att: AttestationRow; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const urlVerification = `${window.location.origin}/verifier/?ref=${att.qr_token}`;
+
+  const copier = async () => {
+    try {
+      await navigator.clipboard.writeText(urlVerification);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* clipboard indisponible */ }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between">
+          <div className="text-left">
+            <p className="text-sm font-semibold text-[#0D3B66]">QR code de vérification</p>
+            <p className="mt-0.5 font-mono text-xs text-slate-500">{att.reference}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 flex justify-center rounded-xl border border-slate-200 bg-white p-5">
+          <QRCodeSVG value={urlVerification} size={220} level="M" includeMargin={false} />
+        </div>
+
+        <p className="mt-4 text-xs leading-relaxed text-slate-500">
+          Ce QR code figure sur le document imprimé. Tout scan mène à la page
+          publique de vérification SGFN et est journalisé côté serveur.
+        </p>
+
+        <button
+          onClick={copier}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1E6091]"
+        >
+          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          {copied ? "Lien copié" : "Copier le lien de vérification"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page principale ──────────────────────────────────────────────────────────
 
 type Tab = "attestations" | "pv" | "documents";
@@ -397,6 +471,7 @@ export default function DocumentsPage() {
   const [docs, setDocs] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dlState, setDlState] = useState<DlState>({});
+  const [qrAtt, setQrAtt] = useState<AttestationRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -529,13 +604,15 @@ export default function DocumentsPage() {
             Chargement…
           </div>
         ) : activeTab === "attestations" ? (
-          <AttestationsTab rows={attestations} dlState={dlState} onDownload={telecharger} />
+          <AttestationsTab rows={attestations} dlState={dlState} onDownload={telecharger} onShowQr={setQrAtt} />
         ) : activeTab === "pv" ? (
           <PvTab rows={pvs} />
         ) : (
           <DocumentsTab rows={docs} />
         )}
       </div>
+
+      {qrAtt && <QrModal att={qrAtt} onClose={() => setQrAtt(null)} />}
     </div>
   );
 }

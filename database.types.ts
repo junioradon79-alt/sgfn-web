@@ -587,36 +587,6 @@ export type Database = {
           },
         ]
       }
-      conversation_participants: {
-        Row: {
-          conversation_id: string
-          profile_id: string
-        }
-        Insert: {
-          conversation_id: string
-          profile_id: string
-        }
-        Update: {
-          conversation_id?: string
-          profile_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "conversation_participants_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "conversation_participants_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       conversation_documents: {
         Row: {
           conversation_id: string
@@ -659,6 +629,36 @@ export type Database = {
           {
             foreignKeyName: "conversation_documents_uploaded_by_fkey"
             columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_participants: {
+        Row: {
+          conversation_id: string
+          profile_id: string
+        }
+        Insert: {
+          conversation_id: string
+          profile_id: string
+        }
+        Update: {
+          conversation_id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_participants_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_participants_profile_id_fkey"
+            columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1226,6 +1226,39 @@ export type Database = {
         }
         Relationships: []
       }
+      grille_commissions: {
+        Row: {
+          actif: boolean
+          cree_le: string
+          id: string
+          mode: string
+          montant_max: number | null
+          montant_min: number
+          type_paiement: Database["public"]["Enums"]["type_paiement"] | null
+          valeur: number
+        }
+        Insert: {
+          actif?: boolean
+          cree_le?: string
+          id?: string
+          mode: string
+          montant_max?: number | null
+          montant_min?: number
+          type_paiement?: Database["public"]["Enums"]["type_paiement"] | null
+          valeur: number
+        }
+        Update: {
+          actif?: boolean
+          cree_le?: string
+          id?: string
+          mode?: string
+          montant_max?: number | null
+          montant_min?: number
+          type_paiement?: Database["public"]["Enums"]["type_paiement"] | null
+          valeur?: number
+        }
+        Relationships: []
+      }
       ilots: {
         Row: {
           id: string
@@ -1712,6 +1745,8 @@ export type Database = {
           reference_externe: string | null
           statut: Database["public"]["Enums"]["statut_paiement"]
           type: Database["public"]["Enums"]["type_paiement"]
+          valide_le: string | null
+          valide_par: string | null
           vente_id: string | null
         }
         Insert: {
@@ -1730,6 +1765,8 @@ export type Database = {
           reference_externe?: string | null
           statut?: Database["public"]["Enums"]["statut_paiement"]
           type?: Database["public"]["Enums"]["type_paiement"]
+          valide_le?: string | null
+          valide_par?: string | null
           vente_id?: string | null
         }
         Update: {
@@ -1748,6 +1785,8 @@ export type Database = {
           reference_externe?: string | null
           statut?: Database["public"]["Enums"]["statut_paiement"]
           type?: Database["public"]["Enums"]["type_paiement"]
+          valide_le?: string | null
+          valide_par?: string | null
           vente_id?: string | null
         }
         Relationships: [
@@ -1787,6 +1826,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "paiements_valide_par_fkey"
+            columns: ["valide_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "paiements_vente_id_fkey"
             columns: ["vente_id"]
             isOneToOne: false
@@ -1794,6 +1840,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      parametres_paiement: {
+        Row: {
+          cle: string
+          description: string | null
+          valeur: string
+        }
+        Insert: {
+          cle: string
+          description?: string | null
+          valeur: string
+        }
+        Update: {
+          cle?: string
+          description?: string | null
+          valeur?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -2140,6 +2204,42 @@ export type Database = {
           },
         ]
       }
+      scans_qr: {
+        Row: {
+          id: string
+          ip: unknown
+          latitude: number | null
+          longitude: number | null
+          reference_saisie: string
+          resultat: string
+          scanne_le: string
+          type_document: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          id?: string
+          ip?: unknown
+          latitude?: number | null
+          longitude?: number | null
+          reference_saisie: string
+          resultat: string
+          scanne_le?: string
+          type_document?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          id?: string
+          ip?: unknown
+          latitude?: number | null
+          longitude?: number | null
+          reference_saisie?: string
+          resultat?: string
+          scanne_le?: string
+          type_document?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       transaction_parties: {
         Row: {
           attributaire_id: string
@@ -2443,6 +2543,10 @@ export type Database = {
         Returns: string
       }
       marquer_echeances_en_retard: { Args: never; Returns: undefined }
+      marquer_paiement_recu: {
+        Args: { p_paiement_id: string; p_reference_externe?: string }
+        Returns: undefined
+      }
       mon_attributaire_id: { Args: never; Returns: string }
       mon_commissaire_id: { Args: never; Returns: string }
       mon_groupe: {
@@ -2464,6 +2568,10 @@ export type Database = {
         Returns: boolean
       }
       valider_invitation: { Args: { p_code: string }; Returns: Json }
+      valider_paiement_manuel: {
+        Args: { p_paiement_id: string; p_validateur: string }
+        Returns: undefined
+      }
       verifier_attestation: { Args: { p_ref: string }; Returns: Json }
       verifier_document: { Args: { p_ref: string }; Returns: Json }
     }
@@ -2534,7 +2642,13 @@ export type Database = {
         | "occupe"
         | "vendu"
         | "en_litige"
-      statut_paiement: "en_attente" | "confirme" | "echoue" | "rembourse"
+      statut_paiement:
+        | "en_attente"
+        | "confirme"
+        | "echoue"
+        | "rembourse"
+        | "initie"
+        | "en_attente_validation"
       statut_pv_famille: "a_fournir" | "fourni" | "valide" | "rejete"
       statut_vente: "en_cours" | "soldee" | "annulee"
       type_attributaire:
@@ -2791,7 +2905,14 @@ export const Constants = {
         "vendu",
         "en_litige",
       ],
-      statut_paiement: ["en_attente", "confirme", "echoue", "rembourse"],
+      statut_paiement: [
+        "en_attente",
+        "confirme",
+        "echoue",
+        "rembourse",
+        "initie",
+        "en_attente_validation",
+      ],
       statut_pv_famille: ["a_fournir", "fourni", "valide", "rejete"],
       statut_vente: ["en_cours", "soldee", "annulee"],
       type_attributaire: [
