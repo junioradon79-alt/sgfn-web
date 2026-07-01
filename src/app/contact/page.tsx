@@ -1,12 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { metiers } from "../metiers-partenaires/page";
 
 type FormState = "idle" | "sending" | "success" | "error";
 
-export default function ContactPage() {
+function ContactForm() {
+  const searchParams = useSearchParams();
   const [formState, setFormState] = useState<FormState>("idle");
+
+  const profil = searchParams.get("profil");
+  const metier = useMemo(() => metiers.find((m) => m.slug === profil) ?? null, [profil]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -53,7 +59,9 @@ export default function ContactPage() {
               Contactez SGFN
             </h1>
             <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-slate-600">
-              Une question sur la plateforme, un besoin d&apos;assistance technique ou une demande de démonstration administrative ?
+              {metier
+                ? `Vous êtes ${metier.nom.toLowerCase()} ? Décrivez votre besoin, notre équipe revient vers vous rapidement.`
+                : "Une question sur la plateforme, un besoin d'assistance technique ou une demande de démonstration administrative ?"}
             </p>
           </div>
 
@@ -87,6 +95,7 @@ export default function ContactPage() {
                   name="institution"
                   type="text"
                   placeholder="Institution / Qualité"
+                  defaultValue={metier?.nom ?? ""}
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#0D3B66] focus:ring-2 focus:ring-[#0D3B66]/10"
                 />
               </div>
@@ -109,6 +118,7 @@ export default function ContactPage() {
                 name="message"
                 rows={6}
                 placeholder="Votre message…"
+                defaultValue={metier ? `Bonjour, je suis intéressé(e) par SGFN en tant que ${metier.nom.toLowerCase()}. ` : ""}
                 required
                 className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#0D3B66] focus:ring-2 focus:ring-[#0D3B66]/10"
               />
@@ -136,5 +146,13 @@ export default function ContactPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function ContactPage() {
+  return (
+    <Suspense fallback={null}>
+      <ContactForm />
+    </Suspense>
   );
 }
