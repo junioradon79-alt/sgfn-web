@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Building2, ChevronRight, FileText, Gavel, Loader2, MessageSquare, Plus, ReceiptText, Rows3, Users, X } from "lucide-react";
@@ -8,6 +8,8 @@ import SGFNStatCard from "@/components/dashboard/SGFNStatCard";
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
+import { MOYEN_LABELS, STATUT_CONFIG, fcfa, labelTypePaiement } from "@/lib/paiements";
+import type { Database } from "../../../database.types";
 
 /**
  * Routage par rôle : à l'arrivée sur /dashboard, chaque groupe est redirigé vers
@@ -46,7 +48,23 @@ type DossierAdu = {
   acd_reference?: string | null;
 };
 
+type PaiementSnapshot = {
+  id: string;
+  type: string | null;
+  montant_total: number | null;
+  commission_sgfn: number | null;
+  beneficiaire: string | null;
+  moyen: string | null;
+  statut: string | null;
+  cree_le: string | null;
+  reference_externe: string | null;
+  attributaires?: { nom: string | null } | null;
+  ventes?: { type_vente: string | null } | null;
+};
+
 type LotOption = { id: string; numero_lot: string | null; ilots?: { numero: string | null; lotissements?: { nom: string | null } | null } | null };
+type DossierAduInsert = Database["public"]["Tables"]["dossiers_adu"]["Insert"];
+type StatutAdu = Database["public"]["Enums"]["statut_dossier_adu"];
 
 const STATUT_ADU_LABELS: Record<string, string> = {
   en_preparation: "En préparation",
@@ -65,7 +83,7 @@ type LotStatut = { statut: string };
 export default function DashboardPage() {
   const router = useRouter();
   const { profile, loading: profileLoading } = useProfile();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   // Cible de redirection selon le rôle (null = reste sur le dashboard admin).
   const redirectTo =
@@ -78,13 +96,20 @@ export default function DashboardPage() {
   const [counts, setCounts] = useState({ lots: 0, attributaires: 0, ilots: 0, paiements: 0, litiges: 0 });
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [dossiersAdu, setDossiersAdu] = useState<DossierAdu[]>([]);
+  const [transactions, setTransactions] = useState<PaiementSnapshot[]>([]);
   const [repartition, setRepartition] = useState({ disponibles: 0, attribues: 0, enLitige: 0, total: 0 });
   const [dataLoading, setDataLoading] = useState(true);
   const [userGroup, setUserGroup] = useState<string | null>(null);
   const [selectedAudit, setSelectedAudit] = useState<AuditLog | null>(null);
   const [showAduCreate, setShowAduCreate] = useState(false);
   const [lotOptions, setLotOptions] = useState<LotOption[]>([]);
-  const [aduForm, setAduForm] = useState({ lot_id: "", statut: "en_preparation", adu_numero: "", depose_le: "", notes: "" });
+  const [aduForm, setAduForm] = useState<{
+    lot_id: string;
+    statut: StatutAdu;
+    adu_numero: string;
+    depose_le: string;
+    notes: string;
+  }>({ lot_id: "", statut: "en_preparation", adu_numero: "", depose_le: "", notes: "" });
   const [aduSubmitting, setAduSubmitting] = useState(false);
   const [aduError, setAduError] = useState<string | null>(null);
 
@@ -120,6 +145,7 @@ export default function DashboardPage() {
         aduRes,
         ilotsRes,
         statutsRes,
+        transactionsRes,
       ] = await Promise.all([
         lotsQuery,
         supabase.from("attributaires").select("*", { count: "exact", head: true }),
@@ -129,6 +155,10 @@ export default function DashboardPage() {
         supabase.from("dossiers_adu").select("id, lot_id, adu_numero, statut, depose_le, notes, adu_date, acd_reference").order("cree_le", { ascending: false }).limit(5),
         supabase.from("ilots").select("*", { count: "exact", head: true }),
         lotsStatusQuery,
+        supabase
+          .from("paiements")
+          .select("id, type, montant_total, commission_sgfn, beneficiaire, moyen, statut, cree_le, reference_externe, attributaires(nom), ventes(type_vente)")
+          .order("cree_le", { ascending: false }),
       ]);
 
       setCounts({
@@ -140,6 +170,7 @@ export default function DashboardPage() {
       });
       setAuditLogs((auditRes.data ?? []) as unknown as AuditLog[]);
       setDossiersAdu((aduRes.data ?? []) as DossierAdu[]);
+      setTransactions((transactionsRes.data ?? []) as unknown as PaiementSnapshot[]);
 
       const all = (statutsRes.data ?? []) as LotStatut[];
       const disponibles = all.filter((l) => l.statut === "libre" || l.statut === "reserve_equipement").length;
@@ -149,7 +180,7 @@ export default function DashboardPage() {
 
       setDataLoading(false);
     })();
-  }, [profileLoading, redirectTo]);
+  }, [profileLoading, redirectTo, supabase]);
 
   const statCards = [
     { title: "Lots", value: counts.lots, icon: Building2, color: "text-[#0D3B66]", subtitle: "Parcelles enregistrées", href: "/dashboard/lots" },
@@ -175,14 +206,15 @@ export default function DashboardPage() {
     setAduSubmitting(true);
     setAduError(null);
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await (supabase.from("dossiers_adu") as any).insert([{
+    const payload: DossierAduInsert = {
       lot_id: aduForm.lot_id,
       statut: aduForm.statut,
       adu_numero: aduForm.adu_numero.trim() || null,
       depose_le: aduForm.depose_le || null,
       notes: aduForm.notes.trim() || null,
       cree_par: user?.id ?? null,
-    }]);
+    };
+    const { error } = await supabase.from("dossiers_adu").insert([payload]);
     setAduSubmitting(false);
     if (error) { setAduError(error.message); return; }
     setShowAduCreate(false);
@@ -205,6 +237,10 @@ export default function DashboardPage() {
   }
 
   const pct = (n: number) => repartition.total > 0 ? Math.round((n / repartition.total) * 100) : 0;
+  const transactionsConfirmees = transactions.filter((p) => p.statut === "confirme");
+  const totalTransactions = transactionsConfirmees.reduce((sum, p) => sum + (p.montant_total ?? 0), 0);
+  const totalCommissions = transactionsConfirmees.reduce((sum, p) => sum + (p.commission_sgfn ?? 0), 0);
+  const transactionsEnAttente = transactions.filter((p) => p.statut === "en_attente" || p.statut === "en_attente_validation").length;
 
   const prenom = profile?.nom_complet?.split(" ")[0] ?? "utilisateur";
   const heroTitle = profileLoading
@@ -258,6 +294,105 @@ export default function DashboardPage() {
             ))}
           </div>
 
+          <div className="mt-8 rounded-2xl border border-slate-200/60 bg-white p-5 shadow-sm sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
+                  Transactions
+                </p>
+                <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">
+                  Vue financière en lecture seule
+                </h2>
+              </div>
+              <Link
+                href="/dashboard/paiements"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+              >
+                Registre complet
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {[
+                { label: "Total confirmé", value: fcfa(totalTransactions) },
+                { label: "Commission SGFN", value: fcfa(totalCommissions) },
+                { label: "À suivre", value: String(transactionsEnAttente) },
+              ].map((item) => (
+                <div key={item.label} className="rounded-xl bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{item.label}</p>
+                  <p className="mt-1 text-lg font-bold tabular-nums text-[#0D3B66]">
+                    {dataLoading ? "…" : item.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 max-h-[460px] overflow-auto">
+              <table className="w-full min-w-[760px] border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-slate-200/70">
+                    {["Réf.", "Bénéficiaire", "Cas", "Montant", "Moyen", "Statut", "Date"].map((header) => (
+                      <th key={header} className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {dataLoading ? (
+                    <tr>
+                      <td colSpan={7} className="px-3 py-6 text-center text-sm text-slate-500">
+                        Chargement des transactions…
+                      </td>
+                    </tr>
+                  ) : transactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-3 py-6 text-center text-sm text-slate-500">
+                        Aucune transaction enregistrée.
+                      </td>
+                    </tr>
+                  ) : (
+                    transactions.map((paiement) => {
+                      const cfg = STATUT_CONFIG[paiement.statut ?? "en_attente"] ?? STATUT_CONFIG.en_attente;
+                      return (
+                        <tr key={paiement.id} className="hover:bg-slate-50/70">
+                          <td className="px-3 py-3 font-mono text-xs font-medium text-[#0D3B66]">
+                            {paiement.id.slice(0, 8).toUpperCase()}
+                          </td>
+                          <td className="max-w-[170px] truncate px-3 py-3 text-sm text-slate-700">
+                            {paiement.beneficiaire || paiement.attributaires?.nom || "—"}
+                          </td>
+                          <td className="px-3 py-3 text-sm text-slate-600">
+                            {labelTypePaiement(paiement.type, paiement.ventes?.type_vente)}
+                          </td>
+                          <td className="px-3 py-3 text-sm font-semibold tabular-nums text-slate-800">
+                            {fcfa(paiement.montant_total)}
+                          </td>
+                          <td className="px-3 py-3 text-sm text-slate-600">
+                            {MOYEN_LABELS[paiement.moyen ?? ""] ?? paiement.moyen ?? "—"}
+                          </td>
+                          <td className="px-3 py-3">
+                            <Badge status={cfg.badge}>{cfg.label}</Badge>
+                          </td>
+                          <td className="px-3 py-3 text-sm text-slate-500">
+                            {paiement.cree_le
+                              ? new Date(paiement.cree_le).toLocaleDateString("fr-FR", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })
+                              : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
             {/* Répartition du Parcellaire */}
             <div className="rounded-2xl border border-slate-200/60 bg-white p-6 shadow-sm">
@@ -296,7 +431,7 @@ export default function DashboardPage() {
                 Indice de conformité et de traçabilité
               </p>
               <p className="mt-3 text-sm leading-relaxed text-slate-500">
-                Zéro anomalie détectée. 100% des parcelles et PV de familles disposent d'un ancrage d'audit immuable.
+                Zéro anomalie détectée. 100% des parcelles et PV de familles disposent d&apos;un ancrage d&apos;audit immuable.
               </p>
             </div>
 
@@ -332,7 +467,7 @@ export default function DashboardPage() {
                   Audit temps réel
                 </p>
                 <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">
-                  Journal d'audit opérationnel
+                  Journal d&apos;audit opérationnel
                 </h2>
               </div>
             </div>
@@ -358,7 +493,7 @@ export default function DashboardPage() {
                       <span className="shrink-0 text-xs font-medium text-slate-400">
                         {entry.effectue_le
                           ? new Date(entry.effectue_le).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
-                          : "À l'instant"}
+                          : "À l&apos;instant"}
                       </span>
                     </div>
                   </button>
@@ -454,7 +589,7 @@ export default function DashboardPage() {
         <div className="w-full max-w-xl overflow-y-auto rounded-[1.75rem] border border-slate-200/70 bg-white shadow-2xl" style={{ maxHeight: "90vh" }}>
           <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Journal d'audit</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Journal d&apos;audit</p>
               <h2 className="mt-1 text-lg font-semibold text-[#0D3B66]">{selectedAudit.action ?? "Événement"}</h2>
             </div>
             <button type="button" onClick={() => setSelectedAudit(null)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100">
@@ -532,7 +667,7 @@ export default function DashboardPage() {
               <label className="text-sm font-medium text-slate-700">Statut</label>
               <select
                 value={aduForm.statut}
-                onChange={(e) => setAduForm((f) => ({ ...f, statut: e.target.value }))}
+                onChange={(e) => setAduForm((f) => ({ ...f, statut: e.target.value as StatutAdu }))}
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
               >
                 {STATUT_ADU_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}

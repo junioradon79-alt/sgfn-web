@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Banknote,
+  CreditCard,
   Download,
   FileCheck2,
   Landmark,
@@ -68,6 +69,8 @@ type PaiementRow = {
   statut: string | null;
   moyen: string | null;
   cree_le: string | null;
+  cession_id: string | null;
+  acquereur_id: string | null;
 };
 
 type DemarcheRow = {
@@ -77,6 +80,7 @@ type DemarcheRow = {
   description: string | null;
   ouverte_le: string | null;
   terminee_le: string | null;
+  montant_honoraires: number | null;
 };
 
 const fmtDate = (d: string | null) =>
@@ -97,6 +101,8 @@ export default function EspaceProprietairePage() {
   const [demarches, setDemarches] = useState<DemarcheRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dlState, setDlState] = useState<Record<string, "idle" | "loading" | "error">>({});
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -112,11 +118,11 @@ export default function EspaceProprietairePage() {
           .select("reference, statut, date_emission, lot_id, cession_id"),
         supabase
           .from("paiements")
-          .select("id, montant_total, statut, moyen, cree_le")
+          .select("id, montant_total, statut, moyen, cree_le, cession_id, acquereur_id")
           .order("cree_le", { ascending: false }),
         supabase
           .from("demarches")
-          .select("id, type, statut, description, ouverte_le, terminee_le")
+          .select("id, type, statut, description, ouverte_le, terminee_le, montant_honoraires")
           .order("ouverte_le", { ascending: false }),
       ]);
 
@@ -153,6 +159,26 @@ export default function EspaceProprietairePage() {
       setDlState((s) => ({ ...s, [reference]: "error" }));
       setTimeout(() => setDlState((s) => ({ ...s, [reference]: "idle" })), 2500);
     }
+  };
+
+  const handlePayer = async (p: PaiementRow) => {
+    setPayingId(p.id);
+    setPayError(null);
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { setPayingId(null); return; }
+
+    const res = await supabase.functions.invoke("initier-paiement", {
+      body: { paiement_id: p.id },
+    });
+
+    if (res.error || res.data?.error) {
+      setPayError(res.data?.error ?? "Erreur lors de l'initialisation du paiement.");
+      setPayingId(null);
+      return;
+    }
+
+    window.location.assign(res.data.payment_url);
   };
 
   const nbAttDelivrees = attestations.filter((a) => a.statut === "delivree").length;
@@ -264,6 +290,10 @@ export default function EspaceProprietairePage() {
           <ul className="divide-y divide-slate-100">
             {attestations.map((a) => {
               const state = dlState[a.reference] ?? "idle";
+              const paiementLie = a.cession_id
+                ? paiements.find((p) => p.cession_id === a.cession_id)
+                : null;
+              const paiementRequis = !!a.cession_id && paiementLie?.statut !== "confirme";
               return (
                 <li key={a.reference} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
                   <Badge status={a.statut === "delivree" ? "attribue" : "en_validation"}>
@@ -271,9 +301,11 @@ export default function EspaceProprietairePage() {
                   </Badge>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-800">{a.reference}</p>
-                    {!a.cession_id && (
+                    {!a.cession_id ? (
                       <p className="text-xs text-slate-400">gratuite — 1er ayant-droit</p>
-                    )}
+                    ) : paiementRequis ? (
+                      <p className="text-xs font-medium text-[#F39C12]">Paiement requis — voir « Mes paiements »</p>
+                    ) : null}
                   </div>
                   <span className="ml-auto text-xs text-slate-400">{fmtDate(a.date_emission)}</span>
                   <button
@@ -296,6 +328,9 @@ export default function EspaceProprietairePage() {
 
       {/* Mes paiements */}
       <Section title="Mes paiements" hint={`${paiements.length} versement(s) enregistré(s)`}>
+        {payError && (
+          <p className="border-b border-red-100 bg-red-50 px-5 py-2.5 text-xs text-red-700">{payError}</p>
+        )}
         {loading ? (
           <Empty>Chargement…</Empty>
         ) : paiements.length === 0 ? (
@@ -305,18 +340,32 @@ export default function EspaceProprietairePage() {
           </Empty>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {paiements.map((p) => (
-              <li key={p.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
-                <Banknote className="h-4 w-4 text-[#2D8F5A]" />
-                <span className="text-sm font-semibold tabular-nums text-slate-800">{fcfa(p.montant_total)}</span>
-                <span className="text-xs text-slate-400">{p.moyen ?? "—"} · {fmtDate(p.cree_le)}</span>
-                <span className="ml-auto">
-                  <Badge status={p.statut === "confirme" ? "attribue" : "en_validation"}>
-                    {p.statut ?? "—"}
-                  </Badge>
-                </span>
-              </li>
-            ))}
+            {paiements.map((p) => {
+              const canPay = p.statut === "en_attente" && p.acquereur_id === profile?.attributaire_id;
+              return (
+                <li key={p.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
+                  <Banknote className="h-4 w-4 text-[#2D8F5A]" />
+                  <span className="text-sm font-semibold tabular-nums text-slate-800">{fcfa(p.montant_total)}</span>
+                  <span className="text-xs text-slate-400">{p.moyen ?? "—"} · {fmtDate(p.cree_le)}</span>
+                  <span className="ml-auto flex items-center gap-2">
+                    <Badge status={p.statut === "confirme" ? "attribue" : "en_validation"}>
+                      {p.statut ?? "—"}
+                    </Badge>
+                    {canPay && (
+                      <button
+                        type="button"
+                        onClick={() => void handlePayer(p)}
+                        disabled={payingId === p.id}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#0D3B66] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1E6091] disabled:opacity-60"
+                      >
+                        <CreditCard className="h-3.5 w-3.5" />
+                        {payingId === p.id ? "…" : "Payer"}
+                      </button>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </Section>
@@ -336,7 +385,10 @@ export default function EspaceProprietairePage() {
                     {d.type ?? "Démarche"}
                     {d.description && <span className="text-slate-500"> — {d.description}</span>}
                   </p>
-                  <p className="text-xs text-slate-400">ouverte le {fmtDate(d.ouverte_le)}</p>
+                  <p className="text-xs text-slate-400">
+                    ouverte le {fmtDate(d.ouverte_le)}
+                    {d.montant_honoraires != null && ` · honoraires ${fcfa(d.montant_honoraires)}`}
+                  </p>
                 </div>
                 <span className="ml-auto">
                   <Badge status={d.terminee_le ? "attribue" : "en_validation"}>

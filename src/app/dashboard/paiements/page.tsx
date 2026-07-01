@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/utils/supabase/client";
 import {
-  Banknote, Clock, CreditCard, Plus, Receipt, TrendingUp, X,
+  Banknote, CheckCircle2, Clock, CreditCard, Plus, Receipt, ShieldCheck, TrendingUp, X,
 } from "lucide-react";
+import {
+  MOYEN_OPTIONS, MOYEN_LABELS, STATUT_CONFIG, TYPE_OPTIONS, fcfa, isMoyenManuel, labelTypePaiement,
+  type TypePaiement,
+} from "@/lib/paiements";
 
 type PaiementRecord = {
   id: string;
@@ -18,42 +22,32 @@ type PaiementRecord = {
   cree_le: string | null;
   acquereur_id: string | null;
   reference_externe: string | null;
+  echeance_id: string | null;
+  vente_id: string | null;
   attributaires?: { nom: string | null } | null;
+  ventes?: { type_vente: string | null } | null;
 };
 
 type Groupe = "admin" | "operateur" | "acquereur" | "verificateur" | "geometre" | "commissaire" | "amenageur" | "chefferie" | "proprietaire" | "agent_ia";
 
-const STATUT_CONFIG: Record<string, { badge: "disponible" | "attribue" | "en_validation" | "litige"; label: string }> = {
-  confirme:   { badge: "attribue",     label: "Confirmé" },
-  en_attente: { badge: "en_validation", label: "En attente" },
-  echoue:     { badge: "litige",       label: "Échoué" },
-  rembourse:  { badge: "disponible",   label: "Remboursé" },
-};
-
-const TYPE_OPTIONS = [
-  { value: "attestation_cession", label: "Attestation de cession" },
-  { value: "honoraires",          label: "Honoraires géomètre" },
-  { value: "vente_terrain",       label: "Vente terrain" },
-  { value: "autre",               label: "Autre" },
-];
-
-const MOYEN_OPTIONS = [
-  { value: "wave",         label: "Wave" },
-  { value: "orange_money", label: "Orange Money" },
-  { value: "mtn_money",    label: "MTN Money" },
-  { value: "moov_money",   label: "Moov Money" },
-  { value: "virement",     label: "Virement bancaire" },
-  { value: "especes",      label: "Espèces" },
-  { value: "autre",        label: "Autre" },
-];
-
-const TYPE_LABELS: Record<string, string> = Object.fromEntries(TYPE_OPTIONS.map((o) => [o.value, o.label]));
-const MOYEN_LABELS: Record<string, string> = Object.fromEntries(MOYEN_OPTIONS.map((o) => [o.value, o.label]));
-
 const TABLE_HEADERS = ["Réf.", "Bénéficiaire", "Type", "Montant", "Moyen", "Statut", "Date", ""] as const;
 
-const fcfa = (n: number | null) =>
-  `${new Intl.NumberFormat("fr-FR").format(Math.round(n ?? 0))} FCFA`;
+// ── Sélecteurs liés par type de paiement ────────────────────────────────────
+
+type AttestationOption = {
+  id: string; reference: string; statut: string | null; cession_id: string | null;
+  acquereur_id: string; attributaires: { nom: string | null } | null;
+};
+type DemarcheOption = {
+  id: string; type: string | null; description: string | null; montant_honoraires: number | null;
+  attributaire_id: string | null; attributaires: { nom: string | null } | null;
+};
+type VenteOption = {
+  id: string; lot_id: string; prix_total: number; solde: number | null; type_vente: string | null;
+  acquereur_id: string; attributaires: { nom: string | null } | null;
+};
+type EcheanceOption = { id: string; numero: number; montant_du: number; date_echeance: string };
+type AttributaireOption = { id: string; nom: string };
 
 // ── Modale Nouveau Paiement ──────────────────────────────────────────────────
 
@@ -63,37 +57,160 @@ type NouveauPaiementModalProps = {
 };
 
 function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps) {
-  const supabase = createClient();
-  const [form, setForm] = useState({
-    type: "attestation_cession",
-    montant_total: "",
-    commission_sgfn: "10000",
-    beneficiaire: "",
-    moyen: "especes",
-  });
+  const supabase = useMemo(() => createClient(), []);
+  const [type, setType] = useState<TypePaiement>("attestation_cession");
+  const [beneficiaire, setBeneficiaire] = useState("");
+  const [montant, setMontant] = useState("");
+  const [moyen, setMoyen] = useState("especes");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
+  const [attestations, setAttestations] = useState<AttestationOption[]>([]);
+  const [demarches, setDemarches] = useState<DemarcheOption[]>([]);
+  const [ventes, setVentes] = useState<VenteOption[]>([]);
+  const [echeances, setEcheances] = useState<EcheanceOption[]>([]);
+  const [attributaires, setAttributaires] = useState<AttributaireOption[]>([]);
+
+  const [attestationId, setAttestationId] = useState("");
+  const [demarcheId, setDemarcheId] = useState("");
+  const [venteId, setVenteId] = useState("");
+  const [echeanceId, setEcheanceId] = useState("");
+  const [autreAttributaireId, setAutreAttributaireId] = useState("");
+
+  // Charger les options liées selon le type sélectionné
+  useEffect(() => {
+    const load = async () => {
+      setErr("");
+      if (type === "attestation_cession") {
+        const { data } = await supabase
+          .from("attestations_cession")
+          .select("id, reference, statut, cession_id, acquereur_id, attributaires(nom)")
+          .neq("statut", "delivree");
+        setAttestations((data ?? []) as unknown as AttestationOption[]);
+      } else if (type === "honoraires") {
+        const { data } = await supabase
+          .from("demarches")
+          .select("id, type, description, montant_honoraires, attributaire_id, attributaires(nom)")
+          .is("terminee_le", null)
+          .not("montant_honoraires", "is", null);
+        setDemarches((data ?? []) as unknown as DemarcheOption[]);
+      } else if (type === "vente_terrain") {
+        const { data } = await supabase
+          .from("ventes")
+          .select("id, lot_id, prix_total, solde, type_vente, acquereur_id, attributaires(nom)")
+          .eq("statut", "en_cours");
+        setVentes((data ?? []) as unknown as VenteOption[]);
+      } else if (type === "autre") {
+        const { data } = await supabase
+          .from("attributaires")
+          .select("id, nom")
+          .order("nom", { ascending: true });
+        setAttributaires((data ?? []) as AttributaireOption[]);
+      }
+    };
+    void load();
+  }, [supabase, type]);
+
+  const venteChoisie = ventes.find((v) => v.id === venteId);
+
+  // Charger les échéances impayées de la vente choisie (vente échelonnée)
+  useEffect(() => {
+    const load = async () => {
+      setEcheanceId("");
+      setEcheances([]);
+      if (venteChoisie?.type_vente === "echelonne") {
+        const { data } = await supabase
+          .from("echeances")
+          .select("id, numero, montant_du, date_echeance")
+          .eq("vente_id", venteChoisie.id)
+          .neq("statut", "payee")
+          .order("numero");
+        setEcheances((data ?? []) as EcheanceOption[]);
+      }
+    };
+    void load();
+  }, [supabase, venteChoisie?.id, venteChoisie?.type_vente]);
+
+  // Pré-remplir bénéficiaire / montant quand la sélection change
+  useEffect(() => {
+    const run = () => {
+      if (type === "attestation_cession") {
+        const a = attestations.find((x) => x.id === attestationId);
+        setBeneficiaire(a?.attributaires?.nom ?? "");
+      } else if (type === "honoraires") {
+        const d = demarches.find((x) => x.id === demarcheId);
+        setBeneficiaire(d?.attributaires?.nom ?? "");
+        setMontant(d?.montant_honoraires != null ? String(d.montant_honoraires) : "");
+      } else if (type === "vente_terrain") {
+        setBeneficiaire(venteChoisie?.attributaires?.nom ?? "");
+        const echeance = echeances.find((e) => e.id === echeanceId);
+        if (venteChoisie?.type_vente === "echelonne") {
+          setMontant(echeance ? String(echeance.montant_du) : "");
+        } else {
+          setMontant(venteChoisie ? String(venteChoisie.solde ?? venteChoisie.prix_total) : "");
+        }
+      } else if (type === "autre") {
+        const a = attributaires.find((x) => x.id === autreAttributaireId);
+        setBeneficiaire(a?.nom ?? "");
+      }
+    };
+    run();
+  }, [
+    attestationId,
+    attestations,
+    autreAttributaireId,
+    attributaires,
+    demarcheId,
+    demarches,
+    echeanceId,
+    echeances,
+    type,
+    venteChoisie,
+  ]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
     setErr("");
 
-    const montant = parseFloat(form.montant_total);
-    if (isNaN(montant) || montant <= 0) {
+    const montantNum = parseFloat(montant);
+    if (isNaN(montantNum) || montantNum <= 0) {
       setErr("Montant invalide.");
-      setSaving(false);
       return;
     }
 
-    const { error } = await supabase.from("paiements").insert({
-      type: form.type as never,
-      montant_total: montant,
-      commission_sgfn: parseFloat(form.commission_sgfn) || 10000,
-      beneficiaire: form.beneficiaire || null,
-      moyen: form.moyen as never,
-      statut: "en_attente",
-    });
+    const payload: Record<string, unknown> = {
+      type,
+      montant_total: montantNum,
+      beneficiaire: beneficiaire || null,
+      moyen,
+      statut: isMoyenManuel(moyen) ? "en_attente_validation" : "en_attente",
+    };
+
+    if (type === "attestation_cession") {
+      const a = attestations.find((x) => x.id === attestationId);
+      if (!a) { setErr("Sélectionnez une attestation."); return; }
+      payload.cession_id = a.cession_id;
+      payload.acquereur_id = a.acquereur_id;
+    } else if (type === "honoraires") {
+      const d = demarches.find((x) => x.id === demarcheId);
+      if (!d) { setErr("Sélectionnez une démarche."); return; }
+      payload.demarche_id = d.id;
+      payload.acquereur_id = d.attributaire_id;
+    } else if (type === "vente_terrain") {
+      if (!venteChoisie) { setErr("Sélectionnez une vente."); return; }
+      payload.vente_id = venteChoisie.id;
+      payload.acquereur_id = venteChoisie.acquereur_id;
+      if (venteChoisie.type_vente === "echelonne") {
+        if (!echeanceId) { setErr("Sélectionnez une échéance."); return; }
+        payload.echeance_id = echeanceId;
+      }
+    } else if (type === "autre") {
+      if (!autreAttributaireId) { setErr("Sélectionnez un attributaire."); return; }
+      payload.acquereur_id = autreAttributaireId;
+    }
+
+    setSaving(true);
+    const { error } = await supabase.from("paiements").insert(payload as never);
 
     if (error) {
       setErr("Erreur lors de la création : " + error.message);
@@ -104,24 +221,6 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
     onCreated();
     onClose();
   };
-
-  const field = (
-    label: string,
-    key: keyof typeof form,
-    type: string = "text",
-    placeholder?: string
-  ) => (
-    <div>
-      <label className="mb-1 block text-xs font-medium text-slate-600">{label}</label>
-      <input
-        type={type}
-        value={form[key]}
-        onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-        placeholder={placeholder}
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
-      />
-    </div>
-  );
 
   return (
     <div
@@ -137,12 +236,11 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 px-6 py-5">
-          {/* Type */}
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">Type</label>
             <select
-              value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
+              value={type}
+              onChange={(e) => setType(e.target.value as TypePaiement)}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
             >
               {TYPE_OPTIONS.map((o) => (
@@ -151,16 +249,123 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
             </select>
           </div>
 
-          {field("Montant total (FCFA)", "montant_total", "number", "Ex : 250000")}
-          {field("Commission SGFN (FCFA)", "commission_sgfn", "number", "10000")}
-          {field("Bénéficiaire", "beneficiaire", "text", "Nom complet")}
+          {type === "attestation_cession" && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Attestation de cession</label>
+              <select
+                value={attestationId}
+                onChange={(e) => setAttestationId(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
+              >
+                <option value="">— Sélectionner —</option>
+                {attestations.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.reference} — {a.attributaires?.nom ?? "?"} ({a.statut})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          {/* Moyen */}
+          {type === "honoraires" && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Démarche concernée</label>
+              <select
+                value={demarcheId}
+                onChange={(e) => setDemarcheId(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
+              >
+                <option value="">— Sélectionner —</option>
+                {demarches.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.type ?? "Démarche"} — {d.attributaires?.nom ?? "?"} ({fcfa(d.montant_honoraires)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {type === "vente_terrain" && (
+            <>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Vente</label>
+                <select
+                  value={venteId}
+                  onChange={(e) => setVenteId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
+                >
+                  <option value="">— Sélectionner —</option>
+                  {ventes.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.attributaires?.nom ?? "?"} — {fcfa(v.prix_total)} ({v.type_vente})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {venteChoisie?.type_vente === "echelonne" && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Échéance</label>
+                  <select
+                    value={echeanceId}
+                    onChange={(e) => setEcheanceId(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
+                  >
+                    <option value="">— Sélectionner —</option>
+                    {echeances.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        Échéance {e.numero} — {fcfa(e.montant_du)} (due le {e.date_echeance})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </>
+          )}
+
+          {type === "autre" && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Attributaire concerné</label>
+              <select
+                value={autreAttributaireId}
+                onChange={(e) => setAutreAttributaireId(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
+              >
+                <option value="">— Sélectionner —</option>
+                {attributaires.map((a) => (
+                  <option key={a.id} value={a.id}>{a.nom}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Montant total (FCFA)</label>
+            <input
+              type="number"
+              value={montant}
+              onChange={(e) => setMontant(e.target.value)}
+              readOnly={type === "honoraires" || (type === "vente_terrain" && !!venteChoisie)}
+              placeholder="Ex : 250000"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 read-only:bg-slate-50 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Bénéficiaire</label>
+            <input
+              type="text"
+              value={beneficiaire}
+              onChange={(e) => setBeneficiaire(e.target.value)}
+              placeholder="Nom complet"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
+            />
+          </div>
+
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">Moyen de paiement</label>
             <select
-              value={form.moyen}
-              onChange={(e) => setForm((f) => ({ ...f, moyen: e.target.value }))}
+              value={moyen}
+              onChange={(e) => setMoyen(e.target.value)}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
             >
               {MOYEN_OPTIONS.map((o) => (
@@ -196,27 +401,31 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
 // ── Page principale ──────────────────────────────────────────────────────────
 
 export default function PaiementsPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [paiements, setPaiements] = useState<PaiementRecord[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentAttributaireId, setCurrentAttributaireId] = useState<string | null>(null);
   const [groupe, setGroupe] = useState<Groupe | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
+  const [validatingId, setValidatingId] = useState<string | null>(null);
+  const [vue, setVue] = useState<"registre" | "a_valider">("registre");
 
   const canCreate = groupe === "admin" || groupe === "operateur";
+  const isAdmin = groupe === "admin";
 
-  const loadPaiements = async () => {
+  const loadPaiements = useCallback(async () => {
     setDataLoading(true);
     const { data } = await supabase
       .from("paiements")
-      .select("id, type, montant_total, commission_sgfn, beneficiaire, moyen, statut, cree_le, acquereur_id, reference_externe, attributaires(nom)")
+      .select("id, type, montant_total, commission_sgfn, beneficiaire, moyen, statut, cree_le, acquereur_id, reference_externe, echeance_id, vente_id, attributaires(nom), ventes(type_vente)")
       .order("cree_le", { ascending: false });
     setPaiements((data ?? []) as unknown as PaiementRecord[]);
     setDataLoading(false);
-  };
+  }, [supabase]);
 
   useEffect(() => {
     const init = async () => {
@@ -226,15 +435,18 @@ export default function PaiementsPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("groupe")
+        .select("groupe, attributaire_id")
         .eq("id", user.id)
         .single();
-      if (profile) setGroupe(profile.groupe as Groupe);
+      if (profile) {
+        setGroupe(profile.groupe as Groupe);
+        setCurrentAttributaireId(profile.attributaire_id);
+      }
 
       await loadPaiements();
     };
     void init();
-  }, []);
+  }, [loadPaiements, supabase]);
 
   const handlePayer = async (p: PaiementRecord) => {
     setPayingId(p.id);
@@ -254,13 +466,27 @@ export default function PaiementsPage() {
     }
 
     // Redirection vers CinetPay
-    window.location.href = res.data.payment_url;
+    window.location.assign(res.data.payment_url);
+  };
+
+  const handleValider = async (p: PaiementRecord) => {
+    if (!currentUserId) return;
+    setValidatingId(p.id);
+    const { error } = await supabase.rpc("valider_paiement_manuel", {
+      p_paiement_id: p.id,
+      p_validateur: currentUserId,
+    });
+    if (!error) await loadPaiements();
+    setValidatingId(null);
   };
 
   const confirmes = paiements.filter((p) => p.statut === "confirme");
   const totalEncaisse = confirmes.reduce((s, p) => s + (p.montant_total ?? 0), 0);
   const totalCommission = confirmes.reduce((s, p) => s + (p.commission_sgfn ?? 0), 0);
   const enAttente = paiements.filter((p) => p.statut === "en_attente").length;
+  const aValider = paiements.filter((p) => p.statut === "en_attente_validation");
+
+  const paiementsAffiches = vue === "a_valider" ? aValider : paiements;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -296,6 +522,24 @@ export default function PaiementsPage() {
         )}
       </div>
 
+      {isAdmin && (
+        <div className="mb-5 flex gap-2">
+          <button
+            onClick={() => setVue("registre")}
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${vue === "registre" ? "bg-[#0D3B66] text-white" : "bg-white text-slate-600 border border-slate-200"}`}
+          >
+            Registre
+          </button>
+          <button
+            onClick={() => setVue("a_valider")}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${vue === "a_valider" ? "bg-[#0D3B66] text-white" : "bg-white text-slate-600 border border-slate-200"}`}
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            À valider {aValider.length > 0 && `(${aValider.length})`}
+          </button>
+        </div>
+      )}
+
       {payError && (
         <div className="mb-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <X className="h-4 w-4 shrink-0" />
@@ -307,31 +551,33 @@ export default function PaiementsPage() {
       )}
 
       {/* KPI */}
-      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {[
-          { label: "Total encaissé",       value: fcfa(totalEncaisse),    icon: <Banknote   className="h-4 w-4 text-[#2D8F5A]" /> },
-          { label: "Commission SGFN",      value: fcfa(totalCommission),  icon: <TrendingUp className="h-4 w-4 text-[#0D3B66]" /> },
-          { label: "Paiements en attente", value: String(enAttente),      icon: <Clock      className="h-4 w-4 text-[#F39C12]" /> },
-        ].map((metric) => (
-          <div key={metric.label} className="rounded-xl border border-slate-200/60 bg-white px-5 py-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{metric.label}</p>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F8FAFC]">
-                {metric.icon}
+      {vue === "registre" && (
+        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {[
+            { label: "Total encaissé",       value: fcfa(totalEncaisse),    icon: <Banknote   className="h-4 w-4 text-[#2D8F5A]" /> },
+            { label: "Commission SGFN",      value: fcfa(totalCommission),  icon: <TrendingUp className="h-4 w-4 text-[#0D3B66]" /> },
+            { label: "Paiements en attente", value: String(enAttente),      icon: <Clock      className="h-4 w-4 text-[#F39C12]" /> },
+          ].map((metric) => (
+            <div key={metric.label} className="rounded-xl border border-slate-200/60 bg-white px-5 py-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{metric.label}</p>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F8FAFC]">
+                  {metric.icon}
+                </div>
               </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-[#0D3B66]">
+                {dataLoading ? "…" : metric.value}
+              </p>
             </div>
-            <p className="mt-2 text-2xl font-bold tabular-nums text-[#0D3B66]">
-              {dataLoading ? "…" : metric.value}
-            </p>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Tableau */}
       <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white">
         <div className="border-b border-slate-200/60 bg-slate-50/50 px-5 py-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Registre des transactions
+            {vue === "a_valider" ? "Paiements en attente de validation manuelle" : "Registre des transactions"}
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -356,21 +602,23 @@ export default function PaiementsPage() {
                     Chargement des paiements…
                   </td>
                 </tr>
-              ) : paiements.length === 0 ? (
+              ) : paiementsAffiches.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-500">
                     <div className="flex flex-col items-center gap-2">
                       <Receipt className="h-6 w-6 text-slate-300" />
-                      Aucun paiement enregistré.
+                      {vue === "a_valider" ? "Aucun paiement à valider." : "Aucun paiement enregistré."}
                     </div>
                   </td>
                 </tr>
               ) : (
-                paiements.map((p) => {
+                paiementsAffiches.map((p) => {
                   const cfg = STATUT_CONFIG[p.statut ?? "en_attente"] ?? STATUT_CONFIG.en_attente;
                   const canPay =
+                    vue === "registre" &&
                     p.statut === "en_attente" &&
-                    (p.acquereur_id === currentUserId || groupe === "admin" || groupe === "operateur");
+                    !isMoyenManuel(p.moyen) &&
+                    p.acquereur_id === currentAttributaireId;
 
                   return (
                     <tr key={p.id} className="transition-colors hover:bg-slate-50/60">
@@ -381,7 +629,7 @@ export default function PaiementsPage() {
                         {p.beneficiaire || (p.attributaires as { nom: string | null } | null)?.nom || "—"}
                       </td>
                       <td className="px-5 py-4 text-sm text-slate-600">
-                        {TYPE_LABELS[p.type ?? ""] ?? p.type ?? "—"}
+                        {labelTypePaiement(p.type, p.ventes?.type_vente)}
                       </td>
                       <td className="px-5 py-4 text-sm font-semibold tabular-nums text-slate-800">
                         {fcfa(p.montant_total)}
@@ -410,6 +658,16 @@ export default function PaiementsPage() {
                           >
                             <CreditCard className="h-3.5 w-3.5" />
                             {payingId === p.id ? "…" : "Payer"}
+                          </button>
+                        )}
+                        {vue === "a_valider" && (
+                          <button
+                            onClick={() => void handleValider(p)}
+                            disabled={validatingId === p.id}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#2D8F5A] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#256b48] disabled:opacity-60"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            {validatingId === p.id ? "…" : "Valider"}
                           </button>
                         )}
                       </td>

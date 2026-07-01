@@ -1,24 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { CheckCircle2, XCircle, Clock, ArrowLeft, RefreshCw } from "lucide-react";
+import { TYPE_LABELS, fcfa } from "@/lib/paiements";
 
 type Statut = "en_attente" | "confirme" | "echoue" | "rembourse" | null;
 
 export default function RetourPaiementPage() {
   const params = useSearchParams();
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [statut, setStatut] = useState<Statut>(null);
   const [montant, setMontant] = useState<number | null>(null);
   const [type, setType] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const txRef = params.get("transaction_id");
+  const [loading, setLoading] = useState(() => Boolean(txRef));
   const [attempts, setAttempts] = useState(0);
 
-  const checkStatut = async (txRef: string) => {
+  const checkStatut = useCallback(async (txRef: string) => {
     const { data } = await supabase
       .from("paiements")
       .select("statut, montant_total, type")
@@ -33,16 +35,11 @@ export default function RetourPaiementPage() {
       return data.statut;
     }
     return null;
-  };
+  }, [supabase]);
 
   useEffect(() => {
-    const txRef = params.get("transaction_id");
-    if (!txRef) {
-      setLoading(false);
-      return;
-    }
+    if (!txRef) return;
 
-    let interval: ReturnType<typeof setInterval>;
     let count = 0;
 
     const poll = async () => {
@@ -56,20 +53,10 @@ export default function RetourPaiementPage() {
       }
     };
 
+    const interval = setInterval(poll, 2000);
     void poll();
-    interval = setInterval(poll, 2000);
     return () => clearInterval(interval);
-  }, []);
-
-  const TYPE_LABELS: Record<string, string> = {
-    attestation_cession: "Attestation de cession",
-    honoraires: "Honoraires géomètre",
-    vente_terrain: "Vente terrain",
-    autre: "Paiement SGFN",
-  };
-
-  const fcfa = (n: number | null) =>
-    `${new Intl.NumberFormat("fr-FR").format(Math.round(n ?? 0))} FCFA`;
+  }, [checkStatut, txRef]);
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center px-4">
