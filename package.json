@@ -8,7 +8,7 @@
     "deploy": "npm run build && powershell -ExecutionPolicy Bypass -File scripts/make-zip.ps1",
     "start": "next start",
     "lint": "eslint",
-    "build:mobile": "next build && node scripts/create-out.js && npx cap sync android",
+    "build:mobile": "next build && npx cap sync android",
     "cap:sync": "npx cap sync android",
     "cap:open": "npx cap open android"
   },

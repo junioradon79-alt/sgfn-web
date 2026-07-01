@@ -22,6 +22,12 @@
 
 # deploy archives (artefacts de build, ne pas versionner)
 sgfn-deploy.*
+src.zip
+
+# android (signing key + IDE/build artefacts, jamais versionnés)
+android/*.jks
+android/.idea/
+android/app/release/
 
 # misc
 .DS_Store

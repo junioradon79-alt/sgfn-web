@@ -18,14 +18,21 @@ AddType font/woff2 .woff2
 RewriteEngine On
 RewriteBase /
 
-# 1. Fichiers et dossiers réels (inclut _next/) — servis directement
-RewriteCond %{REQUEST_FILENAME} -f [OR]
-RewriteCond %{REQUEST_FILENAME} -d
+# 1. Fichiers réels (_next/, images, etc.) — servis directement
+RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
 
-# 2. Pages Next.js : /route et /route/ → route.html
+# 2. Pages Next.js : /route ou /route/ → route.html
 RewriteCond %{DOCUMENT_ROOT}/$1.html -f
 RewriteRule ^(.*?)/?$ /$1.html [L]
 
-# 3. Tout le reste → 404
+# 3. Pages Next.js (trailingSlash) : /route/ → route/index.html
+RewriteCond %{DOCUMENT_ROOT}/$1/index.html -f
+RewriteRule ^(.*?)/?$ /$1/index.html [L]
+
+# 4. Dossiers réels (_next/, etc.) — servis directement
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# 5. Tout le reste → 404
 RewriteRule ^ /404.html [L]

@@ -87,7 +87,7 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
     }
 
     const { error } = await supabase.from("paiements").insert({
-      type: form.type,
+      type: form.type as never,
       montant_total: montant,
       commission_sgfn: parseFloat(form.commission_sgfn) || 10000,
       beneficiaire: form.beneficiaire || null,

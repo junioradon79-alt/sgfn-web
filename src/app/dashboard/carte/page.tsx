@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import {
   Map, MapPin, MapPinOff, Search, Loader2, AlertTriangle,
-  Building2, Boxes, Maximize2, CheckCircle2,
+  Building2, Boxes, Maximize2, CheckCircle2, List,
 } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import type { LotissementGeo } from "./_CarteMap";
@@ -30,6 +30,7 @@ export default function CartePage() {
   const [isAdmin, setIsAdmin]           = useState(false);
   const [saving, setSaving]             = useState(false);
   const [saveMsg, setSaveMsg]           = useState<string | null>(null);
+  const [mobileTab, setMobileTab]       = useState<"liste" | "carte">("carte");
 
   // Charger lotissements + rôle
   useEffect(() => {
@@ -80,10 +81,26 @@ export default function CartePage() {
   const selected      = lotissements.find((l) => l.id === selectedId) ?? null;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
+    <div className="flex h-[calc(100vh-4rem)] flex-col overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm lg:flex-row">
+
+      {/* ── Onglets mobile ── */}
+      <div className="flex shrink-0 border-b border-slate-100 lg:hidden">
+        <button
+          onClick={() => setMobileTab("carte")}
+          className={`flex flex-1 items-center justify-center gap-2 py-2.5 text-sm font-semibold transition ${mobileTab === "carte" ? "border-b-2 border-[#0D3B66] text-[#0D3B66]" : "text-slate-400"}`}
+        >
+          <Map className="h-4 w-4" /> Carte
+        </button>
+        <button
+          onClick={() => setMobileTab("liste")}
+          className={`flex flex-1 items-center justify-center gap-2 py-2.5 text-sm font-semibold transition ${mobileTab === "liste" ? "border-b-2 border-[#0D3B66] text-[#0D3B66]" : "text-slate-400"}`}
+        >
+          <List className="h-4 w-4" /> Liste
+        </button>
+      </div>
 
       {/* ── Panneau gauche ── */}
-      <div className="flex w-72 shrink-0 flex-col border-r border-slate-100 bg-slate-50/40 xl:w-80">
+      <div className={`flex w-full shrink-0 flex-col border-r border-slate-100 bg-slate-50/40 lg:flex lg:w-72 xl:w-80 ${mobileTab === "liste" ? "flex" : "hidden"} lg:flex`}>
 
         {/* Header */}
         <div className="border-b border-slate-100 px-4 py-4">
@@ -240,7 +257,7 @@ export default function CartePage() {
       </div>
 
       {/* ── Panneau droit : carte ── */}
-      <div className="relative min-w-0 flex-1">
+      <div className={`relative min-w-0 flex-1 ${mobileTab === "carte" ? "flex flex-col" : "hidden"} lg:flex lg:flex-col`}>
         {/* Bandeau mode placement */}
         {placementMode && (
           <div className="absolute left-1/2 top-4 z-[999] -translate-x-1/2 rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-700 shadow-md">
