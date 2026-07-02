@@ -11,6 +11,7 @@ import {
   ListChecks,
   MapPin,
   MessageSquare,
+  Store,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/utils/supabase/client";
@@ -204,13 +205,22 @@ export default function EspaceProprietairePage() {
             Suivez vos lots, attestations, paiements et démarches foncières.
           </p>
         </div>
-        <Link
-          href="/dashboard/messages"
-          className="inline-flex shrink-0 items-center gap-2 rounded-full border border-slate-200/60 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
-        >
-          <MessageSquare className="h-4 w-4 text-[#0D3B66]" />
-          Mes messages
-        </Link>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Link
+            href="/dashboard/mettre-en-vente"
+            className="inline-flex items-center gap-2 rounded-full bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#1E6091]"
+          >
+            <Store className="h-4 w-4" />
+            Mettre en vente
+          </Link>
+          <Link
+            href="/dashboard/messages"
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200/60 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+          >
+            <MessageSquare className="h-4 w-4 text-[#0D3B66]" />
+            Mes messages
+          </Link>
+        </div>
       </div>
 
       {/* KPI */}

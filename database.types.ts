@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      annonces_marketplace: {
+        Row: {
+          cree_le: string
+          description: string | null
+          id: string
+          lot_id: string
+          maj_le: string
+          prix: number
+          proprietaire_profile_id: string | null
+          publiee_le: string | null
+          statut: string
+          superficie_m2: number | null
+          titre: string
+          usage: string | null
+          zone: string | null
+        }
+        Insert: {
+          cree_le?: string
+          description?: string | null
+          id?: string
+          lot_id: string
+          maj_le?: string
+          prix: number
+          proprietaire_profile_id?: string | null
+          publiee_le?: string | null
+          statut?: string
+          superficie_m2?: number | null
+          titre: string
+          usage?: string | null
+          zone?: string | null
+        }
+        Update: {
+          cree_le?: string
+          description?: string | null
+          id?: string
+          lot_id?: string
+          maj_le?: string
+          prix?: number
+          proprietaire_profile_id?: string | null
+          publiee_le?: string | null
+          statut?: string
+          superficie_m2?: number | null
+          titre?: string
+          usage?: string | null
+          zone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "annonces_marketplace_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: true
+            referencedRelation: "lots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "annonces_marketplace_proprietaire_profile_id_fkey"
+            columns: ["proprietaire_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attestations_cession: {
         Row: {
           acquereur_id: string
@@ -769,6 +832,55 @@ export type Database = {
           },
         ]
       }
+      demandes_contact: {
+        Row: {
+          annonce_id: string
+          cree_le: string
+          id: string
+          jeton_id: string
+          message: string | null
+          statut: string
+        }
+        Insert: {
+          annonce_id: string
+          cree_le?: string
+          id?: string
+          jeton_id: string
+          message?: string | null
+          statut?: string
+        }
+        Update: {
+          annonce_id?: string
+          cree_le?: string
+          id?: string
+          jeton_id?: string
+          message?: string | null
+          statut?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demandes_contact_annonce_id_fkey"
+            columns: ["annonce_id"]
+            isOneToOne: false
+            referencedRelation: "annonces_marketplace"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_contact_annonce_id_fkey"
+            columns: ["annonce_id"]
+            isOneToOne: false
+            referencedRelation: "annonces_publiques"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_contact_jeton_id_fkey"
+            columns: ["jeton_id"]
+            isOneToOne: false
+            referencedRelation: "jetons_marketplace"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       demarches: {
         Row: {
           agent_assigne: string | null
@@ -1365,6 +1477,72 @@ export type Database = {
           },
         ]
       }
+      jetons_marketplace: {
+        Row: {
+          acheteur_email: string | null
+          acheteur_nom: string | null
+          acheteur_profile_id: string | null
+          acheteur_telephone: string
+          contacts_max: number
+          contacts_utilises: number
+          cree_le: string
+          date_activation: string | null
+          date_expiration: string | null
+          id: string
+          montant: number
+          paiement_id: string | null
+          reference: string
+          statut: string
+        }
+        Insert: {
+          acheteur_email?: string | null
+          acheteur_nom?: string | null
+          acheteur_profile_id?: string | null
+          acheteur_telephone: string
+          contacts_max?: number
+          contacts_utilises?: number
+          cree_le?: string
+          date_activation?: string | null
+          date_expiration?: string | null
+          id?: string
+          montant?: number
+          paiement_id?: string | null
+          reference?: string
+          statut?: string
+        }
+        Update: {
+          acheteur_email?: string | null
+          acheteur_nom?: string | null
+          acheteur_profile_id?: string | null
+          acheteur_telephone?: string
+          contacts_max?: number
+          contacts_utilises?: number
+          cree_le?: string
+          date_activation?: string | null
+          date_expiration?: string | null
+          id?: string
+          montant?: number
+          paiement_id?: string | null
+          reference?: string
+          statut?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jetons_marketplace_acheteur_profile_id_fkey"
+            columns: ["acheteur_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jetons_marketplace_paiement_id_fkey"
+            columns: ["paiement_id"]
+            isOneToOne: false
+            referencedRelation: "paiements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       journal_audit: {
         Row: {
           action: string
@@ -1556,6 +1734,8 @@ export type Database = {
           guide_page: number | null
           id: string
           ilot_id: string
+          latitude: number | null
+          longitude: number | null
           nature_droit: Database["public"]["Enums"]["nature_droit"]
           numero_lot: string
           numero_parcelle: string | null
@@ -1571,6 +1751,8 @@ export type Database = {
           guide_page?: number | null
           id?: string
           ilot_id: string
+          latitude?: number | null
+          longitude?: number | null
           nature_droit?: Database["public"]["Enums"]["nature_droit"]
           numero_lot: string
           numero_parcelle?: string | null
@@ -1586,6 +1768,8 @@ export type Database = {
           guide_page?: number | null
           id?: string
           ilot_id?: string
+          latitude?: number | null
+          longitude?: number | null
           nature_droit?: Database["public"]["Enums"]["nature_droit"]
           numero_lot?: string
           numero_parcelle?: string | null
@@ -2472,6 +2656,23 @@ export type Database = {
       }
     }
     Views: {
+      annonces_publiques: {
+        Row: {
+          description: string | null
+          document_type: string | null
+          id: string | null
+          lat_approx: number | null
+          lng_approx: number | null
+          lot_numero: string | null
+          prix: number | null
+          publiee_le: string | null
+          superficie_m2: number | null
+          titre: string | null
+          usage: string | null
+          zone: string | null
+        }
+        Relationships: []
+      }
       v_collectifs_pv_manquant: {
         Row: {
           collectif: string | null
@@ -2537,6 +2738,10 @@ export type Database = {
       debug_mon_contexte: { Args: never; Returns: Json }
       disponibilites_foncieres: { Args: never; Returns: Json }
       est_admin: { Args: never; Returns: boolean }
+      est_lot_eligible_marketplace: {
+        Args: { p_lot_id: string }
+        Returns: boolean
+      }
       finaliser_inscription: { Args: { p_code: string }; Returns: Json }
       generer_code_invitation: { Args: never; Returns: string }
       get_public_stats: { Args: never; Returns: Json }
@@ -2698,6 +2903,7 @@ export type Database = {
         | "honoraires"
         | "autre"
         | "vente_terrain"
+        | "pass_marketplace"
       type_transaction:
         | "attribution"
         | "vente"
@@ -2966,6 +3172,7 @@ export const Constants = {
         "honoraires",
         "autre",
         "vente_terrain",
+        "pass_marketplace",
       ],
       type_transaction: [
         "attribution",
