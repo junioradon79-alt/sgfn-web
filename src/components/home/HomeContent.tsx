@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useState, useRef } from "react";
 import { Clock, ShieldCheck, Lock, LayoutDashboard, ChevronDown } from "lucide-react";
 import { HomeMetrics } from "./HomeMetrics";
+import { metiers } from "@/lib/metiers";
+
+const metierByNom = new Map(metiers.map((m) => [m.nom, m]));
 
 // ─── Données ──────────────────────────────────────────────────────────────────
 
@@ -349,21 +352,47 @@ export function HomeContent() {
             <div className="grid gap-3 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
               {modules.map((m) => {
                 const isRelevant = !activeProfile || m.profiles.includes(activeProfile);
+                const isHighlighted = Boolean(activeProfile) && isRelevant;
                 return (
                   <article
                     key={m.titre}
-                    className={`rounded-2xl border p-5 transition-all duration-300 sm:p-6 ${
-                      isRelevant
-                        ? "border-[#0D3B66]/20 bg-[#F8FAFC] shadow-sm scale-[1.01]"
-                        : "border-slate-200/40 bg-[#F8FAFC]/40 opacity-35"
+                    className={`rounded-2xl border p-5 transition-all duration-500 ease-out sm:p-6 ${
+                      isHighlighted
+                        ? "-translate-y-1 border-[#F39C12]/50 bg-white shadow-[0_10px_30px_-8px_rgba(13,59,102,0.25)] ring-2 ring-[#F39C12]/30"
+                        : isRelevant
+                          ? "border-[#0D3B66]/20 bg-[#F8FAFC] shadow-sm"
+                          : "border-slate-200/40 bg-[#F8FAFC]/40 opacity-30 blur-[1px] saturate-50"
                     }`}
                   >
-                    <h3 className="mb-2 text-base font-semibold text-[#0D3B66]">{m.titre}</h3>
+                    <h3 className="mb-2 flex items-center gap-2 text-base font-semibold text-[#0D3B66]">
+                      {m.titre}
+                      {isHighlighted && (
+                        <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-[#F39C12] shadow-[0_0_8px_2px_rgba(243,156,18,0.5)]" />
+                      )}
+                    </h3>
                     <p className="text-sm leading-relaxed text-slate-500">{m.description}</p>
                   </article>
                 );
               })}
             </div>
+            {activeProfile && metierByNom.has(activeProfile) && (
+              <div className="mt-8 flex flex-col items-center justify-between gap-4 rounded-2xl bg-[#0D3B66] px-6 py-6 text-white shadow-lg sm:mt-10 sm:flex-row sm:px-8">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-[#F39C12]">
+                    {activeProfile}
+                  </p>
+                  <p className="mt-1 text-base font-bold sm:text-lg">
+                    Ces modules sont conçus pour votre métier.
+                  </p>
+                </div>
+                <Link
+                  href={`/contact?profil=${metierByNom.get(activeProfile)!.slug}`}
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-[#F39C12] px-6 py-3 text-sm font-bold text-[#0D3B66] shadow-md transition hover:bg-[#f5ab3d] active:scale-[0.98]"
+                >
+                  {metierByNom.get(activeProfile)!.cta} →
+                </Link>
+              </div>
+            )}
           </div>
         </section>
 

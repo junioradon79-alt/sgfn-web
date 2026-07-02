@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { metiers } from "../metiers-partenaires/page";
+import { metiers } from "@/lib/metiers";
 
 type FormState = "idle" | "sending" | "success" | "error";
 
