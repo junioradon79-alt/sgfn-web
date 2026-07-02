@@ -2,6 +2,7 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
+import KpiCard from "@/components/dashboard/KpiCard";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import {
@@ -146,22 +147,20 @@ export default function LitigesPage() {
 
       {/* KPI */}
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {[
-          { label: "Dossiers résolus", value: String(clos), icon: <CheckCircle2 className="h-4 w-4 text-[#2D8F5A]" /> },
-          { label: "En cours d'arbitrage", value: String(ouverts), icon: <Gavel className="h-4 w-4 text-[#F39C12]" /> },
-          { label: "Taux de résolution", value: `${taux}%`, icon: <Scale className="h-4 w-4 text-[#0D3B66]" /> },
-        ].map((metric) => (
-          <div key={metric.label} className="rounded-xl border border-slate-200/60 bg-white px-5 py-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{metric.label}</p>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F8FAFC]">
-                {metric.icon}
-              </div>
-            </div>
-            <p className="mt-2 text-2xl font-bold tabular-nums text-[#0D3B66]">
-              {dataLoading ? "…" : metric.value}
-            </p>
-          </div>
+        {(
+          [
+            { label: "Dossiers résolus", value: String(clos), icon: CheckCircle2, gradient: ["#16A34A", "#4ADE80"] },
+            { label: "En cours d'arbitrage", value: String(ouverts), icon: Gavel, gradient: ["#D97706", "#FBBF24"] },
+            { label: "Taux de résolution", value: `${taux}%`, icon: Scale, gradient: ["#1E6091", "#4FA8D8"] },
+          ] as { label: string; value: string; icon: typeof CheckCircle2; gradient: [string, string] }[]
+        ).map((metric) => (
+          <KpiCard
+            key={metric.label}
+            label={metric.label}
+            value={dataLoading ? "…" : metric.value}
+            icon={metric.icon}
+            gradient={metric.gradient}
+          />
         ))}
       </div>
 

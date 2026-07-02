@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
+import KpiCard from "@/components/dashboard/KpiCard";
 import { createClient } from "@/utils/supabase/client";
 import {
   Banknote, CheckCircle2, Clock, CreditCard, Download, Plus, Receipt, ShieldCheck, TrendingUp, X,
@@ -581,22 +582,20 @@ export default function PaiementsPage() {
       {/* KPI */}
       {vue === "registre" && (
         <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {[
-            { label: "Total encaissé",       value: fcfa(totalEncaisse),    icon: <Banknote   className="h-4 w-4 text-[#2D8F5A]" /> },
-            { label: "Commission SGNF",      value: fcfa(totalCommission),  icon: <TrendingUp className="h-4 w-4 text-[#0D3B66]" /> },
-            { label: "Paiements en attente", value: String(enAttente),      icon: <Clock      className="h-4 w-4 text-[#F39C12]" /> },
-          ].map((metric) => (
-            <div key={metric.label} className="rounded-xl border border-slate-200/60 bg-white px-5 py-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{metric.label}</p>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F8FAFC]">
-                  {metric.icon}
-                </div>
-              </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums text-[#0D3B66]">
-                {dataLoading ? "…" : metric.value}
-              </p>
-            </div>
+          {(
+            [
+              { label: "Total encaissé", value: fcfa(totalEncaisse), icon: Banknote, gradient: ["#16A34A", "#4ADE80"] },
+              { label: "Commission SGNF", value: fcfa(totalCommission), icon: TrendingUp, gradient: ["#1E6091", "#4FA8D8"] },
+              { label: "Paiements en attente", value: String(enAttente), icon: Clock, gradient: ["#D97706", "#FBBF24"] },
+            ] as { label: string; value: string; icon: typeof Banknote; gradient: [string, string] }[]
+          ).map((metric) => (
+            <KpiCard
+              key={metric.label}
+              label={metric.label}
+              value={dataLoading ? "…" : metric.value}
+              icon={metric.icon}
+              gradient={metric.gradient}
+            />
           ))}
         </div>
       )}

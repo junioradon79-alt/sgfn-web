@@ -11,6 +11,7 @@ import {
   PackageCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import KpiCard from "@/components/dashboard/KpiCard";
 import { createClient } from "@/utils/supabase/client";
 
 /**
@@ -94,11 +95,11 @@ export default function OperateurPage() {
   const cedables = opLots.filter((l) => l.statut !== "vendu");
   const cedes = opLots.filter((l) => l.statut === "vendu");
 
-  const kpis = [
-    { label: "Mes lotissements", value: lotissements.length, icon: <Landmark className="h-4 w-4 text-[#0D3B66]" /> },
-    { label: "Lots dans mon périmètre", value: lots.length, icon: <Boxes className="h-4 w-4 text-[#1E6091]" /> },
-    { label: "Mes lots en nature (cédables)", value: cedables.length, icon: <HandCoins className="h-4 w-4 text-[#9C6406]" /> },
-    { label: "Lots en nature cédés", value: cedes.length, icon: <PackageCheck className="h-4 w-4 text-[#2D8F5A]" /> },
+  const kpis: { label: string; value: number; icon: typeof Landmark; gradient: [string, string] }[] = [
+    { label: "Mes lotissements", value: lotissements.length, icon: Landmark, gradient: ["#1E6091", "#4FA8D8"] },
+    { label: "Lots dans mon périmètre", value: lots.length, icon: Boxes, gradient: ["#7C3AED", "#C084FC"] },
+    { label: "Mes lots en nature (cédables)", value: cedables.length, icon: HandCoins, gradient: ["#B45309", "#F59E0B"] },
+    { label: "Lots en nature cédés", value: cedes.length, icon: PackageCheck, gradient: ["#16A34A", "#4ADE80"] },
   ];
 
   return (
@@ -123,13 +124,7 @@ export default function OperateurPage() {
       {/* KPIs */}
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {kpis.map((k) => (
-          <div key={k.label} className="rounded-xl border border-slate-200/60 bg-white px-4 py-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{k.label}</p>
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#F8FAFC]">{k.icon}</div>
-            </div>
-            <p className="mt-2 text-2xl font-bold tabular-nums text-[#0D3B66]">{loading ? "…" : k.value}</p>
-          </div>
+          <KpiCard key={k.label} label={k.label} value={loading ? "…" : k.value} icon={k.icon} gradient={k.gradient} size="sm" />
         ))}
       </div>
 

@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import KpiCard from "@/components/dashboard/KpiCard";
 import { createClient } from "@/utils/supabase/client";
 
 /**
@@ -150,11 +151,11 @@ export default function CommissairePage() {
     return true;
   });
 
-  const kpis = [
-    { label: "Lots au registre", value: lots.length, icon: <Landmark className="h-4 w-4 text-[#0D3B66]" /> },
-    { label: "Attestations délivrées", value: attDelivrees, icon: <FileCheck2 className="h-4 w-4 text-[#2D8F5A]" /> },
-    { label: "Dont gratuites (1ers AD)", value: attGratuites, icon: <Gift className="h-4 w-4 text-[#1E6091]" /> },
-    { label: "PV non régularisés", value: pvNonRegularises, icon: <AlertTriangle className="h-4 w-4 text-[#F39C12]" /> },
+  const kpis: { label: string; value: number; icon: typeof Landmark; gradient: [string, string] }[] = [
+    { label: "Lots au registre", value: lots.length, icon: Landmark, gradient: ["#1E6091", "#4FA8D8"] },
+    { label: "Attestations délivrées", value: attDelivrees, icon: FileCheck2, gradient: ["#16A34A", "#4ADE80"] },
+    { label: "Dont gratuites (1ers AD)", value: attGratuites, icon: Gift, gradient: ["#7C3AED", "#C084FC"] },
+    { label: "PV non régularisés", value: pvNonRegularises, icon: AlertTriangle, gradient: ["#D97706", "#FBBF24"] },
   ];
 
   const telecharger = async (reference: string) => {
@@ -207,13 +208,7 @@ export default function CommissairePage() {
       {/* KPIs */}
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {kpis.map((k) => (
-          <div key={k.label} className="rounded-xl border border-slate-200/60 bg-white px-4 py-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{k.label}</p>
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#F8FAFC]">{k.icon}</div>
-            </div>
-            <p className="mt-2 text-2xl font-bold tabular-nums text-[#0D3B66]">{loading ? "…" : k.value}</p>
-          </div>
+          <KpiCard key={k.label} label={k.label} value={loading ? "…" : k.value} icon={k.icon} gradient={k.gradient} size="sm" />
         ))}
       </div>
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Building2, ChevronRight, FileText, Gavel, Loader2, MessageSquare, Plus, ReceiptText, Rows3, Users, X } from "lucide-react";
 import SGFNStatCard from "@/components/dashboard/SGFNStatCard";
+import RadialGauge from "@/components/ui/RadialGauge";
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
@@ -182,12 +183,19 @@ export default function DashboardPage() {
     })();
   }, [profileLoading, redirectTo, supabase]);
 
-  const statCards = [
-    { title: "Lots", value: counts.lots, icon: Building2, color: "text-[#0D3B66]", subtitle: "Parcelles enregistrées", href: "/dashboard/lots" },
-    { title: "Attributaires", value: counts.attributaires, icon: Users, color: "text-[#1E6091]", subtitle: "Profils reliés", href: "/dashboard/attributaires" },
-    { title: "Îlots", value: counts.ilots, icon: Rows3, color: "text-[#2D8F5A]", subtitle: "Îlots cadastraux", href: "/dashboard/ilots" },
-    { title: "Paiements", value: counts.paiements, icon: ReceiptText, color: "text-[#0D3B66]", subtitle: "Transactions suivies", href: "/dashboard/paiements" },
-    { title: "Litiges", value: counts.litiges, icon: Gavel, color: "text-[#EF4444]", subtitle: "Cas ouverts", href: "/dashboard/litiges" },
+  const statCards: {
+    title: string;
+    value: number;
+    icon: typeof Building2;
+    gradient: [string, string];
+    subtitle: string;
+    href: string;
+  }[] = [
+    { title: "Lots", value: counts.lots, icon: Building2, gradient: ["#1E6091", "#4FA8D8"], subtitle: "Parcelles enregistrées", href: "/dashboard/lots" },
+    { title: "Attributaires", value: counts.attributaires, icon: Users, gradient: ["#7C3AED", "#C084FC"], subtitle: "Profils reliés", href: "/dashboard/attributaires" },
+    { title: "Îlots", value: counts.ilots, icon: Rows3, gradient: ["#0D9488", "#5EEAD4"], subtitle: "Îlots cadastraux", href: "/dashboard/ilots" },
+    { title: "Paiements", value: counts.paiements, icon: ReceiptText, gradient: ["#D97706", "#FBBF24"], subtitle: "Transactions suivies", href: "/dashboard/paiements" },
+    { title: "Litiges", value: counts.litiges, icon: Gavel, gradient: ["#DC2626", "#F87171"], subtitle: "Cas ouverts", href: "/dashboard/litiges" },
   ];
 
   const openAduCreate = async () => {
@@ -254,8 +262,10 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] px-4 py-8 text-[#1F2937] antialiased sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-8">
-        <section className="rounded-[2rem] border border-slate-200/60 bg-white p-8 shadow-sm sm:p-10">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <section className="relative overflow-hidden rounded-[2rem] border border-slate-200/60 bg-white p-8 shadow-sm sm:p-10">
+          <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-gradient-to-br from-[#1E6091]/10 via-[#7C3AED]/10 to-transparent blur-3xl" />
+          <div className="pointer-events-none absolute -left-24 top-1/3 h-64 w-64 rounded-full bg-gradient-to-tr from-[#0D9488]/8 to-transparent blur-3xl" />
+          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
               <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
                 Tableau de bord SGNF
@@ -287,7 +297,7 @@ export default function DashboardPage() {
                   title={stat.title}
                   value={dataLoading ? "…" : stat.value}
                   icon={stat.icon}
-                  color={stat.color}
+                  gradient={stat.gradient}
                   subtitle={stat.subtitle}
                 />
               </Link>
@@ -400,25 +410,22 @@ export default function DashboardPage() {
                 <span className="text-[#1E6091]">🗺️</span>
                 Répartition du Parcellaire
               </div>
-              <div className="mt-6 space-y-4">
+              <div className="mt-6 grid grid-cols-3 gap-2">
                 {[
-                  { label: "Disponibles", value: repartition.disponibles, color: "bg-[#2D8F5A]" },
-                  { label: "Attribués", value: repartition.attribues, color: "bg-[#1E6091]" },
-                  { label: "En litige", value: repartition.enLitige, color: "bg-slate-300" },
+                  { label: "Disponibles", value: repartition.disponibles, gradient: ["#16A34A", "#4ADE80"] as [string, string] },
+                  { label: "Attribués", value: repartition.attribues, gradient: ["#1E6091", "#4FA8D8"] as [string, string] },
+                  { label: "En litige", value: repartition.enLitige, gradient: ["#DC2626", "#F87171"] as [string, string] },
                 ].map((item) => (
-                  <div key={item.label}>
-                    <div className="mb-2 flex items-center justify-between text-sm text-slate-600">
-                      <span>{item.label}</span>
-                      <span className="font-semibold text-slate-700">
-                        {dataLoading ? "…" : `${item.value} lot${item.value !== 1 ? "s" : ""}`}
+                  <div key={item.label} className="flex flex-col items-center text-center">
+                    <RadialGauge value={pct(item.value)} size={76} strokeWidth={7} gradient={item.gradient}>
+                      <span className="text-sm font-bold text-slate-800">
+                        {dataLoading ? "…" : `${pct(item.value)}%`}
                       </span>
-                    </div>
-                    <div className="h-1.5 w-full rounded-full bg-slate-100">
-                      <div
-                        className={`h-1.5 rounded-full transition-all ${item.color}`}
-                        style={{ width: `${pct(item.value)}%` }}
-                      />
-                    </div>
+                    </RadialGauge>
+                    <p className="mt-2 text-xs font-medium text-slate-600">{item.label}</p>
+                    <p className="text-xs text-slate-400">
+                      {dataLoading ? "…" : `${item.value} lot${item.value !== 1 ? "s" : ""}`}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -426,8 +433,12 @@ export default function DashboardPage() {
 
             {/* Indice de conformité */}
             <div className="rounded-2xl border border-slate-200/60 bg-white p-6 shadow-sm text-center">
-              <div className="text-5xl font-bold tracking-tight text-[#2D8F5A]">100%</div>
-              <p className="mt-3 text-sm font-semibold text-slate-700">
+              <div className="flex justify-center">
+                <RadialGauge value={100} size={128} strokeWidth={12} gradient={["#16A34A", "#4ADE80"]}>
+                  <span className="text-3xl font-bold tracking-tight text-[#2D8F5A]">100%</span>
+                </RadialGauge>
+              </div>
+              <p className="mt-4 text-sm font-semibold text-slate-700">
                 Indice de conformité et de traçabilité
               </p>
               <p className="mt-3 text-sm leading-relaxed text-slate-500">
