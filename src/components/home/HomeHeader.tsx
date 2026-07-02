@@ -3,9 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { X, Menu } from "lucide-react";
+import { X, Menu, MapPin } from "lucide-react";
 
-const navLinks = [
+export const navLinks = [
   { href: "#apropos", label: "À propos" },
   { href: "#chiffres", label: "Chiffres" },
   { href: "#fonctions", label: "Fonctionnalités" },
@@ -15,6 +15,8 @@ const navLinks = [
   { href: "#contact", label: "Contact" },
 ];
 
+export const MARKETPLACE_URL = "https://monterrain.sgnf.ci";
+
 export function HomeHeader() {
   const [open, setOpen] = useState(false);
 
@@ -23,50 +25,46 @@ export function HomeHeader() {
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-slate-200/40 bg-[#F8FAFC]/95 backdrop-blur-lg">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-[74px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 shrink-0">
             <Image
               src="/logo-embleme.png"
               alt="Logo Officiel SGNF"
-              width={44}
-              height={44}
+              width={52}
+              height={52}
               className="object-contain"
               style={{ height: "auto" }}
               priority
             />
-            <div className="hidden xs:flex h-9 w-[1px] bg-slate-200" />
+            <div className="hidden xs:flex h-10 w-[1px] bg-slate-200" />
             <div className="hidden xs:flex flex-col">
-              <span className="font-display font-black text-xl leading-none tracking-tight text-[#0D3B66]">
+              <span className="font-display font-black text-2xl leading-none tracking-tight text-[#0D3B66]">
                 SGNF
               </span>
-              <span className="mt-0.5 text-[10px] font-sans uppercase tracking-[0.18em] text-[#1E6091] leading-none">
+              <span className="mt-1 text-[10px] font-sans uppercase tracking-[0.18em] text-[#1E6091] leading-none">
                 Gestion Numérique du Foncier
               </span>
             </div>
-            <span className="xs:hidden font-display font-black text-xl leading-none tracking-tight text-[#0D3B66]">
+            <span className="xs:hidden font-display font-black text-2xl leading-none tracking-tight text-[#0D3B66]">
               SGNF
             </span>
           </Link>
 
-          {/* Nav desktop */}
-          <nav className="hidden lg:flex items-center gap-8 text-sm font-semibold text-slate-600">
-            {navLinks.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className="py-2 hover:text-[#0D3B66] transition-colors"
-              >
-                {l.label}
-              </Link>
-            ))}
-          </nav>
-
           {/* CTA desktop + hamburger mobile */}
           <div className="flex items-center gap-3">
+            <a
+              href={MARKETPLACE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#F39C12] px-5 text-sm font-bold text-[#0D3B66] shadow-md transition hover:bg-[#f5ab3d] active:scale-[0.98]"
+            >
+              <MapPin className="h-4 w-4" />
+              Mon Terrain — marketplace
+            </a>
             <Link
               href="/login"
-              className="hidden sm:inline-flex h-10 items-center justify-center rounded-full bg-[#0D3B66] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091] active:scale-[0.98]"
+              className="hidden sm:inline-flex h-11 items-center justify-center rounded-full bg-[#0D3B66] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091] active:scale-[0.98]"
             >
               Ouvrir la plateforme
             </Link>
@@ -74,7 +72,7 @@ export function HomeHeader() {
             <button
               onClick={() => setOpen(!open)}
               aria-label="Menu"
-              className="lg:hidden flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-95"
+              className="lg:hidden flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-95"
             >
               {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
@@ -97,7 +95,7 @@ export function HomeHeader() {
 
         {/* Panel (en dessous du header) */}
         <div
-          className={`relative mt-16 bg-white border-b border-slate-200 shadow-xl px-4 pt-4 pb-6 transition-transform duration-200 ${
+          className={`relative mt-[74px] bg-white border-b border-slate-200 shadow-xl px-4 pt-4 pb-6 transition-transform duration-200 ${
             open ? "translate-y-0" : "-translate-y-2"
           }`}
         >
@@ -114,7 +112,17 @@ export function HomeHeader() {
             ))}
           </nav>
 
-          <div className="mt-4 pt-4 border-t border-slate-100">
+          <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-3">
+            <a
+              href={MARKETPLACE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={close}
+              className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#F39C12] text-sm font-bold text-[#0D3B66] shadow-sm transition hover:bg-[#f5ab3d] active:scale-[0.98]"
+            >
+              <MapPin className="h-4 w-4" />
+              Mon Terrain — marketplace
+            </a>
             <Link
               href="/login"
               onClick={close}
