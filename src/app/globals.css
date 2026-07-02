@@ -2,7 +2,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* Palette Officielle SGFN conforme Tailwind v4 */
+  /* Palette Officielle SGNF conforme Tailwind v4 */
   --color-brand-primary: #0D3B66;
   --color-brand-secondary: #1E6091;
   --color-brand-success: #2D8F5A;
@@ -10,7 +10,7 @@
   --color-brand-bg: #F8FAFC;
   --color-brand-text: #1F2937;
 
-  /* Typographies SGFN */
+  /* Typographies SGNF */
   --font-sans: "Inter", sans-serif;
   --font-display: "Poppins", sans-serif;
 }

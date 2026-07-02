@@ -162,7 +162,7 @@ const navItems: SidebarNavItem[] = [
     roles: ["operateur", "amenageur", "chefferie"],
   },
   {
-    label: "SGFN AI",
+    label: "SGNF AI",
     href: "/dashboard/ia",
     icon: <Sparkles className="w-4 h-4" />,
     roles: ["verificateur", "agent_ia", "geometre"],
@@ -196,7 +196,7 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
           <div className="bg-white w-full h-full rounded-lg flex items-center justify-center overflow-hidden">
             <Image
               src="/logo-officiel.png"
-              alt="SGFN Logo"
+              alt="SGNF Logo"
               width={30}
               height={30}
               className="object-contain"
@@ -205,7 +205,7 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
           </div>
         </div>
         <span className="text-base font-extrabold tracking-tight text-[#0D3B66] uppercase">
-          SGFN
+          SGNF
         </span>
       </Link>
       {/* Navigation */}

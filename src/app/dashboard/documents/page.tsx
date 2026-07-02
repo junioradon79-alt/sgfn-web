@@ -444,7 +444,7 @@ function QrModal({ att, onClose }: { att: AttestationRow; onClose: () => void })
 
         <p className="mt-4 text-xs leading-relaxed text-slate-500">
           Ce QR code figure sur le document imprimé. Tout scan mène à la page
-          publique de vérification SGFN et est journalisé côté serveur.
+          publique de vérification SGNF et est journalisé côté serveur.
         </p>
 
         <button

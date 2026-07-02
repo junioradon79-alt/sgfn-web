@@ -7,7 +7,7 @@ export default function Hero() {
       <div className="mx-auto flex max-w-7xl flex-col items-center px-6 py-20 text-center">
         <Image
           src="/logo-officiel.png"
-          alt="Logo SGFN"
+          alt="Logo SGNF"
           width={180}
           height={180}
           priority
@@ -33,7 +33,7 @@ export default function Hero() {
           </SGFNButton>
 
           <SGFNButton variant="secondary">
-            Decouvrir SGFN
+            Decouvrir SGNF
           </SGFNButton>
         </div>
       </div>

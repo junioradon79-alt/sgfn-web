@@ -28,7 +28,7 @@ export function HomeHeader() {
           <Link href="/" className="flex items-center gap-3 shrink-0">
             <Image
               src="/logo-officiel.png"
-              alt="Logo Officiel SGFN"
+              alt="Logo Officiel SGNF"
               width={44}
               height={44}
               className="object-contain"
@@ -38,14 +38,14 @@ export function HomeHeader() {
             <div className="hidden xs:flex h-9 w-[1px] bg-slate-200" />
             <div className="hidden xs:flex flex-col">
               <span className="font-display font-black text-xl leading-none tracking-tight text-[#0D3B66]">
-                SGFN
+                SGNF
               </span>
               <span className="mt-0.5 text-[10px] font-sans uppercase tracking-[0.18em] text-[#1E6091] leading-none">
-                Gestion Foncière Numérique
+                Gestion Numérique du Foncier
               </span>
             </div>
             <span className="xs:hidden font-display font-black text-xl leading-none tracking-tight text-[#0D3B66]">
-              SGFN
+              SGNF
             </span>
           </Link>
 

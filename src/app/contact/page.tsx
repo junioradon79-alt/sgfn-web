@@ -56,7 +56,7 @@ function ContactForm() {
               Contact
             </p>
             <h1 className="text-3xl font-bold tracking-tight text-[#0D3B66] sm:text-4xl">
-              Contactez SGFN
+              Contactez SGNF
             </h1>
             <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-slate-600">
               {metier
@@ -118,7 +118,7 @@ function ContactForm() {
                 name="message"
                 rows={6}
                 placeholder="Votre message…"
-                defaultValue={metier ? `Bonjour, je suis intéressé(e) par SGFN en tant que ${metier.nom.toLowerCase()}. ` : ""}
+                defaultValue={metier ? `Bonjour, je suis intéressé(e) par SGNF en tant que ${metier.nom.toLowerCase()}. ` : ""}
                 required
                 className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#0D3B66] focus:ring-2 focus:ring-[#0D3B66]/10"
               />
@@ -140,7 +140,7 @@ function ContactForm() {
           )}
 
           <div className="mt-10 border-t border-slate-200 pt-6 text-center text-sm text-slate-600">
-            <p className="font-semibold text-[#0D3B66]">SGFN Secrétariat</p>
+            <p className="font-semibold text-[#0D3B66]">SGNF Secrétariat</p>
             <p>Abidjan, Côte d&apos;Ivoire</p>
           </div>
         </div>

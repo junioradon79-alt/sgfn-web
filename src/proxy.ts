@@ -34,7 +34,7 @@ export default async function proxy(request: NextRequest) {
   // Vérification de la session active
   const { data: { session } } = await supabase.auth.getSession();
 
-  // Protection de l'espace SaaS SGFN
+  // Protection de l'espace SaaS SGNF
   if (request.nextUrl.pathname.startsWith('/dashboard') && !session) {
     return NextResponse.redirect(new URL('/login', request.url));
   }

@@ -541,7 +541,7 @@ function ChefFamilleView({ profile }: { profile: Profile }) {
         )}
       </section>
 
-      <MessagerieLink subtitle="Contacter l'équipe SGFN" />
+      <MessagerieLink subtitle="Contacter l'équipe SGNF" />
     </div>
   );
 }
@@ -956,7 +956,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
               Litiges actifs
             </h2>
             <p className="mt-0.5 text-xs text-red-400">
-              Lecture seule — Géré par l'équipe SGFN
+              Lecture seule — Géré par l'équipe SGNF
             </p>
           </div>
           <div className="divide-y divide-red-50">
@@ -983,7 +983,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
         </section>
       )}
 
-      <MessagerieLink subtitle="Contacter l'équipe SGFN ou l'opérateur" />
+      <MessagerieLink subtitle="Contacter l'équipe SGNF ou l'opérateur" />
     </div>
   );
 }
@@ -1043,7 +1043,7 @@ export default function ChefferiePage() {
         </p>
         <p className="mt-2 text-sm leading-relaxed text-slate-400">
           Votre compte n'est pas encore rattaché à une famille ou une autorité
-          coutumière. Contactez l'administration SGFN pour finaliser le
+          coutumière. Contactez l'administration SGNF pour finaliser le
           provisionnement.
         </p>
         <Link

@@ -246,9 +246,9 @@ export default function DashboardPage() {
   const heroTitle = profileLoading
     ? "Chargement…"
     : userGroup === "amenageur"
-      ? "Espace Aménageur — SGFN"
+      ? "Espace Aménageur — SGNF"
       : userGroup === "admin"
-        ? "Administration Globale — SGFN"
+        ? "Administration Globale — SGNF"
         : `Bonjour, ${prenom}`;
 
   return (
@@ -258,7 +258,7 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
               <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
-                Tableau de bord SGFN
+                Tableau de bord SGNF
               </p>
               <h1 className="mt-3 text-3xl font-bold tracking-tight text-[#0D3B66] sm:text-4xl">
                 {heroTitle}
@@ -316,7 +316,7 @@ export default function DashboardPage() {
             <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
               {[
                 { label: "Total confirmé", value: fcfa(totalTransactions) },
-                { label: "Commission SGFN", value: fcfa(totalCommissions) },
+                { label: "Commission SGNF", value: fcfa(totalCommissions) },
                 { label: "À suivre", value: String(transactionsEnAttente) },
               ].map((item) => (
                 <div key={item.label} className="rounded-xl bg-slate-50 px-4 py-3">

@@ -3,7 +3,7 @@ import Link from 'next/link';
 const pillars = [
   {
     title: "Gouvernance foncière",
-    body: "SGFN structure chaque dossier autour d'un cadre de décision transparent, auditable et conforme aux exigences de sécurité institutionnelle.",
+    body: "SGNF structure chaque dossier autour d'un cadre de décision transparent, auditable et conforme aux exigences de sécurité institutionnelle.",
   },
   {
     title: "Souveraineté des données",
@@ -32,7 +32,7 @@ export default function AboutPage() {
         </h1>
 
         <p className="mx-auto mt-6 sm:mt-8 max-w-3xl text-base sm:text-lg leading-relaxed text-slate-600">
-          SGFN accompagne la transformation numérique du foncier en Côte d'Ivoire avec une approche claire, institutionnelle et souveraine.
+          SGNF accompagne la transformation numérique du foncier en Côte d'Ivoire avec une approche claire, institutionnelle et souveraine.
         </p>
 
         <div className="mt-10 sm:mt-16 grid gap-4 sm:gap-6 sm:grid-cols-3">

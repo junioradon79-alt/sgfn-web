@@ -47,7 +47,7 @@ const menu = [
     icon: FileText,
   },
   {
-    label: "SGFN AI",
+    label: "SGNF AI",
     href: "/dashboard/ia",
     icon: Sparkles,
   },
@@ -64,11 +64,11 @@ export default function Sidebar() {
       <div className="border-b border-slate-800 px-8 py-8">
 
         <h1 className="text-3xl font-bold">
-          SGFN
+          SGNF
         </h1>
 
         <p className="mt-1 text-sm text-slate-400">
-          Système de Gestion du Foncier Numérique
+          Système de Gestion Numérique du Foncier
         </p>
 
       </div>
@@ -123,7 +123,7 @@ export default function Sidebar() {
             <div>
 
               <p className="font-semibold">
-                Administrateur SGFN
+                Administrateur SGNF
               </p>
 
               <div className="mt-1 flex items-center gap-1 text-sm text-slate-400">

@@ -44,7 +44,7 @@ export default function LoginPage() {
               <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-[10px] bg-white">
                 <Image
                   src="/logo-officiel.png"
-                  alt="SGFN"
+                  alt="SGNF"
                   width={48}
                   height={48}
                   className="h-11 w-11 sm:h-12 sm:w-12 object-contain"
@@ -53,12 +53,12 @@ export default function LoginPage() {
               </div>
             </div>
             <span className="text-xl sm:text-2xl font-black tracking-tight text-[#0D3B66] uppercase">
-              SGFN
+              SGNF
             </span>
           </div>
 
           <h1 className="text-xl sm:text-2xl font-bold text-[#0D3B66]">
-            Accéder à SGFN
+            Accéder à SGNF
           </h1>
           <p className="mt-2 text-sm text-slate-500">
             Entrez vos identifiants pour piloter votre espace foncier.

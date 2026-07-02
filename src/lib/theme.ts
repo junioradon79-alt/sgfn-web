@@ -17,7 +17,7 @@ export const colors = {
   textLight: "#64748B",
 };
 
-export const appName = "SGFN";
+export const appName = "SGNF";
 
 export const appDescription =
-  "Système de Gestion du Foncier Numérique";
+  "Système de Gestion Numérique du Foncier";

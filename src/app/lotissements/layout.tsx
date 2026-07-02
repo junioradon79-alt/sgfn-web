@@ -11,7 +11,7 @@ export default function LotissementsLayout({ children }: { children: React.React
         <header className="h-16 flex items-center justify-between px-8 bg-white border-b border-slate-200/60 z-30">
           <nav aria-label="Breadcrumb">
             <ol className="flex items-center text-xs text-slate-500 space-x-1 select-none">
-              <li className="font-medium text-slate-400/90">SGFN</li>
+              <li className="font-medium text-slate-400/90">SGNF</li>
               <li><span className="mx-2 text-slate-300">/</span></li>
               <li className="font-semibold text-slate-700">Lotissements</li>
             </ol>

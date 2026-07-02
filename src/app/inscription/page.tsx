@@ -120,7 +120,7 @@ export default function InscriptionPage() {
               <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-[10px] bg-white">
                 <Image
                   src="/logo-officiel.png"
-                  alt="SGFN"
+                  alt="SGNF"
                   width={48}
                   height={48}
                   className="h-12 w-12 object-contain"
@@ -129,7 +129,7 @@ export default function InscriptionPage() {
               </div>
             </div>
             <span className="text-2xl font-black tracking-tight text-[#0D3B66] uppercase">
-              SGFN
+              SGNF
             </span>
           </div>
 
@@ -200,7 +200,7 @@ export default function InscriptionPage() {
               <Input
                 id="code"
                 type="text"
-                placeholder="SGFN-XXXXXXXX"
+                placeholder="SGNF-XXXXXXXX"
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
                 required

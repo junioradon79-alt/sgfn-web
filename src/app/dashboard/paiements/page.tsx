@@ -583,7 +583,7 @@ export default function PaiementsPage() {
         <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
           {[
             { label: "Total encaissé",       value: fcfa(totalEncaisse),    icon: <Banknote   className="h-4 w-4 text-[#2D8F5A]" /> },
-            { label: "Commission SGFN",      value: fcfa(totalCommission),  icon: <TrendingUp className="h-4 w-4 text-[#0D3B66]" /> },
+            { label: "Commission SGNF",      value: fcfa(totalCommission),  icon: <TrendingUp className="h-4 w-4 text-[#0D3B66]" /> },
             { label: "Paiements en attente", value: String(enAttente),      icon: <Clock      className="h-4 w-4 text-[#F39C12]" /> },
           ].map((metric) => (
             <div key={metric.label} className="rounded-xl border border-slate-200/60 bg-white px-5 py-4 shadow-sm">

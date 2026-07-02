@@ -140,7 +140,7 @@ function VerifierForm() {
               Vérification
             </p>
             <h1 className="text-3xl font-bold tracking-tight text-[#0D3B66] sm:text-4xl">
-              Vérifier un document SGFN
+              Vérifier un document SGNF
             </h1>
             <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-slate-600">
               Scannez le QR code d&apos;un document ou saisissez sa référence pour
@@ -181,9 +181,9 @@ function VerifierForm() {
               <div>
                 <p className="font-semibold text-red-800">Document introuvable</p>
                 <p className="mt-1 text-sm text-red-700">
-                  Aucun document du registre SGFN ne correspond à cette référence.
+                  Aucun document du registre SGNF ne correspond à cette référence.
                   Si ce code figure sur un document qui vous a été présenté, il peut
-                  s&apos;agir d&apos;un faux — rapprochez-vous de SGFN.
+                  s&apos;agir d&apos;un faux — rapprochez-vous de SGNF.
                 </p>
               </div>
             </div>
@@ -228,8 +228,8 @@ function VerifierForm() {
                     }`}
                   >
                     {litigeActif
-                      ? "Ce document est enregistré au registre SGFN, mais un litige est en cours sur ce bien."
-                      : "Ce document est enregistré au registre foncier numérique SGFN."}
+                      ? "Ce document est enregistré au registre SGNF, mais un litige est en cours sur ce bien."
+                      : "Ce document est enregistré au registre foncier numérique SGNF."}
                   </p>
                 </div>
               </div>
@@ -268,7 +268,7 @@ function VerifierForm() {
           )}
 
           <p className="mt-8 text-center text-xs text-slate-400">
-            Chaque vérification est validée côté serveur et journalisée par SGFN.
+            Chaque vérification est validée côté serveur et journalisée par SGNF.
           </p>
         </div>
       </div>

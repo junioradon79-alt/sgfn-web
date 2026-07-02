@@ -8,7 +8,7 @@ export default function Header() {
         <div className="flex items-center gap-4">
           <Image
             src="/logo-officiel.png"
-            alt="Logo SGFN"
+            alt="Logo SGNF"
             width={55}
             height={55}
             priority
@@ -16,11 +16,11 @@ export default function Header() {
 
           <div>
             <h1 className="text-xl font-bold text-slate-900">
-              SGFN
+              SGNF
             </h1>
 
             <p className="text-xs text-slate-500">
-              Système de Gestion du Foncier Numérique
+              Système de Gestion Numérique du Foncier
             </p>
           </div>
         </div>

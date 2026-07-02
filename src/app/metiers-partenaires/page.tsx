@@ -27,7 +27,7 @@ export const metiers: Metier[] = [
     icon: Landmark,
     description:
       "Pilotez vos lotissements, suivez les attributions et sécurisez les décisions administratives de votre territoire.",
-    cta: "Doter ma collectivité de SGFN",
+    cta: "Doter ma collectivité de SGNF",
   },
   {
     slug: "amenageur",
@@ -82,7 +82,7 @@ export const metiers: Metier[] = [
     nom: "Banques",
     icon: Landmark,
     description:
-      "Vérifiez instantanément l'authenticité d'un titre foncier avant financement, grâce à la vérification QR SGFN.",
+      "Vérifiez instantanément l'authenticité d'un titre foncier avant financement, grâce à la vérification QR SGNF.",
     cta: "Sécuriser mes dossiers de financement",
   },
   {
@@ -133,7 +133,7 @@ export default function MetiersPartenairesPage() {
           Une plateforme conçue pour chaque métier du foncier.
         </h1>
         <p className="mx-auto mt-4 sm:mt-6 max-w-3xl text-base sm:text-lg leading-relaxed text-slate-500">
-          Collectivités, aménageurs, notaires, géomètres, banques… découvrez ce que SGFN
+          Collectivités, aménageurs, notaires, géomètres, banques… découvrez ce que SGNF
           apporte concrètement à votre activité et accédez à un espace pensé pour vos besoins.
         </p>
       </section>
@@ -169,14 +169,14 @@ export default function MetiersPartenairesPage() {
             Votre métier n&apos;apparaît pas dans la liste ?
           </h3>
           <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-500 sm:text-base">
-            SGFN s&apos;adapte à de nombreux profils institutionnels. Contactez-nous pour étudier
+            SGNF s&apos;adapte à de nombreux profils institutionnels. Contactez-nous pour étudier
             votre besoin.
           </p>
           <Link
             href="/contact"
             className="mt-6 inline-flex items-center justify-center rounded-full bg-[#0D3B66] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#1E6091]"
           >
-            Contacter l&apos;équipe SGFN →
+            Contacter l&apos;équipe SGNF →
           </Link>
         </div>
       </section>

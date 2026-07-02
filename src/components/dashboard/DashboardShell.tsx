@@ -102,7 +102,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             {/* Fil d'Ariane */}
             <nav aria-label="Breadcrumb" className="min-w-0">
               <ol className="flex items-center space-x-1 text-xs text-slate-500 select-none">
-                <li className="font-medium text-slate-400/90">SGFN</li>
+                <li className="font-medium text-slate-400/90">SGNF</li>
                 <li>
                   <span className="mx-2 text-slate-300">/</span>
                 </li>

@@ -53,7 +53,7 @@ type LotissementOption = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const GROUPE_LABELS: Record<string, string> = {
-  admin: "SGFN", chefferie: "Chefferie", proprietaire: "Propriétaire",
+  admin: "SGNF", chefferie: "Chefferie", proprietaire: "Propriétaire",
   operateur: "Opérateur", acquereur: "Acquéreur", commissaire: "Commissaire",
   verificateur: "Vérificateur", geometre: "Géomètre", agent_ia: "Agent IA", amenageur: "Aménageur",
 };
@@ -135,7 +135,7 @@ function NouvelEspaceModal({
     const autoIds = new Set<string>();
     if (myId) autoIds.add(myId);
 
-    // Admins SGFN
+    // Admins SGNF
     allProfiles.filter((p) => p.groupe === "admin").forEach((p) => autoIds.add(p.id));
 
     // Chefferie liée au lotissement
@@ -804,7 +804,7 @@ export default function ConcertationPage() {
             </div>
             <div>
               <p className="font-semibold text-slate-700">Sélectionnez un espace</p>
-              <p className="mt-1 text-sm text-slate-400">ou créez un nouvel espace de concertation entre SGFN, la Chefferie, le Chef de famille et l&apos;Opérateur.</p>
+              <p className="mt-1 text-sm text-slate-400">ou créez un nouvel espace de concertation entre SGNF, la Chefferie, le Chef de famille et l&apos;Opérateur.</p>
             </div>
             <button
               onClick={() => setShowNouveau(true)}

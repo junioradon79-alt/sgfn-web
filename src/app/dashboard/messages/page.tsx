@@ -5,7 +5,7 @@ import { ArrowLeft, MessageSquare, Plus, Search, Send, X } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 
 /**
- * Messagerie SGFN — fil de discussion entre l'agence (admin/agent) et les
+ * Messagerie SGNF — fil de discussion entre l'agence (admin/agent) et les
  * autres profils (propriétaires, aménageurs, commissaires…). Branchée sur les
  * tables réelles `conversations` / `conversation_participants` / `messages`.
  *

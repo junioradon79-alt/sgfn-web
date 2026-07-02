@@ -72,7 +72,7 @@ const etapes = [
 
 const faq = [
   {
-    q: "Comment SGFN garantit-il la sécurité des documents ?",
+    q: "Comment SGNF garantit-il la sécurité des documents ?",
     a: "Chaque document et procès-verbal téléversé est chiffré et tracé de manière immuable en base de données, empêchant toute falsification ou double attribution.",
   },
   {
@@ -81,46 +81,46 @@ const faq = [
   },
   {
     q: "La plateforme est-elle synchronisée avec le cadastre national ?",
-    a: "SGFN est conçu comme une infrastructure d'interconnexion moderne visant à centraliser et fluidifier l'instruction des dossiers jusqu'à l'obtention de l'ACD.",
+    a: "SGNF est conçu comme une infrastructure d'interconnexion moderne visant à centraliser et fluidifier l'instruction des dossiers jusqu'à l'obtention de l'ACD.",
   },
   {
-    q: "Les documents générés par SGFN ont-ils une valeur juridique ?",
-    a: "Oui. Les attestations de cession, APFC et certificats de vente produits par SGFN sont générés à partir de gabarits officiels validés, horodatés et traçables. Ils sont conçus pour être opposables et conformes aux exigences de l'administration foncière ivoirienne.",
+    q: "Les documents générés par SGNF ont-ils une valeur juridique ?",
+    a: "Oui. Les attestations de cession, APFC et certificats de vente produits par SGNF sont générés à partir de gabarits officiels validés, horodatés et traçables. Ils sont conçus pour être opposables et conformes aux exigences de l'administration foncière ivoirienne.",
   },
   {
     q: "Comment obtenir un accès à la plateforme ?",
     a: "L'accès est accordé sur invitation par l'administrateur de votre organisation. Une fois invité, vous recevez un lien sécurisé pour créer votre compte et accéder à votre espace selon votre rôle.",
   },
   {
-    q: "SGFN peut-il détecter les doubles attributions de lots ?",
+    q: "SGNF peut-il détecter les doubles attributions de lots ?",
     a: "Oui. La base de données maintient une contrainte d'unicité sur chaque lot par lotissement. Toute tentative d'attribution d'un lot déjà assigné est bloquée et signalée automatiquement avant validation.",
   },
   {
     q: "Comment sont gérés les litiges fonciers dans la plateforme ?",
-    a: "SGFN dispose d'un module dédié à l'arbitrage des litiges : ouverture d'un dossier de litige, archivage des PV de conciliation, suivi de l'état de résolution et consultation restreinte aux parties concernées.",
+    a: "SGNF dispose d'un module dédié à l'arbitrage des litiges : ouverture d'un dossier de litige, archivage des PV de conciliation, suivi de l'état de résolution et consultation restreinte aux parties concernées.",
   },
   {
-    q: "Peut-on utiliser SGFN depuis un téléphone mobile ?",
-    a: "Oui. SGFN est accessible depuis tout navigateur mobile (PWA) et dispose d'une application Android téléchargeable. L'interface s'adapte automatiquement à la taille de l'écran.",
+    q: "Peut-on utiliser SGNF depuis un téléphone mobile ?",
+    a: "Oui. SGNF est accessible depuis tout navigateur mobile (PWA) et dispose d'une application Android téléchargeable. L'interface s'adapte automatiquement à la taille de l'écran.",
   },
   {
     q: "Comment sont sauvegardées les données ?",
     a: "Les données sont hébergées sur Supabase (infrastructure PostgreSQL en haute disponibilité) avec des sauvegardes automatiques quotidiennes. Aucune donnée n'est stockée localement sur les appareils des utilisateurs.",
   },
   {
-    q: "SGFN gère-t-il les héritages et transmissions de lots ?",
+    q: "SGNF gère-t-il les héritages et transmissions de lots ?",
     a: "Oui. La plateforme modélise la hiérarchie familiale (grande famille, lignée, ayants-droit) et permet d'enregistrer les PV de réunion familiale désignant les successeurs, avec traçabilité complète de chaque transmission.",
   },
   {
     q: "Comment sont gérées les cessions de lots entre particuliers ?",
-    a: "Chaque cession est saisie par un agent ou opérateur, validée par les autorités compétentes (chefferie, SGFN, notaire selon le cas), puis génère automatiquement une attestation de cession numérotée et archivée.",
+    a: "Chaque cession est saisie par un agent ou opérateur, validée par les autorités compétentes (chefferie, SGNF, notaire selon le cas), puis génère automatiquement une attestation de cession numérotée et archivée.",
   },
   {
     q: "Quels moyens de paiement sont acceptés sur la plateforme ?",
-    a: "SGFN intègre CinetPay comme agrégateur de paiement, couvrant les cartes bancaires, Mobile Money (Orange Money, Wave, MTN MoMo) et virements. Chaque transaction est horodatée et associée au dossier concerné.",
+    a: "SGNF intègre CinetPay comme agrégateur de paiement, couvrant les cartes bancaires, Mobile Money (Orange Money, Wave, MTN MoMo) et virements. Chaque transaction est horodatée et associée au dossier concerné.",
   },
   {
-    q: "SGFN peut-il gérer plusieurs lotissements simultanément ?",
+    q: "SGNF peut-il gérer plusieurs lotissements simultanément ?",
     a: "Oui. La plateforme est multi-lotissements nativement. Chaque lotissement dispose de ses propres îlots, lots, attributaires et documents, tout en restant consultable dans un tableau de bord unifié.",
   },
   {
@@ -129,7 +129,7 @@ const faq = [
   },
   {
     q: "Une formation est-elle prévue pour les utilisateurs ?",
-    a: "Oui. SGFN propose une formation à la prise en main pour chaque rôle (agent, commissaire, aménageur, client). Des guides utilisateurs et un support technique sont disponibles après déploiement.",
+    a: "Oui. SGNF propose une formation à la prise en main pour chaque rôle (agent, commissaire, aménageur, client). Des guides utilisateurs et un support technique sont disponibles après déploiement.",
   },
   {
     q: "Peut-on personnaliser les niveaux d'accès des utilisateurs ?",
@@ -244,7 +244,7 @@ export function HomeContent() {
             La plateforme de référence pour sécuriser, centraliser et piloter vos opérations foncières.
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-slate-500 sm:text-lg">
-            SGFN accompagne les collectivités, aménageurs, promoteurs immobiliers et opérateurs fonciers
+            SGNF accompagne les collectivités, aménageurs, promoteurs immobiliers et opérateurs fonciers
             dans la digitalisation complète de leurs projets grâce à une plateforme sécurisée,
             collaborative et conforme aux exigences du secteur.
           </p>
@@ -262,7 +262,7 @@ export function HomeContent() {
         <section className="border-t border-slate-200/40 bg-white">
           <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 sm:py-20 lg:py-24">
             <div className="mb-10 text-center sm:mb-14">
-              <h2 className="text-2xl font-bold tracking-tight text-[#0D3B66] sm:text-3xl">Pourquoi les professionnels choisissent SGFN ?</h2>
+              <h2 className="text-2xl font-bold tracking-tight text-[#0D3B66] sm:text-3xl">Pourquoi les professionnels choisissent SGNF ?</h2>
               <p className="mt-3 text-base text-slate-500 sm:text-lg">Parce qu'en matière de foncier, une simple erreur peut coûter des millions.</p>
             </div>
             <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
@@ -284,7 +284,7 @@ export function HomeContent() {
               <h2 className="text-2xl font-bold tracking-tight text-[#0D3B66] sm:text-3xl lg:text-4xl">Une plateforme professionnelle dédiée à la gouvernance foncière.</h2>
             </div>
             <div className="space-y-5 text-base leading-relaxed text-slate-600 sm:text-lg">
-              <p>SGFN est une plateforme professionnelle dédiée à la transformation numérique des opérations foncières en Côte d'Ivoire. Sa mission est de permettre aux acteurs du foncier de travailler plus rapidement tout en renforçant la transparence, la sécurité et la maîtrise des risques.</p>
+              <p>SGNF est une plateforme professionnelle dédiée à la transformation numérique des opérations foncières en Côte d'Ivoire. Sa mission est de permettre aux acteurs du foncier de travailler plus rapidement tout en renforçant la transparence, la sécurité et la maîtrise des risques.</p>
               <p>Toutes les parcelles, tous les documents, toutes les transactions et toutes les décisions sont centralisés dans un environnement unique, sécurisé et collaboratif.</p>
             </div>
           </div>
@@ -295,7 +295,7 @@ export function HomeContent() {
           <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 sm:py-24 lg:py-32">
             <div className="mb-10 sm:mb-14">
               <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091] sm:text-sm">Bénéfices</p>
-              <h2 className="text-2xl font-bold tracking-tight text-[#0D3B66] sm:text-3xl lg:text-4xl">Ce que SGFN change concrètement.</h2>
+              <h2 className="text-2xl font-bold tracking-tight text-[#0D3B66] sm:text-3xl lg:text-4xl">Ce que SGNF change concrètement.</h2>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4">
               {benefices.map((b) => (
@@ -373,8 +373,8 @@ export function HomeContent() {
             <div className="grid gap-8 sm:gap-12 lg:grid-cols-2 lg:items-center">
               <div>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091] sm:text-sm">Sécurité</p>
-                <h2 className="text-2xl font-bold tracking-tight text-[#0D3B66] sm:text-3xl lg:text-4xl">La sécurité est au cœur de SGFN.</h2>
-                <p className="mt-4 text-base leading-relaxed text-slate-500 sm:text-lg">Les données foncières constituent un patrimoine stratégique. SGFN garantit leur intégrité à chaque étape de leur cycle de vie.</p>
+                <h2 className="text-2xl font-bold tracking-tight text-[#0D3B66] sm:text-3xl lg:text-4xl">La sécurité est au cœur de SGNF.</h2>
+                <p className="mt-4 text-base leading-relaxed text-slate-500 sm:text-lg">Les données foncières constituent un patrimoine stratégique. SGNF garantit leur intégrité à chaque étape de leur cycle de vie.</p>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
                 {garantiesSecurite.map((g) => (
@@ -423,7 +423,7 @@ export function HomeContent() {
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091] sm:text-sm">Processus</p>
                 <h2 className="text-2xl font-bold tracking-tight text-[#0D3B66] sm:text-3xl lg:text-4xl">Une marche de validation claire à chaque étape.</h2>
-                <p className="mt-4 text-base leading-relaxed text-slate-500 sm:text-lg">Le flux SGFN a été conçu pour simplifier la coordination entre les parties prenantes, tout en garantissant une qualité de décision élevée.</p>
+                <p className="mt-4 text-base leading-relaxed text-slate-500 sm:text-lg">Le flux SGNF a été conçu pour simplifier la coordination entre les parties prenantes, tout en garantissant une qualité de décision élevée.</p>
               </div>
               <div className="overflow-x-auto rounded-2xl border border-slate-200/60 bg-white p-4 sm:p-6">
                 <table className="w-full text-left text-sm text-slate-600">
@@ -451,7 +451,7 @@ export function HomeContent() {
         <section className="border-t border-[#0D3B66] bg-[#0D3B66]">
           <div className="mx-auto max-w-5xl px-4 py-16 text-center sm:px-6 sm:py-24 lg:py-32">
             <h2 className="mx-auto max-w-3xl text-2xl font-bold leading-tight tracking-tight text-white sm:text-3xl lg:text-4xl">Faites du foncier un levier de confiance et de performance.</h2>
-            <p className="mt-4 text-base text-white/70 sm:text-lg">Découvrez comment SGFN peut moderniser vos projets fonciers.</p>
+            <p className="mt-4 text-base text-white/70 sm:text-lg">Découvrez comment SGNF peut moderniser vos projets fonciers.</p>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:mt-10 sm:flex-row">
               <Link href="/contact" className="inline-flex w-full items-center justify-center rounded-full bg-white px-8 py-4 text-sm font-bold text-[#0D3B66] shadow-md transition hover:bg-slate-100 active:scale-[0.98] sm:w-auto">
                 Demander une démonstration personnalisée →

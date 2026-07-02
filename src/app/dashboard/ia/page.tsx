@@ -163,7 +163,7 @@ function ResultCard({ result }: { result: AnalysisResult }) {
         <div className="space-y-2">
           <SignatureRow label="Chef de famille" present={result.signatures.chef_famille} />
           <SignatureRow label="Chef de village / Chefferie" present={result.signatures.chef_village} />
-          <SignatureRow label="SGFN" present={result.signatures.sgfn} />
+          <SignatureRow label="SGNF" present={result.signatures.sgfn} />
           <SignatureRow label="Notaire / Officiel" present={result.signatures.notaire} />
         </div>
       </div>
@@ -280,11 +280,11 @@ export default function IAPage() {
             <div className="max-w-3xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-sm font-medium text-cyan-300">
                 <Sparkles className="h-4 w-4" />
-                Intelligence artificielle SGFN
+                Intelligence artificielle SGNF
               </div>
               <h1 className="mt-4 text-2xl font-black sm:text-3xl">
                 <span className="bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-500 bg-clip-text text-transparent">
-                  SGFN AI — Analyseur Intelligent
+                  SGNF AI — Analyseur Intelligent
                 </span>
               </h1>
               <p className="mt-3 text-base leading-7 text-slate-400">

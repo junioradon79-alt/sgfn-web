@@ -18,7 +18,7 @@ import { createClient } from "@/utils/supabase/client";
  * Affiche la conformité juridique par lotissement (avant toute prise de contact)
  * et les lots disponibles. Le bouton « Manifester un intérêt » appelle la RPC
  * `manifester_interet` qui route la conversation vers l'opérateur du lotissement,
- * le chef de famille et l'admin SGFN. Porté depuis `sgfn_espace_amenageur_2.html`.
+ * le chef de famille et l'admin SGNF. Porté depuis `sgfn_espace_amenageur_2.html`.
  */
 
 type ConformiteRow = {
@@ -93,7 +93,7 @@ export default function AcquisitionPage() {
     }
     setInteretState((s) => ({ ...s, [lot.lot_id]: "done" }));
     setFlash(
-      `Votre intérêt pour le lot ${lot.lot} (${lot.lotissement}) a été transmis à l'opérateur, au chef de famille et à l'agence SGFN. Suivez l'échange dans Messages.`
+      `Votre intérêt pour le lot ${lot.lot} (${lot.lotissement}) a été transmis à l'opérateur, au chef de famille et à l'agence SGNF. Suivez l'échange dans Messages.`
     );
   };
 
@@ -290,7 +290,7 @@ export default function AcquisitionPage() {
 
         <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-500">
           « Manifester un intérêt » envoie un message à l&apos;opérateur du lotissement, au chef de
-          famille identifié et à l&apos;agence SGFN — suivez la réponse dans l&apos;onglet Messages.
+          famille identifié et à l&apos;agence SGNF — suivez la réponse dans l&apos;onglet Messages.
           Aucune réservation automatique n&apos;est effectuée.
         </p>
       </section>

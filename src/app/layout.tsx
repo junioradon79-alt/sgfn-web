@@ -3,15 +3,15 @@ import "./globals.css";
 import { RegisterSW } from "@/components/RegisterSW";
 
 export const metadata: Metadata = {
-  title: "SGFN — Système de Gestion du Foncier Numérique",
+  title: "SGNF — Système de Gestion Numérique du Foncier",
   description:
     "Plateforme numérique de gestion foncière en Côte d'Ivoire. Centralisez, sécurisez et tracez chaque acte, lot et attributaire.",
   manifest: "/manifest.json",
-  applicationName: "SGFN",
+  applicationName: "SGNF",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "SGFN",
+    title: "SGNF",
   },
   formatDetection: { telephone: false },
   icons: {
