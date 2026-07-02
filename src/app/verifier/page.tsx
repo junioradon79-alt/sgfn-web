@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ShieldCheck, ShieldX, ShieldAlert, Loader2, ScanLine } from "lucide-react";
+import { ShieldCheck, ShieldX, ShieldAlert, Loader2, ScanLine, Camera, X } from "lucide-react";
 
 type Verdict = "idle" | "loading" | "trouve" | "introuvable" | "erreur";
 
@@ -53,6 +53,106 @@ const CHAMP_LABEL: Record<string, string> = {
   guide_reference: "Guide de référence",
 };
 
+const QR_READER_ID = "qr-reader-camera";
+
+// Un QR code peut encoder soit la référence brute, soit une URL de deep link
+// (ex: https://sgnf.ci/verifier?ref=ATT-2026-0001) — on extrait la référence des deux cas.
+function extraireReference(texteScanne: string): string {
+  const brut = texteScanne.trim();
+  try {
+    const url = new URL(brut);
+    return url.searchParams.get("ref") ?? url.searchParams.get("token") ?? brut;
+  } catch {
+    return brut;
+  }
+}
+
+function ScannerCamera({
+  onResultat,
+  onFermer,
+}: {
+  onResultat: (reference: string) => void;
+  onFermer: () => void;
+}) {
+  const [erreur, setErreur] = useState<string | null>(null);
+  const scannerRef = useRef<import("html5-qrcode").Html5Qrcode | null>(null);
+  const arreteRef = useRef(false);
+
+  useEffect(() => {
+    arreteRef.current = false;
+    let annule = false;
+
+    const demarrer = async () => {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      if (annule) return;
+
+      const scanner = new Html5Qrcode(QR_READER_ID);
+      scannerRef.current = scanner;
+
+      try {
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (texteDecode) => {
+            if (arreteRef.current) return;
+            arreteRef.current = true;
+            onResultat(extraireReference(texteDecode));
+          },
+          () => {
+            // échec de décodage sur une frame donnée : ignoré (normal en continu)
+          },
+        );
+      } catch {
+        if (!annule) {
+          setErreur(
+            "Impossible d'accéder à la caméra. Vérifiez les autorisations de votre navigateur.",
+          );
+        }
+      }
+    };
+
+    demarrer();
+
+    return () => {
+      annule = true;
+      const scanner = scannerRef.current;
+      if (scanner) {
+        scanner
+          .stop()
+          .then(() => scanner.clear())
+          .catch(() => {});
+      }
+    };
+  }, [onResultat]);
+
+  return (
+    <div className="mx-auto mt-6 max-w-xl">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-sm font-semibold text-[#0D3B66]">Scanner un QR code</p>
+        <button
+          type="button"
+          onClick={onFermer}
+          className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+        >
+          <X className="h-4 w-4" />
+          Fermer
+        </button>
+      </div>
+      {erreur ? (
+        <div className="flex items-start gap-3 rounded-2xl bg-amber-50 p-6">
+          <ShieldAlert className="mt-0.5 h-6 w-6 shrink-0 text-amber-600" />
+          <p className="text-sm text-amber-700">{erreur}</p>
+        </div>
+      ) : (
+        <div
+          id={QR_READER_ID}
+          className="overflow-hidden rounded-2xl border border-slate-200 bg-black"
+        />
+      )}
+    </div>
+  );
+}
+
 function fmtValeur(v: unknown): string {
   if (v === null || v === undefined || v === "") return "—";
   if (typeof v === "boolean") return v ? "Oui" : "Non";
@@ -69,6 +169,7 @@ function VerifierForm() {
   const [ref, setRef] = useState(refInitiale);
   const [verdict, setVerdict] = useState<Verdict>("idle");
   const [resultat, setResultat] = useState<ResultatVerification | null>(null);
+  const [scannerOuvert, setScannerOuvert] = useState(false);
 
   const verifier = useCallback(async (reference: string) => {
     const r = reference.trim();
@@ -117,6 +218,15 @@ function VerifierForm() {
     if (refInitiale) verifier(refInitiale);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refInitiale]);
+
+  const handleScanReussi = useCallback(
+    (reference: string) => {
+      setScannerOuvert(false);
+      setRef(reference);
+      verifier(reference);
+    },
+    [verifier],
+  );
 
   const litigeActif =
     resultat?.statut_litige && resultat.statut_litige !== "aucun";
@@ -174,6 +284,26 @@ function VerifierForm() {
               Vérifier
             </button>
           </form>
+
+          {!scannerOuvert && (
+            <div className="mx-auto mt-4 flex max-w-xl justify-center">
+              <button
+                type="button"
+                onClick={() => setScannerOuvert(true)}
+                className="flex items-center gap-2 rounded-xl border border-[#1E6091]/30 bg-white px-4 py-2 text-sm font-semibold text-[#1E6091] transition hover:bg-[#1E6091]/5"
+              >
+                <Camera className="h-4 w-4" />
+                Scanner avec la caméra
+              </button>
+            </div>
+          )}
+
+          {scannerOuvert && (
+            <ScannerCamera
+              onResultat={handleScanReussi}
+              onFermer={() => setScannerOuvert(false)}
+            />
+          )}
 
           {verdict === "introuvable" && (
             <div className="mt-8 flex items-start gap-4 rounded-2xl bg-red-50 p-6">
