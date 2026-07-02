@@ -1,6 +1,6 @@
 import React from "react";
 
-type ParcelStatus = "disponible" | "attribue" | "en_validation" | "litige";
+type ParcelStatus = "disponible" | "attribue" | "en_validation" | "litige" | "neutre";
 
 interface BadgeProps {
   status: ParcelStatus;
@@ -45,6 +45,13 @@ const STATUS_STYLES: Record<
     text: "text-[#EF4444]",
     dot: "bg-[#EF4444]",
     dotAnim: "bg-[#EF4444]/60",
+  },
+  neutre: {
+    border: "border-slate-300/60",
+    bg: "bg-slate-100",
+    text: "text-slate-500",
+    dot: "bg-slate-400",
+    dotAnim: "bg-slate-400/60",
   },
 };
 

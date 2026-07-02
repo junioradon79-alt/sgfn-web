@@ -24,6 +24,7 @@ import {
   Crown,
   Handshake,
   MapPinned,
+  Store,
 } from "lucide-react";
 import React from "react";
 import { useProfile } from "@/hooks/useProfile";
@@ -130,6 +131,12 @@ const navItems: SidebarNavItem[] = [
     href: "/dashboard/litiges",
     icon: <FileWarning className="w-4 h-4" />,
     roles: ["commissaire", "verificateur", "chefferie"],
+  },
+  {
+    label: "Contacts Mon Terrain",
+    href: "/dashboard/contacts-marketplace",
+    icon: <Store className="w-4 h-4" />,
+    roles: ["admin"],
   },
   {
     label: "Documents",
