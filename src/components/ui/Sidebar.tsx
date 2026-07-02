@@ -195,7 +195,7 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
         <div className="w-10 h-10 rounded-xl bg-[#0D3B66] flex items-center justify-center p-[3px] shadow-md">
           <div className="bg-white w-full h-full rounded-lg flex items-center justify-center overflow-hidden">
             <Image
-              src="/logo-officiel.png"
+              src="/logo-embleme.png"
               alt="SGNF Logo"
               width={30}
               height={30}

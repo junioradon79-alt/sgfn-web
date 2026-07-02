@@ -43,7 +43,7 @@ export default function LoginPage() {
             <div className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-[#0D3B66] p-[2px] shadow-sm">
               <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-[10px] bg-white">
                 <Image
-                  src="/logo-officiel.png"
+                  src="/logo-embleme.png"
                   alt="SGNF"
                   width={48}
                   height={48}

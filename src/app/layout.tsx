@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   },
   formatDetection: { telephone: false },
   icons: {
-    icon: "/logo-officiel.png",
+    icon: "/logo-embleme.png",
     apple: "/icons/icon-192.png",
   },
   other: {

@@ -27,7 +27,7 @@ export function HomeHeader() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 shrink-0">
             <Image
-              src="/logo-officiel.png"
+              src="/logo-embleme.png"
               alt="Logo Officiel SGNF"
               width={44}
               height={44}

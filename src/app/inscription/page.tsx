@@ -119,7 +119,7 @@ export default function InscriptionPage() {
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0D3B66] p-[2px] shadow-sm">
               <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-[10px] bg-white">
                 <Image
-                  src="/logo-officiel.png"
+                  src="/logo-embleme.png"
                   alt="SGNF"
                   width={48}
                   height={48}

@@ -7,7 +7,7 @@ export default function Header() {
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
         <div className="flex items-center gap-4">
           <Image
-            src="/logo-officiel.png"
+            src="/logo-embleme.png"
             alt="Logo SGNF"
             width={55}
             height={55}
