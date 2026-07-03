@@ -24,6 +24,9 @@
 sgfn-deploy.*
 src.zip
 
+# manuel utilisateur genere (captures + PDF, artefact genere, livre hors git)
+/manuel-utilisateur/
+
 # android (signing key + IDE/build artefacts, jamais versionnés)
 android/*.jks
 android/.idea/

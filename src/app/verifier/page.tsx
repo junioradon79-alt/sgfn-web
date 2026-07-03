@@ -56,7 +56,7 @@ const CHAMP_LABEL: Record<string, string> = {
 const QR_READER_ID = "qr-reader-camera";
 
 // Un QR code peut encoder soit la référence brute, soit une URL de deep link
-// (ex: https://sgnf.ci/verifier?ref=ATT-2026-0001) — on extrait la référence des deux cas.
+// (ex: https://sgfn.ci/verifier?ref=ATT-2026-0001) — on extrait la référence des deux cas.
 function extraireReference(texteScanne: string): string {
   const brut = texteScanne.trim();
   try {

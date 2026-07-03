@@ -14,7 +14,7 @@ export const navLinks = [
   { href: "#contact", label: "Contact" },
 ];
 
-export const MARKETPLACE_URL = "https://monterrain.sgnf.ci";
+export const MARKETPLACE_URL = "https://monterrain.sgfn.ci";
 
 export function HomeHeader() {
   const [open, setOpen] = useState(false);
