@@ -9,7 +9,6 @@ export const navLinks = [
   { href: "#apropos", label: "À propos" },
   { href: "#chiffres", label: "Chiffres" },
   { href: "#fonctions", label: "Fonctionnalités" },
-  { href: "/metiers-partenaires", label: "Métiers partenaires" },
   { href: "#processus", label: "Processus" },
   { href: "#faq", label: "FAQ" },
   { href: "#contact", label: "Contact" },
@@ -25,7 +24,7 @@ export function HomeHeader() {
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-slate-200/40 bg-[#F8FAFC]/95 backdrop-blur-lg">
-        <div className="mx-auto flex h-[74px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-[74px] max-w-7xl items-center px-4 sm:px-6 lg:px-8">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 shrink-0">
             <Image
@@ -51,8 +50,27 @@ export function HomeHeader() {
             </span>
           </Link>
 
+          {/* Navigation desktop */}
+          <nav className="hidden flex-1 items-center justify-center gap-1 lg:flex">
+            {navLinks.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="rounded-full px-3 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-[#0D3B66]/6 hover:text-[#0D3B66]"
+              >
+                {l.label}
+              </Link>
+            ))}
+          </nav>
+
           {/* CTA desktop + hamburger mobile */}
           <div className="flex items-center gap-3">
+            <Link
+              href="/login"
+              className="hidden sm:inline-flex h-11 items-center justify-center rounded-full bg-[#0D3B66] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091] active:scale-[0.98]"
+            >
+              Ouvrir la plateforme
+            </Link>
             <a
               href={MARKETPLACE_URL}
               target="_blank"
@@ -62,12 +80,6 @@ export function HomeHeader() {
               <MapPin className="h-4 w-4" />
               Mon Terrain — marketplace
             </a>
-            <Link
-              href="/login"
-              className="hidden sm:inline-flex h-11 items-center justify-center rounded-full bg-[#0D3B66] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091] active:scale-[0.98]"
-            >
-              Ouvrir la plateforme
-            </Link>
 
             <button
               onClick={() => setOpen(!open)}
@@ -113,6 +125,13 @@ export function HomeHeader() {
           </nav>
 
           <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-3">
+            <Link
+              href="/login"
+              onClick={close}
+              className="flex h-12 items-center justify-center rounded-2xl bg-[#0D3B66] text-sm font-bold text-white shadow-sm transition hover:bg-[#1E6091] active:scale-[0.98]"
+            >
+              Ouvrir la plateforme
+            </Link>
             <a
               href={MARKETPLACE_URL}
               target="_blank"
@@ -123,13 +142,6 @@ export function HomeHeader() {
               <MapPin className="h-4 w-4" />
               Mon Terrain — marketplace
             </a>
-            <Link
-              href="/login"
-              onClick={close}
-              className="flex h-12 items-center justify-center rounded-2xl bg-[#0D3B66] text-sm font-bold text-white shadow-sm transition hover:bg-[#1E6091] active:scale-[0.98]"
-            >
-              Ouvrir la plateforme
-            </Link>
           </div>
         </div>
       </div>

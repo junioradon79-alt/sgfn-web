@@ -8,31 +8,11 @@ import {
   Lock,
   LayoutDashboard,
   ChevronDown,
-  Info,
-  BarChart3,
-  LayoutGrid,
-  Handshake,
-  GitBranch,
-  HelpCircle,
-  Mail,
-  MapPin,
-  type LucideIcon,
 } from "lucide-react";
 import { HomeMetrics } from "./HomeMetrics";
-import { navLinks, MARKETPLACE_URL } from "./HomeHeader";
 import { metiers } from "@/lib/metiers";
 
 const metierByNom = new Map(metiers.map((m) => [m.nom, m]));
-
-const navIcons: Record<string, LucideIcon> = {
-  "#apropos": Info,
-  "#chiffres": BarChart3,
-  "#fonctions": LayoutGrid,
-  "/metiers-partenaires": Handshake,
-  "#processus": GitBranch,
-  "#faq": HelpCircle,
-  "#contact": Mail,
-};
 
 // ─── Données ──────────────────────────────────────────────────────────────────
 
@@ -217,42 +197,9 @@ function FaqAccordion({ items }: { items: { q: string; a: string }[] }) {
 
 function Sidebar({ active, onSelect }: { active: string | null; onSelect: (p: string | null) => void }) {
   return (
-    <aside className="hidden xl:flex w-60 shrink-0 sticky top-[74px] self-start h-[calc(100vh-74px)] flex-col overflow-y-auto border-r border-slate-200/50 bg-white/60 px-4 py-6 backdrop-blur-sm">
-      {/* Navigation principale */}
-      <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Navigation</p>
-      <nav className="flex flex-col gap-0.5">
-        {navLinks.map((l) => {
-          const Icon = navIcons[l.href] ?? Info;
-          return (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-600 transition-all duration-200 hover:translate-x-1 hover:bg-[#0D3B66]/6 hover:text-[#0D3B66]"
-            >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400 transition-colors duration-200 group-hover:bg-[#0D3B66] group-hover:text-white">
-                <Icon className="h-3.5 w-3.5" />
-              </span>
-              {l.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Marketplace */}
-      <a
-        href={MARKETPLACE_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-4 flex items-center gap-3 rounded-xl border border-[#F39C12]/40 bg-[#F39C12]/10 px-3 py-2.5 text-[13px] font-bold text-[#b06a00] transition-all duration-200 hover:translate-x-1 hover:bg-[#F39C12] hover:text-[#0D3B66]"
-      >
-        <MapPin className="h-4 w-4 shrink-0" />
-        Mon Terrain
-      </a>
-
-      <div className="my-5 h-px bg-slate-200/70" />
-
-      {/* Filtre métiers */}
-      <p className="mb-4 px-3 text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Pour qui ?</p>
+    <aside className="hidden xl:flex w-60 shrink-0 sticky top-[74px] self-start h-[calc(100vh-74px)] flex-col overflow-y-auto border-r border-slate-200/50 bg-white/60 pl-8 pr-4 py-6 backdrop-blur-sm">
+      {/* Filtre métiers — aligné avec le logo du header */}
+      <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Pour qui ?</p>
       <div className="flex flex-col gap-2">
         {profiles.map((p) => {
           const isActive = active === p;
@@ -294,7 +241,7 @@ export function HomeContent() {
   const [activeProfile, setActiveProfile] = useState<string | null>(null);
 
   return (
-    <div className="flex">
+    <div className="mx-auto flex max-w-7xl">
       <Sidebar active={activeProfile} onSelect={setActiveProfile} />
 
       <main className="min-w-0 flex-1">
