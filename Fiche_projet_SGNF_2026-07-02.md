@@ -73,7 +73,7 @@ Test du parcours client sur tous les scénarios de transaction (attestation, hon
 
 ### Déploiement sgfn-web — package prêt, upload cPanel restant ⚠️
 
-`pnpm build` exécuté (36 pages statiques, `out/` régénéré) puis `scripts/make-zip.ps1` — **`sgfn-deploy.zip` (13,8 Mo, 110 fichiers) généré à la racine du repo**, prêt à envoyer. Contient tout le site à jour (lifting home + dashboards + badge propriétaire). **Reste à faire manuellement** : upload du zip sur cPanel et extraction (l'accès cPanel du user était en timeout sur `sgfn.ci:2083` le 02/07 — à revérifier, cf. `chrome://settings/security` ou tester `https://sgfn.ci/cpanel`). `sgfn-deploy.zip` est gitignoré, jamais commité.
+`pnpm build` exécuté (36 pages statiques, `out/` régénéré) puis **`sgfn-deploy.tar.gz` (13,7 Mo) généré via `tar -czf` à la racine du repo**, prêt à envoyer. Contient tout le site à jour (lifting home + dashboards + badge propriétaire). **`.tar.gz` obligatoire, pas `.zip`** : `scripts/make-zip.ps1` (basé sur `System.IO.Compression.ZipArchive`) ne préserve pas les permissions Unix → dossiers extraits en 644 (non traversables) → 403 sur tout `/_next/` à l'extraction cPanel (incident déjà vécu, cf. mémoire `deploiement_et_stats_publiques`) ; permissions vérifiées correctes dans ce tar.gz (dossiers 755, fichiers 644). **Reste à faire manuellement** : upload du tar.gz sur cPanel (Gestionnaire de fichiers → extraction directe, pas de zip intermédiaire) — vérifier d'abord que l'accès `sgfn.ci:2083` fonctionne (timeout constaté le 02/07, cf. `chrome://settings/security` ou tester `https://sgfn.ci/cpanel`). Le tar.gz est gitignoré, jamais commité.
 
 ## Feuille de route (ordonnée)
 
