@@ -185,11 +185,18 @@ export default function EspaceProprietairePage() {
 
   const nbAttDelivrees = attestations.filter((a) => a.statut === "delivree").length;
   const nbDemarchesOuvertes = demarches.filter((d) => !d.terminee_le).length;
+  const totalPaye = paiements
+    .filter((p) => p.statut === "confirme")
+    .reduce((s, p) => s + (p.montant_total ?? 0), 0);
+  const paiementsAPayer = paiements.filter(
+    (p) => p.statut === "en_attente" && p.acquereur_id === profile?.attributaire_id
+  );
 
-  const kpis: { label: string; value: number; icon: typeof Landmark; gradient: [string, string] }[] = [
+  const kpis: { label: string; value: string | number; icon: typeof Landmark; gradient: [string, string] }[] = [
     { label: "Lots détenus", value: attributions.length, icon: Landmark, gradient: ["#1E6091", "#4FA8D8"] },
     { label: "Attestations délivrées", value: nbAttDelivrees, icon: FileCheck2, gradient: ["#16A34A", "#4ADE80"] },
     { label: "Démarches en cours", value: nbDemarchesOuvertes, icon: ListChecks, gradient: ["#D97706", "#FBBF24"] },
+    { label: "Total payé", value: fcfa(totalPaye), icon: Banknote, gradient: ["#2D8F5A", "#5FBF8A"] },
   ];
 
   const prenom = profile?.nom_complet?.split(" ")[0] ?? "";
@@ -205,6 +212,15 @@ export default function EspaceProprietairePage() {
           <p className="mt-1.5 text-sm sm:text-base text-slate-500">
             Suivez vos lots, attestations, paiements et démarches foncières.
           </p>
+          {paiementsAPayer.length > 0 && (
+            <a
+              href="#mes-paiements"
+              className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#FEF3C7] px-3 py-1.5 text-xs font-semibold text-[#92400E] transition-colors hover:bg-[#FDE68A]"
+            >
+              <Banknote className="h-3.5 w-3.5" />
+              {paiementsAPayer.length} paiement{paiementsAPayer.length > 1 ? "s" : ""} en attente de votre part
+            </a>
+          )}
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Link
@@ -225,7 +241,7 @@ export default function EspaceProprietairePage() {
       </div>
 
       {/* KPI */}
-      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {kpis.map((k) => (
           <KpiCard key={k.label} label={k.label} value={loading ? "…" : k.value} icon={k.icon} gradient={k.gradient} />
         ))}
@@ -330,7 +346,7 @@ export default function EspaceProprietairePage() {
       </Section>
 
       {/* Mes paiements */}
-      <Section title="Mes paiements" hint={`${paiements.length} versement(s) enregistré(s)`}>
+      <Section id="mes-paiements" title="Mes paiements" hint={`${paiements.length} versement(s) enregistré(s)`}>
         {payError && (
           <p className="border-b border-red-100 bg-red-50 px-5 py-2.5 text-xs text-red-700">{payError}</p>
         )}
@@ -409,9 +425,19 @@ export default function EspaceProprietairePage() {
 
 // ─── Sous-composants ──────────────────────────────────────────────────────────
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function Section({
+  title,
+  hint,
+  id,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  id?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="mb-5 overflow-hidden rounded-xl border border-slate-200/60 bg-white">
+    <section id={id} className="mb-5 overflow-hidden rounded-xl border border-slate-200/60 bg-white scroll-mt-4">
       <div className="border-b border-slate-200/60 bg-slate-50/50 px-5 py-3">
         <p className="text-sm font-semibold text-slate-800">{title}</p>
         {hint && <p className="text-xs text-slate-400">{hint}</p>}
