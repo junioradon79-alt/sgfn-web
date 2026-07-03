@@ -1,6 +1,6 @@
 # Fiche projet — SGNF & Mon Terrain
 
-> Version consolidée au 03/07/2026 (nuit) — remplace la version du 02/07 (soir, suite).
+> Version consolidée au 03/07/2026 (nuit, suite) — remplace la version du 03/07 (nuit).
 
 ## Objectifs
 
@@ -28,7 +28,7 @@ Marketplace publique dédiée aux parcelles SGNF vérifiées :
 
 ### Commits Git — FAIT ✅
 Les deux repos sont à jour, plus rien en attente de commit sur les chantiers listés ci-dessous :
-- sgfn-web : `fdc0a3a` (marketplace + mettre-en-vente), `907db8b` (scanner QR caméra), `cccc2f9` (espace admin contacts marketplace), `33bba7a` (lifting visuel dashboards).
+- sgfn-web : `fdc0a3a` (marketplace + mettre-en-vente), `907db8b` (scanner QR caméra), `cccc2f9` (espace admin contacts marketplace), `33bba7a` (lifting visuel dashboards), `94ed392` (badge paiements espace propriétaire), `4620265` (nav header + sidebar home).
 - monterrain-web : `b5a30d0` (Supabase + carte + pass + contact), `5b058e5` (lifting visuel + logo header).
 
 ### Supabase (backend commun) — FAIT ✅
@@ -55,6 +55,7 @@ Les deux repos sont à jour, plus rien en attente de commit sur les chantiers li
 - **Espace admin « Contacts Mon Terrain »** (`/dashboard/contacts-marketplace`, 02/07 soir) : liste des demandes de contact, statut modifiable (nouvelle/traitée/transmise/close), coordonnées acheteur/propriétaire copiables, bouton « Contacter via WhatsApp » (lien `wa.me` pré-rempli) pour relayer la mise en relation. Testé en conditions réelles avec le user.
 - **Lifting visuel des dashboards** (02/07 soir) : badges d'icônes en dégradé + jauges circulaires (`RadialGauge`, `KpiCard` — nouveaux composants réutilisables) sur le dashboard admin et les espaces propriétaire/opérateur/commissaire/paiements/litiges. Validé par le user.
 - **Espace propriétaire — visibilité des paiements** (03/07 nuit) : 4e carte KPI « Total payé » + badge d'alerte ambre sous le titre (« N paiement(s) en attente de votre part », cliquable vers la section) quand un paiement électronique reste à la charge du propriétaire — la section « Mes paiements » était auparavant enterrée en bas de page.
+- **Lifting home institutionnelle** (03/07 nuit) : la nav (À propos, Chiffres, Fonctionnalités, Processus, FAQ, Contact) est passée du sidebar au header (horizontale, visible dès `lg`) ; « Métiers partenaires » retiré de la nav (déjà couvert par le filtre « Pour qui ? ») ; ordre des CTA inversé (« Ouvrir la plateforme » puis « Mon Terrain — marketplace ») ; le sidebar ne garde que « Pour qui ? », remonté en tête et aligné au pixel avec le logo du header.
 - `database.types.ts` régénéré (types marketplace).
 
 ### Chantier paiements SGNF — TERMINÉ ✅ (03/07 nuit)
@@ -70,16 +71,21 @@ Test du parcours client sur tous les scénarios de transaction (attestation, hon
 - Fixtures de test **nettoyées** après le test (ventes/échéances/certificats/démarche supprimés, attestation et lots 36/23 remis dans leur état d'origine) — base revenue à l'identique d'avant test.
 - **Cause racine des coupures réseau identifiée** : le DNS sécurisé de Chrome, incompatible avec le réseau IPv6-only/NAT64 du user, causait les `Failed to fetch` récurrents (pas un problème Supabase ni applicatif). Désactivé dans `chrome://settings/security`.
 
+### Déploiement sgfn-web — package prêt, upload cPanel restant ⚠️
+
+`pnpm build` exécuté (36 pages statiques, `out/` régénéré) puis `scripts/make-zip.ps1` — **`sgfn-deploy.zip` (13,8 Mo, 110 fichiers) généré à la racine du repo**, prêt à envoyer. Contient tout le site à jour (lifting home + dashboards + badge propriétaire). **Reste à faire manuellement** : upload du zip sur cPanel et extraction (l'accès cPanel du user était en timeout sur `sgfn.ci:2083` le 02/07 — à revérifier, cf. `chrome://settings/security` ou tester `https://sgfn.ci/cpanel`). `sgfn-deploy.zip` est gitignoré, jamais commité.
+
 ## Feuille de route (ordonnée)
 
-1. **Secrets** : poser `CINETPAY_API_KEY` / `CINETPAY_SITE_ID` / `RESEND_API_KEY` (+ `MARKETPLACE_RETURN_URL` si différent) dans les secrets Edge Functions Supabase, puis tester les scénarios F/G (paiement électronique) et un achat réel (petit montant sandbox CinetPay si disponible).
-2. **Déploiement** `monterrain.sgnf.ci` : package `out/` + `.htaccess` (trailingSlash), création du sous-domaine cPanel.
-3. **Reprendre le test réel du scanner QR caméra** sur téléphone (cause de l'échec précédent non identifiée).
-4. **Webhook / procédure de rebuild** de monterrain-web à la publication d'annonce (les annonces étant figées au build).
-5. **Quittances PDF** professionnelles (le téléchargement fonctionne mais génère un gabarit minimal de repli, pas un document mis en page).
-6. **Photos d'annonces** (schéma + upload storage + galerie fiche) — amélioration produit.
-7. Trancher le gap produit acquisition (achat en libre-service par l'acquéreur) et la transition `generee → delivree` des attestations.
-8. Reprise des chantiers différés : fournisseur Mobile Money définitif, notifications SMS, APK Android.
+1. **Mettre en ligne sgfn-web** : uploader `sgfn-deploy.zip` (déjà prêt) sur cPanel et extraire — vérifier d'abord que l'accès `sgfn.ci:2083` fonctionne (sinon tester `https://sgfn.ci/cpanel`).
+2. **Secrets** : poser `CINETPAY_API_KEY` / `CINETPAY_SITE_ID` / `RESEND_API_KEY` (+ `MARKETPLACE_RETURN_URL` si différent) dans les secrets Edge Functions Supabase, puis tester les scénarios F/G (paiement électronique) et un achat réel (petit montant sandbox CinetPay si disponible).
+3. **Déploiement** `monterrain.sgnf.ci` : package `out/` + `.htaccess` (trailingSlash), création du sous-domaine cPanel.
+4. **Reprendre le test réel du scanner QR caméra** sur téléphone (cause de l'échec précédent non identifiée).
+5. **Webhook / procédure de rebuild** de monterrain-web à la publication d'annonce (les annonces étant figées au build).
+6. **Quittances PDF** professionnelles (le téléchargement fonctionne mais génère un gabarit minimal de repli, pas un document mis en page).
+7. **Photos d'annonces** (schéma + upload storage + galerie fiche) — amélioration produit.
+8. Trancher le gap produit acquisition (achat en libre-service par l'acquéreur) et la transition `generee → delivree` des attestations.
+9. Reprise des chantiers différés : fournisseur Mobile Money définitif, notifications SMS, APK Android.
 
 ## Recommandations (inchangées + nouvelles)
 - Centraliser les constantes métier (PASS déjà centralisé dans `lib/pass.ts` côté front — dupliqué dans l'edge fn : à surveiller).
