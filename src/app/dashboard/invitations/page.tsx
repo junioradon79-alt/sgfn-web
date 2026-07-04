@@ -32,6 +32,13 @@ const STATUT_LABELS: Record<string, string> = {
   expiree: "Expirée",
 };
 
+const GROUPES_ATTRIBUTAIRE_REQUIS = ["proprietaire", "acquereur"];
+
+type Attributaire = {
+  id: string;
+  nom: string;
+};
+
 type Invitation = {
   id: string;
   code: string;
@@ -88,6 +95,18 @@ export default function InvitationsPage() {
   const [nomComplet, setNomComplet] = useState("");
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
+  const [attributaireId, setAttributaireId] = useState("");
+  const [attributaires, setAttributaires] = useState<Attributaire[]>([]);
+
+  const attributaireRequis = GROUPES_ATTRIBUTAIRE_REQUIS.includes(groupe);
+
+  useEffect(() => {
+    supabase
+      .from("attributaires")
+      .select("id, nom")
+      .order("nom")
+      .then(({ data }) => setAttributaires((data as Attributaire[]) ?? []));
+  }, []);
 
   const fetchInvitations = async () => {
     setLoading(true);
@@ -125,6 +144,7 @@ export default function InvitationsPage() {
       nom_complet: nomComplet || null,
       email: email || null,
       telephone: telephone || null,
+      attributaire_id: attributaireRequis ? attributaireId : null,
       cree_par: user.id,
     });
 
@@ -136,6 +156,7 @@ export default function InvitationsPage() {
       setNomComplet("");
       setEmail("");
       setTelephone("");
+      setAttributaireId("");
       await fetchInvitations();
     }
 
@@ -186,7 +207,7 @@ export default function InvitationsPage() {
               <select
                 required
                 value={groupe}
-                onChange={(e) => setGroupe(e.target.value)}
+                onChange={(e) => { setGroupe(e.target.value); setAttributaireId(""); }}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/20"
               >
                 <option value="" disabled>
@@ -199,6 +220,32 @@ export default function InvitationsPage() {
                 ))}
               </select>
             </div>
+
+            {attributaireRequis && (
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Attributaire concerné <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={attributaireId}
+                  onChange={(e) => setAttributaireId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/20"
+                >
+                  <option value="" disabled>
+                    Sélectionner un attributaire…
+                  </option>
+                  {attributaires.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.nom}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-400">
+                  Un compte propriétaire ou acquéreur doit être rattaché à un attributaire existant.
+                </p>
+              </div>
+            )}
 
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -252,7 +299,7 @@ export default function InvitationsPage() {
               </button>
               <SGFNButton
                 type="submit"
-                disabled={isPending || !groupe}
+                disabled={isPending || !groupe || (attributaireRequis && !attributaireId)}
                 className="rounded-xl bg-[#0D3B66] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091] disabled:opacity-60"
               >
                 {isPending ? "Génération…" : "Générer le code"}
