@@ -30,6 +30,9 @@ src.zip
 # dossiers partenaires PDF generes (artefact genere depuis les .md, livre hors git)
 /dossiers-partenaires/pdf/
 
+# dossier de passation PDF genere (artefact genere depuis docs/*.md, livre hors git)
+/docs/pdf/
+
 # android (signing key + IDE/build artefacts, jamais versionnés)
 android/*.jks
 android/.idea/
