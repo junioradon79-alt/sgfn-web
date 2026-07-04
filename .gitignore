@@ -27,6 +27,9 @@ src.zip
 # manuel utilisateur genere (captures + PDF, artefact genere, livre hors git)
 /manuel-utilisateur/
 
+# dossiers partenaires PDF generes (artefact genere depuis les .md, livre hors git)
+/dossiers-partenaires/pdf/
+
 # android (signing key + IDE/build artefacts, jamais versionnés)
 android/*.jks
 android/.idea/
