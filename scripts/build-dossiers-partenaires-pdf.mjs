@@ -8,7 +8,7 @@ const SRC_DIR = path.join(__dirname, "..", "dossiers-partenaires");
 const OUT_DIR = path.join(SRC_DIR, "pdf");
 mkdirSync(OUT_DIR, { recursive: true });
 
-const logoPath = path.join(__dirname, "..", "public", "logo-officiel.png");
+const logoPath = path.join(__dirname, "..", "public", "logo-embleme.png");
 const logoDataUri = `data:image/png;base64,${readFileSync(logoPath).toString("base64")}`;
 
 function inline(text) {
@@ -82,41 +82,24 @@ function markdownToHtml(md) {
   return html;
 }
 
-function pageHtml(bodyHtml, title) {
+function pageHtml(bodyHtml, title, logoDataUri) {
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
 <title>${title}</title>
 <style>
-  @page { margin: 0; }
   * { box-sizing: border-box; }
   body {
     font-family: "Segoe UI", Arial, sans-serif;
     color: #0F172A;
     margin: 0;
-    padding: 30mm 18mm 20mm 18mm;
+    padding: 0 18mm;
     font-size: 11pt;
     line-height: 1.55;
   }
-  .brand {
-    position: fixed;
-    top: 8mm;
-    left: 18mm;
-    right: 18mm;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 2px solid #0B5FA5;
-    padding-bottom: 4mm;
-  }
-  .brand img { height: 11mm; }
-  .brand .tag {
-    font-size: 9pt;
-    color: #64748B;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
+  .logo-row { margin-bottom: 4mm; }
+  .logo-row img { height: 13mm; }
   h1 {
     color: #0B5FA5;
     font-size: 20pt;
@@ -143,13 +126,18 @@ function pageHtml(bodyHtml, title) {
 </style>
 </head>
 <body>
-  <div class="brand">
-    <img src="${logoDataUri}" alt="SGNF">
-    <span class="tag">Dossier partenaire</span>
-  </div>
+  <div class="logo-row"><img src="${logoDataUri}" alt="SGNF"></div>
   ${bodyHtml}
 </body>
 </html>`;
+}
+
+function headerHtml() {
+  return `
+    <div style="width:100%; margin:0 18mm; text-align:right; font-family: Arial, sans-serif;">
+      <span style="font-size:8px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em;">Dossier partenaire — SGNF</span>
+    </div>
+  `;
 }
 
 const files = readdirSync(SRC_DIR)
@@ -165,7 +153,7 @@ for (const file of files) {
   const title = titleMatch ? titleMatch[1] : file;
   const bodyHtml = markdownToHtml(md);
 
-  await page.setContent(pageHtml(bodyHtml, title), { waitUntil: "networkidle" });
+  await page.setContent(pageHtml(bodyHtml, title, logoDataUri), { waitUntil: "networkidle" });
 
   const pdfName = file.replace(/\.md$/, ".pdf");
   const pdfPath = path.join(OUT_DIR, pdfName);
@@ -174,13 +162,13 @@ for (const file of files) {
     format: "A4",
     printBackground: true,
     displayHeaderFooter: true,
-    headerTemplate: "<div></div>",
+    headerTemplate: headerHtml(),
     footerTemplate: `
       <div style="font-size:8px; color:#94a3b8; width:100%; text-align:center; font-family: Arial, sans-serif;">
         SGNF — ${title} · Page <span class="pageNumber"></span> / <span class="totalPages"></span>
       </div>
     `,
-    margin: { top: "34mm", bottom: "14mm", left: "18mm", right: "18mm" },
+    margin: { top: "20mm", bottom: "14mm", left: "0mm", right: "0mm" },
   });
   console.log(`[OK] ${pdfName}`);
 }
