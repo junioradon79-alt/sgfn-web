@@ -48,6 +48,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Claude Code (config/permissions locales a la machine du developpeur, pas un artefact projet)
+.claude/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

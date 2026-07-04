@@ -1,18 +1,22 @@
 # Fiche projet — SGNF & Mon Terrain
 
-> Version consolidée au 03/07/2026 (nuit, suite) — remplace la version du 03/07 (nuit).
+> Version consolidée au 03/07/2026 (soir) — remplace la version du 03/07 (nuit).
 
 ## Objectifs
 
 ### SGNF (sgfn-web)
+
 Plateforme institutionnelle de gestion numérique du foncier ivoirien :
-- Site vitrine institutionnel.
-- Tableaux de bord par rôle (admin, propriétaire, opérateur, commissaire, chefferie…).
+
+- Site vitrine institutionnel — **en ligne sur `https://sgfn.ci`**.
+- Tableaux de bord par rôle (admin, propriétaire, opérateur, commissaire, chefferie, géomètre, vérificateur, aménageur…).
 - Export statique Next.js déployé sur cPanel/Apache.
 
 ### Mon Terrain (monterrain-web)
+
 Marketplace publique dédiée aux parcelles SGNF vérifiées :
-- Dépôt Git indépendant. Sous-domaine cible : `monterrain.sgnf.ci`.
+
+- Dépôt Git indépendant. **En ligne sur `https://monterrain.sgfn.ci`** (le domaine cible `sgnf.ci` n'a jamais été activé en DNS — à migrer plus tard si le domaine est un jour acheté/délégué).
 - Même backend Supabase que SGNF (projet `bvdzrhvbiglwrhzpmuwy`).
 
 ## Décisions d'architecture (rappel)
@@ -22,75 +26,79 @@ Marketplace publique dédiée aux parcelles SGNF vérifiées :
 - Éligibilité : lot avec attestation ou certificat au statut **delivree**. Les annonces n'expirent pas.
 - Recherche guidée (Zone → Usage → Superficie → Budget).
 - Localisation : coordonnées GPS **exactes privées** sur `lots` ; le public ne voit qu'un **cercle flou de 500 m** (coordonnées arrondies ~110 m côté base).
-- 0 commission sur les ventes de lots ; le pass est un revenu SGNF intégral.
+- 0 commission sur les ventes de lots via la marketplace ; le pass est un revenu SGNF intégral.
+- **Grille tarifaire des actes payants fixée le 03/07** (montants réels + commissions SGNF) : attestation de cession, honoraires géomètre par démarche, vente terrain, litige. Détail complet dans `Grille_Tarifaire_SGNF_2026-07-03.md` et mémoire `grille_tarifaire_actes_payants`.
+- **Nouvelle règle décidée (non codée)** : la consultation d'une attestation de cession via QR code devient payante (55 000 FCFA, dont 5 000 FCFA de commission SGNF), à la charge du vérificateur — n'entre en vigueur qu'avec l'activation de CinetPay.
 
-## État d'avancement — 03/07/2026 (nuit)
+## État d'avancement — 03/07/2026 (soir)
 
-### Commits Git — FAIT ✅
-Les deux repos sont à jour, plus rien en attente de commit sur les chantiers listés ci-dessous :
-- sgfn-web : `fdc0a3a` (marketplace + mettre-en-vente), `907db8b` (scanner QR caméra), `cccc2f9` (espace admin contacts marketplace), `33bba7a` (lifting visuel dashboards), `94ed392` (badge paiements espace propriétaire), `4620265` (nav header + sidebar home).
-- monterrain-web : `b5a30d0` (Supabase + carte + pass + contact), `5b058e5` (lifting visuel + logo header).
+### Mise en ligne des deux sites — FAIT ✅
+
+- **sgfn-web** déployé sur cPanel via `sgfn-deploy.tar.gz` (tar.gz obligatoire, jamais zip — casse les permissions Unix). `https://sgfn.ci` répond en HTTPS.
+- **monterrain-web** déployé sur le sous-domaine `monterrain.sgfn.ci` (bug bloquant corrigé au passage : `output:"export"` échouait à 100% quand la marketplace a 0 annonce active — `generateStaticParams` retombe désormais sur un UUID nul).
+- **Bug découvert et corrigé après coup** : le CTA marketplace sur la home sgfn-web pointait en dur vers l'ancien `monterrain.sgnf.ci` (constante `MARKETPLACE_URL` dans `HomeHeader.tsx`) — corrigé vers `monterrain.sgfn.ci`, les deux sites redéployés et revérifiés en prod.
+
+### Scanner QR caméra — RÉSOLU ✅
+
+Testé et confirmé fonctionnel sur téléphone réel via `https://sgfn.ci/verifier` (l'hypothèse HTTPS était la bonne — bloqué auparavant en localhost/HTTP).
+
+### Manuel utilisateur PDF — LIVRÉ ✅
+
+`sgfn-web/manuel-utilisateur/Manuel_Utilisateur_SGNF.pdf` (gitignored) : guide pas-à-pas avec captures d'écran réelles, 8 rôles couverts (admin, opérateur, propriétaire, commissaire, vérificateur, géomètre, chefferie, aménageur). 8 comptes de test `manuel.*@sgfn.ci` gardés actifs pour régénération future.
+
+### Quittance de paiement — PDF professionnel — TERMINÉ ✅
+
+La quittance (edge function `generation-document`, v26) génère désormais un vrai `.pdf` mis en page aux couleurs SGNF, via un template **PDFMonkey créé directement par API** (id `ea7baf50-0341-4ccb-be53-4e2701b7e87d`), avec repli HTML embarqué si PDFMonkey échoue. Contenu : montant total, payeur, contact, nature du paiement, moyen, référence, QR de vérification — **sans** détail commission SGNF (info interne non affichée au payeur). Testé en conditions réelles (paiement confirmé → PDF 116 Ko généré et vérifié visuellement).
+
+### Notifications email (Resend) — TERMINÉ ✅
+
+Domaine `sgfn.ci` vérifié dans Resend (DNS ajoutés en cPanel : DKIM `resend._domainkey`, MX + SPF sur `send.sgfn.ci`, sans toucher aux enregistrements existants). Secret `RESEND_API_KEY` posé côté Supabase. **Testé réel** : les 12 notifications en attente sont parties (`{"ok":true,"envoyees":12,"echecs":0}`), cron `*/10 min` opérationnel pour la suite.
+
+### Grille tarifaire des actes payants — FIXÉE ✅ (implémentation UI à faire)
+
+Montants réels donnés par le user le 03/07 (voir tableau ci-dessus). Reste : monter le formulaire `dashboard/paiements`/démarches avec ces montants par défaut, chiffrer bornage et demande ACD, trancher l'ajout d'une vraie table `tarifs` en base (aujourd'hui tout est saisi manuellement paiement par paiement), et implémenter le paywall QR une fois CinetPay branché.
+
+### Chantier paiements SGNF — TERMINÉ ✅ (test parcours, 02–03/07)
+
+- **8 scénarios sur 10 validés** en conditions réelles (attestation, honoraires, vente comptant/échelonnée, paiement « Autre », validation manuelle, reçu, vue propriétaire).
+- **F/G (paiement électronique CinetPay) restent à tester**, bloqués tant que les secrets CinetPay ne sont pas posés.
+- 2 bugs de production trouvés et corrigés en direct (trigger d'audit non `SECURITY DEFINER` ; calcul `montant_paye` incomplet sur vente comptant).
+- **Gap produit repéré (non corrigé, à trancher)** : `/dashboard/acquisition` ne permet que « Manifester un intérêt » — aucune UI ne permet à un acquéreur de déclencher lui-même un achat ; le staff crée `ventes`+`paiements` manuellement. Autre point à trancher : la transition `generee → delivree` d'une attestation semble être une action manuelle distincte (remise du document physique/numérique), à confirmer.
+- Cause racine des coupures réseau du user identifiée et réglée (DNS sécurisé Chrome incompatible réseau IPv6-only/NAT64).
 
 ### Supabase (backend commun) — FAIT ✅
+
 - Tables marketplace : `jetons_marketplace`, `annonces_marketplace`, `demandes_contact` + enum `type_paiement::pass_marketplace`.
-- Éligibilité contrôlée en base (`est_lot_eligible_marketplace`, CHECK sur l'annonce) — 16 lots éligibles.
-- Triggers : quota/validité du jeton à chaque demande de contact ; activation auto du jeton (+7 j) quand le paiement passe `confirme` (agnostique du PSP).
-- RLS : lecture publique des annonces actives ; propriétaire lit ses annonces ; admin lit/écrit `demandes_contact` + lit `jetons_marketplace`/`annonces_marketplace` (migration `marketplace_admin_contacts_rls`, 02/07 soir) ; autres écritures via `service_role` uniquement.
-- Vue publique `annonces_publiques` (join lot, type de document, coords arrondies).
-- Edge functions : `acheter-pass-marketplace` (v3), `demande-contact` (v2, avec notif admins), `publier-annonce` (v2, coords GPS), `statut-pass` — toutes testées end-to-end.
-- Audit du 02/07 : 2 bugs corrigés avant prod (enum `moyen_paiement` sans `mobile_money` ; `montant_reverse` colonne générée), index FK ajoutés, policy RLS optimisée (initplan).
+- Éligibilité contrôlée en base (`est_lot_eligible_marketplace`) ; RLS en place ; vue publique `annonces_publiques`.
+- Edge functions marketplace testées end-to-end : `acheter-pass-marketplace`, `demande-contact`, `publier-annonce`, `statut-pass`.
+- Edge function `envoyer-notifications` (Resend) et `generation-document` (v26, PDFMonkey) opérationnelles en prod.
 
 ### Mon Terrain (monterrain-web) — FAIT ✅
-- Annonces réelles Supabase (SSG au build) sur accueil / liste / fiche / recherche guidée.
-- Carte OpenStreetMap (Leaflet) sur chaque fiche avec cercle de flou 500 m — confidentialité vérifiée dans l'export.
-- Page `/pass` (achat CinetPay) + `/pass/retour` (validation, référence copiable).
-- Flux de contact complet sur la fiche : pass détecté (localStorage) ou saisi, message, quota affiché, doublon bloqué, notification email mise en file pour chaque admin SGNF.
-- Script `prebuild` qui purge le cache Next (données toujours fraîches au build). Déployer via `pnpm build` uniquement.
-- **Lifting visuel** (02/07 soir) : badges d'icônes en dégradé (vert/terracotta) sur accueil, fiche annonce, pass, comment-ça-marche ; miniatures d'annonces en dégradé ; header avec logo complet (pastille + wordmark 3D) en grand sur l'accueil, chevauchant volontairement le bandeau vert du hero, version compacte sur les autres pages.
+
+- Annonces réelles Supabase (SSG au build), carte OSM floutée 500 m, page `/pass`, flux de contact complet, lifting visuel (badges dégradé, header logo).
+- Pipeline de build statique repris de sgfn-web (`scripts/create-out.js` + `.htaccess`).
 
 ### SGNF (sgfn-web) — FAIT ✅
-- UI « Mettre en vente » (`/dashboard/mettre-en-vente`) : lots éligibles du propriétaire, formulaire d'annonce, double carte (point exact privé / aperçu flou acheteur), publication ou brouillon.
-- CTA « Mettre en vente » dans l'espace propriétaire.
-- **Scanner QR caméra** (`/verifier`, 02/07 soir) : bouton « Scanner avec la caméra » (lib `html5-qrcode`), extraction de référence (texte brut ou URL de deep link), déclenche la vérification existante. Testé en localhost/Playwright ; **test réel sur téléphone toujours non concluant** (cause indéterminée, à reprendre).
-- **Espace admin « Contacts Mon Terrain »** (`/dashboard/contacts-marketplace`, 02/07 soir) : liste des demandes de contact, statut modifiable (nouvelle/traitée/transmise/close), coordonnées acheteur/propriétaire copiables, bouton « Contacter via WhatsApp » (lien `wa.me` pré-rempli) pour relayer la mise en relation. Testé en conditions réelles avec le user.
-- **Lifting visuel des dashboards** (02/07 soir) : badges d'icônes en dégradé + jauges circulaires (`RadialGauge`, `KpiCard` — nouveaux composants réutilisables) sur le dashboard admin et les espaces propriétaire/opérateur/commissaire/paiements/litiges. Validé par le user.
-- **Espace propriétaire — visibilité des paiements** (03/07 nuit) : 4e carte KPI « Total payé » + badge d'alerte ambre sous le titre (« N paiement(s) en attente de votre part », cliquable vers la section) quand un paiement électronique reste à la charge du propriétaire — la section « Mes paiements » était auparavant enterrée en bas de page.
-- **Lifting home institutionnelle** (03/07 nuit) : la nav (À propos, Chiffres, Fonctionnalités, Processus, FAQ, Contact) est passée du sidebar au header (horizontale, visible dès `lg`) ; « Métiers partenaires » retiré de la nav (déjà couvert par le filtre « Pour qui ? ») ; ordre des CTA inversé (« Ouvrir la plateforme » puis « Mon Terrain — marketplace ») ; le sidebar ne garde que « Pour qui ? », remonté en tête et aligné au pixel avec le logo du header.
+
+- UI « Mettre en vente », espace admin « Contacts Mon Terrain », lifting visuel dashboards + home institutionnelle (nav header horizontale), badge paiements en attente espace propriétaire.
 - `database.types.ts` régénéré (types marketplace).
-
-### Chantier paiements SGNF — TERMINÉ ✅ (03/07 nuit)
-
-Test du parcours client sur tous les scénarios de transaction (attestation, honoraires, vente comptant/échelonnée, paiement électronique, validation manuelle, reçu, vue propriétaire), en conditions réelles via l'appli (localhost, même backend Supabase que la prod).
-
-- **8 scénarios sur 10 validés** : attestation de cession, honoraires géomètre, vente comptant, vente échelonnée (3 échéances), paiement « Autre », validation manuelle, téléchargement de reçu, vue propriétaire. Détail complet dans la mémoire `test_parcours_paiements`.
-- **F/G (paiement électronique CinetPay) restent à tester**, bloqués tant que les secrets CinetPay ne sont pas posés.
-- **2 bugs de production trouvés et corrigés en direct** (migrations déjà appliquées sur `bvdzrhvbiglwrhzpmuwy`) :
-  1. Le trigger d'audit `enregistrer_audit()` (10 tables dont `paiements`, `ventes`, `lots`) n'était pas `SECURITY DEFINER` → toute écriture via l'appli avec un vrai compte (non service-role) échouait avec une violation RLS sur `journal_audit`. Resté invisible car aucune donnée de paiement n'avait jamais été créée via l'interface auparavant (tables 100% vides avant ce test).
-  2. Le calcul de `ventes.montant_paye` ne sommait que les échéances → une **vente au comptant** (sans échéance) restait bloquée à `montant_paye=0` malgré un paiement confirmé en totalité. Corrigé pour compter aussi les paiements directs.
-- **Gap produit repéré (non corrigé, à trancher)** : `/dashboard/acquisition` ne permet que « Manifester un intérêt » (message) — aucune UI ne permet à un acquéreur de déclencher lui-même un achat ; c'est le staff qui crée `ventes`+`paiements` manuellement. Autre point à trancher : aucune fonction en base ne fait passer une attestation de `generee` à `delivree` après paiement — semble être une action manuelle distincte (remise du document), à confirmer.
-- Fixtures de test **nettoyées** après le test (ventes/échéances/certificats/démarche supprimés, attestation et lots 36/23 remis dans leur état d'origine) — base revenue à l'identique d'avant test.
-- **Cause racine des coupures réseau identifiée** : le DNS sécurisé de Chrome, incompatible avec le réseau IPv6-only/NAT64 du user, causait les `Failed to fetch` récurrents (pas un problème Supabase ni applicatif). Désactivé dans `chrome://settings/security`.
-
-### Déploiement sgfn-web — package prêt, upload cPanel restant ⚠️
-
-`pnpm build` exécuté (36 pages statiques, `out/` régénéré) puis **`sgfn-deploy.tar.gz` (13,7 Mo) généré via `tar -czf` à la racine du repo**, prêt à envoyer. Contient tout le site à jour (lifting home + dashboards + badge propriétaire). **`.tar.gz` obligatoire, pas `.zip`** : `scripts/make-zip.ps1` (basé sur `System.IO.Compression.ZipArchive`) ne préserve pas les permissions Unix → dossiers extraits en 644 (non traversables) → 403 sur tout `/_next/` à l'extraction cPanel (incident déjà vécu, cf. mémoire `deploiement_et_stats_publiques`) ; permissions vérifiées correctes dans ce tar.gz (dossiers 755, fichiers 644). **Reste à faire manuellement** : upload du tar.gz sur cPanel (Gestionnaire de fichiers → extraction directe, pas de zip intermédiaire) — vérifier d'abord que l'accès `sgfn.ci:2083` fonctionne (timeout constaté le 02/07, cf. `chrome://settings/security` ou tester `https://sgfn.ci/cpanel`). Le tar.gz est gitignoré, jamais commité.
 
 ## Feuille de route (ordonnée)
 
-1. **Mettre en ligne sgfn-web** : uploader `sgfn-deploy.zip` (déjà prêt) sur cPanel et extraire — vérifier d'abord que l'accès `sgfn.ci:2083` fonctionne (sinon tester `https://sgfn.ci/cpanel`).
-2. **Secrets** : poser `CINETPAY_API_KEY` / `CINETPAY_SITE_ID` / `RESEND_API_KEY` (+ `MARKETPLACE_RETURN_URL` si différent) dans les secrets Edge Functions Supabase, puis tester les scénarios F/G (paiement électronique) et un achat réel (petit montant sandbox CinetPay si disponible).
-3. **Déploiement** `monterrain.sgnf.ci` : package `out/` + `.htaccess` (trailingSlash), création du sous-domaine cPanel.
-4. **Reprendre le test réel du scanner QR caméra** sur téléphone (cause de l'échec précédent non identifiée).
-5. **Webhook / procédure de rebuild** de monterrain-web à la publication d'annonce (les annonces étant figées au build).
-6. **Quittances PDF** professionnelles (le téléchargement fonctionne mais génère un gabarit minimal de repli, pas un document mis en page).
-7. **Photos d'annonces** (schéma + upload storage + galerie fiche) — amélioration produit.
-8. Trancher le gap produit acquisition (achat en libre-service par l'acquéreur) et la transition `generee → delivree` des attestations.
-9. Reprise des chantiers différés : fournisseur Mobile Money définitif, notifications SMS, APK Android.
+1. **Secrets CinetPay** (`CINETPAY_API_KEY`/`CINETPAY_SITE_ID`) : débloque le paiement électronique réel du pass marketplace, les scénarios F/G du test paiements, et à terme le paywall QR.
+2. **Implémenter la grille tarifaire côté UI** : valeurs par défaut dans le formulaire démarches/paiements au lieu de saisie libre ; chiffrer bornage + demande ACD.
+3. **Paywall consultation QR** (attestation de cession, 55 000 FCFA) — dépend du point 1, chantier dédié (session/jeton de consultation, edge function).
+4. **Webhook / procédure de rebuild** de monterrain-web à la publication d'une annonce (les annonces sont figées au build statique).
+5. **Photos d'annonces** (schéma + upload storage + galerie fiche) — amélioration produit.
+6. Trancher le gap produit acquisition (achat en libre-service par l'acquéreur) et la transition `generee → delivree` des attestations.
+7. Reprise des chantiers différés : fournisseur Mobile Money définitif, notifications SMS (passerelle générique déjà en place dans `rappels-echeances`, attend `SMS_API_URL`/`SMS_API_KEY`), APK Android.
+8. **Point de sécurité à auditer** : incohérence entre le garde `HOOK_SECRET`/`x-hook-secret` de `generation-document` et ce qu'envoie réellement le trigger DB (`Authorization: Bearer`) — probablement `HOOK_SECRET` jamais configuré, endpoint protégé seulement par `verify_jwt` (satisfiable avec la clé anon publique).
 
 ## Recommandations (inchangées + nouvelles)
-- Centraliser les constantes métier (PASS déjà centralisé dans `lib/pass.ts` côté front — dupliqué dans l'edge fn : à surveiller).
-- Tests E2E des parcours marketplace et paiements après pose des secrets.
+
+- Centraliser les constantes métier (PASS déjà centralisé dans `lib/pass.ts` côté front — dupliqué dans l'edge fn : à surveiller). Idem pour la future grille tarifaire.
+- Tests E2E des parcours marketplace et paiements après pose des secrets CinetPay.
 - Documenter les API Supabase et politiques RLS.
-- CI/CD : à défaut, respecter strictement `pnpm build` (prebuild purge le cache Next).
+- CI/CD : à défaut, respecter strictement `pnpm build` (prebuild purge le cache Next côté monterrain-web).
 - À fort trafic : fournisseur de tuiles OSM dédié (MapTiler/Stadia) au lieu du serveur public.
 - Ce repo utilise **pnpm** (pas npm) — `npm install` échoue avec une erreur arborist à cause de la structure `node_modules` pnpm.

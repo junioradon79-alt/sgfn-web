@@ -91,13 +91,15 @@ Aucune table `tarifs` n'existe en base — tout est aujourd'hui saisi manuelleme
 
 # 5. État du dépôt au moment de la rédaction (04/07/2026)
 
-`sgfn-web` a des fichiers non commités (à trancher par le prochain développeur) :
+Mise à jour du 04/07/2026 (soir) : tous les fichiers listés ci-dessous ont depuis été committés.
 
-- `Grille_Tarifaire_SGNF_2026-07-03.md` — la grille tarifaire elle-même, référencée ci-dessus. À commiter.
-- `scripts/build-generation-document.mjs`, `scripts/build-quittance-literal.mjs`, `scripts/generation-document.new.ts`, `scripts/quittance.html` — outillage de génération du template de quittance PDF (voir [03-ARCHITECTURE.md](03-ARCHITECTURE.md) §6, edge fn `generation-document`). Fonctionnels et utilisés pour livrer la quittance PDF v27 en prod, jamais commités.
-- `scripts/manuel-capture.mjs`, `scripts/manuel-pdf.mjs`, `scripts/manuel-signup.mjs`, `scripts/manuel-verify-login.mjs` — génération du manuel utilisateur PDF (mots de passe de test en clair dedans, **ne pas commiter tel quel** sans les extraire dans une variable d'environnement).
+- `Grille_Tarifaire_SGNF_2026-07-03.md` — la grille tarifaire elle-même, référencée ci-dessus.
+- `scripts/build-generation-document.mjs`, `scripts/build-quittance-literal.mjs`, `scripts/generation-document.new.ts`, `scripts/quittance.html` — outillage de génération du template de quittance PDF (voir [03-ARCHITECTURE.md](03-ARCHITECTURE.md) §6, edge fn `generation-document`). Fonctionnels, utilisés pour livrer la quittance PDF v27 en prod.
+- `scripts/manuel-capture.mjs`, `scripts/manuel-pdf.mjs`, `scripts/manuel-signup.mjs`, `scripts/manuel-verify-login.mjs` — génération du manuel utilisateur PDF. Le mot de passe de test, auparavant en clair dans le code, est désormais lu depuis la variable d'environnement `MANUEL_TEST_PASSWORD` (le script échoue explicitement si elle est absente) — le exporter avant exécution : `export MANUEL_TEST_PASSWORD='...'` (valeur réelle communiquée hors dépôt).
 
 `monterrain-web` a un working tree propre (rien en attente).
+
+Le dossier `.claude/` (config locale de l'outillage Claude Code — permissions, launch.json) reste volontairement non versionné et a été ajouté au `.gitignore` : ce n'est pas un artefact du projet, seulement de la configuration locale à la machine du développeur.
 
 ---
 
