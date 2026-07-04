@@ -961,6 +961,7 @@ export type Database = {
       }
       documents: {
         Row: {
+          apercu_url: string | null
           date_document: string | null
           emetteur: string | null
           hash_fichier: string | null
@@ -973,6 +974,7 @@ export type Database = {
           url_fichier: string
         }
         Insert: {
+          apercu_url?: string | null
           date_document?: string | null
           emetteur?: string | null
           hash_fichier?: string | null
@@ -985,6 +987,7 @@ export type Database = {
           url_fichier: string
         }
         Update: {
+          apercu_url?: string | null
           date_document?: string | null
           emetteur?: string | null
           hash_fichier?: string | null

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { Badge } from "@/components/ui/Badge";
+import { useProfile } from "@/hooks/useProfile";
+import UploadPlanModal from "@/components/dashboard/UploadPlanModal";
 import {
   Download,
   FileCheck,
@@ -14,6 +16,9 @@ import {
   X,
   Copy,
   Check,
+  Upload,
+  Image as ImageIcon,
+  Loader2 as LoaderIcon,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -53,6 +58,7 @@ type DocumentRow = {
   emetteur: string | null;
   date_document: string | null;
   url_fichier: string;
+  apercu_url: string | null;
   hash_fichier: string | null;
   televerse_le: string;
   lots: { numero_lot: string | null; ilots: { lotissements: { nom: string | null } | null } | null } | null;
@@ -313,7 +319,35 @@ function PvTab({ rows }: { rows: PvRow[] }) {
 
 // ─── Onglet Documents génériques ──────────────────────────────────────────────
 
-function DocumentsTab({ rows }: { rows: DocumentRow[] }) {
+function PlanApercu({ doc, apercuUrl, onOpenLightbox }: {
+  doc: DocumentRow;
+  apercuUrl: string | undefined;
+  onOpenLightbox: (url: string) => void;
+}) {
+  if (!doc.apercu_url) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-600">
+        <ImageIcon className="h-3 w-3" /> Conversion en cours
+      </span>
+    );
+  }
+  if (!apercuUrl) {
+    return <LoaderIcon className="h-4 w-4 animate-spin text-slate-300" />;
+  }
+  return (
+    <button onClick={() => onOpenLightbox(apercuUrl)} className="block h-12 w-16 overflow-hidden rounded-lg border border-slate-200">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={apercuUrl} alt="Aperçu du plan" className="h-full w-full object-cover" />
+    </button>
+  );
+}
+
+function DocumentsTab({ rows, apercuUrls, dlOriginal, onOpenLightbox }: {
+  rows: DocumentRow[];
+  apercuUrls: Record<string, string>;
+  dlOriginal: (id: string) => void;
+  onOpenLightbox: (url: string) => void;
+}) {
   if (rows.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-sm text-slate-400">
@@ -329,7 +363,7 @@ function DocumentsTab({ rows }: { rows: DocumentRow[] }) {
           <tr className="border-b border-slate-100 bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
             <th className="px-5 py-3">Type</th>
             <th className="px-5 py-3">Titre</th>
-            <th className="px-5 py-3">Émetteur</th>
+            <th className="px-5 py-3">Aperçu</th>
             <th className="px-5 py-3">Lot associé</th>
             <th className="px-5 py-3">Date document</th>
             <th className="px-5 py-3">Intégrité</th>
@@ -341,6 +375,7 @@ function DocumentsTab({ rows }: { rows: DocumentRow[] }) {
             const lot = doc.lots;
             const lotLabel = lot ? `Lot ${lot.numero_lot ?? "—"}` : null;
             const lotissement = lot?.ilots?.lotissements?.nom ?? null;
+            const estPlan = doc.type === "plan_lot" || doc.type === "plan_lotissement";
             return (
               <tr key={doc.id} className="transition hover:bg-slate-50/50">
                 <td className="px-5 py-3.5">
@@ -351,8 +386,12 @@ function DocumentsTab({ rows }: { rows: DocumentRow[] }) {
                 <td className="px-5 py-3.5 text-slate-800">
                   {doc.titre ?? <span className="text-slate-300">Sans titre</span>}
                 </td>
-                <td className="px-5 py-3.5 text-slate-600">
-                  {doc.emetteur ?? <span className="text-slate-300">—</span>}
+                <td className="px-5 py-3.5">
+                  {estPlan ? (
+                    <PlanApercu doc={doc} apercuUrl={apercuUrls[doc.id]} onOpenLightbox={onOpenLightbox} />
+                  ) : (
+                    <span className="text-slate-300">—</span>
+                  )}
                 </td>
                 <td className="px-5 py-3.5 text-slate-600">
                   {lotLabel ? (
@@ -383,15 +422,25 @@ function DocumentsTab({ rows }: { rows: DocumentRow[] }) {
                   )}
                 </td>
                 <td className="px-5 py-3.5 text-right">
-                  <a
-                    href={doc.url_fichier}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Ouvrir"
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[#0D3B66]"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
+                  {estPlan ? (
+                    <button
+                      onClick={() => dlOriginal(doc.id)}
+                      title="Télécharger l'original"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[#0D3B66]"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                  ) : (
+                    <a
+                      href={doc.url_fichier}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Ouvrir"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[#0D3B66]"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  )}
                 </td>
               </tr>
             );
@@ -465,6 +514,7 @@ type Tab = "attestations" | "pv" | "documents";
 
 export default function DocumentsPage() {
   const supabase = createClient();
+  const { profile, isAdmin } = useProfile();
   const [activeTab, setActiveTab] = useState<Tab>("attestations");
   const [attestations, setAttestations] = useState<AttestationRow[]>([]);
   const [pvs, setPvs] = useState<PvRow[]>([]);
@@ -472,6 +522,11 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [dlState, setDlState] = useState<DlState>({});
   const [qrAtt, setQrAtt] = useState<AttestationRow | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [apercuUrls, setApercuUrls] = useState<Record<string, string>>({});
+  const [lightbox, setLightbox] = useState<string | null>(null);
+
+  const peutTeleverserPlan = isAdmin || profile?.groupe === "geometre";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -491,7 +546,7 @@ export default function DocumentsPage() {
       supabase
         .from("documents")
         .select(
-          "id, type, titre, emetteur, date_document, url_fichier, hash_fichier, televerse_le, lots(numero_lot, ilots(lotissements(nom)))"
+          "id, type, titre, emetteur, date_document, url_fichier, apercu_url, hash_fichier, televerse_le, lots(numero_lot, ilots(lotissements(nom)))"
         )
         .order("televerse_le", { ascending: false }),
     ]);
@@ -502,6 +557,52 @@ export default function DocumentsPage() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Récupère une URL signée pour un document générique (table "documents")
+  const signerDocument = useCallback(async (id: string, variant: "original" | "apercu") => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/telecharger-document`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({ table: "documents", reference: id, variant }),
+      }
+    );
+    const json = await res.json();
+    if (!res.ok || !json.url) throw new Error(json.erreur || "Erreur");
+    return json.url as string;
+  }, []);
+
+  // Charge les vignettes des plans dès qu'un apercu est disponible
+  useEffect(() => {
+    const aCharger = docs.filter(
+      (d) => (d.type === "plan_lot" || d.type === "plan_lotissement") && d.apercu_url && !apercuUrls[d.id]
+    );
+    if (aCharger.length === 0) return;
+    (async () => {
+      for (const doc of aCharger) {
+        try {
+          const url = await signerDocument(doc.id, "apercu");
+          setApercuUrls((s) => ({ ...s, [doc.id]: url }));
+        } catch {
+          // silencieux : la vignette restera en état "chargement"
+        }
+      }
+    })();
+  }, [docs, apercuUrls, signerDocument]);
+
+  const telechargerOriginalPlan = async (id: string) => {
+    try {
+      const url = await signerDocument(id, "original");
+      window.open(url, "_blank");
+    } catch {
+      // erreur silencieuse, pas de state dédié pour ce bouton
+    }
+  };
 
   const telecharger = async (reference: string) => {
     setDlState((s) => ({ ...s, [reference]: "loading" }));
@@ -540,11 +641,22 @@ export default function DocumentsPage() {
   return (
     <div className="space-y-6">
       {/* En-tête */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-[#0D3B66]">Coffre-fort Documentaire</h1>
-        <p className="mt-1 text-sm sm:text-base text-slate-500">
-          Attestations de cession, PV de famille et documents officiels.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#0D3B66]">Coffre-fort Documentaire</h1>
+          <p className="mt-1 text-sm sm:text-base text-slate-500">
+            Attestations de cession, PV de famille et documents officiels.
+          </p>
+        </div>
+        {peutTeleverserPlan && (
+          <button
+            onClick={() => setShowUpload(true)}
+            className="flex shrink-0 items-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091]"
+          >
+            <Upload className="h-4 w-4" />
+            Téléverser un plan
+          </button>
+        )}
       </div>
 
       {/* KPIs */}
@@ -608,11 +720,33 @@ export default function DocumentsPage() {
         ) : activeTab === "pv" ? (
           <PvTab rows={pvs} />
         ) : (
-          <DocumentsTab rows={docs} />
+          <DocumentsTab
+            rows={docs}
+            apercuUrls={apercuUrls}
+            dlOriginal={telechargerOriginalPlan}
+            onOpenLightbox={setLightbox}
+          />
         )}
       </div>
 
       {qrAtt && <QrModal att={qrAtt} onClose={() => setQrAtt(null)} />}
+
+      {showUpload && (
+        <UploadPlanModal
+          onClose={() => setShowUpload(false)}
+          onUploaded={() => void load()}
+        />
+      )}
+
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 p-6"
+          onClick={() => setLightbox(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={lightbox} alt="Aperçu du plan" className="max-h-full max-w-full rounded-lg shadow-2xl" />
+        </div>
+      )}
     </div>
   );
 }
