@@ -263,7 +263,7 @@ export function HomeContent() {
               Demander une démonstration
             </Link>
             <Link href="/login" className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-7 py-3.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-[#0D3B66]/30 hover:text-[#0D3B66] sm:w-auto">
-              Ouvrir la plateforme
+              Accéder à la plateforme
             </Link>
           </div>
         </section>

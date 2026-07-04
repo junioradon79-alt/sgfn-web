@@ -69,7 +69,7 @@ export function HomeHeader() {
               href="/login"
               className="hidden sm:inline-flex h-11 items-center justify-center rounded-full bg-[#0D3B66] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091] active:scale-[0.98]"
             >
-              Ouvrir la plateforme
+              Accéder à la plateforme
             </Link>
             <a
               href={MARKETPLACE_URL}
@@ -130,7 +130,7 @@ export function HomeHeader() {
               onClick={close}
               className="flex h-12 items-center justify-center rounded-2xl bg-[#0D3B66] text-sm font-bold text-white shadow-sm transition hover:bg-[#1E6091] active:scale-[0.98]"
             >
-              Ouvrir la plateforme
+              Accéder à la plateforme
             </Link>
             <a
               href={MARKETPLACE_URL}

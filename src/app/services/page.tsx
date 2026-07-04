@@ -99,7 +99,7 @@ export default function ServicesPage() {
             href="/login"
             className="mt-6 inline-flex items-center justify-center rounded-full bg-[#0D3B66] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#1E6091]"
           >
-            Ouvrir la plateforme →
+            Accéder à la plateforme →
           </Link>
         </div>
       </section>
