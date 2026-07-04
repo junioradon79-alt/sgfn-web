@@ -3,8 +3,13 @@
 // Ce fichier est importé dynamiquement (ssr: false) — il peut utiliser Leaflet librement.
 import { useEffect, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from "react-leaflet";
+import { Navigation } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+
+function googleMapsDirectionsUrl(lat: number, lng: number) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+}
 
 // ─── Icônes SVG custom (évite les problèmes webpack avec les images Leaflet) ──
 
@@ -131,6 +136,15 @@ export default function CarteMap({
                 <p className="mt-2 text-xs text-slate-400">
                   {lot.latitude?.toFixed(5)}, {lot.longitude?.toFixed(5)}
                 </p>
+                <a
+                  href={googleMapsDirectionsUrl(lot.latitude!, lot.longitude!)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 flex items-center justify-center gap-1.5 rounded-lg bg-[#0D3B66] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#1E6091]"
+                >
+                  <Navigation className="h-3.5 w-3.5" />
+                  Itinéraire
+                </a>
               </div>
             </Popup>
           </Marker>
