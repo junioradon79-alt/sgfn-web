@@ -2430,6 +2430,45 @@ export type Database = {
         }
         Relationships: []
       }
+      tarifs: {
+        Row: {
+          actif: boolean
+          commission_max: number | null
+          commission_min: number | null
+          id: string
+          maj_le: string
+          maj_par: string | null
+          montant_max: number | null
+          montant_min: number | null
+          notes: string | null
+          type_demarche: Database["public"]["Enums"]["type_demarche"]
+        }
+        Insert: {
+          actif?: boolean
+          commission_max?: number | null
+          commission_min?: number | null
+          id?: string
+          maj_le?: string
+          maj_par?: string | null
+          montant_max?: number | null
+          montant_min?: number | null
+          notes?: string | null
+          type_demarche: Database["public"]["Enums"]["type_demarche"]
+        }
+        Update: {
+          actif?: boolean
+          commission_max?: number | null
+          commission_min?: number | null
+          id?: string
+          maj_le?: string
+          maj_par?: string | null
+          montant_max?: number | null
+          montant_min?: number | null
+          notes?: string | null
+          type_demarche?: Database["public"]["Enums"]["type_demarche"]
+        }
+        Relationships: []
+      }
       transaction_parties: {
         Row: {
           attributaire_id: string
@@ -2778,6 +2817,7 @@ export type Database = {
         Args: { p_conversation_id: string }
         Returns: boolean
       }
+      type_document_annonce: { Args: { p_lot_id: string }; Returns: string }
       valider_invitation: { Args: { p_code: string }; Returns: Json }
       valider_paiement_manuel: {
         Args: { p_paiement_id: string; p_validateur: string }
