@@ -1,6 +1,6 @@
 # Fiche projet — SGNF & Mon Terrain
 
-> Version consolidée au 04/07/2026 (soir) — remplace la version du 03/07 (soir).
+> Version consolidée au 06/07/2026 — remplace la version du 04/07 (soir).
 >
 > ⚠️ Cette fiche reste un journal de session. La référence technique à jour et détaillée est désormais le dossier **`docs/`** du repo `sgfn-web` (README, architecture, roadmap, base de données, conventions) — voir aussi `docs/pdf/Dossier_Passation_SGNF.pdf` pour une version imprimable consolidée.
 
@@ -32,7 +32,25 @@ Marketplace publique dédiée aux parcelles SGNF vérifiées :
 - Grille tarifaire des actes payants fixée le 03/07 (montants réels + commissions SGNF). Détail complet dans `Grille_Tarifaire_SGNF_2026-07-03.md`.
 - Consultation d'une attestation de cession via QR payante (55 000 FCFA, dont 5 000 FCFA de commission SGNF), à la charge du vérificateur — décidée, **pas codée** (attend CinetPay).
 
-## État d'avancement — 04/07/2026 (soir)
+## État d'avancement — 06/07/2026
+
+### Audit de sécurité de suivi & fondations tarifaires — TERMINÉ ✅
+
+Un audit de suivi des advisors Supabase a révélé une alerte **ERROR** absente des audits précédents (lots A→D-bis) : la vue `annonces_publiques`, apparue avec la marketplace, était en **SECURITY DEFINER** — elle contournait donc le RLS de `lots` et `certificats_vente` pour n'importe quel appelant, y compris `anon`.
+
+Corrigée par migration (`fix_annonces_publiques_security_definer_view`) :
+- Policy RLS étroite `lots_marketplace_public_read` : `anon` ne lit un lot que s'il est référencé par une annonce marketplace **active** (même périmètre que ce que la vue affichait déjà).
+- Nouvelle fonction dédiée `type_document_annonce(uuid)` (narrow SECURITY DEFINER) pour calculer l'étiquette « certificat de vente / attestation de cession » sans ouvrir `certificats_vente` (table sensible) à `anon`.
+- Vue recréée avec `security_invoker = on`.
+- Vérifié par test en rôle `anon` : comportement inchangé (0 ligne, car 0 annonce active actuellement — pas un effet de bord du correctif). L'ERROR a disparu des advisors.
+
+Au passage, la **table `tarifs`** a été créée en base (une ligne par `type_demarche`, RLS lecture-authenticated/écriture-admin), peuplée avec les montants réels de la grille du 03/07 (`Grille_Tarifaire_SGNF_2026-07-03.md`). `bornage`/`demande_acd`/`autre` restent `actif=false` (montants pas encore fixés par l'équipe). `database.types.ts` régénéré, `pnpm build` vérifié sans régression (122 routes).
+
+⚠️ **Le formulaire `/dashboard/paiements` n'est pas encore branché sur cette table** — la saisie des montants reste libre pour l'instant (voir feuille de route, point 3).
+
+Nettoyage : branche Git obsolète `fix/home-stats-supabase` supprimée (contenu déjà fusionné dans `master`).
+
+**Reste à faire manuellement (aucun outil API disponible pour ça)** : activer *Leaked password protection* dans le Dashboard Supabase → Authentication → Auth Settings → Password Security.
 
 ### Dossier de passation développeur — TERMINÉ ✅
 
@@ -73,14 +91,15 @@ Un géomètre peut téléverser un plan AutoCAD (`.dwg`/`.bak`) rattaché à un 
 
 1. **Résoudre le rendu blanc des plans DWG** — diagnostiquer Xrefs/couleurs avec l'utilisateur, sinon envisager une conversion DWG→PDF intermédiaire ou un moteur alternatif.
 2. **Secrets CinetPay** (`CINETPAY_API_KEY`/`CINETPAY_SITE_ID`) : débloque le paiement électronique réel du pass marketplace, les scénarios F/G du test paiements, et à terme le paywall QR.
-3. **Implémenter la grille tarifaire côté UI** : valeurs par défaut dans le formulaire démarches/paiements au lieu de saisie libre ; chiffrer bornage + demande ACD.
+3. **Brancher la grille tarifaire côté UI** : la table `tarifs` existe désormais en base (créée le 06/07, RLS posée, montants réels) mais le formulaire démarches/paiements fait encore de la saisie libre — la connecter en valeurs par défaut ; chiffrer bornage + demande ACD.
 4. **Paywall consultation QR** (attestation de cession, 55 000 FCFA) — dépend du point 2.
 5. **Webhook / procédure de rebuild** de monterrain-web à la publication d'une annonce.
 6. **Photos d'annonces** (schéma + upload storage + galerie fiche).
 7. Trancher le gap produit acquisition (achat en libre-service par l'acquéreur) et la transition `generee → delivree` des attestations.
 8. Reprise des chantiers différés : fournisseur Mobile Money définitif, notifications SMS, APK Android.
-9. **Point de sécurité à auditer** : incohérence `HOOK_SECRET`/`Authorization: Bearer` sur `generation-document`.
-10. Provisionner les comptes chefferie réels (N'CHO KOUTOUAN JULES, NANAN AFFA KOUACHY ALFRED).
+9. **Activer la protection mots de passe fuités** (Dashboard Supabase → Authentication → Auth Settings → Password Security) — 2 minutes, aucun risque, pas d'outil API disponible pour le faire à distance.
+10. **Point de sécurité à auditer** : incohérence `HOOK_SECRET`/`Authorization: Bearer` sur `generation-document`.
+11. Provisionner les comptes chefferie réels (N'CHO KOUTOUAN JULES, NANAN AFFA KOUACHY ALFRED).
 
 ## Recommandations (inchangées + nouvelles)
 
