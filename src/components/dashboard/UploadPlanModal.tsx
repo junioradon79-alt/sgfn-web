@@ -48,8 +48,8 @@ export default function UploadPlanModal({
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] ?? null;
-    if (f && !/\.(dwg|bak)$/i.test(f.name)) {
-      setMessage("Seuls les fichiers .dwg et .bak sont acceptés.");
+    if (f && !/\.dxf$/i.test(f.name)) {
+      setMessage("Seul le format .dxf est accepté.");
       setFile(null);
       return;
     }
@@ -69,8 +69,7 @@ export default function UploadPlanModal({
       if (!user) throw new Error("Non authentifié.");
 
       const id = crypto.randomUUID();
-      const ext = file.name.split(".").pop()?.toLowerCase() ?? "dwg";
-      const chemin = `plans-cad/${id}/original.${ext}`;
+      const chemin = `plans-cad/${id}/original.dxf`;
 
       const { error: uploadErr } = await supabase.storage
         .from("documents")
@@ -105,10 +104,7 @@ export default function UploadPlanModal({
       );
       const json = await res.json();
 
-      if (res.status === 503) {
-        setMessage("Conversion indisponible pour le moment, le plan original reste téléchargeable.");
-        setStep("succes");
-      } else if (!json.ok) {
+      if (!json.ok) {
         setMessage(json.erreur ?? "La conversion a échoué, le plan original reste téléchargeable.");
         setStep("succes");
       } else {
@@ -136,7 +132,7 @@ export default function UploadPlanModal({
         <div className="mb-4 flex items-start justify-between">
           <div>
             <h2 className="text-base font-semibold text-[#0D3B66]">Téléverser un plan</h2>
-            <p className="mt-0.5 text-xs text-slate-500">Fichier AutoCAD (.dwg ou .bak) rattaché à un lot.</p>
+            <p className="mt-0.5 text-xs text-slate-500">Fichier AutoCAD au format DXF rattaché à un lot.</p>
           </div>
           {!enCours && (
             <button
@@ -224,11 +220,11 @@ export default function UploadPlanModal({
 
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Fichier .dwg / .bak <span className="text-red-500">*</span>
+                Fichier .dxf <span className="text-red-500">*</span>
               </label>
               <input
                 type="file"
-                accept=".dwg,.bak"
+                accept=".dxf"
                 onChange={handleFile}
                 disabled={enCours}
                 className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-[#0D3B66]/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-[#0D3B66] hover:file:bg-[#0D3B66]/20"
