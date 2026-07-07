@@ -93,19 +93,20 @@ Tout choix produit doit satisfaire quatre critères : **Sécurité, Simplicité,
 
 | # | Sujet | Gravité | Détail |
 |---|---|---|---|
-| 1 | **Front non déployé** | 🔴 Critique | L'edge fn `verification-qr` et le formulaire paiements/l'écran cessions sont en prod côté serveur, mais l'ancien front en ligne fuite le verdict de titre. `sgfn-deploy-cessions-paliers.tar.gz` prêt à uploader (remplace les tar.gz précédents). |
-| 2 | **Secrets CinetPay absents** | 🔴 Bloquant revenus | Bloque le paiement en ligne du pass, les scénarios F/G des tests paiements et le paywall QR en ligne. |
-| 3 | Pivot plans CAD → DXF | 🟡 | Commit `25a91cc` non testé en réel (rendu blanc DWG contourné). |
-| 4 | **Leaked password protection — bloqué** | 🟡 | Pas un simple toggle Dashboard : tentative via l'API management le 07/07 soir → `402 Payment Required`, nécessite un plan **Supabase Pro** (projet actuellement sur plan Free). |
-| 5 | Modale « Créer une cession » et formulaire paiements | 🟡 | Codés, testés côté serveur (RPC/SQL direct) le 07/07 soir, **jamais testés en navigateur réel**. |
-| 6 | Webhook rebuild monterrain-web | 🟡 | Republication à la mise en ligne d'une annonce. |
-| 7 | Photos d'annonces | 🟡 | Schéma + upload + galerie à créer. |
-| 8 | Comptes et tarifs chefferies réels | 🟡 | N'CHO KOUTOUAN JULES, NANAN AFFA KOUACHY ALFRED à provisionner ; seule la Chefferie d'Ebimpe a un tarif palier-3 configuré dans `tarifs_attestation_chefferie` — les autres bloqueront la délivrance d'une 3e attestation tant qu'un tarif n'est pas fixé. Bornage/demande ACD toujours sans montant dans `tarifs`. |
-| 9 | Différés | ⚪ | Mobile Money définitif, SMS, APK Android, transition `generee → delivree`, achat libre-service acquéreur. |
+| 1 | **Secrets CinetPay absents** | 🔴 Bloquant revenus | Bloque le paiement en ligne du pass, les scénarios F/G des tests paiements et le paywall QR en ligne. |
+| 2 | Pivot plans CAD → DXF | 🟡 | Commit `25a91cc` non testé en réel (rendu blanc DWG contourné). |
+| 3 | **Leaked password protection — bloqué** | 🟡 | Pas un simple toggle Dashboard : tentative via l'API management le 07/07 soir → `402 Payment Required`, nécessite un plan **Supabase Pro** (projet actuellement sur plan Free). |
+| 4 | Modale « Créer une cession » et formulaire paiements | 🟡 | Codés, testés côté serveur (RPC/SQL direct) le 07/07 soir, front déployé dans la foulée mais **jamais testés en navigateur réel**. |
+| 5 | Webhook rebuild monterrain-web | 🟡 | Republication à la mise en ligne d'une annonce. |
+| 6 | Photos d'annonces | 🟡 | Schéma + upload + galerie à créer. |
+| 7 | Comptes et tarifs chefferies réels | 🟡 | N'CHO KOUTOUAN JULES, NANAN AFFA KOUACHY ALFRED à provisionner ; seule la Chefferie d'Ebimpe a un tarif palier-3 configuré dans `tarifs_attestation_chefferie` — les autres bloqueront la délivrance d'une 3e attestation tant qu'un tarif n'est pas fixé. Bornage/demande ACD toujours sans montant dans `tarifs`. |
+| 8 | Différés | ⚪ | Mobile Money définitif, SMS, APK Android, transition `generee → delivree`, achat libre-service acquéreur. |
 
 **Risques soldés depuis la v1.0 (matin du 07/07)** — pour mémoire, ne sont plus des risques ouverts :
+
 - Faille de sécurité `generation-document` (garde `HOOK_SECRET` inerte) — auditée puis **corrigée et déployée** le soir même, testée en réel (voir §11).
 - Grille tarifaire non branchée à l'UI paiements — **branchée** le soir même.
+- Front non déployé (fuite du verdict de titre, grille tarifaire et écran cessions absents en prod) — **`sgfn-deploy-cessions-paliers.tar.gz` uploadé sur cPanel dans la foulée du 07/07 soir**. Le travail correspondant a aussi été commité en git à la reprise de session (4 commits, jusque-là non versionné).
 
 ---
 
@@ -148,15 +149,14 @@ Le monolithe Supabase actuel est **conservé** jusqu'à la fin du pilote multi-s
 
 *Objectif : zéro faille connue, revenus encaissables en ligne de bout en bout.*
 
-1. 🔴 Uploader `sgfn-deploy-cessions-paliers.tar.gz` sur cPanel (corrige la fuite de verdict, active la grille tarifaire paiements et l'écran cessions — **priorité absolue**).
-2. 🔴 Poser les secrets CinetPay (`CINETPAY_API_KEY`/`CINETPAY_SITE_ID`) — active pass marketplace en ligne, scénarios F/G, paywall QR électronique.
-3. 🟡 Tester en navigateur la modale « Créer une cession » et le formulaire paiements branché sur `tarifs` — seule la logique serveur a été validée jusqu'ici.
-4. 🟡 Tester le pivot DXF en réel (upload + conversion + aperçu non blanc).
-5. 🟡 Provisionner les tarifs des chefferies au-delà d'Ebimpe dans `tarifs_attestation_chefferie` ; chiffrer bornage + demande ACD dans `tarifs`.
-6. 🟡 Tests E2E des parcours marketplace et paiements après pose des secrets.
-7. ⬜ *Leaked password protection* — reporté, bloqué par le plan Supabase Free (voir §4.3).
+1. 🔴 Poser les secrets CinetPay (`CINETPAY_API_KEY`/`CINETPAY_SITE_ID`) — active pass marketplace en ligne, scénarios F/G, paywall QR électronique — **priorité absolue**.
+2. 🟡 Tester en navigateur la modale « Créer une cession » et le formulaire paiements branché sur `tarifs` — front déployé, seule la logique serveur a été validée jusqu'ici.
+3. 🟡 Tester le pivot DXF en réel (upload + conversion + aperçu non blanc).
+4. 🟡 Provisionner les tarifs des chefferies au-delà d'Ebimpe dans `tarifs_attestation_chefferie` ; chiffrer bornage + demande ACD dans `tarifs`.
+5. 🟡 Tests E2E des parcours marketplace et paiements après pose des secrets.
+6. ⬜ *Leaked password protection* — reporté, bloqué par le plan Supabase Free (voir §4.3).
 
-**Critères de sortie :** les 2 points rouges du §4.3 soldés ; un paiement CinetPay réel encaissé sur chaque canal (pass, consultation QR, acte, attestation de cession) ; la modale cessions validée en usage réel.
+**Critères de sortie :** le point rouge restant du §4.3 (secrets CinetPay) soldé ; un paiement CinetPay réel encaissé sur chaque canal (pass, consultation QR, acte, attestation de cession) ; la modale cessions validée en usage réel.
 
 ### Phase 1 — SGNF devient le MVP TerraCI (T3 2026)
 
