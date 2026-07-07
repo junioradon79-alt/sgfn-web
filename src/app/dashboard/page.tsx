@@ -25,6 +25,7 @@ const ROLE_HOME: Record<string, string> = {
   commissaire: "/dashboard/commissaire",
   verificateur: "/dashboard/commissaire",
   chefferie: "/dashboard/chefferie",
+  proprietaire_terrien: "/dashboard/proprietaire-terrien",
 };
 
 type AuditLog = {

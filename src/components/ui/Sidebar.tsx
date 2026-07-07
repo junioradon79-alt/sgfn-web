@@ -90,10 +90,17 @@ const navItems: SidebarNavItem[] = [
     adminHide: true,
   },
   {
+    label: "Propriétaire terrien",
+    href: "/dashboard/proprietaire-terrien",
+    icon: <Home className="w-4 h-4" />,
+    roles: ["proprietaire_terrien"],
+    adminHide: true,
+  },
+  {
     label: "Concertation",
     href: "/dashboard/concertation",
     icon: <Handshake className="w-4 h-4" />,
-    roles: ["chefferie", "proprietaire", "operateur"],
+    roles: ["chefferie", "proprietaire", "operateur", "proprietaire_terrien"],
     // admin voit aussi (pas de adminHide)
   },
   {
@@ -107,31 +114,31 @@ const navItems: SidebarNavItem[] = [
     label: "Lotissements",
     href: "/lotissements",
     icon: <Map className="w-4 h-4" />,
-    roles: ["operateur", "amenageur", "geometre", "chefferie", "verificateur"],
+    roles: ["operateur", "amenageur", "geometre", "chefferie", "verificateur", "proprietaire_terrien"],
   },
   {
     label: "Lots",
     href: "/dashboard/lots",
     icon: <Boxes className="w-4 h-4" />,
-    roles: ["operateur", "amenageur", "geometre", "chefferie", "verificateur", "commissaire"],
+    roles: ["operateur", "amenageur", "geometre", "chefferie", "verificateur", "commissaire", "proprietaire_terrien"],
   },
   {
     label: "Attributaires",
     href: "/dashboard/attributaires",
     icon: <Users className="w-4 h-4" />,
-    roles: ["operateur", "amenageur", "chefferie", "verificateur", "commissaire"],
+    roles: ["operateur", "amenageur", "chefferie", "verificateur", "commissaire", "proprietaire_terrien"],
   },
   {
     label: "Attributions",
     href: "/dashboard/attributions",
     icon: <Link2 className="w-4 h-4" />,
-    roles: ["operateur", "amenageur", "chefferie", "verificateur", "commissaire"],
+    roles: ["operateur", "amenageur", "chefferie", "verificateur", "commissaire", "proprietaire_terrien"],
   },
   {
     label: "Litiges",
     href: "/dashboard/litiges",
     icon: <FileWarning className="w-4 h-4" />,
-    roles: ["commissaire", "verificateur", "chefferie"],
+    roles: ["commissaire", "verificateur", "chefferie", "proprietaire_terrien"],
   },
   {
     label: "Contacts Mon Terrain",
@@ -173,7 +180,7 @@ const navItems: SidebarNavItem[] = [
     label: "Invitations",
     href: "/dashboard/invitations",
     icon: <MailOpen className="w-4 h-4" />,
-    roles: ["operateur", "amenageur", "chefferie"],
+    roles: ["operateur", "amenageur", "chefferie", "proprietaire_terrien"],
   },
   {
     label: "SGNF AI",
