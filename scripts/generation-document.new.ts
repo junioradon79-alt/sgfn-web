@@ -122,8 +122,8 @@ async function chargerDonnees(table: string, rec: any): Promise<Record<string, s
         out.nb_lots = lo?.nb_lots != null ? String(lo.nb_lots) : "—";
       }
       if (rec.famille_id) {
-        const { data: fam } = await supabase.from("familles").select("nom,lignee,chef_de_famille").eq("id", rec.famille_id).single();
-        out.famille = fam?.nom ?? "—"; out.lignee = fam?.lignee ?? "—";
+        const { data: fam } = await supabase.from("familles").select("nom,chef_de_famille,lignee:lignee_id(nom)").eq("id", rec.famille_id).single();
+        out.famille = fam?.nom ?? "—"; out.lignee = fam?.lignee?.nom ?? "—";
         out.chef_de_famille = rec.chef_de_famille ?? fam?.chef_de_famille ?? "—";
       } else {
         out.chef_de_famille = rec.chef_de_famille ?? "—";

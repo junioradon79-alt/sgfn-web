@@ -33,7 +33,7 @@ type Famille = {
   id: string;
   nom: string;
   chef_de_famille: string | null;
-  lignee: string | null;
+  lignee: { nom: string } | null;
   attributaire_id: string | null;
 };
 
@@ -227,7 +227,7 @@ function ChefFamilleView({ profile }: { profile: Profile }) {
     const [familleRes, mesLotsRes, apfcRes, pvRes] = await Promise.all([
       supabase
         .from("familles")
-        .select("id, nom, chef_de_famille, lignee, attributaire_id")
+        .select("id, nom, chef_de_famille, lignee:lignee_id(nom), attributaire_id")
         .eq("id", profile.famille_id!)
         .single(),
       profile.attributaire_id
@@ -321,7 +321,7 @@ function ChefFamilleView({ profile }: { profile: Profile }) {
           {famille?.nom ?? "Ma famille"}
         </h1>
         {famille?.lignee && (
-          <p className="text-sm text-slate-500">Lignée : {famille.lignee}</p>
+          <p className="text-sm text-slate-500">Lignée : {famille.lignee.nom}</p>
         )}
       </div>
 
