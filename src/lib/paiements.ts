@@ -4,6 +4,18 @@ export type TypePaiement = Database["public"]["Enums"]["type_paiement"];
 export type MoyenPaiement = Database["public"]["Enums"]["moyen_paiement"];
 export type StatutPaiement = Database["public"]["Enums"]["statut_paiement"];
 export type TypeVente = Database["public"]["Enums"]["type_vente"];
+export type TypeDemarche = Database["public"]["Enums"]["type_demarche"];
+
+export const TYPE_DEMARCHE_LABELS: Record<TypeDemarche, string> = {
+  delivrance_attestation_cession: "Délivrance attestation de cession",
+  transmission: "Transmission",
+  enterinement_chefferie: "Entérinement chefferie (APFC)",
+  mutation_acquereur: "Mutation acquéreur",
+  bornage: "Bornage",
+  demande_acd: "Demande ACD",
+  levee_litige: "Levée de litige",
+  autre: "Autre démarche",
+};
 
 export const TYPE_OPTIONS: { value: TypePaiement; label: string }[] = [
   { value: "attestation_cession", label: "Attestation de cession" },

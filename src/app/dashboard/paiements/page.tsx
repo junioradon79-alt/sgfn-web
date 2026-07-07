@@ -8,8 +8,9 @@ import {
   Banknote, CheckCircle2, Clock, CreditCard, Download, Plus, Receipt, ShieldCheck, TrendingUp, X,
 } from "lucide-react";
 import {
-  MOYEN_OPTIONS, MOYEN_LABELS, STATUT_CONFIG, TYPE_OPTIONS, fcfa, isMoyenManuel, labelTypePaiement,
-  type TypePaiement,
+  MOYEN_OPTIONS, MOYEN_LABELS, STATUT_CONFIG, TYPE_DEMARCHE_LABELS, TYPE_OPTIONS, fcfa, isMoyenManuel,
+  labelTypePaiement,
+  type TypeDemarche, type TypePaiement,
 } from "@/lib/paiements";
 
 type PaiementRecord = {
@@ -50,6 +51,14 @@ type VenteOption = {
 };
 type EcheanceOption = { id: string; numero: number; montant_du: number; date_echeance: string };
 type AttributaireOption = { id: string; nom: string };
+type TarifOption = {
+  type_demarche: TypeDemarche;
+  montant_min: number | null;
+  montant_max: number | null;
+  commission_min: number | null;
+  commission_max: number | null;
+  actif: boolean;
+};
 
 // ── Modale Nouveau Paiement ──────────────────────────────────────────────────
 
@@ -72,6 +81,7 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
   const [ventes, setVentes] = useState<VenteOption[]>([]);
   const [echeances, setEcheances] = useState<EcheanceOption[]>([]);
   const [attributaires, setAttributaires] = useState<AttributaireOption[]>([]);
+  const [tarifs, setTarifs] = useState<TarifOption[]>([]);
 
   const [attestationId, setAttestationId] = useState("");
   const [demarcheId, setDemarcheId] = useState("");
@@ -93,8 +103,7 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
         const { data } = await supabase
           .from("demarches")
           .select("id, type, description, montant_honoraires, attributaire_id, attributaires(nom)")
-          .is("terminee_le", null)
-          .not("montant_honoraires", "is", null);
+          .is("terminee_le", null);
         setDemarches((data ?? []) as unknown as DemarcheOption[]);
       } else if (type === "vente_terrain") {
         const { data } = await supabase
@@ -113,7 +122,34 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
     void load();
   }, [supabase, type]);
 
+  // Charger la grille tarifaire une seule fois
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase
+        .from("tarifs")
+        .select("type_demarche, montant_min, montant_max, commission_min, commission_max, actif");
+      setTarifs((data ?? []) as TarifOption[]);
+    };
+    void load();
+  }, [supabase]);
+
+  const tarifDe = useCallback(
+    (typeDemarche: TypeDemarche | null | undefined) =>
+      tarifs.find((t) => t.type_demarche === typeDemarche && t.actif),
+    [tarifs]
+  );
+
   const venteChoisie = ventes.find((v) => v.id === venteId);
+  const demarcheChoisie = demarches.find((d) => d.id === demarcheId);
+  const tarifActif =
+    type === "attestation_cession"
+      ? tarifDe("delivrance_attestation_cession")
+      : type === "honoraires"
+        ? tarifDe(demarcheChoisie?.type as TypeDemarche | undefined)
+        : undefined;
+  const montantReadOnly =
+    (type === "honoraires" && demarcheChoisie?.montant_honoraires != null) ||
+    (type === "vente_terrain" && !!venteChoisie);
 
   // Charger les échéances impayées de la vente choisie (vente échelonnée)
   useEffect(() => {
@@ -139,10 +175,17 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
       if (type === "attestation_cession") {
         const a = attestations.find((x) => x.id === attestationId);
         setBeneficiaire(a?.attributaires?.nom ?? "");
+        const tarif = tarifDe("delivrance_attestation_cession");
+        setMontant(a && tarif?.montant_min != null ? String(tarif.montant_min) : "");
       } else if (type === "honoraires") {
         const d = demarches.find((x) => x.id === demarcheId);
         setBeneficiaire(d?.attributaires?.nom ?? "");
-        setMontant(d?.montant_honoraires != null ? String(d.montant_honoraires) : "");
+        if (d?.montant_honoraires != null) {
+          setMontant(String(d.montant_honoraires));
+        } else {
+          const tarif = tarifDe(d?.type as TypeDemarche | undefined);
+          setMontant(d && tarif?.montant_min != null ? String(tarif.montant_min) : "");
+        }
       } else if (type === "vente_terrain") {
         setBeneficiaire(venteChoisie?.attributaires?.nom ?? "");
         const echeance = echeances.find((e) => e.id === echeanceId);
@@ -166,6 +209,7 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
     demarches,
     echeanceId,
     echeances,
+    tarifDe,
     type,
     venteChoisie,
   ]);
@@ -191,13 +235,31 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
     if (type === "attestation_cession") {
       const a = attestations.find((x) => x.id === attestationId);
       if (!a) { setErr("Sélectionnez une attestation."); return; }
+      const tarif = tarifDe("delivrance_attestation_cession");
+      if (
+        tarif?.montant_min != null && tarif.montant_max != null &&
+        (montantNum < tarif.montant_min || montantNum > tarif.montant_max)
+      ) {
+        setErr(`Montant hors grille tarifaire (${fcfa(tarif.montant_min)} – ${fcfa(tarif.montant_max)}).`);
+        return;
+      }
       payload.cession_id = a.cession_id;
       payload.acquereur_id = a.acquereur_id;
+      payload.commission_sgfn = tarif?.commission_min ?? 10000;
     } else if (type === "honoraires") {
       const d = demarches.find((x) => x.id === demarcheId);
       if (!d) { setErr("Sélectionnez une démarche."); return; }
+      const tarif = tarifDe(d.type as TypeDemarche | undefined);
+      if (
+        tarif?.montant_min != null && tarif.montant_max != null &&
+        (montantNum < tarif.montant_min || montantNum > tarif.montant_max)
+      ) {
+        setErr(`Montant hors grille tarifaire (${fcfa(tarif.montant_min)} – ${fcfa(tarif.montant_max)}).`);
+        return;
+      }
       payload.demarche_id = d.id;
       payload.acquereur_id = d.attributaire_id;
+      payload.commission_sgfn = tarif?.commission_min ?? 0;
     } else if (type === "vente_terrain") {
       if (!venteChoisie) { setErr("Sélectionnez une vente."); return; }
       payload.vente_id = venteChoisie.id;
@@ -209,6 +271,7 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
     } else if (type === "autre") {
       if (!autreAttributaireId) { setErr("Sélectionnez un attributaire."); return; }
       payload.acquereur_id = autreAttributaireId;
+      payload.commission_sgfn = 0;
     }
 
     setSaving(true);
@@ -280,7 +343,9 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
                 <option value="">— Sélectionner —</option>
                 {demarches.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.type ?? "Démarche"} — {d.attributaires?.nom ?? "?"} ({fcfa(d.montant_honoraires)})
+                    {TYPE_DEMARCHE_LABELS[d.type as TypeDemarche] ?? d.type ?? "Démarche"} —{" "}
+                    {d.attributaires?.nom ?? "?"} (
+                    {d.montant_honoraires != null ? fcfa(d.montant_honoraires) : "à chiffrer"})
                   </option>
                 ))}
               </select>
@@ -346,10 +411,20 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
               type="number"
               value={montant}
               onChange={(e) => setMontant(e.target.value)}
-              readOnly={type === "honoraires" || (type === "vente_terrain" && !!venteChoisie)}
+              readOnly={montantReadOnly}
               placeholder="Ex : 250000"
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 read-only:bg-slate-50 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
             />
+            {tarifActif?.montant_min != null && tarifActif.montant_max != null && (
+              <p className="mt-1 text-xs text-slate-400">
+                Grille tarifaire : {fcfa(tarifActif.montant_min)} – {fcfa(tarifActif.montant_max)}
+              </p>
+            )}
+            {type === "honoraires" && demarcheChoisie && !tarifActif && demarcheChoisie.montant_honoraires == null && (
+              <p className="mt-1 text-xs text-[#D97706]">
+                Montant non encore fixé dans la grille tarifaire — saisie libre à confirmer.
+              </p>
+            )}
           </div>
 
           <div>
