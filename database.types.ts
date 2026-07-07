@@ -2517,6 +2517,47 @@ export type Database = {
         }
         Relationships: []
       }
+      tarifs_attestation_chefferie: {
+        Row: {
+          actif: boolean
+          autorite_coutumiere_id: string
+          commission_sgfn: number | null
+          id: string
+          maj_le: string
+          maj_par: string | null
+          montant_chefferie: number | null
+          notes: string | null
+        }
+        Insert: {
+          actif?: boolean
+          autorite_coutumiere_id: string
+          commission_sgfn?: number | null
+          id?: string
+          maj_le?: string
+          maj_par?: string | null
+          montant_chefferie?: number | null
+          notes?: string | null
+        }
+        Update: {
+          actif?: boolean
+          autorite_coutumiere_id?: string
+          commission_sgfn?: number | null
+          id?: string
+          maj_le?: string
+          maj_par?: string | null
+          montant_chefferie?: number | null
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarifs_attestation_chefferie_autorite_coutumiere_id_fkey"
+            columns: ["autorite_coutumiere_id"]
+            isOneToOne: true
+            referencedRelation: "autorites_coutumieres"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transaction_parties: {
         Row: {
           attributaire_id: string
@@ -2824,6 +2865,16 @@ export type Database = {
       creer_attestation_gratuite_si_eligible: {
         Args: { p_attributaire_id: string; p_lot_id: string }
         Returns: undefined
+      }
+      creer_cession: {
+        Args: {
+          p_acquereur_id: string
+          p_date_cession?: string
+          p_lot_id: string
+          p_moyen?: Database["public"]["Enums"]["moyen_paiement"]
+          p_observation?: string
+        }
+        Returns: Json
       }
       debug_mon_contexte: { Args: never; Returns: Json }
       disponibilites_foncieres: { Args: never; Returns: Json }

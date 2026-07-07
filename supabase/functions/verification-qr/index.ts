@@ -1,6 +1,9 @@
 // SGFN — Edge Function : VERIFICATION QR PUBLIQUE
-// v15 : consultation payante des attestations de cession (60 000 FCFA, décision
-// équipe du 07/07/2026 — 50 000 chefferie + 10 000 commission SGNF).
+// v16 : exception pour la 1re attestation de cession (rang 1, ayant-droit
+// d'origine) — gratuite y compris en consultation, signalée par
+// verifier_attestation() via `gratuite: true` (cession_id IS NULL). Toute
+// attestation issue d'une cession (2e et suivantes) reste payante 60 000 FCFA
+// (50 000 chefferie + 10 000 commission SGNF, décision du 07/07/2026).
 // Le parcours amont (scan → identification du document) reste libre ; le
 // verdict d'authenticité complet n'est renvoyé que si la consultation est payée.
 // Certificats de vente et APFC restent gratuits.
@@ -109,7 +112,9 @@ Deno.serve(async (req) => {
   }
 
   // Documents à consultation gratuite : verdict complet, comme avant.
-  if (!TYPES_PAYANTS.has(data.type_document)) {
+  // Exception : la 1re attestation de cession (rang 1) est gratuite même en
+  // consultation — cf. commentaire d'en-tête.
+  if (!TYPES_PAYANTS.has(data.type_document) || data.gratuite === true) {
     await journaliser(req, ref, data.type_document, "trouve", lat, lon);
     return new Response(JSON.stringify(data), { headers: cors, status: 200 });
   }

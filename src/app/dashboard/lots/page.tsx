@@ -2,12 +2,13 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import {
-  AlertTriangle, ArrowRightLeft, Eye, Filter, Lock, Plus, Search, X,
+  AlertTriangle, ArrowRightLeft, Banknote, Eye, Filter, Lock, Plus, Search, X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
+import { MOYEN_OPTIONS, fcfa, type MoyenPaiement } from "@/lib/paiements";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,7 @@ type LotRecord = {
       nom?: string | null;
       commune?: string | null;
       village?: string | null;
+      autorite_coutumiere_id?: string | null;
     } | null;
   } | null;
   attributions?: Array<{
@@ -58,6 +60,9 @@ type IlotOption = {
 };
 
 type AttributaireOption = { id: string; nom: string | null };
+
+type TarifTier2 = { montant_min: number | null; commission_min: number | null; actif: boolean };
+type TarifChefferie = { montant_chefferie: number | null; commission_sgfn: number | null; actif: boolean };
 
 type LitigeRow = {
   id: string;
@@ -472,6 +477,122 @@ function LitigeModal({ lot, onClose, onSubmit, isSubmitting }: {
   );
 }
 
+// ─── Cession Modal ────────────────────────────────────────────────────────────
+// Crée le transfert (2e attestation et suivantes) : la 1re attestation
+// (rang 1) reste gérée automatiquement et gratuitement par le trigger DB,
+// cette modale ne s'occupe que des transferts payants.
+
+function CessionModal({
+  lot, attributaires, excludeAttributaireId, nextRang, tarifTier2, tarifChefferie, onClose, onSubmit, isSubmitting,
+}: {
+  lot: LotRecord;
+  attributaires: AttributaireOption[];
+  excludeAttributaireId: string | null;
+  nextRang: number;
+  tarifTier2: TarifTier2 | null;
+  tarifChefferie: TarifChefferie | null | undefined;
+  onClose: () => void;
+  onSubmit: (data: { acquereur_id: string; date_cession: string; observation: string; moyen: MoyenPaiement }) => Promise<string | null>;
+  isSubmitting: boolean;
+}) {
+  const [form, setForm] = useState({
+    acquereur_id: "",
+    date_cession: new Date().toISOString().slice(0, 10),
+    observation: "",
+    moyen: "especes" as MoyenPaiement,
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  const isTier2 = nextRang === 2;
+  const tarifDisponible = isTier2 ? !!tarifTier2?.actif : !!tarifChefferie?.actif;
+  const montantTotal = isTier2
+    ? (tarifTier2?.montant_min ?? 0)
+    : ((tarifChefferie?.montant_chefferie ?? 0) + (tarifChefferie?.commission_sgfn ?? 0));
+  const partChefferie = isTier2 ? (tarifTier2?.montant_min ?? 0) - (tarifTier2?.commission_min ?? 0) : tarifChefferie?.montant_chefferie ?? 0;
+  const commission = isTier2 ? (tarifTier2?.commission_min ?? 0) : (tarifChefferie?.commission_sgfn ?? 0);
+
+  const candidats = attributaires.filter((a) => a.id !== excludeAttributaireId);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!form.acquereur_id) { setError("Sélectionnez l'acquéreur."); return; }
+    setError(null);
+    const err = await onSubmit(form);
+    if (err) setError(err);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-2xl sm:p-8">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Nouvelle cession</p>
+            <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">Lot {lot.numero_lot} — {nextRang}e attestation</h2>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Prévisualisation du tarif */}
+        {tarifDisponible ? (
+          <div className="mt-5 rounded-2xl border border-[#0D3B66]/15 bg-[#0D3B66]/5 p-4 text-sm text-[#0D3B66]">
+            <p className="font-semibold">{fcfa(montantTotal)} au total</p>
+            <p className="mt-0.5 text-xs text-[#0D3B66]/70">
+              {fcfa(partChefferie)} chefferie + {fcfa(commission)} commission SGFN
+            </p>
+          </div>
+        ) : (
+          <div className="mt-5 flex items-start gap-2.5 rounded-2xl border border-amber-200/70 bg-amber-50 p-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+            <p className="text-xs text-amber-700">
+              {isTier2
+                ? "Tarif de la 2e attestation non configuré — contactez l'équipe SGFN."
+                : "Tarif non défini pour la chefferie de ce lotissement (3e attestation et plus) — contactez l'équipe SGFN pour le fixer."}
+            </p>
+          </div>
+        )}
+
+        <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
+          <SelectField id="cession-acquereur" label="Acquéreur" value={form.acquereur_id} onChange={(v) => setForm((f) => ({ ...f, acquereur_id: v }))} required>
+            <option value="">— Sélectionner —</option>
+            {candidats.map((a) => <option key={a.id} value={a.id}>{a.nom}</option>)}
+          </SelectField>
+
+          <div className="space-y-1.5">
+            <label htmlFor="cession-date" className="text-sm font-medium text-slate-700">Date de cession</label>
+            <input
+              id="cession-date" type="date" value={form.date_cession}
+              onChange={(e) => setForm((f) => ({ ...f, date_cession: e.target.value }))}
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
+            />
+          </div>
+
+          <SelectField id="cession-moyen" label="Moyen de paiement" value={form.moyen} onChange={(v) => setForm((f) => ({ ...f, moyen: v as MoyenPaiement }))}>
+            {MOYEN_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </SelectField>
+
+          <div className="space-y-1.5">
+            <label htmlFor="cession-obs" className="text-sm font-medium text-slate-700">Observation</label>
+            <textarea id="cession-obs" value={form.observation} rows={2} onChange={(e) => setForm((f) => ({ ...f, observation: e.target.value }))}
+              placeholder="Remarques, conditions…"
+              className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10" />
+          </div>
+
+          {error && <div className="rounded-2xl border border-red-200/70 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+
+          <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+            <button type="button" onClick={onClose} className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Annuler</button>
+            <button type="submit" disabled={isSubmitting || !tarifDisponible} className="rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E6091] disabled:opacity-70">
+              {isSubmitting ? "Enregistrement…" : "Créer la cession"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const TABLE_HEADERS = ["Lot", "Lotissement & Localité", "Attributaire", "Statut", "Actions"] as const;
@@ -484,12 +605,15 @@ const EMPTY_FORM = {
 
 export default function LotsPage() {
   const supabase = createClient();
-  const { isAdmin } = useProfile();
+  const { isAdmin, profile } = useProfile();
+  const canCreateCession = isAdmin || profile?.groupe === "operateur";
 
   const [lotRows, setLotRows] = useState<LotRecord[]>([]);
   const [ilotOptions, setIlotOptions] = useState<IlotOption[]>([]);
   const [attributaireOptions, setAttributaireOptions] = useState<AttributaireOption[]>([]);
   const [pvByCollectif, setPvByCollectif] = useState<Map<string, PvInfo>>(new Map());
+  const [tarifTier2, setTarifTier2] = useState<TarifTier2 | null>(null);
+  const [tarifsChefferie, setTarifsChefferie] = useState<Map<string, TarifChefferie>>(new Map());
   const [pvFilter, setPvFilter] = useState(false);
   const [search, setSearch] = useState("");
   const [statutFilter, setStatutFilter] = useState("");
@@ -501,6 +625,7 @@ export default function LotsPage() {
   const [lotLitiges, setLotLitiges] = useState<LitigeRow[]>([]);
   const [transfertLot, setTransfertLot] = useState<LotRecord | null>(null);
   const [litigeLot, setLitigeLot] = useState<LotRecord | null>(null);
+  const [cessionLot, setCessionLot] = useState<LotRecord | null>(null);
 
   // Create form
   const [formState, setFormState] = useState(EMPTY_FORM);
@@ -513,7 +638,7 @@ export default function LotsPage() {
     const { data } = await supabase
       .from("lots")
       .select(
-        "id, numero_lot, numero_parcelle, ilot_id, statut, verrouille, superficie_m2, est_equipement, nature_droit, observation, guide_page, ilots(id, numero, lotissements(nom, commune, village)), attributions(rang, qualite, actuel, depuis, observation, attributaires(id, nom, type)), attestations_cession(reference, statut, cession_id)"
+        "id, numero_lot, numero_parcelle, ilot_id, statut, verrouille, superficie_m2, est_equipement, nature_droit, observation, guide_page, ilots(id, numero, lotissements(nom, commune, village, autorite_coutumiere_id)), attributions(rang, qualite, actuel, depuis, observation, attributaires(id, nom, type)), attestations_cession(reference, statut, cession_id)"
       )
       .order("numero_lot", { ascending: true });
     setLotRows((data ?? []) as unknown as LotRecord[]);
@@ -547,6 +672,29 @@ export default function LotsPage() {
           }
         });
         setPvByCollectif(map);
+      });
+
+    // Tarifs de la 2e attestation (forfait national) et de la 3e+ (par chefferie).
+    supabase
+      .from("tarifs")
+      .select("montant_min, commission_min, actif")
+      .eq("type_demarche", "delivrance_attestation_cession")
+      .maybeSingle()
+      .then(({ data }) => setTarifTier2(data as TarifTier2 | null));
+
+    supabase
+      .from("tarifs_attestation_chefferie")
+      .select("autorite_coutumiere_id, montant_chefferie, commission_sgfn, actif")
+      .then(({ data }) => {
+        const map = new Map<string, TarifChefferie>();
+        (data ?? []).forEach((t) => {
+          map.set(t.autorite_coutumiere_id, {
+            montant_chefferie: t.montant_chefferie,
+            commission_sgfn: t.commission_sgfn,
+            actif: t.actif,
+          });
+        });
+        setTarifsChefferie(map);
       });
   }, []);
 
@@ -640,6 +788,39 @@ export default function LotsPage() {
     setSuccessMessage("Dossier de litige ouvert.");
     setTimeout(() => setSuccessMessage(null), 4000);
     await loadLots();
+  };
+
+  const handleCessionSubmit = async (data: {
+    acquereur_id: string; date_cession: string; observation: string; moyen: MoyenPaiement;
+  }): Promise<string | null> => {
+    if (!cessionLot) return "Aucun lot sélectionné.";
+    setIsSubmitting(true);
+
+    const { data: result, error } = await supabase.rpc("creer_cession", {
+      p_lot_id: cessionLot.id,
+      p_acquereur_id: data.acquereur_id,
+      p_date_cession: data.date_cession || undefined,
+      p_observation: data.observation.trim() || undefined,
+      p_moyen: data.moyen,
+    });
+
+    setIsSubmitting(false);
+
+    if (error) return error.message;
+
+    const r = result as {
+      rang: number; montant_total: number; statut_paiement: string;
+    };
+    setCessionLot(null);
+    setSuccessMessage(
+      `Cession créée (${r.rang}e attestation) — ${fcfa(r.montant_total)}. ` +
+      (r.statut_paiement === "en_attente_validation"
+        ? "Paiement en attente de validation au guichet (onglet Paiements)."
+        : "Paiement en attente de règlement en ligne par l'acquéreur.")
+    );
+    setTimeout(() => setSuccessMessage(null), 6000);
+    await loadLots();
+    return null;
   };
 
   // Group ilots by lotissement for the select
@@ -832,6 +1013,16 @@ export default function LotsPage() {
                               <AlertTriangle className="h-4 w-4" />
                             </button>
                           )}
+                          {canCreateCession && attrActuel && (
+                            <button
+                              type="button"
+                              onClick={() => setCessionLot(lot)}
+                              title="Créer une cession"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#2D8F5A]"
+                            >
+                              <Banknote className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -908,6 +1099,24 @@ export default function LotsPage() {
       {detailLot && <LotDetailModal lot={detailLot} litiges={lotLitiges} pvAlert={lotPvAlert(detailLot, pvByCollectif)} onClose={() => setDetailLot(null)} />}
       {transfertLot && <AttributionModal lot={transfertLot} attributaires={attributaireOptions} isSubmitting={isSubmitting} onClose={() => setTransfertLot(null)} onSubmit={handleAttributionSubmit} />}
       {litigeLot && <LitigeModal lot={litigeLot} isSubmitting={isSubmitting} onClose={() => setLitigeLot(null)} onSubmit={handleLitigeSubmit} />}
+      {cessionLot && (() => {
+        const attrActuel = cessionLot.attributions?.find((a) => a.actuel) ?? cessionLot.attributions?.[0];
+        const nextRang = (attrActuel?.rang ?? 1) + 1;
+        const autoriteId = cessionLot.ilots?.lotissements?.autorite_coutumiere_id ?? "";
+        return (
+          <CessionModal
+            lot={cessionLot}
+            attributaires={attributaireOptions}
+            excludeAttributaireId={attrActuel?.attributaires?.id ?? null}
+            nextRang={nextRang}
+            tarifTier2={tarifTier2}
+            tarifChefferie={tarifsChefferie.get(autoriteId)}
+            isSubmitting={isSubmitting}
+            onClose={() => setCessionLot(null)}
+            onSubmit={handleCessionSubmit}
+          />
+        );
+      })()}
     </div>
   );
 }
