@@ -65,9 +65,9 @@ Montants réels validés le 03/07/2026 (détail complet dans `Grille_Tarifaire_S
 | Transmission | 300 000 – 500 000 FCFA | 30 000 – 50 000 FCFA |
 | Levée de litige | 110 000 FCFA | 10 000 FCFA |
 | Bornage / demande ACD | à valider | à valider |
-| Consultation QR payante (attestation de cession) | 55 000 FCFA | 5 000 FCFA |
+| Consultation QR payante (attestation de cession) | 60 000 FCFA (dont 50 000 pour la chefferie) | 10 000 FCFA |
 
-La **consultation QR payante** est une règle nouvelle et importante : le payeur devient le vérificateur (pas le propriétaire), modèle *pay-per-view*, portée limitée à l'attestation de cession pour l'instant. **Décidée mais volontairement pas codée** — dépend du branchement CinetPay, pour ne pas livrer un flux non testable en réel.
+La **consultation QR payante** est une règle nouvelle et importante : le payeur devient le vérificateur (pas le propriétaire), modèle *pay-per-view*, portée limitée à l'attestation de cession pour l'instant. **Implémentée et déployée le 07/07/2026** (montants réajustés le même jour : 60 000/50 000/10 000 au lieu des 55 000/5 000 initiaux) : verdict bloqué côté serveur (`verification-qr` v15 + table `consultations_qr`), paiement en ligne prêt mais en 503 tant que les secrets CinetPay ne sont pas posés, validation manuelle admin via `/dashboard/consultations-qr` en attendant. Détail dans `Grille_Tarifaire_SGNF_2026-07-03.md` §4.
 
 Aucune table `tarifs` n'existe en base — tout est aujourd'hui saisi manuellement paiement par paiement.
 
@@ -77,7 +77,7 @@ Aucune table `tarifs` n'existe en base — tout est aujourd'hui saisi manuelleme
 
 1. **Secrets CinetPay** (`CINETPAY_API_KEY`/`CINETPAY_SITE_ID`, posés par l'utilisateur uniquement) — débloque le paiement électronique réel du pass marketplace, les scénarios F/G du test paiements, et à terme le paywall QR.
 2. **Implémenter la grille tarifaire côté UI** — valeurs par défaut dans le formulaire démarches/paiements au lieu de saisie libre ; chiffrer bornage + demande ACD au préalable.
-3. **Paywall consultation QR** (attestation de cession, 55 000 FCFA) — dépend du point 1, chantier dédié (session/jeton de consultation, edge function).
+3. ~~**Paywall consultation QR**~~ — **FAIT le 07/07/2026** (60 000 FCFA : 50 000 chefferie + 10 000 SGNF). Seul le paiement en ligne reste conditionné au point 1 (les edge fns `payer-consultation-qr`/`confirmer-consultation-qr` s'activeront d'elles-mêmes à la pose des secrets CinetPay).
 4. **Webhook/procédure de rebuild** de `monterrain-web` à la publication d'une annonce — les annonces sont aujourd'hui figées au build statique (SSG), une nouvelle annonce n'apparaît qu'au prochain déploiement.
 5. **Photos d'annonces** (schéma + upload storage + galerie fiche) — amélioration produit marketplace.
 6. **Trancher deux gaps produit** : (a) achat en libre-service par l'acquéreur depuis `/dashboard/acquisition` (aujourd'hui staff-only) ; (b) la transition `generee → delivree` d'une attestation semble être une action manuelle séparée (remise du document physique/numérique) — à confirmer.

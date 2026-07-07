@@ -43,7 +43,7 @@
 
 ## Litiges, messagerie, notifications, sécurité
 
-`litiges`, `conversations`/`conversation_participants`/`messages`/`conversation_documents`, `notifications_a_envoyer` (file d'attente email/SMS), `invitations` (8), `scans_qr` (10 — journal des vérifications QR), `journal_audit` (1308 — trigger d'audit sur ~10 tables), `propositions_ia`, `profiles` (14).
+`litiges`, `conversations`/`conversation_participants`/`messages`/`conversation_documents`, `notifications_a_envoyer` (file d'attente email/SMS), `invitations` (8), `scans_qr` (10 — journal des vérifications QR), `consultations_qr` (créée le 07/07 — consultations QR payantes des attestations de cession : 60 000 FCFA dont 50 000 chefferie/10 000 SGNF historisés par ligne, jeton porteur + code court `CQR-…`, RLS admin-only, écrite par les edge fns en service_role), `journal_audit` (1308 — trigger d'audit sur ~10 tables), `propositions_ia`, `profiles` (14).
 
 ---
 

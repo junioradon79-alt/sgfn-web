@@ -108,7 +108,9 @@ public/.htaccess         routing Apache (mappe /route → route.html, sert les f
 |---|---|---|
 | `generation-document` (v27) | oui | Génère les PDF (attestation, certificat, APFC, quittance) via PDFMonkey + repli HTML, appelée par trigger DB (`sgfn_call_edge`) |
 | `telecharger-document` | oui | Sert une URL signée service_role pour un document généré/délivré, après vérif du jeton appelant |
-| `verification-qr` (v13) | non | Vérifie une attestation/certificat/APFC par référence ou jeton QR, journalise le scan dans `scans_qr` |
+| `verification-qr` (v15) | non | Vérifie une attestation/certificat/APFC par référence ou jeton QR, journalise le scan dans `scans_qr`. Depuis le 07/07 : verdict des **attestations de cession** bloqué derrière la consultation payante (60 000 FCFA, table `consultations_qr`) — certificats et APFC restent gratuits |
+| `payer-consultation-qr` | non | Initie le paiement CinetPay d'une consultation QR (503 tant que les secrets CinetPay ne sont pas posés — validation manuelle admin via `/dashboard/consultations-qr` en attendant) |
+| `confirmer-consultation-qr` | non | Webhook CinetPay des consultations QR (même modèle que `confirmer-paiement` : revérifie via l'API `check`, ne fait jamais confiance au body) |
 | `initier-paiement` | oui | Crée un paiement + checkout CinetPay (**503 tant que les secrets `CINETPAY_API_KEY`/`CINETPAY_SITE_ID` ne sont pas posés**) |
 | `confirmer-paiement` | non | Webhook CinetPay réel (revérifie via l'API `check`, ne fait jamais confiance au body), délègue à `marquer_paiement_recu` |
 | `webhook-mobile-money` | non | **Désactivée volontairement** (410) — gardée comme référence de code pour un futur fournisseur Mobile Money |

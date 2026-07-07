@@ -30,9 +30,26 @@ Marketplace publique dédiée aux parcelles SGNF vérifiées :
 - Localisation : coordonnées GPS **exactes privées** sur `lots` ; le public ne voit qu'un **cercle flou de 500 m** (coordonnées arrondies ~110 m côté base).
 - 0 commission sur les ventes de lots via la marketplace ; le pass est un revenu SGNF intégral.
 - Grille tarifaire des actes payants fixée le 03/07 (montants réels + commissions SGNF). Détail complet dans `Grille_Tarifaire_SGNF_2026-07-03.md`.
-- Consultation d'une attestation de cession via QR payante (55 000 FCFA, dont 5 000 FCFA de commission SGNF), à la charge du vérificateur — décidée, **pas codée** (attend CinetPay).
+- Consultation d'une attestation de cession via QR payante : **60 000 FCFA, dont 50 000 FCFA pour la chefferie concernée et 10 000 FCFA de commission SGNF** (montants réajustés le 07/07 — remplacent les 55 000/5 000 du 03/07), à la charge du vérificateur — **implémentée et déployée côté serveur le 07/07** (paiement en ligne en attente des secrets CinetPay ; validation manuelle admin en attendant).
 
 ## Session du 07/07/2026
+
+### Consultation QR payante — IMPLÉMENTÉE ET DÉPLOYÉE ✅ (front à uploader ⚠️)
+
+Décision équipe du jour : la consultation du verdict d'une **attestation de cession** via `/verifier` coûte **60 000 FCFA** (50 000 chefferie concernée + 10 000 commission SGNF) — remplace les 55 000/5 000 du 03/07. Tout le parcours amont reste libre (scan, saisie, identification du document : type + référence affichés gratuitement) ; seul le verdict est bloqué. Certificats de vente et APFC restent gratuits.
+
+Implémentation complète, **testée en réel de bout en bout** (7 scénarios serveur validés puis fixtures nettoyées) :
+
+- **DB** : table `consultations_qr` (montants historisés par ligne, jeton secret porteur + code court `CQR-XXXXXX`, RLS admin-only — vérifiée aveugle et inerte à la clé anon). Migrations dans `supabase/migrations/`.
+- **Edge fns** : `verification-qr` v15 (verdict bloqué côté serveur, réutilisation de la consultation tant qu'elle n'est pas payée, consultation payée valable 24 h), `payer-consultation-qr` (initiation CinetPay, 503 propre tant que les secrets manquent), `confirmer-consultation-qr` (webhook, même modèle que `confirmer-paiement`). Les trois déployées.
+- **Front** : écran « consultation payante » sur `/verifier` (montant, code de consultation, bouton payer, bouton « J'ai payé — afficher le résultat », gestion du retour CinetPay via `?consultation=<jeton>`), page admin `/dashboard/consultations-qr` (Marquer payée / Annuler) + entrée Sidebar, constantes dans `src/lib/consultation-qr.ts`, `database.types.ts` régénéré, `pnpm build` OK.
+- **En attendant CinetPay** : paiement manuel au guichet — le vérificateur communique son code `CQR-…`, l'admin marque la consultation payée, le vérificateur affiche le résultat.
+
+**⚠️ Déploiement front requis** : l'edge fn étant déjà en prod, l'ancien front en ligne afficherait « Document authentique » **sans aucun détail** pour une attestation (fuite du verdict de titre, pas des données). L'archive **`sgfn-deploy.tar.gz`** est prête à la racine du repo — à uploader sur cPanel selon la procédure habituelle pour activer l'écran de paiement.
+
+**Bug préexistant corrigé au passage** : la branche APFC de la RPC `verifier_document()` référençait `familles.lignee`, colonne disparue (devenue `lignee_id`, auto-référence) → **toute vérification QR d'APFC échouait en erreur** depuis le refactor familles. Corrigé par migration (`20260707_fix_verifier_document_lignee.sql`), testé : verdict APFC complet à nouveau servi.
+
+**Nouvel outillage** : `scripts/supabase-sql.ps1` — exécute du SQL sur la prod via l'API de management (token CLI lu dans le Credential Manager, contournement réseau NAT64 + `--ssl-no-revoke`). Remplace le MCP Supabase quand il n'est pas disponible ; c'est avec ça que les migrations du jour ont été appliquées.
 
 ### Audit sécurité `generation-document` — AUDITÉ ✅, patch PRÉPARÉ (non déployé) ⚠️
 
@@ -110,7 +127,7 @@ Un géomètre peut téléverser un plan AutoCAD (`.dwg`/`.bak`) rattaché à un 
 1. **Plans CAD** — le pivot vers DXF-only (upload, commit `25a91cc`) doit être **testé en réel** ; vérifier que la conversion `convertir-plan-cad` produit bien un aperçu non blanc à partir d'un vrai DXF (l'alignement côté edge function reste à confirmer).
 2. **Secrets CinetPay** (`CINETPAY_API_KEY`/`CINETPAY_SITE_ID`) : débloque le paiement électronique réel du pass marketplace, les scénarios F/G du test paiements, et à terme le paywall QR.
 3. **Brancher la grille tarifaire côté UI** : la table `tarifs` existe désormais en base (créée le 06/07, RLS posée, montants réels) mais le formulaire démarches/paiements fait encore de la saisie libre — la connecter en valeurs par défaut ; chiffrer bornage + demande ACD.
-4. **Paywall consultation QR** (attestation de cession, 55 000 FCFA) — dépend du point 2.
+4. ~~**Paywall consultation QR**~~ — **FAIT le 07/07** (60 000 FCFA : 50 000 chefferie + 10 000 SGNF). Reste : uploader `sgfn-deploy.tar.gz` sur cPanel ; le paiement en ligne s'activera de lui-même à la pose des secrets CinetPay (point 2).
 5. **Webhook / procédure de rebuild** de monterrain-web à la publication d'une annonce.
 6. **Photos d'annonces** (schéma + upload storage + galerie fiche).
 7. Trancher le gap produit acquisition (achat en libre-service par l'acquéreur) et la transition `generee → delivree` des attestations.

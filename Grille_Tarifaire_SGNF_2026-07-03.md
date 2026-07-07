@@ -7,7 +7,7 @@
 | Acte | Montant (fourchette) | Commission SGNF | Statut |
 |---|---|---|---|
 | Attestation de cession (délivrance) | 100 000 – 150 000 FCFA | 10 000 FCFA | ✅ validé |
-| Consultation via QR code d'une attestation de cession | 55 000 FCFA | 5 000 FCFA | ✅ validé — **règle à appliquer**, actuellement `/verifier` est gratuit et sans paiement (voir ci-dessous) |
+| Consultation via QR code d'une attestation de cession | 60 000 FCFA (dont 50 000 pour la chefferie concernée) | 10 000 FCFA | ✅ validé (montants réajustés le 07/07) — **implémenté le 07/07** : verdict bloqué tant que la consultation n'est pas payée (voir §4) |
 | Vente de terrain | — | Aucune commission | ✅ validé |
 
 ## 2. Honoraires géomètre — par démarche (table `demarches`)
@@ -33,14 +33,19 @@
 | Pass contact (7 jours, 10 mises en relation, non remboursable) | 5 000 FCFA | ✅ réel, actif en base — paiement CinetPay pas encore opérationnel en prod (secret manquant) |
 | Commission SGNF sur les ventes de lots via la marketplace | 0 FCFA | ✅ décision déjà actée |
 
-## 4. Règle nouvelle — consultation QR payante (validée, non implémentée)
+## 4. Règle nouvelle — consultation QR payante (implémentée le 07/07)
 
-La vérification d'une attestation de cession via le QR code devient un acte payant :
+La vérification d'une attestation de cession via le QR code est un acte payant :
 
-- **Montant** : 55 000 FCFA, dont 5 000 FCFA de commission SGNF.
+- **Montant** : 60 000 FCFA, dont **50 000 FCFA pour la chefferie concernée** et **10 000 FCFA de commission SGNF** (montants réajustés le 07/07 — remplacent les 55 000/5 000 du 03/07).
 - **Payeur** : le vérificateur (le tiers qui scanne le QR code), pas le propriétaire. Modèle *pay-per-view* : chaque consultation d'une attestation de cession via `/verifier` doit être payée avant affichage du verdict.
-- **Portée** : attestation de cession uniquement. Certificat de vente et APFC restent gratuits à la vérification pour l'instant.
-- **Statut d'implémentation** : décision produit actée, mais **pas encore codée**. `/verifier` reste aujourd'hui public et gratuit, sans paiement. Choix assumé de ne pas construire le paywall tant que CinetPay n'est pas opérationnel en prod (secret manquant) — inutile de livrer un flux de paiement qu'on ne peut pas tester en conditions réelles. À reprendre en même temps que l'activation du paiement en ligne (CinetPay/Resend), avec un chantier dédié : blocage de l'accès au verdict tant que le paiement n'est pas confirmé, session/jeton de consultation, edge function dédiée.
+- **Portée** : attestation de cession uniquement. Certificat de vente et APFC restent gratuits à la vérification.
+- **Statut d'implémentation — CODÉ ET DÉPLOYÉ le 07/07** :
+  - Le parcours amont reste libre (scan, saisie de référence, identification du document : type + référence affichés gratuitement).
+  - Le verdict complet est bloqué côté serveur (edge fn `verification-qr` v15) tant que la consultation n'est pas payée. Table `consultations_qr` (montants historisés par ligne, RLS admin), jeton secret porteur + code court `CQR-XXXXXX` communiqué au vérificateur.
+  - Paiement en ligne : edge fns `payer-consultation-qr`/`confirmer-consultation-qr` (CinetPay) prêtes — répondent 503 « bientôt disponible » tant que les secrets CinetPay ne sont pas posés.
+  - En attendant : paiement manuel au guichet — l'admin valide la consultation depuis `/dashboard/consultations-qr` (bouton « Marquer payée »), le vérificateur clique ensuite « J'ai payé — afficher le résultat ».
+  - Une consultation payée reste consultable 24 h (re-affichage, retour agrégateur).
 
 ---
 
