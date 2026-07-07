@@ -650,6 +650,54 @@ export type Database = {
           },
         ]
       }
+      consultations_qr: {
+        Row: {
+          code: string
+          commission_sgnf: number
+          cree_le: string
+          id: string
+          jeton: string
+          montant_total: number
+          part_chefferie: number
+          payee_le: string | null
+          reference_document: string
+          reference_externe: string | null
+          reference_saisie: string
+          statut: string
+          type_document: string
+        }
+        Insert: {
+          code: string
+          commission_sgnf?: number
+          cree_le?: string
+          id?: string
+          jeton: string
+          montant_total?: number
+          part_chefferie?: number
+          payee_le?: string | null
+          reference_document: string
+          reference_externe?: string | null
+          reference_saisie: string
+          statut?: string
+          type_document?: string
+        }
+        Update: {
+          code?: string
+          commission_sgnf?: number
+          cree_le?: string
+          id?: string
+          jeton?: string
+          montant_total?: number
+          part_chefferie?: number
+          payee_le?: string | null
+          reference_document?: string
+          reference_externe?: string | null
+          reference_saisie?: string
+          statut?: string
+          type_document?: string
+        }
+        Relationships: []
+      }
       conversation_documents: {
         Row: {
           conversation_id: string

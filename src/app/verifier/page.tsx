@@ -3,13 +3,20 @@
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ShieldCheck, ShieldX, ShieldAlert, Loader2, ScanLine, Camera, X } from "lucide-react";
+import { ShieldCheck, ShieldX, ShieldAlert, Loader2, ScanLine, Camera, X, Lock } from "lucide-react";
+import { CONSULTATION_QR, fmtMontantFCFA } from "@/lib/consultation-qr";
 
-type Verdict = "idle" | "loading" | "trouve" | "introuvable" | "erreur";
+type Verdict = "idle" | "loading" | "trouve" | "introuvable" | "erreur" | "paiement_requis";
 
 type ResultatVerification = {
   type_document?: string | null;
   statut?: string;
+  reference?: string;
+  montant_total?: number;
+  code_consultation?: string;
+  jeton_consultation?: string;
+  statut_consultation?: string;
+  consultation_payee?: boolean;
   [key: string]: unknown;
 };
 
@@ -162,20 +169,45 @@ function fmtValeur(v: unknown): string {
   return String(v);
 }
 
+// Jeton de consultation payante : conservé en sessionStorage pour redéclencher
+// l'affichage du verdict après paiement (retour agrégateur ou validation manuelle).
+function jetonStocke(reference: string): string | null {
+  try {
+    return sessionStorage.getItem(`sgnf-consultation:${reference}`);
+  } catch {
+    return null;
+  }
+}
+
+function stockerJeton(references: (string | undefined)[], jeton: string) {
+  try {
+    for (const r of references) {
+      if (r) sessionStorage.setItem(`sgnf-consultation:${r}`, jeton);
+    }
+  } catch {
+    /* stockage indisponible (navigation privée…) : le jeton reste en mémoire */
+  }
+}
+
 function VerifierForm() {
   const searchParams = useSearchParams();
   const refInitiale = searchParams.get("ref") ?? searchParams.get("token") ?? "";
+  // Présent au retour du paiement en ligne (return_url CinetPay)
+  const jetonUrl = searchParams.get("consultation");
 
   const [ref, setRef] = useState(refInitiale);
   const [verdict, setVerdict] = useState<Verdict>("idle");
   const [resultat, setResultat] = useState<ResultatVerification | null>(null);
   const [scannerOuvert, setScannerOuvert] = useState(false);
+  const [paiementEnCours, setPaiementEnCours] = useState(false);
+  const [messagePaiement, setMessagePaiement] = useState<string | null>(null);
 
   const verifier = useCallback(async (reference: string) => {
     const r = reference.trim();
     if (!r) return;
     setVerdict("loading");
     setResultat(null);
+    setMessagePaiement(null);
 
     // Géolocalisation facultative (DCFT §6 : géolocalisation des scans)
     const position = await new Promise<GeolocationPosition | null>((resolve) => {
@@ -194,6 +226,7 @@ function VerifierForm() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             ref: r,
+            jeton_consultation: jetonUrl ?? jetonStocke(r),
             latitude: position?.coords.latitude ?? null,
             longitude: position?.coords.longitude ?? null,
           }),
@@ -202,6 +235,10 @@ function VerifierForm() {
       const data: ResultatVerification = await res.json();
       if (!res.ok || data.statut === "erreur") {
         setVerdict("erreur");
+      } else if (data.statut === "paiement_requis") {
+        if (data.jeton_consultation) stockerJeton([r, data.reference], data.jeton_consultation);
+        setResultat(data);
+        setVerdict("paiement_requis");
       } else if (!data.type_document) {
         setVerdict("introuvable");
       } else {
@@ -211,7 +248,7 @@ function VerifierForm() {
     } catch {
       setVerdict("erreur");
     }
-  }, []);
+  }, [jetonUrl]);
 
   // Vérification automatique quand on arrive via un QR code scanné
   useEffect(() => {
@@ -227,6 +264,44 @@ function VerifierForm() {
     },
     [verifier],
   );
+
+  const payer = useCallback(async () => {
+    const jeton = resultat?.jeton_consultation;
+    if (!jeton) return;
+    setPaiementEnCours(true);
+    setMessagePaiement(null);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/payer-consultation-qr`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jeton_consultation: jeton }),
+        },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.payment_url) {
+        window.location.href = data.payment_url;
+        return;
+      }
+      if (res.status === 503) {
+        setMessagePaiement(
+          "Le paiement en ligne sera bientôt disponible. En attendant, réglez le montant auprès de SGNF en indiquant votre code de consultation, puis cliquez sur « J'ai payé — afficher le résultat ».",
+        );
+      } else {
+        setMessagePaiement(
+          typeof data.error === "string"
+            ? data.error
+            : "Le paiement n'a pas pu être initié. Réessayez dans quelques instants.",
+        );
+      }
+    } catch {
+      setMessagePaiement(
+        "Le paiement n'a pas pu être initié. Vérifiez votre connexion et réessayez.",
+      );
+    }
+    setPaiementEnCours(false);
+  }, [resultat]);
 
   const litigeActif =
     resultat?.statut_litige && resultat.statut_litige !== "aucun";
@@ -326,6 +401,91 @@ function VerifierForm() {
                 <p className="font-semibold text-amber-800">Vérification impossible</p>
                 <p className="mt-1 text-sm text-amber-700">
                   Une erreur technique est survenue. Réessayez dans quelques instants.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {verdict === "paiement_requis" && resultat && (
+            <div className="mt-8">
+              <div className="flex items-start gap-4 rounded-2xl bg-[#0D3B66]/5 p-6">
+                <ShieldCheck className="mt-0.5 h-8 w-8 shrink-0 text-[#0D3B66]" />
+                <div>
+                  <p className="font-semibold text-[#0D3B66]">
+                    Document trouvé —{" "}
+                    {TYPE_LABEL[String(resultat.type_document)] ?? resultat.type_document}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Référence : <span className="font-medium">{resultat.reference ?? ref}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-slate-200 p-6">
+                <div className="flex items-start gap-4">
+                  <Lock className="mt-0.5 h-6 w-6 shrink-0 text-[#1E6091]" />
+                  <div>
+                    <p className="font-semibold text-slate-800">
+                      La consultation du verdict d&apos;authenticité est un acte payant
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Le résultat complet de la vérification (authenticité, propriétaire
+                      actuel, litiges éventuels) sera affiché après règlement de{" "}
+                      <span className="font-semibold text-[#0D3B66]">
+                        {fmtMontantFCFA(resultat.montant_total ?? CONSULTATION_QR.montant_total)}
+                      </span>
+                      .
+                    </p>
+                  </div>
+                </div>
+
+                {resultat.code_consultation && (
+                  <div className="mt-5 rounded-xl bg-slate-50 px-4 py-3 text-center">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Votre code de consultation
+                    </p>
+                    <p className="mt-1 font-mono text-lg font-bold tracking-widest text-[#0D3B66]">
+                      {resultat.code_consultation}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Conservez ce code : il identifie votre demande auprès de SGNF.
+                    </p>
+                  </div>
+                )}
+
+                {messagePaiement && (
+                  <div className="mt-4 flex items-start gap-3 rounded-xl bg-amber-50 p-4">
+                    <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                    <p className="text-sm text-amber-700">{messagePaiement}</p>
+                  </div>
+                )}
+
+                <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={payer}
+                    disabled={paiementEnCours}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#0D3B66] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1E6091] disabled:opacity-50"
+                  >
+                    {paiementEnCours ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Lock className="h-4 w-4" />
+                    )}
+                    Payer {fmtMontantFCFA(resultat.montant_total ?? CONSULTATION_QR.montant_total)}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => verifier(ref)}
+                    disabled={paiementEnCours}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#1E6091]/30 bg-white px-5 py-3 text-sm font-semibold text-[#1E6091] transition hover:bg-[#1E6091]/5 disabled:opacity-50"
+                  >
+                    J&apos;ai payé — afficher le résultat
+                  </button>
+                </div>
+
+                <p className="mt-4 text-center text-xs text-slate-400">
+                  Une consultation payée reste accessible pendant 24 heures.
                 </p>
               </div>
             </div>

@@ -25,6 +25,7 @@ import {
   Handshake,
   MapPinned,
   Store,
+  QrCode,
 } from "lucide-react";
 import React from "react";
 import { useProfile } from "@/hooks/useProfile";
@@ -136,6 +137,12 @@ const navItems: SidebarNavItem[] = [
     label: "Contacts Mon Terrain",
     href: "/dashboard/contacts-marketplace",
     icon: <Store className="w-4 h-4" />,
+    roles: ["admin"],
+  },
+  {
+    label: "Consultations QR",
+    href: "/dashboard/consultations-qr",
+    icon: <QrCode className="w-4 h-4" />,
     roles: ["admin"],
   },
   {
