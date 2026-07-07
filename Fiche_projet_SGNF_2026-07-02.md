@@ -1,6 +1,6 @@
 # Fiche projet — SGNF & Mon Terrain
 
-> Version consolidée au 06/07/2026 — remplace la version du 04/07 (soir).
+> Version consolidée au 07/07/2026 — remplace la version du 06/07.
 >
 > ⚠️ Cette fiche reste un journal de session. La référence technique à jour et détaillée est désormais le dossier **`docs/`** du repo `sgfn-web` (README, architecture, roadmap, base de données, conventions) — voir aussi `docs/pdf/Dossier_Passation_SGNF.pdf` pour une version imprimable consolidée.
 
@@ -31,6 +31,24 @@ Marketplace publique dédiée aux parcelles SGNF vérifiées :
 - 0 commission sur les ventes de lots via la marketplace ; le pass est un revenu SGNF intégral.
 - Grille tarifaire des actes payants fixée le 03/07 (montants réels + commissions SGNF). Détail complet dans `Grille_Tarifaire_SGNF_2026-07-03.md`.
 - Consultation d'une attestation de cession via QR payante (55 000 FCFA, dont 5 000 FCFA de commission SGNF), à la charge du vérificateur — décidée, **pas codée** (attend CinetPay).
+
+## Session du 07/07/2026
+
+### Audit sécurité `generation-document` — AUDITÉ ✅, patch PRÉPARÉ (non déployé) ⚠️
+
+Le point de sécurité en suspens (garde `HOOK_SECRET` / `Authorization: Bearer`) a été audité, **vulnérabilité confirmée avec preuve en direct** :
+
+- La garde de l'edge function est `if (HOOK_SECRET && req.headers.get("x-hook-secret") !== HOOK_SECRET)`. Or **aucun secret `HOOK_SECRET` n'existe** dans le projet (`supabase secrets list`) → la condition court-circuite → **la garde ne s'exécute jamais**. Seule protection réelle : `verify_jwt = true`, satisfaite par la **clé anon publique** (embarquée dans le front et monterrain-web).
+- Preuve live (curl vers l'endpoint de prod) : sans header → `401` (plateforme) ; **avec la seule clé anon** → `200 "Table ignoree"` (le code s'exécute, garde franchie).
+- Impact (intégrité/workflow, pas exfiltration directe) : le client interne tourne en `service_role` (bypass RLS). Avec un body `{table, record}` et des UUID valides, un appelant anonyme peut forcer une (re)génération, écraser un document par `upsert`, insérer une ligne `documents`, et basculer `statut` à `delivree` sur les tables concernées.
+
+**Patch préparé** (`supabase/functions/generation-document/index.ts`, v29, non committé/non déployé) : garde *fail-closed* **sans dépendance DB**. Comme aucun code applicatif n'appelle cette fonction (vérifié — seuls les triggers DB le font), on exige un JWT de rôle **`service_role`**, ou l'en-tête `x-hook-secret` si `HOOK_SECRET` est un jour posé. Helper `roleDuJwt()` testé (clé anon → refusée, service_role → acceptée).
+
+**⚠️ À valider avant deploy** : confirmer que le trigger DB (`sgfn_call_edge`) envoie bien le `service_role` en Bearer (et non la clé anon) — sa définition n'a pas pu être lue ce jour (pas de Docker pour `db dump`, pas de mot de passe DB, `api.supabase.com` injoignable en curl ; seul le CLI passe). Deploy sûr = lire `sgfn_call_edge` d'abord, ou déployer une version log-only puis activer l'enforcement. Détail complet en mémoire (`audit_generation_document_auth`).
+
+### Upload de plans : pivot vers DXF — COMMITTÉ, non testé ⚠️
+
+Contournement du rendu blanc DWG : le modal d'upload (`UploadPlanModal.tsx`) n'accepte plus que le format **`.dxf`** (formats, chemin de stockage `original.dxf`, messages ; le cas 503 n'est plus traité à part). Commit `25a91cc`, **pas encore testé en réel** — à valider à la prochaine session.
 
 ## État d'avancement — 06/07/2026
 
@@ -89,7 +107,7 @@ Un géomètre peut téléverser un plan AutoCAD (`.dwg`/`.bak`) rattaché à un 
 
 ## Feuille de route (ordonnée)
 
-1. **Résoudre le rendu blanc des plans DWG** — diagnostiquer Xrefs/couleurs avec l'utilisateur, sinon envisager une conversion DWG→PDF intermédiaire ou un moteur alternatif.
+1. **Plans CAD** — le pivot vers DXF-only (upload, commit `25a91cc`) doit être **testé en réel** ; vérifier que la conversion `convertir-plan-cad` produit bien un aperçu non blanc à partir d'un vrai DXF (l'alignement côté edge function reste à confirmer).
 2. **Secrets CinetPay** (`CINETPAY_API_KEY`/`CINETPAY_SITE_ID`) : débloque le paiement électronique réel du pass marketplace, les scénarios F/G du test paiements, et à terme le paywall QR.
 3. **Brancher la grille tarifaire côté UI** : la table `tarifs` existe désormais en base (créée le 06/07, RLS posée, montants réels) mais le formulaire démarches/paiements fait encore de la saisie libre — la connecter en valeurs par défaut ; chiffrer bornage + demande ACD.
 4. **Paywall consultation QR** (attestation de cession, 55 000 FCFA) — dépend du point 2.
@@ -98,7 +116,7 @@ Un géomètre peut téléverser un plan AutoCAD (`.dwg`/`.bak`) rattaché à un 
 7. Trancher le gap produit acquisition (achat en libre-service par l'acquéreur) et la transition `generee → delivree` des attestations.
 8. Reprise des chantiers différés : fournisseur Mobile Money définitif, notifications SMS, APK Android.
 9. **Activer la protection mots de passe fuités** (Dashboard Supabase → Authentication → Auth Settings → Password Security) — 2 minutes, aucun risque, pas d'outil API disponible pour le faire à distance.
-10. **Point de sécurité à auditer** : incohérence `HOOK_SECRET`/`Authorization: Bearer` sur `generation-document`.
+10. **Sécurité `generation-document`** : audité le 07/07 (vulnérabilité confirmée), **patch v29 prêt mais non déployé** — reste à confirmer le rôle envoyé par `sgfn_call_edge` puis déployer (voir session du 07/07 + mémoire `audit_generation_document_auth`).
 11. Provisionner les comptes chefferie réels (N'CHO KOUTOUAN JULES, NANAN AFFA KOUACHY ALFRED).
 
 ## Recommandations (inchangées + nouvelles)
