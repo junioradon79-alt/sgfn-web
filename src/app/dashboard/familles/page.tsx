@@ -79,6 +79,7 @@ type ProfilePicker = {
 
 const GROUPE_LABELS: Record<string, string> = {
   chefferie: "Chefferie",
+  proprietaire_terrien: "Propriétaire terrien",
   proprietaire: "Propriétaire",
   acquereur: "Acquéreur",
   amenageur: "Aménageur",
@@ -92,6 +93,7 @@ const GROUPE_LABELS: Record<string, string> = {
 
 const GROUPE_BADGE: Record<string, string> = {
   chefferie: "bg-amber-50 text-amber-700 border border-amber-200",
+  proprietaire_terrien: "bg-teal-50 text-teal-700 border border-teal-200",
   proprietaire: "bg-blue-50 text-blue-700 border border-blue-200",
   admin: "bg-slate-100 text-slate-600 border border-slate-200",
 };
@@ -455,6 +457,12 @@ function DesignerChefFamilleModal({
     if (e1) { setError(e1.message); setSaving(null); return; }
     if (!profile.famille_id) {
       await supabase.from("profiles").update({ famille_id: famille.id }).eq("id", profile.id);
+    }
+    // Nouvelles désignations : rôle "Propriétaire terrien" par défaut. Un compte déjà
+    // "chefferie" (ex. Koelea-Accor Revu) n'est jamais rétrogradé — coexistence permanente
+    // des deux modèles, voir TerraCI_SGNF_Document_Directeur_Unique_v1.md.
+    if (profile.groupe !== "chefferie" && profile.groupe !== "proprietaire_terrien") {
+      await supabase.from("profiles").update({ groupe: "proprietaire_terrien" }).eq("id", profile.id);
     }
     setSaving(null);
     onSuccess();

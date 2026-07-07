@@ -26,8 +26,8 @@ import { useProfile } from "@/hooks/useProfile";
  */
 
 const QUALITE_LABELS: Record<string, string> = {
-  ayant_droit: "Ayant-droit",
-  ayant_droit_transmission: "Transmission",
+  ayant_droit: "Propriétaire terrien",
+  ayant_droit_transmission: "Propriétaire terrien (transmission)",
   acquereur: "Acquéreur",
   operateur: "Opérateur",
   entrepreneur: "Entrepreneur",
@@ -248,7 +248,7 @@ export default function EspaceProprietairePage() {
       </div>
 
       {/* Mes lots */}
-      <Section title="Mes lots" hint="Lots dont vous êtes l'ayant-droit ou l'acquéreur actuel">
+      <Section title="Mes lots" hint="Lots dont vous êtes le propriétaire terrien ou l'acquéreur actuel">
         {loading ? (
           <Empty>Chargement…</Empty>
         ) : attributions.length === 0 ? (
@@ -321,7 +321,7 @@ export default function EspaceProprietairePage() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-800">{a.reference}</p>
                     {!a.cession_id ? (
-                      <p className="text-xs text-slate-400">gratuite — 1er ayant-droit</p>
+                      <p className="text-xs text-slate-400">gratuite — 1er propriétaire terrien</p>
                     ) : paiementRequis ? (
                       <p className="text-xs font-medium text-[#F39C12]">Paiement requis — voir « Mes paiements »</p>
                     ) : null}
@@ -354,7 +354,7 @@ export default function EspaceProprietairePage() {
           <Empty>Chargement…</Empty>
         ) : paiements.length === 0 ? (
           <Empty>
-            Aucun paiement enregistré — généralement le cas pour une reconnaissance d&apos;ayant-droit
+            Aucun paiement enregistré — généralement le cas pour une reconnaissance de propriétaire terrien
             d&apos;origine (gratuite).
           </Empty>
         ) : (

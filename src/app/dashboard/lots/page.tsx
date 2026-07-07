@@ -84,8 +84,8 @@ const NATURE_DROIT_LABELS: Record<string, string> = {
 const NATURE_DROIT_OPTIONS = Object.entries(NATURE_DROIT_LABELS).map(([value, label]) => ({ value, label }));
 
 const QUALITE_OPTIONS = [
-  { value: "ayant_droit", label: "Ayant droit" },
-  { value: "ayant_droit_transmission", label: "Ayant droit (transmission)" },
+  { value: "ayant_droit", label: "Propriétaire terrien" },
+  { value: "ayant_droit_transmission", label: "Propriétaire terrien (transmission)" },
   { value: "acquereur", label: "Acquéreur" },
   { value: "operateur", label: "Opérateur" },
   { value: "entrepreneur", label: "Entrepreneur" },
@@ -130,8 +130,8 @@ function lotPvAlert(
 }
 
 const QUALITE_LABELS: Record<string, string> = {
-  ayant_droit: "Ayant droit",
-  ayant_droit_transmission: "Ayant droit (transmission)",
+  ayant_droit: "Propriétaire terrien",
+  ayant_droit_transmission: "Propriétaire terrien (transmission)",
   acquereur: "Acquéreur",
   operateur: "Opérateur",
   entrepreneur: "Entrepreneur",

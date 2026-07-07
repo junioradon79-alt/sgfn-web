@@ -55,8 +55,8 @@ const TYPE_OPTIONS = [
 ];
 
 const QUALITE_LABELS: Record<string, string> = {
-  ayant_droit: "Ayant droit",
-  ayant_droit_transmission: "Ayant droit (transmission)",
+  ayant_droit: "Propriétaire terrien",
+  ayant_droit_transmission: "Propriétaire terrien (transmission)",
   acquereur: "Acquéreur",
   operateur: "Opérateur",
   entrepreneur: "Entrepreneur",

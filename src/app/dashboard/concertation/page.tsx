@@ -53,7 +53,7 @@ type LotissementOption = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const GROUPE_LABELS: Record<string, string> = {
-  admin: "SGNF", chefferie: "Chefferie", proprietaire: "Propriétaire",
+  admin: "SGNF", chefferie: "Chefferie", proprietaire_terrien: "Propriétaire terrien", proprietaire: "Propriétaire",
   operateur: "Opérateur", acquereur: "Acquéreur", commissaire: "Commissaire",
   verificateur: "Vérificateur", geometre: "Géomètre", agent_ia: "Agent IA", amenageur: "Aménageur",
 };
@@ -61,6 +61,7 @@ const GROUPE_LABELS: Record<string, string> = {
 const GROUPE_COLORS: Record<string, string> = {
   admin:        "bg-slate-100 text-slate-700 border-slate-200",
   chefferie:    "bg-amber-50 text-amber-700 border-amber-200",
+  proprietaire_terrien: "bg-teal-50 text-teal-700 border-teal-200",
   proprietaire: "bg-blue-50 text-blue-700 border-blue-200",
   operateur:    "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
@@ -68,6 +69,7 @@ const GROUPE_COLORS: Record<string, string> = {
 function GroupeIcon({ groupe }: { groupe: string }) {
   if (groupe === "admin") return <ShieldCheck className="h-3 w-3" />;
   if (groupe === "chefferie") return <Crown className="h-3 w-3" />;
+  if (groupe === "proprietaire_terrien") return <Crown className="h-3 w-3" />;
   if (groupe === "proprietaire") return <Building2 className="h-3 w-3" />;
   if (groupe === "operateur") return <HandCoins className="h-3 w-3" />;
   return <Users className="h-3 w-3" />;

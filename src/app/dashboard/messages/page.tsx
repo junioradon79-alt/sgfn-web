@@ -44,6 +44,7 @@ type ConversationRow = {
 
 const GROUPE_LABELS: Record<string, string> = {
   chefferie: "Chefferie",
+  proprietaire_terrien: "Propriétaire terrien",
   proprietaire: "Propriétaire",
   acquereur: "Acquéreur",
   amenageur: "Aménageur",

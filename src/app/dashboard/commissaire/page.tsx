@@ -60,8 +60,8 @@ type PvRow = {
 type PvInfo = { reference: string | null; statut: string | null };
 
 const QUALITE_LABELS: Record<string, string> = {
-  ayant_droit: "Ayant-droit",
-  ayant_droit_transmission: "Transmission",
+  ayant_droit: "Propriétaire terrien",
+  ayant_droit_transmission: "Propriétaire terrien (transmission)",
   acquereur: "Acquéreur",
   operateur: "Opérateur",
   entrepreneur: "Entrepreneur",

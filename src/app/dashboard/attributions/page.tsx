@@ -22,8 +22,8 @@ type LotOption = { id: string; numero_lot: string | null };
 type AttributaireOption = { id: string; nom: string | null };
 
 const QUALITE_OPTIONS = [
-  { value: "ayant_droit", label: "Ayant droit" },
-  { value: "ayant_droit_transmission", label: "Ayant droit (transmission)" },
+  { value: "ayant_droit", label: "Propriétaire terrien" },
+  { value: "ayant_droit_transmission", label: "Propriétaire terrien (transmission)" },
   { value: "acquereur", label: "Acquéreur" },
   { value: "operateur", label: "Opérateur" },
   { value: "entrepreneur", label: "Entrepreneur" },

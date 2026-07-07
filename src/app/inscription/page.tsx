@@ -9,7 +9,8 @@ import SGFNButton from "@/components/ui/SGFNButton";
 import { createClient } from "@/utils/supabase/client";
 
 const GROUPES_LABELS: Record<string, string> = {
-  proprietaire: "Propriétaire / Ayant-droit",
+  proprietaire: "Propriétaire",
+  proprietaire_terrien: "Propriétaire terrien",
   acquereur: "Acquéreur",
   commissaire: "Commissaire",
   amenageur: "Aménageur",

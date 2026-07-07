@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/Input";
 import { UserPlus, Copy, Check, X } from "lucide-react";
 
 const GROUPES = [
-  { value: "proprietaire", label: "Propriétaire / Ayant-droit" },
+  { value: "proprietaire", label: "Propriétaire" },
+  { value: "proprietaire_terrien", label: "Propriétaire terrien" },
   { value: "acquereur", label: "Acquéreur" },
   { value: "commissaire", label: "Commissaire" },
   { value: "amenageur", label: "Aménageur" },
