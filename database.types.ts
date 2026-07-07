@@ -2929,6 +2929,7 @@ export type Database = {
       groupe_utilisateur:
         | "admin"
         | "chefferie"
+        | "proprietaire_terrien"
         | "proprietaire"
         | "operateur"
         | "acquereur"
@@ -3185,6 +3186,7 @@ export const Constants = {
       groupe_utilisateur: [
         "admin",
         "chefferie",
+        "proprietaire_terrien",
         "proprietaire",
         "operateur",
         "acquereur",
