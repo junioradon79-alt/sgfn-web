@@ -22,6 +22,8 @@
     "@supabase/supabase-js": "^2.108.2",
     "@types/leaflet": "^1.9.21",
     "clsx": "^2.1.1",
+    "graphify": "^1.0.0",
+    "graphifyy": "^0.10.0",
     "html5-qrcode": "^2.3.8",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.21.0",
