@@ -27,7 +27,7 @@ import { useProfile } from "@/hooks/useProfile";
 
 const QUALITE_LABELS: Record<string, string> = {
   ayant_droit: "Propriétaire d'origine",
-  ayant_droit_transmission: "Propriétaire d'origine (transmission)",
+  ayant_droit_transmission: "Ayant-droit par transmission",
   acquereur: "Acquéreur",
   operateur: "Opérateur",
   entrepreneur: "Entrepreneur",

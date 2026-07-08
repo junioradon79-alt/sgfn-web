@@ -23,7 +23,7 @@ type AttributaireOption = { id: string; nom: string | null };
 
 const QUALITE_OPTIONS = [
   { value: "ayant_droit", label: "Propriétaire d'origine" },
-  { value: "ayant_droit_transmission", label: "Propriétaire d'origine (transmission)" },
+  { value: "ayant_droit_transmission", label: "Ayant-droit par transmission" },
   { value: "acquereur", label: "Acquéreur" },
   { value: "operateur", label: "Opérateur" },
   { value: "entrepreneur", label: "Entrepreneur" },
