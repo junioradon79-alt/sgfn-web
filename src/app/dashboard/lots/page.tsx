@@ -84,8 +84,8 @@ const NATURE_DROIT_LABELS: Record<string, string> = {
 const NATURE_DROIT_OPTIONS = Object.entries(NATURE_DROIT_LABELS).map(([value, label]) => ({ value, label }));
 
 const QUALITE_OPTIONS = [
-  { value: "ayant_droit", label: "Propriétaire terrien" },
-  { value: "ayant_droit_transmission", label: "Propriétaire terrien (transmission)" },
+  { value: "ayant_droit", label: "Propriétaire d'origine" },
+  { value: "ayant_droit_transmission", label: "Propriétaire d'origine (transmission)" },
   { value: "acquereur", label: "Acquéreur" },
   { value: "operateur", label: "Opérateur" },
   { value: "entrepreneur", label: "Entrepreneur" },
@@ -130,8 +130,8 @@ function lotPvAlert(
 }
 
 const QUALITE_LABELS: Record<string, string> = {
-  ayant_droit: "Propriétaire terrien",
-  ayant_droit_transmission: "Propriétaire terrien (transmission)",
+  ayant_droit: "Propriétaire d'origine",
+  ayant_droit_transmission: "Propriétaire d'origine (transmission)",
   acquereur: "Acquéreur",
   operateur: "Opérateur",
   entrepreneur: "Entrepreneur",
@@ -254,7 +254,7 @@ function LotDetailModal({ lot, litiges, pvAlert, onClose }: {
             <div className="flex items-center gap-2 rounded-xl border border-emerald-200/70 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-700">
               <span className="font-semibold">{attestation.reference}</span>
               <span>· {attestation.statut}</span>
-              {!attestation.cession_id && <span className="text-emerald-600/80">· gratuite (1er ayant-droit)</span>}
+              {!attestation.cession_id && <span className="text-emerald-600/80">· gratuite (1er propriétaire d'origine)</span>}
             </div>
           )}
 
