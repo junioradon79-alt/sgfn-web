@@ -57,6 +57,10 @@ yarn-error.log*
 # Claude Code (config/permissions locales a la machine du developpeur, pas un artefact projet)
 .claude/
 
+# graphify (graphe de connaissance regenere localement via `graphify update .`, pas un artefact projet)
+/graphify-out/
+.graphify_*
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
