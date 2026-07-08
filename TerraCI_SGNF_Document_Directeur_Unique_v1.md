@@ -1,6 +1,6 @@
 # TerraCI × SGNF — Document Directeur Unique
 
-**Version 1.2 — 8 juillet 2026 (matin)**
+**Version 1.3 — 8 juillet 2026 (après-midi)**
 
 > Cette version fusionne la v1.0 (vision stratégique TerraCI + état des lieux SGNF du matin du 07/07) et la Fiche projet SGNF (journal opérationnel détaillé) en **une seule référence de pilotage**. Les deux documents séparés sont désormais obsolètes : ce fichier est la référence unique pour comprendre où en est le projet, ce qui a été décidé stratégiquement, et ce qu'il reste à faire. La référence technique détaillée (schéma, conventions, pièges connus) reste le dossier `docs/` du repo `sgfn-web`, consolidé en PDF dans `docs/pdf/Dossier_Passation_SGNF.pdf`.
 
@@ -141,6 +141,13 @@ Les Livres VIII–XVII sont rédigés **en rétro-documentant SGNF**, pas en th�
 - Livre IX (API) : dérivé des edge functions et de la future API publique.
 - Livre X (Sécurité) : consolidation des audits déjà menés (advisors, RLS, `generation-document`).
 - Livres XIII–XIV (Business/Marketing) : à partir de la grille tarifaire réelle (y compris le nouveau modèle à paliers) et des dossiers partenaires.
+
+**Doctrine des trois couches de connaissance** — pour éviter les doublons, chaque fait a **un seul foyer** ; les autres couches y renvoient sans le recopier :
+- **Graphe de code** (`graphify-out/`, généré par `graphify update .`, hors dépôt) — le *comment* : structure, dépendances, qui-appelle-quoi. Jamais rédigé à la main ; par conséquent **ce document ne décrit pas la forme du code**, seulement les *décisions* d'architecture.
+- **Ce document** (versionné, partageable) — le *pourquoi* : décisions durables, règles métier, arbitrages, roadmap, modèle économique, risques.
+- **Mémoire agent** (`memory/`, hors dépôt) — le *où on en est* : état opératoire et pièges de reprise (emplacement des mots de passe test, `tar.gz` et non `zip`, « pas encore testé en navigateur », bug latent dans tel fichier).
+
+Règle d'aiguillage (s'arrêter au premier oui) : déductible du code → **graphe** ; décision qu'un humain doit lire → **ce document** ; détail de reprise utile à l'agent seul → **mémoire**. Le §10 (journal opérationnel) ne conserve que les **résultats et décisions** ; le détail d'exécution vit en mémoire et renvoie ici.
 
 ### A4 — Doctrine technique de scalabilité
 
@@ -343,6 +350,14 @@ En testant les comptes métiers, le user a remarqué que « Chefferie » et « C
 - Renommage d'affichage « Ayant droit » → « Propriétaire terrien » dans 5 fichiers (l'enum `qualite_attribution.ayant_droit` reste inchangé en base) ; « Propriétaire / Ayant-droit » (rôle `proprietaire`, différent) simplifié en « Propriétaire ».
 
 Vérifié en base après coup : les 3 comptes existants (N'CHO KOUTOUAN JULES, `manuel.chefferie@sgfn.ci`, `manuel.chefvillage@sgfn.ci`) inchangés. `pnpm build` propre (125 pages), typecheck/lint sans régression (hors dette de lint préexistante, non aggravée). Nouveau tar.gz `sgfn-deploy-proprietaire-terrien.tar.gz` généré — **reste à uploader sur cPanel**. Détail complet en mémoire (`conflation_chefferie_chef_famille`).
+
+### Session du 08/07/2026 (après-midi)
+
+**Propriétaire terrien déployé en production.** L'archive du chantier de la nuit restait à uploader ; un rebuild frais a été généré (`sgfn-deploy-proprietaire-terrien-rebuild.tar.gz`, permissions Unix vérifiées 755/644), extrait sur cPanel par le user, et le déploiement confirmé en direct sur `https://sgfn.ci` (home, route `/dashboard/proprietaire-terrien` et assets `/_next/` en 200 ; l'asset servi correspond bien au nouveau build, pas à un cache). Anciennes archives de déploiement supprimées et `.gitignore` corrigé (`sgfn-deploy*.tar.gz` — l'ancien motif ratait les noms avec tiret).
+
+**Test fonctionnel e2e réel — concluant.** Backend prouvé en SQL (enum `proprietaire_terrien` présent, les 7 policies additives bien en place, branche corrigée de `lots_read_scope` vérifiée). Compte de démonstration créé pour le nouveau rôle (`manuel.proprietaire-terrien@sgfn.ci`, rattaché à une vraie famille avec données). Login navigateur des 3 comptes (Playwright, `scripts/e2e-pt-verify.mjs`, commité) : `proprietaire_terrien` atterrit sur son espace et rend `ChefFamilleView` avec ses PV/APFC réels ; `chefferie` (chef de famille) et `chefvillage` (chef de village) inchangés — **non-régression confirmée**. Deux bugs de production réparés au passage sur `manuel.chefvillage`, qui ne pouvait plus se connecter du tout (identité `email` manquante + colonnes de tokens à `NULL` → GoTrue renvoyait 500). Mot de passe test de nouveau sauvegardé (`.env.local`). Détail complet en mémoire (`conflation_chefferie_chef_famille`).
+
+**Doctrine documentaire précisée** (§A3) : après l'ajout de Graphify (graphe de connaissance du code) au projet, formalisation de la répartition en trois couches (graphe de code / ce document / mémoire agent) pour éviter les doublons — un fait, un seul foyer.
 
 ### État d'avancement — 06/07/2026
 
