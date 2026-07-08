@@ -1,6 +1,6 @@
 # TerraCI × SGNF — Document Directeur Unique
 
-**Version 1.1 — 7 juillet 2026 (soir)**
+**Version 1.2 — 8 juillet 2026 (matin)**
 
 > Cette version fusionne la v1.0 (vision stratégique TerraCI + état des lieux SGNF du matin du 07/07) et la Fiche projet SGNF (journal opérationnel détaillé) en **une seule référence de pilotage**. Les deux documents séparés sont désormais obsolètes : ce fichier est la référence unique pour comprendre où en est le projet, ce qui a été décidé stratégiquement, et ce qu'il reste à faire. La référence technique détaillée (schéma, conventions, pièges connus) reste le dossier `docs/` du repo `sgfn-web`, consolidé en PDF dans `docs/pdf/Dossier_Passation_SGNF.pdf`.
 
@@ -59,7 +59,7 @@ Tout choix produit doit satisfaire quatre critères : **Sécurité, Simplicité,
 | Passeport parcelle | Fiche lot + QR + attestations/certificats + historique de propriété | 🟡 Partiel (les briques `verifier_attestation()`/historique existent déjà, reste à assembler en écran unique) |
 | Score TerraTrust | — | ⬜ À construire (v1 sans IA) |
 | TerraCI Pro | 11 dossiers argumentaires partenaires rédigés (PDF) | 🟡 Matière prête, offre à structurer |
-| TerraCI Collectivités | Rôles chefferie/commissaire opérationnels ; tarifs par chefferie amorcés (Ebimpe) | 🟡 Embryonnaire |
+| TerraCI Collectivités | Rôles chefferie/commissaire opérationnels ; **nouveau rôle Propriétaire terrien** (ex chef de famille) séparé de la Chefferie village ; tarifs par chefferie amorcés (Ebimpe) | 🟡 Embryonnaire |
 | TerraCI Analytics | Statistiques home, tableaux de bord par rôle | 🟡 Embryonnaire |
 | TerraCI API | Edge functions internes ; aucune API publique | ⬜ À construire |
 | TerraCI Mobile | Sites responsive ; scanner QR caméra | ⬜ APK/PWA à construire |
@@ -78,6 +78,7 @@ Tout choix produit doit satisfaire quatre critères : **Sécurité, Simplicité,
 - Coffre-fort documentaire, génération automatique de documents (edge function, sécurisée depuis le 07/07 soir), quittances PDF, notifications email (Resend), scanner QR caméra, manuel utilisateur PDF.
 - Table `tarifs` en base, **désormais branchée au formulaire `/dashboard/paiements`** (07/07 soir) — la saisie n'est plus totalement libre, les montants/commissions par type de démarche sont pré-remplis et validés.
 - Dossier de passation développeur (27 pages, `docs/pdf/Dossier_Passation_SGNF.pdf`) — référence pour toute reprise du projet.
+- **Rôle « Propriétaire terrien »** (nuit du 07 au 08/07) : le sous-rôle « chef de famille », jusqu'ici confondu avec la Chefferie (chef de village), devient un rôle formel à part entière (`groupe_utilisateur.proprietaire_terrien`), avec son propre tableau de bord `/dashboard/proprietaire-terrien`. **Coexistence permanente avec l'ancien modèle** — les comptes existants (Koelea-Accor Revu / N'CHO KOUTOUAN JULES) restent sous `groupe='chefferie'` indéfiniment ; seules les nouvelles familles/lotissements utilisent le nouveau rôle. Terminologie « Ayant droit » renommée en affichage « Propriétaire terrien » partout dans l'appli.
 
 ### 4.2 Décisions d'architecture actées
 
@@ -89,24 +90,28 @@ Tout choix produit doit satisfaire quatre critères : **Sécurité, Simplicité,
 - Stack : Next.js (export statique) + Supabase (Postgres/RLS, edge functions, storage) + CinetPay + Resend. Gestionnaire de paquets : **pnpm** exclusivement.
 - Tarification des attestations de cession : voir §4.1 — modèle à 3 paliers (gratuit / forfait national / variable par chefferie), remplace l'ancien tarif unique 100 000–150 000 FCFA fixé le 03/07 (jamais utilisé en pratique).
 
-### 4.3 Dette technique et risques ouverts (au 07/07 soir)
+### 4.3 Dette technique et risques ouverts (au 08/07 matin)
 
 | # | Sujet | Gravité | Détail |
 |---|---|---|---|
-| 1 | **Secrets CinetPay absents** | 🔴 Bloquant revenus | Bloque le paiement en ligne du pass, les scénarios F/G des tests paiements et le paywall QR en ligne. |
-| 2 | Pivot plans CAD → DXF | 🟡 | Commit `25a91cc` non testé en réel (rendu blanc DWG contourné). |
-| 3 | **Leaked password protection — bloqué** | 🟡 | Pas un simple toggle Dashboard : tentative via l'API management le 07/07 soir → `402 Payment Required`, nécessite un plan **Supabase Pro** (projet actuellement sur plan Free). |
-| 4 | Modale « Créer une cession » et formulaire paiements | 🟡 | Codés, testés côté serveur (RPC/SQL direct) le 07/07 soir, front déployé dans la foulée mais **jamais testés en navigateur réel**. |
-| 5 | Webhook rebuild monterrain-web | 🟡 | Republication à la mise en ligne d'une annonce. |
-| 6 | Photos d'annonces | 🟡 | Schéma + upload + galerie à créer. |
-| 7 | Comptes et tarifs chefferies réels | 🟡 | N'CHO KOUTOUAN JULES, NANAN AFFA KOUACHY ALFRED à provisionner ; seule la Chefferie d'Ebimpe a un tarif palier-3 configuré dans `tarifs_attestation_chefferie` — les autres bloqueront la délivrance d'une 3e attestation tant qu'un tarif n'est pas fixé. Bornage/demande ACD toujours sans montant dans `tarifs`. |
-| 8 | Différés | ⚪ | Mobile Money définitif, SMS, APK Android, transition `generee → delivree`, achat libre-service acquéreur. |
+| 1 | **Front non déployé — rôle Propriétaire terrien** | 🔴 | `sgfn-deploy-proprietaire-terrien.tar.gz` généré (build propre, 125 pages) mais pas encore uploadé sur cPanel — tant que ce n'est pas fait, la nouvelle route `/dashboard/proprietaire-terrien` et les libellés renommés restent invisibles en prod (la DB/RLS, elle, est déjà en place). |
+| 2 | **Secrets CinetPay absents** | 🔴 Bloquant revenus | Bloque le paiement en ligne du pass, les scénarios F/G des tests paiements et le paywall QR en ligne. |
+| 3 | Pivot plans CAD → DXF | 🟡 | Commit `25a91cc` non testé en réel (rendu blanc DWG contourné). |
+| 4 | **Leaked password protection — bloqué** | 🟡 | Pas un simple toggle Dashboard : tentative via l'API management le 07/07 soir → `402 Payment Required`, nécessite un plan **Supabase Pro** (projet actuellement sur plan Free). |
+| 5 | Modale « Créer une cession », formulaire paiements, écran Propriétaire terrien | 🟡 | Codés, testés côté serveur (RPC/SQL direct), front déployé (cessions/paiements) ou en attente (Propriétaire terrien) mais **jamais testés en navigateur réel**. |
+| 6 | Webhook rebuild monterrain-web | 🟡 | Republication à la mise en ligne d'une annonce. |
+| 7 | Photos d'annonces | 🟡 | Schéma + upload + galerie à créer. |
+| 8 | Comptes et tarifs chefferies réels | 🟡 | N'CHO KOUTOUAN JULES, NANAN AFFA KOUACHY ALFRED à provisionner ; seule la Chefferie d'Ebimpe a un tarif palier-3 configuré dans `tarifs_attestation_chefferie` — les autres bloqueront la délivrance d'une 3e attestation tant qu'un tarif n'est pas fixé. Bornage/demande ACD toujours sans montant dans `tarifs`. |
+| 9 | Flux d'invitation incomplet pour Chefferie/Propriétaire terrien | 🟡 | La table `invitations` n'a pas de colonnes `famille_id`/`autorite_coutumiere_id` — un compte invité avec l'un de ces rôles atterrit sans lien, rattachement manuel obligatoire via `/dashboard/familles` après coup. Différé (choix explicite du 07/07 soir). |
+| 10 | `concertation/page.tsx` — routage participants | 🟡 | Sélection auto des participants « chef de famille » d'un lotissement vérifie `groupe==='proprietaire'` (mauvais rôle) sans filtrer par `famille_id` — sur-sélectionne des profils non liés. Bug apparenté à celui corrigé dans `lots_read_scope`, laissé de côté. |
+| 11 | Différés | ⚪ | Mobile Money définitif, SMS, APK Android, transition `generee → delivree`, achat libre-service acquéreur. |
 
-**Risques soldés depuis la v1.0 (matin du 07/07)** — pour mémoire, ne sont plus des risques ouverts :
+**Risques soldés depuis la v1.1 (soir du 07/07)** — pour mémoire, ne sont plus des risques ouverts :
 
-- Faille de sécurité `generation-document` (garde `HOOK_SECRET` inerte) — auditée puis **corrigée et déployée** le soir même, testée en réel (voir §11).
-- Grille tarifaire non branchée à l'UI paiements — **branchée** le soir même.
-- Front non déployé (fuite du verdict de titre, grille tarifaire et écran cessions absents en prod) — **`sgfn-deploy-cessions-paliers.tar.gz` uploadé sur cPanel dans la foulée du 07/07 soir**. Le travail correspondant a aussi été commité en git à la reprise de session (4 commits, jusque-là non versionné).
+- Faille de sécurité `generation-document` (garde `HOOK_SECRET` inerte) — auditée puis **corrigée et déployée**, testée en réel (voir §10).
+- Grille tarifaire non branchée à l'UI paiements — **branchée**.
+- Front non déployé (cessions par palier, grille tarifaire) — **`sgfn-deploy-cessions-paliers.tar.gz` uploadé sur cPanel**. Le travail correspondant a aussi été commité en git à la reprise de session (5 commits, jusque-là non versionné) : sécurité `generation-document`, tarification par palier, grille tarifaire, fusion documentaire, et le fix `familles.lignee` (colonne disparue, cassait silencieusement la vue Chef de famille et la génération de documents — edge function redéployée en v31).
+- Confusion Chefferie / Chef de famille — diagnostiquée précisément (compte de test mal câblé, flux d'invitation et libellés en cause) puis traitée à la racine par le nouveau rôle Propriétaire terrien (voir ligne 1 ci-dessus pour le déploiement front restant).
 
 ---
 
@@ -149,14 +154,16 @@ Le monolithe Supabase actuel est **conservé** jusqu'à la fin du pilote multi-s
 
 *Objectif : zéro faille connue, revenus encaissables en ligne de bout en bout.*
 
-1. 🔴 Poser les secrets CinetPay (`CINETPAY_API_KEY`/`CINETPAY_SITE_ID`) — active pass marketplace en ligne, scénarios F/G, paywall QR électronique — **priorité absolue**.
-2. 🟡 Tester en navigateur la modale « Créer une cession » et le formulaire paiements branché sur `tarifs` — front déployé, seule la logique serveur a été validée jusqu'ici.
-3. 🟡 Tester le pivot DXF en réel (upload + conversion + aperçu non blanc).
-4. 🟡 Provisionner les tarifs des chefferies au-delà d'Ebimpe dans `tarifs_attestation_chefferie` ; chiffrer bornage + demande ACD dans `tarifs`.
-5. 🟡 Tests E2E des parcours marketplace et paiements après pose des secrets.
-6. ⬜ *Leaked password protection* — reporté, bloqué par le plan Supabase Free (voir §4.3).
+1. 🔴 Uploader `sgfn-deploy-proprietaire-terrien.tar.gz` sur cPanel — **priorité absolue**, seul point rouge purement mécanique restant.
+2. 🔴 Poser les secrets CinetPay (`CINETPAY_API_KEY`/`CINETPAY_SITE_ID`) — active pass marketplace en ligne, scénarios F/G, paywall QR électronique.
+3. 🟡 Tester en navigateur la modale « Créer une cession », le formulaire paiements branché sur `tarifs`, et le nouvel espace Propriétaire terrien — seule la logique serveur a été validée jusqu'ici pour les trois.
+4. 🟡 Tester le pivot DXF en réel (upload + conversion + aperçu non blanc).
+5. 🟡 Provisionner les tarifs des chefferies au-delà d'Ebimpe dans `tarifs_attestation_chefferie` ; chiffrer bornage + demande ACD dans `tarifs`.
+6. 🟡 Tests E2E des parcours marketplace et paiements après pose des secrets.
+7. 🟡 Combler le flux d'invitation Chefferie/Propriétaire terrien (colonnes `famille_id`/`autorite_coutumiere_id` sur `invitations`) et le bug de routage `concertation/page.tsx` (voir §4.3, points 9-10).
+8. ⬜ *Leaked password protection* — reporté, bloqué par le plan Supabase Free (voir §4.3).
 
-**Critères de sortie :** le point rouge restant du §4.3 (secrets CinetPay) soldé ; un paiement CinetPay réel encaissé sur chaque canal (pass, consultation QR, acte, attestation de cession) ; la modale cessions validée en usage réel.
+**Critères de sortie :** les 2 points rouges du §4.3 (front Propriétaire terrien, secrets CinetPay) soldés ; un paiement CinetPay réel encaissé sur chaque canal (pass, consultation QR, acte, attestation de cession) ; la modale cessions et l'espace Propriétaire terrien validés en usage réel.
 
 ### Phase 1 — SGNF devient le MVP TerraCI (T3 2026)
 
@@ -309,6 +316,34 @@ Nouvelle politique produit : le prix d'une attestation de cession dépend désor
 
 La modale elle-même n'a pas été testée en navigateur (pas d'outil browser disponible cette session) — seule la RPC a été validée. Nouveau tar.gz `sgfn-deploy-cessions-paliers.tar.gz` généré, remplace `sgfn-deploy.tar.gz` et `sgfn-deploy-grille-tarifaire.tar.gz`. Détail complet en mémoire (`tarification_paliers_cession`).
 
+### Session du 07 au 08/07/2026 (nuit — reprise de session)
+
+#### Rattrapage git et déploiement
+
+Tout le travail de la soirée du 07/07 (sécurité `generation-document`, tarification par palier, grille tarifaire) était resté **non commité** malgré son déploiement réel — corrigé en 5 commits à la reprise. `sgfn-deploy-cessions-paliers.tar.gz` confirmé uploadé sur cPanel par le user.
+
+#### Comptes de test réinitialisés
+
+Les 8 comptes `manuel.*@sgfn.ci` (un par métier) réinitialisés avec un mot de passe commun généré aléatoirement, posé via `auth.users.encrypted_password` (pgcrypto `crypt()`/`gen_salt('bf')`) faute de connaître l'ancien secret `MANUEL_TEST_PASSWORD` (volontairement retiré du dépôt lors d'une session antérieure).
+
+#### Confusion Chefferie / Chef de famille — diagnostiquée puis traitée à la racine
+
+En testant les comptes métiers, le user a remarqué que « Chefferie » et « Chef de famille » restaient confondus. Investigation (agent Explore + vérifications directes en base) : le modèle de données distingue bien les deux (`familles`/`autorites_coutumieres`, `profiles.famille_id`/`autorite_coutumiere_id`), mais le compte de test `manuel.chefferie@sgfn.ci` n'était câblé que sur `famille_id` (jamais testé la vue village) et le flux d'invitation ne permettait pas de choisir l'entité à la création. Nouveau compte `manuel.chefvillage@sgfn.ci` créé (lié à la Chefferie d'Ebimpe) pour combler l'écart de test. Deux bugs actifs découverts au passage :
+
+- `familles.lignee` (colonne disparue lors du passage à `lignee_id`) référencée dans 2 endroits oubliés lors du fix du 07/07 matin (`chefferie/page.tsx` et `generation-document` v29, déployée) — cassait silencieusement la vue Chef de famille et la génération de documents liés à une famille. **Corrigé et déployé** (edge function v31, commit `acf513f`).
+- `concertation/page.tsx` : routage des participants « chef de famille » par lotissement vérifie `groupe==='proprietaire'` au lieu du bon rôle, sans filtrer par `famille_id` — laissé de côté (voir §4.3).
+
+**Décision produit qui en a découlé** : le sous-rôle « chef de famille » devient un rôle formel `proprietaire_terrien`, distinct de « chefferie » (chef de village). Précision cruciale donnée par le user en cours de route : **pas une migration globale** — le cas de Koelea-Accor Revu (N'CHO KOUTOUAN JULES) reste indéfiniment sous l'ancien modèle `groupe='chefferie'`, seules les nouvelles familles/lotissements utiliseront le nouveau rôle. Coexistence permanente attendue, caractéristique de la gestion foncière ivoirienne (chaque lotissement peut avoir un régime coutumier différent).
+
+**Livré** (planifié en Plan Mode avec un agent dédié, vérifié en base à chaque étape, 3 commits `d902621`/`2d8f0c0`/`5bd7813`) :
+
+- Nouvelle valeur d'enum `proprietaire_terrien` + 7 policies RLS mises à jour en **additif pur** (`apfc_read`, `attributions_read`, `dossiers_read`, les 3 `pv_reunions_famille*`, `lots_read_scope`). Cette dernière avait un vrai bug (branche famille_id gardée par `mon_groupe()='proprietaire'` au lieu de `'chefferie'`/`'proprietaire_terrien'`) — N'CHO KOUTOUAN JULES ne voyait jusqu'ici aucun lot personnel dans son espace ; corrigé en branche additive.
+- `ChefFamilleView` extraite de `chefferie/page.tsx` vers 3 fichiers partagés (`src/components/dashboard/chefferie/`) — une seule implémentation, réutilisée par l'ancien `/dashboard/chefferie` et le nouveau `/dashboard/proprietaire-terrien`. `ChefVillageView` et le comportement legacy inchangés.
+- `ROLE_HOME`, `Sidebar.tsx`, libellés de rôle dans 5 fichiers, `DesignerChefFamilleModal` (assigne désormais `proprietaire_terrien` par défaut aux nouvelles désignations, sans jamais rétrograder un compte `chefferie` existant).
+- Renommage d'affichage « Ayant droit » → « Propriétaire terrien » dans 5 fichiers (l'enum `qualite_attribution.ayant_droit` reste inchangé en base) ; « Propriétaire / Ayant-droit » (rôle `proprietaire`, différent) simplifié en « Propriétaire ».
+
+Vérifié en base après coup : les 3 comptes existants (N'CHO KOUTOUAN JULES, `manuel.chefferie@sgfn.ci`, `manuel.chefvillage@sgfn.ci`) inchangés. `pnpm build` propre (125 pages), typecheck/lint sans régression (hors dette de lint préexistante, non aggravée). Nouveau tar.gz `sgfn-deploy-proprietaire-terrien.tar.gz` généré — **reste à uploader sur cPanel**. Détail complet en mémoire (`conflation_chefferie_chef_famille`).
+
 ### État d'avancement — 06/07/2026
 
 #### Audit de sécurité de suivi & fondations tarifaires
@@ -349,4 +384,4 @@ Mise en ligne des deux sites, scanner QR caméra, manuel utilisateur PDF, quitta
 
 ---
 
-*Document directeur v1.1 — établi le 07/07/2026 au soir, fusionne la v1.0 et la Fiche projet SGNF (désormais obsolète, conservée pour l'historique Git uniquement). À réviser à chaque fin de phase, arbitrage stratégique (A1–A4), ou session de travail notable. Référence technique : `docs/` du repo `sgfn-web`.*
+*Document directeur v1.2 — mis à jour le 08/07/2026 au matin (nouveau rôle Propriétaire terrien, rattrapage git/déploiement, comptes de test). v1.1 établie le 07/07/2026 au soir, fusionne la v1.0 et la Fiche projet SGNF (désormais obsolète, conservée pour l'historique Git uniquement). À réviser à chaque fin de phase, arbitrage stratégique (A1–A4), ou session de travail notable. Référence technique : `docs/` du repo `sgfn-web`.*
