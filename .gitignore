@@ -21,6 +21,7 @@
 /build
 
 # deploy archives (artefacts de build, ne pas versionner)
+sgfn-deploy*.tar.gz
 sgfn-deploy.*
 src.zip
 
@@ -56,6 +57,8 @@ yarn-error.log*
 
 # Claude Code (config/permissions locales a la machine du developpeur, pas un artefact projet)
 .claude/
+.agents/
+skills-lock.json
 
 # graphify (graphe de connaissance regenere localement via `graphify update .`, pas un artefact projet)
 /graphify-out/
