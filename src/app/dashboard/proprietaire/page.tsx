@@ -183,6 +183,26 @@ export default function EspaceProprietairePage() {
     window.location.assign(res.data.payment_url);
   };
 
+  // Un même lot peut porter plusieurs attributions actuelles (ex. propriétaire
+  // d'origine ET opérateur). On déduplique par lot — « 1 lot = 1 carte » — en
+  // fusionnant les qualités.
+  const lotsUniques = useMemo(() => {
+    const map = new Map<
+      string,
+      { lot_id: string; lots: AttributionRow["lots"]; qualites: string[] }
+    >();
+    for (const a of attributions) {
+      const label = QUALITE_LABELS[a.qualite ?? ""] ?? a.qualite ?? null;
+      const existing = map.get(a.lot_id);
+      if (existing) {
+        if (label && !existing.qualites.includes(label)) existing.qualites.push(label);
+      } else {
+        map.set(a.lot_id, { lot_id: a.lot_id, lots: a.lots, qualites: label ? [label] : [] });
+      }
+    }
+    return Array.from(map.values());
+  }, [attributions]);
+
   const nbAttDelivrees = attestations.filter((a) => a.statut === "delivree").length;
   const nbDemarchesOuvertes = demarches.filter((d) => !d.terminee_le).length;
   const totalPaye = paiements
@@ -193,7 +213,7 @@ export default function EspaceProprietairePage() {
   );
 
   const kpis: { label: string; value: string | number; icon: typeof Landmark; gradient: [string, string] }[] = [
-    { label: "Lots détenus", value: attributions.length, icon: Landmark, gradient: ["#1E6091", "#4FA8D8"] },
+    { label: "Lots détenus", value: lotsUniques.length, icon: Landmark, gradient: ["#1E6091", "#4FA8D8"] },
     { label: "Attestations délivrées", value: nbAttDelivrees, icon: FileCheck2, gradient: ["#16A34A", "#4ADE80"] },
     { label: "Démarches en cours", value: nbDemarchesOuvertes, icon: ListChecks, gradient: ["#D97706", "#FBBF24"] },
     { label: "Total payé", value: fcfa(totalPaye), icon: Banknote, gradient: ["#2D8F5A", "#5FBF8A"] },
@@ -251,17 +271,17 @@ export default function EspaceProprietairePage() {
       <Section title="Mes lots" hint="Lots dont vous êtes le propriétaire terrien ou l'acquéreur actuel">
         {loading ? (
           <Empty>Chargement…</Empty>
-        ) : attributions.length === 0 ? (
+        ) : lotsUniques.length === 0 ? (
           <Empty>Aucun lot rattaché à votre profil pour l&apos;instant.</Empty>
         ) : (
           <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
-            {attributions.map((a) => {
-              const l = a.lots!;
+            {lotsUniques.map((u) => {
+              const l = u.lots!;
               const lo = l.ilots?.lotissements;
               const st = STATUT_LOT[l.statut ?? "libre"] ?? STATUT_LOT.libre;
-              const att = attestations.find((x) => x.lot_id === a.lot_id);
+              const att = attestations.find((x) => x.lot_id === u.lot_id);
               return (
-                <div key={a.lot_id} className="rounded-xl border border-slate-200/60 bg-white p-4">
+                <div key={u.lot_id} className="rounded-xl border border-slate-200/60 bg-white p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-mono text-xs text-slate-400">
@@ -276,9 +296,9 @@ export default function EspaceProprietairePage() {
                     {lo?.village ?? "—"} · {lo?.commune ?? "—"}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    Votre qualité :{" "}
+                    {u.qualites.length > 1 ? "Vos qualités" : "Votre qualité"} :{" "}
                     <span className="font-semibold text-slate-700">
-                      {QUALITE_LABELS[a.qualite ?? ""] ?? a.qualite ?? "—"}
+                      {u.qualites.length > 0 ? u.qualites.join(", ") : "—"}
                     </span>
                   </p>
                   <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3 text-xs">
