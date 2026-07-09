@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import KpiCard from "@/components/dashboard/KpiCard";
 import { createClient } from "@/utils/supabase/client";
@@ -34,6 +34,15 @@ type PaiementRecord = {
 type Groupe = "admin" | "operateur" | "acquereur" | "verificateur" | "geometre" | "commissaire" | "amenageur" | "chefferie" | "proprietaire" | "agent_ia";
 
 const TABLE_HEADERS = ["Réf.", "Bénéficiaire", "Type", "Montant", "Moyen", "Statut", "Date", ""] as const;
+
+const BENEF_LABELS: Record<string, string> = {
+  proprietaire: "Propriétaire",
+  chefferie: "Chefferie",
+  sgfn: "Commission SGNF",
+  agregateur: "Agrégateur",
+};
+
+type RepartLigne = { beneficiaire_type: string; nom: string | null; montant: number };
 
 // ── Sélecteurs liés par type de paiement ────────────────────────────────────
 
@@ -712,6 +721,99 @@ function TarifsChefferieAdmin() {
   );
 }
 
+// ── Frais agrégateur (fixe par transaction en ligne) — admin ─────────────────
+function FraisAgregateurConfig() {
+  const supabase = useMemo(() => createClient(), []);
+  const [valeur, setValeur] = useState("");
+  const [initial, setInitial] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const { data } = await supabase
+      .from("parametres_paiement")
+      .select("valeur")
+      .eq("cle", "frais_agregateur_fixe")
+      .maybeSingle();
+    const v = data?.valeur ?? "0";
+    setValeur(v);
+    setInitial(v);
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => {
+    const run = async () => {
+      await load();
+    };
+    void run();
+  }, [load]);
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    const v = valeur.trim() === "" ? "0" : valeur.replace(/[^0-9]/g, "");
+    const { error: e } = await supabase
+      .from("parametres_paiement")
+      .update({ valeur: v })
+      .eq("cle", "frais_agregateur_fixe");
+    setSaving(false);
+    if (e) {
+      setError(e.message);
+      return;
+    }
+    setValeur(v);
+    setInitial(v);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div className="mb-6 rounded-xl border border-slate-200/60 bg-white px-5 py-4">
+      <div className="flex items-center gap-2">
+        <CreditCard className="h-4 w-4 text-[#0D3B66]" />
+        <span className="text-sm font-semibold text-slate-800">Frais agrégateur — paiement en ligne</span>
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+        Montant <span className="font-medium">fixe</span> prélevé par l&apos;agrégateur (CinetPay) sur chaque
+        transaction en ligne. Déduit de la commission SGNF (attestation) ; absorbé par l&apos;acquéreur (vente).
+        Les paiements au guichet (espèces/virement) ne sont pas concernés.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <input
+            inputMode="numeric"
+            value={valeur}
+            onChange={(e) => setValeur(e.target.value.replace(/[^0-9]/g, ""))}
+            disabled={loading}
+            placeholder="0"
+            className="w-40 rounded-lg border border-slate-200 px-3 py-2 pr-14 text-sm tabular-nums focus:border-[#0D3B66] focus:outline-none"
+          />
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">FCFA</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving || loading || valeur === initial}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-[#0D3B66] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1E6091] disabled:opacity-50"
+        >
+          {saved ? (
+            <>
+              <CheckCircle2 className="h-3.5 w-3.5" /> Enregistré
+            </>
+          ) : saving ? (
+            "Enregistrement…"
+          ) : (
+            "Enregistrer"
+          )}
+        </button>
+        {error && <span className="text-xs text-red-600">{error}</span>}
+      </div>
+    </div>
+  );
+}
+
 export default function PaiementsPage() {
   const supabase = useMemo(() => createClient(), []);
 
@@ -726,6 +828,8 @@ export default function PaiementsPage() {
   const [validatingId, setValidatingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [vue, setVue] = useState<"registre" | "a_valider">("registre");
+  const [openRepart, setOpenRepart] = useState<string | null>(null);
+  const [repartitions, setRepartitions] = useState<Record<string, RepartLigne[]>>({});
 
   const canCreate = groupe === "admin" || groupe === "operateur";
   const isAdmin = groupe === "admin";
@@ -736,8 +840,25 @@ export default function PaiementsPage() {
       .from("paiements")
       .select("id, type, montant_total, commission_sgfn, beneficiaire, moyen, statut, cree_le, acquereur_id, reference_externe, reference, echeance_id, vente_id, attributaires(nom), ventes(type_vente)")
       .order("cree_le", { ascending: false });
-    setPaiements((data ?? []) as unknown as PaiementRecord[]);
+    const rows = (data ?? []) as unknown as PaiementRecord[];
+    setPaiements(rows);
     setDataLoading(false);
+
+    // Ventilation (répartition) des paiements confirmés
+    const confirmedIds = rows.filter((p) => p.statut === "confirme").map((p) => p.id);
+    if (confirmedIds.length === 0) {
+      setRepartitions({});
+      return;
+    }
+    const { data: reps } = await supabase
+      .from("repartitions_paiement")
+      .select("paiement_id, beneficiaire_type, nom, montant")
+      .in("paiement_id", confirmedIds);
+    const map: Record<string, RepartLigne[]> = {};
+    for (const r of (reps ?? []) as { paiement_id: string; beneficiaire_type: string; nom: string | null; montant: number }[]) {
+      (map[r.paiement_id] ??= []).push({ beneficiaire_type: r.beneficiaire_type, nom: r.nom, montant: r.montant });
+    }
+    setRepartitions(map);
   }, [supabase]);
 
   useEffect(() => {
@@ -910,7 +1031,8 @@ export default function PaiementsPage() {
         </div>
       )}
 
-      {/* Tarifs 3e attestation par chefferie (admin) */}
+      {/* Config admin : frais agrégateur + tarifs 3e attestation par chefferie */}
+      {isAdmin && vue === "registre" && <FraisAgregateurConfig />}
       {isAdmin && vue === "registre" && <TarifsChefferieAdmin />}
 
       {/* Tableau */}
@@ -960,8 +1082,10 @@ export default function PaiementsPage() {
                     !isMoyenManuel(p.moyen) &&
                     p.acquereur_id === currentAttributaireId;
 
+                  const repart = repartitions[p.id] ?? [];
                   return (
-                    <tr key={p.id} className="transition-colors hover:bg-slate-50/60">
+                    <Fragment key={p.id}>
+                    <tr className="transition-colors hover:bg-slate-50/60">
                       <td className="px-5 py-4 font-mono text-xs font-medium text-[#0D3B66]">
                         {p.id.slice(0, 8).toUpperCase()}
                       </td>
@@ -1021,8 +1145,43 @@ export default function PaiementsPage() {
                             {downloadingId === p.id ? "…" : "Reçu"}
                           </button>
                         )}
+                        {repart.length > 0 && (
+                          <button
+                            onClick={() => setOpenRepart(openRepart === p.id ? null : p.id)}
+                            title="Voir la répartition"
+                            className={`ml-1 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                              openRepart === p.id
+                                ? "border-[#0D3B66] bg-[#0D3B66]/5 text-[#0D3B66]"
+                                : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                            }`}
+                          >
+                            <TrendingUp className="h-3.5 w-3.5" />
+                            Répartition
+                          </button>
+                        )}
                       </td>
                     </tr>
+                    {openRepart === p.id && repart.length > 0 && (
+                      <tr className="bg-slate-50/50">
+                        <td colSpan={8} className="px-5 py-3">
+                          <div className="flex flex-wrap items-stretch gap-2">
+                            {repart.map((r, i) => (
+                              <div
+                                key={i}
+                                className="min-w-[150px] rounded-lg border border-slate-200 bg-white px-3 py-2"
+                              >
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                  {BENEF_LABELS[r.beneficiaire_type] ?? r.beneficiaire_type}
+                                </p>
+                                {r.nom && <p className="truncate text-xs text-slate-500">{r.nom}</p>}
+                                <p className="mt-0.5 text-sm font-bold tabular-nums text-[#0D3B66]">{fcfa(r.montant)}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })
               )}

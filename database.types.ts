@@ -2035,6 +2035,7 @@ export type Database = {
           cree_le: string
           demarche_id: string | null
           echeance_id: string | null
+          frais_agregateur: number
           id: string
           montant_reverse: number | null
           montant_total: number
@@ -2056,6 +2057,7 @@ export type Database = {
           cree_le?: string
           demarche_id?: string | null
           echeance_id?: string | null
+          frais_agregateur?: number
           id?: string
           montant_reverse?: number | null
           montant_total: number
@@ -2077,6 +2079,7 @@ export type Database = {
           cree_le?: string
           demarche_id?: string | null
           echeance_id?: string | null
+          frais_agregateur?: number
           id?: string
           montant_reverse?: number | null
           montant_total?: number
@@ -2540,6 +2543,41 @@ export type Database = {
         }
         Relationships: []
       }
+      repartitions_paiement: {
+        Row: {
+          beneficiaire_type: string
+          cree_le: string
+          id: string
+          montant: number
+          nom: string | null
+          paiement_id: string
+        }
+        Insert: {
+          beneficiaire_type: string
+          cree_le?: string
+          id?: string
+          montant?: number
+          nom?: string | null
+          paiement_id: string
+        }
+        Update: {
+          beneficiaire_type?: string
+          cree_le?: string
+          id?: string
+          montant?: number
+          nom?: string | null
+          paiement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "repartitions_paiement_paiement_id_fkey"
+            columns: ["paiement_id"]
+            isOneToOne: false
+            referencedRelation: "paiements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tarifs: {
         Row: {
           actif: boolean
@@ -2987,6 +3025,23 @@ export type Database = {
       }
       encaisser_demande_acquisition: {
         Args: { p_demande_id: string }
+        Returns: Json
+      }
+      creer_vente: {
+        Args: {
+          p_demande_id: string
+          p_moyen?: Database["public"]["Enums"]["moyen_paiement"]
+          p_nb_echeances?: number
+          p_prix: number
+          p_type_vente?: Database["public"]["Enums"]["type_vente"]
+        }
+        Returns: Json
+      }
+      facturer_attestation_cession: {
+        Args: {
+          p_lot_id: string
+          p_moyen?: Database["public"]["Enums"]["moyen_paiement"]
+        }
         Returns: Json
       }
       maj_statut_demande_acquisition: {
