@@ -75,6 +75,8 @@ Tout choix produit doit satisfaire quatre critères : **Sécurité, Simplicité,
 - **monterrain.sgfn.ci** — marketplace publique des parcelles vérifiées. Dépôt Git indépendant, même backend Supabase (`bvdzrhvbiglwrhzpmuwy`).
 - Vérification QR : parcours amont libre (scan, identification du document) ; verdict d'attestation de cession payant **sauf pour la 1re attestation** (gratuite, cohérent avec sa délivrance) — **60 000 FCFA dont 50 000 pour la chefferie concernée et 10 000 de commission SGNF** à partir de la 2e. Certificats de vente et APFC gratuits. Consultation payée valable 24 h. Paiement manuel au guichet (code `CQR-XXXXXX`) en attendant les secrets CinetPay.
 - **Tarification par palier de la délivrance d'une attestation de cession** (codée et testée le 07/07 au soir) : 1re gratuite, 2e = forfait national 30 000 FCFA (20 000 chefferie + 10 000 SGNF), 3e et suivantes = tarif variable par chefferie (montant + commission s'additionnent — ex. Chefferie d'Ebimpe = 380 000 FCFA). Nouvel écran « Créer une cession » sur `/dashboard/lots`.
+- **Registre de vérification acquéreur** (`/dashboard/acquisition`, déployé 09/07) : n'affiche que les lots attribués ayant une attestation de cession, CTA « Vérifier » (QR + lien payant). En revanche le **tunnel d'acquisition complet** (engager une demande → payer le lot/vente → Certificat de vente → attestation) et la **répartition automatique des paiements** sont **en base (prod) mais front non déployé** — voir §10 (session du 09/07) et §4.3.
+- **Infra de paiement en ligne CinetPay entièrement codée et déployée** (edge fns `initier-paiement`/`confirmer-paiement`, page `/paiements/retour`, ventilation automatique) — fonctionnelle dès l'ajout des 2 secrets `CINETPAY_API_KEY`/`CINETPAY_SITE_ID`.
 - Coffre-fort documentaire, génération automatique de documents (edge function, sécurisée depuis le 07/07 soir), quittances PDF, notifications email (Resend), scanner QR caméra, manuel utilisateur PDF.
 - Table `tarifs` en base, **désormais branchée au formulaire `/dashboard/paiements`** (07/07 soir) — la saisie n'est plus totalement libre, les montants/commissions par type de démarche sont pré-remplis et validés.
 - Dossier de passation développeur (27 pages, `docs/pdf/Dossier_Passation_SGNF.pdf`) — référence pour toute reprise du projet.
@@ -90,18 +92,18 @@ Tout choix produit doit satisfaire quatre critères : **Sécurité, Simplicité,
 - Stack : Next.js (export statique) + Supabase (Postgres/RLS, edge functions, storage) + CinetPay + Resend. Gestionnaire de paquets : **pnpm** exclusivement.
 - Tarification des attestations de cession : voir §4.1 — modèle à 3 paliers (gratuit / forfait national / variable par chefferie), remplace l'ancien tarif unique 100 000–150 000 FCFA fixé le 03/07 (jamais utilisé en pratique).
 
-### 4.3 Dette technique et risques ouverts (au 08/07 matin)
+### 4.3 Dette technique et risques ouverts (au 09/07 soir)
 
 | # | Sujet | Gravité | Détail |
 |---|---|---|---|
-| 1 | **Front non déployé — rôle Propriétaire terrien** | 🔴 | `sgfn-deploy-proprietaire-terrien.tar.gz` généré (build propre, 125 pages) mais pas encore uploadé sur cPanel — tant que ce n'est pas fait, la nouvelle route `/dashboard/proprietaire-terrien` et les libellés renommés restent invisibles en prod (la DB/RLS, elle, est déjà en place). |
-| 2 | **Secrets CinetPay absents** | 🔴 Bloquant revenus | Bloque le paiement en ligne du pass, les scénarios F/G des tests paiements et le paywall QR en ligne. |
+| 1 | **Front du tunnel acquéreur non déployé** | 🔴 | Le parcours demande → vente → Certificat de vente → attestation, la répartition automatique et les écrans de config (frais agrégateur, tarifs 3e attestation) sont **en base (prod)** mais leur front n'est pas uploadé sur cPanel (`sgfn-deploy.tar.gz` à jour, 128 entrées). Reste aussi à coder l'UI du flux vente lui-même (« Créer la vente » / « Payer le lot » / « Facturer l'attestation ») — voir §10 (09/07). |
+| 2 | **Secrets CinetPay absents** | 🔴 Bloquant revenus | Toute l'infra en ligne est codée **et déployée** (edge fns, ventilation) ; il ne manque que 2 secrets edge `CINETPAY_API_KEY`/`CINETPAY_SITE_ID`. Un bug latent du webhook (`marquer_paiement_recu`) a été corrigé le 09/07. Sans secrets : paiement en ligne (pass, attestation, vente) et paywall QR indisponibles. |
 | 3 | Pivot plans CAD → DXF | 🟡 | Commit `25a91cc` non testé en réel (rendu blanc DWG contourné). |
 | 4 | **Leaked password protection — bloqué** | 🟡 | Pas un simple toggle Dashboard : tentative via l'API management le 07/07 soir → `402 Payment Required`, nécessite un plan **Supabase Pro** (projet actuellement sur plan Free). |
 | 5 | Modale « Créer une cession », formulaire paiements, écran Propriétaire terrien | 🟡 | Codés, testés côté serveur (RPC/SQL direct), front déployé (cessions/paiements) ou en attente (Propriétaire terrien) mais **jamais testés en navigateur réel**. |
 | 6 | Webhook rebuild monterrain-web | 🟡 | Republication à la mise en ligne d'une annonce. |
 | 7 | Photos d'annonces | 🟡 | Schéma + upload + galerie à créer. |
-| 8 | Comptes et tarifs chefferies réels | 🟡 | N'CHO KOUTOUAN JULES, NANAN AFFA KOUACHY ALFRED à provisionner ; seule la Chefferie d'Ebimpe a un tarif palier-3 configuré dans `tarifs_attestation_chefferie` — les autres bloqueront la délivrance d'une 3e attestation tant qu'un tarif n'est pas fixé. Bornage/demande ACD toujours sans montant dans `tarifs`. |
+| 8 | Comptes et tarifs chefferies réels | 🟡 | N'CHO KOUTOUAN JULES, NANAN AFFA KOUACHY ALFRED à provisionner ; seule la Chefferie d'Ebimpe a un tarif palier-3 dans `tarifs_attestation_chefferie` — les autres bloquent la 3e attestation tant qu'un tarif n'est pas fixé (**un écran admin de config existe désormais** sur `/dashboard/paiements`, à déployer). Bornage/demande ACD toujours sans montant dans `tarifs`. |
 | 9 | Flux d'invitation incomplet pour Chefferie/Propriétaire terrien | 🟡 | La table `invitations` n'a pas de colonnes `famille_id`/`autorite_coutumiere_id` — un compte invité avec l'un de ces rôles atterrit sans lien, rattachement manuel obligatoire via `/dashboard/familles` après coup. Différé (choix explicite du 07/07 soir). |
 | 10 | `concertation/page.tsx` — routage participants | 🟡 | Sélection auto des participants « chef de famille » d'un lotissement vérifie `groupe==='proprietaire'` (mauvais rôle) sans filtrer par `famille_id` — sur-sélectionne des profils non liés. Bug apparenté à celui corrigé dans `lots_read_scope`, laissé de côté. |
 | 11 | Différés | ⚪ | Mobile Money définitif, SMS, APK Android, transition `generee → delivree`, achat libre-service acquéreur. |
@@ -111,7 +113,8 @@ Tout choix produit doit satisfaire quatre critères : **Sécurité, Simplicité,
 - Faille de sécurité `generation-document` (garde `HOOK_SECRET` inerte) — auditée puis **corrigée et déployée**, testée en réel (voir §10).
 - Grille tarifaire non branchée à l'UI paiements — **branchée**.
 - Front non déployé (cessions par palier, grille tarifaire) — **`sgfn-deploy-cessions-paliers.tar.gz` uploadé sur cPanel**. Le travail correspondant a aussi été commité en git à la reprise de session (5 commits, jusque-là non versionné) : sécurité `generation-document`, tarification par palier, grille tarifaire, fusion documentaire, et le fix `familles.lignee` (colonne disparue, cassait silencieusement la vue Chef de famille et la génération de documents — edge function redéployée en v31).
-- Confusion Chefferie / Chef de famille — diagnostiquée précisément (compte de test mal câblé, flux d'invitation et libellés en cause) puis traitée à la racine par le nouveau rôle Propriétaire terrien (voir ligne 1 ci-dessus pour le déploiement front restant).
+- Confusion Chefferie / Chef de famille — diagnostiquée précisément (compte de test mal câblé, flux d'invitation et libellés en cause) puis traitée à la racine par le nouveau rôle Propriétaire terrien, **déployé en prod et validé e2e au navigateur le 08/07 après-midi**.
+- Bug latent `marquer_paiement_recu` (webhook CinetPay, `CASE` renvoyant du `text` non casté vers l'enum `statut_paiement`) — **corrigé le 09/07** avant toute activation de l'agrégateur.
 
 ---
 
@@ -227,7 +230,10 @@ Le monolithe Supabase actuel est **conservé** jusqu'à la fin du pilote multi-s
 | **Délivrance attestation de cession — 2e** | 30 000 FCFA | 20 000 chefferie + 10 000 SGNF | Codé et testé serveur le 07/07 soir, front à tester |
 | **Délivrance attestation de cession — 3e et suivantes** | Variable par chefferie (ex. Ebimpe : 380 000) | Montant chefferie + commission SGNF | Codé et testé serveur le 07/07 soir ; seule Ebimpe configurée |
 | Autres actes payants (grille du 03/07 : transmission, entérinement chefferie, mutation acquéreur, levée de litige) | Selon `Grille_Tarifaire_SGNF_2026-07-03.md` | Montants réels + commissions SGNF | Table `tarifs`, branchée à l'UI paiements le 07/07 soir |
+| **Vente d'un lot (tunnel acquéreur, comptant/échelonné)** | Prix négocié | Propriétaire 100 % · SGNF 0 % · frais agrégateur absorbés par l'acquéreur | Base en prod (`creer_vente`, Certificat de vente au solde), front à faire |
 | Commission sur ventes marketplace | 0 | — | Décision actée |
+
+**Répartition automatique** (depuis le 09/07) : chaque paiement confirmé est ventilé automatiquement (`repartitions_paiement`) entre Propriétaire / Chefferie / Commission SGNF. Les **frais agrégateur** (montant fixe configurable, paiements en ligne uniquement) sont **déduits de la commission SGNF** pour les attestations et **absorbés par l'acquéreur** pour les ventes de lots. La **propriété d'un lot bascule au Certificat de vente** (vente soldée), l'attestation de cession venant après.
 
 ### Revenus cibles (vision, Livre XIII)
 
@@ -359,6 +365,24 @@ Vérifié en base après coup : les 3 comptes existants (N'CHO KOUTOUAN JULES, `
 
 **Doctrine documentaire précisée** (§A3) : après l'ajout de Graphify (graphe de connaissance du code) au projet, formalisation de la répartition en trois couches (graphe de code / ce document / mémoire agent) pour éviter les doublons — un fait, un seul foyer.
 
+### Session du 09/07/2026
+
+Grosse session centrée sur le **parcours Acquéreur** et le **modèle de paiement**. Tout le travail base est en production (6 migrations `20260709_*`) et testé e2e en rollback ; **le front du tunnel n'est pas encore déployé**.
+
+**Registre acquéreur mis en ligne.** La refonte de `/dashboard/acquisition` (commit `a7fb488` : d'un catalogue de lots libres à un registre de vérification — RPC `lots_verifiables`, CTA « Vérifier » avec QR + lien payant) était commitée et sa base en prod, mais le front servait encore l'ancien bundle. Diagnostic live (le HTML servi datait de la veille), rebuild + `tar.gz`, extraction cPanel par le user, puis confirmation que `sgfn.ci` sert le nouveau chunk. **Piège noté** : le `.htaccess` du site a un catch-all qui renvoie `index.html` (HTTP 200, `text/html`) pour tout chemin absent — vérifier un déploiement au seul code 200 est trompeur ; regarder le `content-type` et le `Last-Modified`.
+
+**Tunnel « Demande d'acquisition ».** Maillon entre la vérification et la cession : l'acquéreur « Engage l'acquisition » (table `demandes_acquisition` + RPC `creer_demande_acquisition`, ouvre un fil de messagerie), l'agence pilote une file de demandes à statuts et « Convertit », l'acquéreur voit son attestation. Commits `45dd55f` (base + file agence + conversion) et `59d2180` (encaissement guichet → attestation). L'acquéreur est rattaché à son `attributaire` (`profiles.attributaire_id`) → il retrouve son attestation dans « Mon espace ». Testé e2e en SQL en transaction annulée (le MCP Supabase honore BEGIN/ROLLBACK ; `pg_net` = aucun appel edge réel sur rollback).
+
+**Paiement en ligne + bug webhook corrigé.** L'infra CinetPay était déjà entièrement codée **et déployée** (edge fns `initier-paiement`/`confirmer-paiement` actives, page `/paiements/retour`) — seuls manquent les secrets `CINETPAY_API_KEY`/`CINETPAY_SITE_ID`. Bug latent trouvé et corrigé : `marquer_paiement_recu` (appelée par le webhook) plantait (`CASE` renvoyant du `text` non casté vers l'enum `statut_paiement`, ERROR 42804) — jamais déclenché car CinetPay inactif, mais aurait cassé la 1re confirmation en ligne. Front « Payer en ligne » ajouté au tunnel + UI admin des tarifs 3e attestation par chefferie sur `/dashboard/paiements`. Commits `8a79041`, `ea2c5d9`.
+
+**Reséquencement majeur — la propriété bascule à la VENTE, plus à la cession.** Décision structurante actée avec le user : le tunnel acquéreur est une **revente réelle**. Trois voies de paiement : (1) **prix du lot** (vente comptant/échelonné) → **Propriétaire** (titulaire actuel, SGNF 0 %, SGNF enregistre le flux) ; (2) **attestation** → **Chefferie + Commission SGNF** ; (3) **frais agrégateur**. La propriété **ne bascule qu'au Certificat de vente** (vente soldée) ; l'attestation devient une étape séparée, après. Les attributions originelles (opérateur rang 1‑2, propriétaire terrien rang 1) restent administratives. Implémenté et testé e2e en rollback :
+- `creer_vente` + réécriture des triggers `ventes` : échéances à la création, **certificat + bascule de propriété au solde** (`trg_ventes_soldee`). Comptant → solde immédiat ; échelonné (3×2M) → certificat seulement à la dernière échéance. Commit `e11a984`.
+- **Répartition automatique** (`repartitions_paiement` + trigger `ventiler_paiement`) : vente → Propriétaire 100 % + frais agrégateur absorbés par l'acquéreur ; attestation → Chefferie + Commission SGNF, frais agrégateur **déduits de la commission SGNF**. Frais = **montant fixe configurable** (défaut 0), paiements en ligne uniquement. Commit `e11a984`.
+- **Découplage de l'attestation** : `facturer_attestation_cession` facture le titulaire actuel selon son palier **sans re-transférer la propriété**. `creer_cession` reste pour la cession manuelle admin. Commit `c36f6c7`.
+- **UI Paiements** : config admin du frais agrégateur + ventilation dépliable par paiement (Propriétaire/Chefferie/SGNF/Agrégateur). Commit `4c46c19`.
+
+**Reste (chantier tunnel UI, non commencé) :** rendre le flux vente cliquable de bout en bout — lier `demandes_acquisition.vente_id`, enrichir la vue agence, remplacer côté agence « Convertir en cession »/« Encaisser » (devenus obsolètes) par « Créer la vente » puis « Facturer l'attestation » **après vente soldée** (garde-fou indispensable : sinon on facturerait le vendeur), côté acquéreur « Payer le lot » → Certificat de vente. Puis **déployer le front** (tar.gz à jour) et **activer CinetPay** (2 secrets edge).
+
 ### État d'avancement — 06/07/2026
 
 #### Audit de sécurité de suivi & fondations tarifaires
@@ -399,4 +423,4 @@ Mise en ligne des deux sites, scanner QR caméra, manuel utilisateur PDF, quitta
 
 ---
 
-*Document directeur v1.2 — mis à jour le 08/07/2026 au matin (nouveau rôle Propriétaire terrien, rattrapage git/déploiement, comptes de test). v1.1 établie le 07/07/2026 au soir, fusionne la v1.0 et la Fiche projet SGNF (désormais obsolète, conservée pour l'historique Git uniquement). À réviser à chaque fin de phase, arbitrage stratégique (A1–A4), ou session de travail notable. Référence technique : `docs/` du repo `sgfn-web`.*
+*Document directeur v1.3 — mis à jour le 09/07/2026 au soir (tunnel Acquéreur : demande d'acquisition, paiement en ligne + correctif du webhook CinetPay, reséquencement vente → Certificat de vente → attestation, répartition automatique des paiements + frais agrégateur — base en production, front à déployer et UI du flux vente à coder). v1.2 le 08/07/2026 (nouveau rôle Propriétaire terrien, rattrapage git/déploiement, comptes de test). v1.1 établie le 07/07/2026 au soir, fusionne la v1.0 et la Fiche projet SGNF (désormais obsolète, conservée pour l'historique Git uniquement). À réviser à chaque fin de phase, arbitrage stratégique (A1–A4), ou session de travail notable. Référence technique : `docs/` du repo `sgfn-web`.*
