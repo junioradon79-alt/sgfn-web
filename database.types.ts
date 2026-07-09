@@ -897,6 +897,7 @@ export type Database = {
           note_agence: string | null
           statut: Database["public"]["Enums"]["statut_demande_acquisition"]
           traite_par: string | null
+          vente_id: string | null
         }
         Insert: {
           acquereur_nom: string
@@ -914,6 +915,7 @@ export type Database = {
           note_agence?: string | null
           statut?: Database["public"]["Enums"]["statut_demande_acquisition"]
           traite_par?: string | null
+          vente_id?: string | null
         }
         Update: {
           acquereur_nom?: string
@@ -931,6 +933,7 @@ export type Database = {
           note_agence?: string | null
           statut?: Database["public"]["Enums"]["statut_demande_acquisition"]
           traite_par?: string | null
+          vente_id?: string | null
         }
         Relationships: [
           {
@@ -2926,8 +2929,19 @@ export type Database = {
           numero_lot: string | null
           statut: Database["public"]["Enums"]["statut_demande_acquisition"] | null
           traite_par: string | null
+          vente_id: string | null
           village: string | null
-          paiement_statut: Database["public"]["Enums"]["statut_paiement"] | null
+          vente_statut: string | null
+          vente_type: string | null
+          vente_prix_total: number | null
+          vente_montant_paye: number | null
+          vente_solde: number | null
+          certificat_reference: string | null
+          certificat_qr_token: string | null
+          vente_paiement_id: string | null
+          vente_paiement_statut: string | null
+          vente_paiement_montant: number | null
+          paiement_statut: string | null
           paiement_montant: number | null
           attestation_reference: string | null
           attestation_qr_token: string | null
@@ -3040,6 +3054,24 @@ export type Database = {
       facturer_attestation_cession: {
         Args: {
           p_lot_id: string
+          p_moyen?: Database["public"]["Enums"]["moyen_paiement"]
+        }
+        Returns: Json
+      }
+      encaisser_vente_guichet: {
+        Args: { p_demande_id: string }
+        Returns: Json
+      }
+      creer_paiement_echeance_suivante: {
+        Args: {
+          p_vente_id: string
+          p_moyen?: Database["public"]["Enums"]["moyen_paiement"]
+        }
+        Returns: Json
+      }
+      facturer_attestation_demande: {
+        Args: {
+          p_demande_id: string
           p_moyen?: Database["public"]["Enums"]["moyen_paiement"]
         }
         Returns: Json
