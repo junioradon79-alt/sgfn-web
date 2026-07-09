@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
   BadgeCheck,
   CheckCircle2,
+  ClipboardCheck,
+  Handshake,
   Landmark,
   Loader2,
   MapPin,
@@ -106,28 +108,64 @@ const fmtDate = (d: string | null) =>
     ? new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
     : null;
 
+const fmtFcfa = (n: number | null | undefined) =>
+  n == null ? null : `${new Intl.NumberFormat("fr-FR").format(n)} FCFA`;
+
+type DemandeRow = {
+  id: string;
+  lot_id: string;
+  statut: string;
+  montant_propose: number | null;
+  cree_le: string;
+};
+
+// Libellé + style de chaque statut de demande d'acquisition (côté acquéreur).
+const DEMANDE_STATUTS: Record<string, { label: string; cls: string }> = {
+  nouvelle: { label: "Demande envoyée", cls: "bg-[#0D3B66]/10 text-[#0D3B66]" },
+  en_discussion: { label: "En discussion", cls: "bg-[#F39C12]/10 text-[#F39C12]" },
+  accord: { label: "Accord de principe", cls: "bg-[#2D8F5A]/10 text-[#2D8F5A]" },
+  convertie: { label: "Cession en cours", cls: "bg-[#2D8F5A]/15 text-[#2D8F5A]" },
+  refusee: { label: "Non retenue", cls: "bg-[#EF4444]/10 text-[#EF4444]" },
+  annulee: { label: "Annulée", cls: "bg-slate-100 text-slate-500" },
+};
+
 export default function AcquisitionPage() {
   const supabase = useMemo(() => createClient(), []);
 
   const [conformite, setConformite] = useState<ConformiteRow[]>([]);
   const [lots, setLots] = useState<DispoRow[]>([]);
+  const [demandes, setDemandes] = useState<DemandeRow[]>([]);
   const [filterLz, setFilterLz] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [interetState, setInteretState] = useState<Record<string, "idle" | "loading" | "done" | "error">>({});
   const [flash, setFlash] = useState<string | null>(null);
   const [detailLot, setDetailLot] = useState<DispoRow | null>(null);
 
+  const loadDemandes = useCallback(async () => {
+    const { data } = await supabase
+      .from("demandes_acquisition")
+      .select("id,lot_id,statut,montant_propose,cree_le")
+      .order("cree_le", { ascending: false });
+    setDemandes((data ?? []) as DemandeRow[]);
+  }, [supabase]);
+
   useEffect(() => {
     (async () => {
       const [conf, dispo] = await Promise.all([
         supabase.rpc("conformite_lotissements"),
         supabase.rpc("lots_verifiables"),
+        loadDemandes(),
       ]);
       setConformite((conf.data ?? []) as unknown as ConformiteRow[]);
       setLots((dispo.data ?? []) as unknown as DispoRow[]);
       setLoading(false);
     })();
-  }, [supabase]);
+  }, [supabase, loadDemandes]);
+
+  const demandeByLot = useMemo(
+    () => Object.fromEntries(demandes.map((d) => [d.lot_id, d])) as Record<string, DemandeRow>,
+    [demandes]
+  );
 
   const lzNames = useMemo(
     () => [...new Set(lots.map((l) => l.lotissement).filter(Boolean))] as string[],
@@ -150,6 +188,29 @@ export default function AcquisitionPage() {
     );
   };
 
+  // Engage formel : crée une demande d'acquisition pilotable par l'agence
+  // (statut, offre) qui pourra être convertie en cession en un clic.
+  const engager = async (
+    lot: DispoRow,
+    form: { telephone: string; montant: string; message: string }
+  ): Promise<string | null> => {
+    const montantNum = form.montant.replace(/[^\d]/g, "");
+    const { error } = await supabase.rpc("creer_demande_acquisition", {
+      p_lot_id: lot.lot_id,
+      p_telephone: form.telephone.trim() || undefined,
+      p_montant: montantNum ? Number(montantNum) : undefined,
+      p_message: form.message.trim() || undefined,
+    });
+    if (error) return error.message;
+    await loadDemandes();
+    setDetailLot(null);
+    setFlash(
+      `Votre demande d'acquisition pour le lot ${lot.lot} (${lot.lotissement}) a été enregistrée. ` +
+        `L'agence SGNF vous recontactera pour finaliser. Suivez l'échange dans Messages.`
+    );
+    return null;
+  };
+
   return (
     <div className="mx-auto max-w-5xl">
       {detailLot && (
@@ -157,7 +218,9 @@ export default function AcquisitionPage() {
           lot={detailLot}
           conformite={conformite.find((c) => c.lotissement === detailLot.lotissement) ?? null}
           interet={interetState[detailLot.lot_id] ?? "idle"}
+          demande={demandeByLot[detailLot.lot_id] ?? null}
           onManifester={() => void manifester(detailLot)}
+          onEngager={(form) => engager(detailLot, form)}
           onClose={() => setDetailLot(null)}
         />
       )}
@@ -184,6 +247,48 @@ export default function AcquisitionPage() {
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#2D8F5A]" />
           <span>{flash}</span>
         </div>
+      )}
+
+      {/* Mes demandes d'acquisition — suivi de l'engagement côté acquéreur */}
+      {demandes.length > 0 && (
+        <section className="mb-6">
+          <div className="mb-3">
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+              <ClipboardCheck className="h-4 w-4 text-[#0D3B66]" />
+              Mes demandes d&apos;acquisition
+            </h2>
+            <p className="text-xs text-slate-400">
+              Suivi de vos engagements — l&apos;agence SGNF traite chaque demande
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {demandes.map((d) => {
+              const l = lots.find((x) => x.lot_id === d.lot_id);
+              const st = DEMANDE_STATUTS[d.statut] ?? { label: d.statut, cls: "bg-slate-100 text-slate-500" };
+              return (
+                <div
+                  key={d.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-sm"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-800">
+                      {l ? `${l.lotissement} — Îlot ${l.ilot} · Lot ${l.lot}` : "Lot du registre"}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      {fmtDate(d.cree_le)}
+                      {d.montant_propose != null && ` · Offre ${fmtFcfa(d.montant_propose)}`}
+                    </p>
+                  </div>
+                  <span
+                    className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${st.cls}`}
+                  >
+                    {st.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {/* Conformité par lotissement */}
@@ -297,6 +402,7 @@ export default function AcquisitionPage() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {shown.map((l) => {
               const state = interetState[l.lot_id] ?? "idle";
+              const dem = demandeByLot[l.lot_id];
               const isOp = !!l.est_lot_operateur;
               return (
                 <div
@@ -335,10 +441,21 @@ export default function AcquisitionPage() {
                     <ShieldCheck className="h-3.5 w-3.5" />
                     Vérifier
                   </button>
-                  {state === "done" && (
-                    <p className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-[#2D8F5A]">
-                      <CheckCircle2 className="h-3 w-3" /> Intérêt déjà transmis
+                  {dem ? (
+                    <p
+                      className={`mt-1.5 inline-flex items-center gap-1 self-start rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                        (DEMANDE_STATUTS[dem.statut] ?? { cls: "bg-slate-100 text-slate-500" }).cls
+                      }`}
+                    >
+                      <Handshake className="h-3 w-3" />
+                      {(DEMANDE_STATUTS[dem.statut] ?? { label: dem.statut }).label}
                     </p>
+                  ) : (
+                    state === "done" && (
+                      <p className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-[#2D8F5A]">
+                        <CheckCircle2 className="h-3 w-3" /> Intérêt déjà transmis
+                      </p>
+                    )
                   )}
                 </div>
               );
@@ -350,8 +467,9 @@ export default function AcquisitionPage() {
           « Vérifier » ouvre la consultation officielle du registre SGNF (authenticité, propriétaire
           actuel, litiges éventuels) — acte payant de {" "}
           <span className="font-semibold text-slate-600">60 000 FCFA</span>, gratuit pour la 1re
-          attestation d&apos;un lot. « Manifester un intérêt » (dans le détail du lot) envoie en plus un
-          message à l&apos;opérateur, au chef de famille et à l&apos;agence SGNF, sans réservation automatique.
+          attestation d&apos;un lot. Dans le détail du lot, « Engager l&apos;acquisition » enregistre une
+          demande suivie par l&apos;agence SGNF (avec votre offre éventuelle), tandis que « Manifester un
+          intérêt » se limite à un message ; aucun paiement en ligne n&apos;est requis à ce stade.
         </p>
       </section>
     </div>
@@ -362,15 +480,35 @@ function LotDetailsModal({
   lot,
   conformite,
   interet,
+  demande,
   onManifester,
+  onEngager,
   onClose,
 }: {
   lot: DispoRow;
   conformite: ConformiteRow | null;
   interet: "idle" | "loading" | "done" | "error";
+  demande: DemandeRow | null;
   onManifester: () => void;
+  onEngager: (form: { telephone: string; montant: string; message: string }) => Promise<string | null>;
   onClose: () => void;
 }) {
+  const [engaging, setEngaging] = useState(false);
+  const [form, setForm] = useState({ telephone: "", montant: "", message: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const [engageErr, setEngageErr] = useState<string | null>(null);
+
+  const statutMeta = demande
+    ? DEMANDE_STATUTS[demande.statut] ?? { label: demande.statut, cls: "bg-slate-100 text-slate-500" }
+    : null;
+
+  const submitEngage = async () => {
+    setSubmitting(true);
+    setEngageErr(null);
+    const err = await onEngager(form);
+    setSubmitting(false);
+    if (err) setEngageErr(err);
+  };
   const lat = lot.lot_latitude ?? lot.lz_latitude;
   const lng = lot.lot_longitude ?? lot.lz_longitude;
   const approx = lot.lot_latitude == null && lat != null;
@@ -542,36 +680,156 @@ function LotDetailsModal({
           )}
         </div>
 
-        {/* Pied : action */}
-        <div className="flex flex-col gap-2 border-t border-slate-200/60 px-6 py-4 sm:flex-row">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 sm:flex-1"
-          >
-            Fermer
-          </button>
-          <button
-            type="button"
-            onClick={onManifester}
-            disabled={interet === "loading" || interet === "done"}
-            className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-70 sm:flex-1 ${
-              interet === "error"
-                ? "border-[#EF4444] text-[#EF4444]"
-                : interet === "done"
-                  ? "border-[#2D8F5A] bg-[#2D8F5A]/5 text-[#2D8F5A]"
-                  : "border-[#0D3B66]/30 text-[#0D3B66] hover:bg-[#0D3B66]/5"
-            }`}
-          >
-            <MessageSquare className="h-4 w-4" />
-            {interet === "loading"
-              ? "Envoi…"
-              : interet === "done"
-                ? "Intérêt transmis ✓"
-                : interet === "error"
-                  ? "Erreur — réessayer"
-                  : "Manifester un intérêt"}
-          </button>
+        {/* Pied : engagement / actions */}
+        <div className="border-t border-slate-200/60 px-6 py-4">
+          {demande && statutMeta ? (
+            /* Une demande existe déjà pour ce lot */
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="inline-flex flex-wrap items-center gap-1.5 text-sm text-slate-600">
+                <Handshake className="h-4 w-4 shrink-0 text-[#0D3B66]" />
+                Demande d&apos;acquisition enregistrée —
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statutMeta.cls}`}>
+                  {statutMeta.label}
+                </span>
+              </p>
+              <div className="flex gap-2">
+                <Link
+                  href="/dashboard/messages"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  <MessageSquare className="h-4 w-4 text-[#0D3B66]" />
+                  Messages
+                </Link>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+          ) : engaging ? (
+            /* Formulaire d'engagement */
+            <div className="space-y-3">
+              <div>
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-[#0D3B66]">
+                  <Handshake className="h-4 w-4" />
+                  Engager l&apos;acquisition
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  L&apos;agence SGNF reçoit votre demande et vous recontacte pour finaliser la cession.
+                  Aucun paiement en ligne à ce stade.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                    Offre proposée (FCFA) — optionnel
+                  </label>
+                  <input
+                    inputMode="numeric"
+                    value={form.montant}
+                    onChange={(e) => setForm((f) => ({ ...f, montant: e.target.value }))}
+                    placeholder="Ex. 5 000 000"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#0D3B66] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                    Téléphone — optionnel
+                  </label>
+                  <input
+                    inputMode="tel"
+                    value={form.telephone}
+                    onChange={(e) => setForm((f) => ({ ...f, telephone: e.target.value }))}
+                    placeholder="Rappel pour vous joindre"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#0D3B66] focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                  Message — optionnel
+                </label>
+                <textarea
+                  value={form.message}
+                  onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
+                  rows={2}
+                  placeholder="Précisez votre projet ou vos questions…"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#0D3B66] focus:outline-none"
+                />
+              </div>
+              {engageErr && (
+                <p className="flex items-start gap-1.5 rounded-lg bg-[#EF4444]/5 px-3 py-2 text-xs text-[#EF4444]">
+                  <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  {engageErr}
+                </p>
+              )}
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEngaging(false);
+                    setEngageErr(null);
+                  }}
+                  disabled={submitting}
+                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-70 sm:flex-1"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void submitEngage()}
+                  disabled={submitting}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0a2f52] disabled:opacity-70 sm:flex-[2]"
+                >
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Handshake className="h-4 w-4" />}
+                  {submitting ? "Envoi…" : "Envoyer la demande"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Actions par défaut */
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 sm:flex-1"
+              >
+                Fermer
+              </button>
+              <button
+                type="button"
+                onClick={onManifester}
+                disabled={interet === "loading" || interet === "done"}
+                className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-70 sm:flex-1 ${
+                  interet === "error"
+                    ? "border-[#EF4444] text-[#EF4444]"
+                    : interet === "done"
+                      ? "border-[#2D8F5A] bg-[#2D8F5A]/5 text-[#2D8F5A]"
+                      : "border-[#0D3B66]/30 text-[#0D3B66] hover:bg-[#0D3B66]/5"
+                }`}
+              >
+                <MessageSquare className="h-4 w-4" />
+                {interet === "loading"
+                  ? "Envoi…"
+                  : interet === "done"
+                    ? "Intérêt transmis ✓"
+                    : interet === "error"
+                      ? "Erreur — réessayer"
+                      : "Manifester un intérêt"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEngaging(true)}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0a2f52] sm:flex-[1.4]"
+              >
+                <Handshake className="h-4 w-4" />
+                Engager l&apos;acquisition
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

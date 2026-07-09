@@ -880,6 +880,68 @@ export type Database = {
           },
         ]
       }
+      demandes_acquisition: {
+        Row: {
+          acquereur_nom: string
+          acquereur_telephone: string | null
+          attributaire_id: string | null
+          cession_id: string | null
+          conversation_id: string | null
+          cree_le: string
+          demandeur_profile_id: string
+          id: string
+          lot_id: string
+          maj_le: string
+          message: string | null
+          montant_propose: number | null
+          note_agence: string | null
+          statut: Database["public"]["Enums"]["statut_demande_acquisition"]
+          traite_par: string | null
+        }
+        Insert: {
+          acquereur_nom: string
+          acquereur_telephone?: string | null
+          attributaire_id?: string | null
+          cession_id?: string | null
+          conversation_id?: string | null
+          cree_le?: string
+          demandeur_profile_id: string
+          id?: string
+          lot_id: string
+          maj_le?: string
+          message?: string | null
+          montant_propose?: number | null
+          note_agence?: string | null
+          statut?: Database["public"]["Enums"]["statut_demande_acquisition"]
+          traite_par?: string | null
+        }
+        Update: {
+          acquereur_nom?: string
+          acquereur_telephone?: string | null
+          attributaire_id?: string | null
+          cession_id?: string | null
+          conversation_id?: string | null
+          cree_le?: string
+          demandeur_profile_id?: string
+          id?: string
+          lot_id?: string
+          maj_le?: string
+          message?: string | null
+          montant_propose?: number | null
+          note_agence?: string | null
+          statut?: Database["public"]["Enums"]["statut_demande_acquisition"]
+          traite_par?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demandes_acquisition_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "lots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       demandes_contact: {
         Row: {
           annonce_id: string
@@ -2804,6 +2866,32 @@ export type Database = {
         }
         Relationships: []
       }
+      demandes_acquisition_agence: {
+        Row: {
+          acquereur_nom: string | null
+          acquereur_telephone: string | null
+          attributaire_id: string | null
+          cession_id: string | null
+          commune: string | null
+          conversation_id: string | null
+          cree_le: string | null
+          demandeur_nom_complet: string | null
+          demandeur_profile_id: string | null
+          id: string | null
+          ilot_numero: string | null
+          lot_id: string | null
+          lotissement: string | null
+          maj_le: string | null
+          message: string | null
+          montant_propose: number | null
+          note_agence: string | null
+          numero_lot: string | null
+          statut: Database["public"]["Enums"]["statut_demande_acquisition"] | null
+          traite_par: string | null
+          village: string | null
+        }
+        Relationships: []
+      }
       v_collectifs_pv_manquant: {
         Row: {
           collectif: string | null
@@ -2875,6 +2963,31 @@ export type Database = {
           p_observation?: string
         }
         Returns: Json
+      }
+      convertir_demande_en_cession: {
+        Args: {
+          p_date_cession?: string
+          p_demande_id: string
+          p_moyen?: Database["public"]["Enums"]["moyen_paiement"]
+        }
+        Returns: Json
+      }
+      creer_demande_acquisition: {
+        Args: {
+          p_lot_id: string
+          p_message?: string
+          p_montant?: number
+          p_telephone?: string
+        }
+        Returns: Json
+      }
+      maj_statut_demande_acquisition: {
+        Args: {
+          p_demande_id: string
+          p_note?: string
+          p_statut: Database["public"]["Enums"]["statut_demande_acquisition"]
+        }
+        Returns: undefined
       }
       debug_mon_contexte: { Args: never; Returns: Json }
       disponibilites_foncieres: { Args: never; Returns: Json }
@@ -2970,6 +3083,13 @@ export type Database = {
       statut_att_cession: "a_generer" | "generee" | "delivree" | "revoquee"
       statut_certificat_vente: "a_generer" | "generee" | "delivree" | "annulee"
       statut_cession: "en_cours" | "solde" | "annulee"
+      statut_demande_acquisition:
+        | "nouvelle"
+        | "en_discussion"
+        | "accord"
+        | "convertie"
+        | "refusee"
+        | "annulee"
       statut_demarche:
         | "en_attente_paiement"
         | "payee_en_cours"

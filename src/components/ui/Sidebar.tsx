@@ -21,6 +21,7 @@ import {
   Sparkles,
   Home,
   ClipboardList,
+  ClipboardCheck,
   Crown,
   Handshake,
   MapPinned,
@@ -133,6 +134,13 @@ const navItems: SidebarNavItem[] = [
     href: "/dashboard/attributions",
     icon: <Link2 className="w-4 h-4" />,
     roles: ["operateur", "amenageur", "chefferie", "verificateur", "commissaire", "proprietaire_terrien"],
+  },
+  {
+    label: "Demandes d'acquisition",
+    href: "/dashboard/demandes-acquisition",
+    icon: <ClipboardCheck className="w-4 h-4" />,
+    roles: ["operateur"],
+    // admin voit aussi (pas de adminHide)
   },
   {
     label: "Litiges",
