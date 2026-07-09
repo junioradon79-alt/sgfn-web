@@ -5,13 +5,16 @@ import Link from "next/link";
 import {
   CheckCircle2,
   ClipboardCheck,
+  HandCoins,
   Handshake,
   Landmark,
   Loader2,
   MapPin,
   MessageSquare,
   Phone,
+  ScrollText,
   ShieldAlert,
+  ShieldCheck,
   X,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
@@ -43,6 +46,10 @@ type DemandeAgence = {
   lotissement: string | null;
   village: string | null;
   commune: string | null;
+  paiement_statut: string | null;
+  paiement_montant: number | null;
+  attestation_reference: string | null;
+  attestation_qr_token: string | null;
 };
 
 const STATUT_META: Record<string, { label: string; cls: string }> = {
@@ -118,6 +125,24 @@ export default function DemandesAcquisitionPage() {
       setError(e.message);
       return;
     }
+    await load();
+  };
+
+  const encaisser = async (d: DemandeAgence) => {
+    setBusy(d.id);
+    setError(null);
+    const { data, error: e } = await supabase.rpc("encaisser_demande_acquisition", { p_demande_id: d.id });
+    setBusy(null);
+    if (e) {
+      setError(e.message);
+      return;
+    }
+    const r = (data ?? {}) as { attestation_reference?: string; montant?: number };
+    setFlash(
+      `Paiement encaissé${r.montant ? ` (${fcfa(r.montant)})` : ""} — attestation ${
+        r.attestation_reference ?? ""
+      } générée. La quittance et l'attestation PDF sont en cours de production.`
+    );
     await load();
   };
 
@@ -261,15 +286,39 @@ export default function DemandesAcquisitionPage() {
                       </button>
                     </>
                   )}
-                  {d.statut === "convertie" && (
-                    <Link
-                      href="/dashboard/lots"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#2D8F5A]/40 bg-[#2D8F5A]/5 px-3 py-1.5 text-xs font-semibold text-[#2D8F5A]"
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      Cession créée — voir Lots
-                    </Link>
-                  )}
+                  {d.statut === "convertie" &&
+                    (d.attestation_reference ? (
+                      <>
+                        <span className="inline-flex items-center gap-1.5 rounded-lg border border-[#2D8F5A]/40 bg-[#2D8F5A]/5 px-3 py-1.5 text-xs font-semibold text-[#2D8F5A]">
+                          <ScrollText className="h-3.5 w-3.5" />
+                          Attestation {d.attestation_reference}
+                        </span>
+                        <a
+                          href={`/verifier?ref=${encodeURIComponent(d.attestation_reference)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-[#0D3B66]/30 px-3 py-1.5 text-xs font-semibold text-[#0D3B66] hover:bg-[#0D3B66]/5"
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                          Vérifier
+                        </a>
+                      </>
+                    ) : peutAgir ? (
+                      <button
+                        type="button"
+                        onClick={() => void encaisser(d)}
+                        disabled={busy === d.id}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#2D8F5A] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#24794c] disabled:opacity-60"
+                      >
+                        <HandCoins className="h-3.5 w-3.5" />
+                        Encaisser &amp; générer l&apos;attestation
+                        {d.paiement_montant ? ` · ${fcfa(d.paiement_montant)}` : ""}
+                      </button>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#F39C12]/10 px-3 py-1.5 text-xs font-semibold text-[#F39C12]">
+                        Attestation en attente de paiement
+                      </span>
+                    ))}
                 </div>
               </div>
             );

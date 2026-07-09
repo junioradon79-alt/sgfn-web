@@ -2889,6 +2889,10 @@ export type Database = {
           statut: Database["public"]["Enums"]["statut_demande_acquisition"] | null
           traite_par: string | null
           village: string | null
+          paiement_statut: Database["public"]["Enums"]["statut_paiement"] | null
+          paiement_montant: number | null
+          attestation_reference: string | null
+          attestation_qr_token: string | null
         }
         Relationships: []
       }
@@ -2979,6 +2983,10 @@ export type Database = {
           p_montant?: number
           p_telephone?: string
         }
+        Returns: Json
+      }
+      encaisser_demande_acquisition: {
+        Args: { p_demande_id: string }
         Returns: Json
       }
       maj_statut_demande_acquisition: {

@@ -117,6 +117,7 @@ type DemandeRow = {
   statut: string;
   montant_propose: number | null;
   cree_le: string;
+  cession_id: string | null;
 };
 
 // Libellé + style de chaque statut de demande d'acquisition (côté acquéreur).
@@ -135,6 +136,7 @@ export default function AcquisitionPage() {
   const [conformite, setConformite] = useState<ConformiteRow[]>([]);
   const [lots, setLots] = useState<DispoRow[]>([]);
   const [demandes, setDemandes] = useState<DemandeRow[]>([]);
+  const [attestations, setAttestations] = useState<Record<string, { reference: string; qr_token: string | null }>>({});
   const [filterLz, setFilterLz] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [interetState, setInteretState] = useState<Record<string, "idle" | "loading" | "done" | "error">>({});
@@ -144,9 +146,27 @@ export default function AcquisitionPage() {
   const loadDemandes = useCallback(async () => {
     const { data } = await supabase
       .from("demandes_acquisition")
-      .select("id,lot_id,statut,montant_propose,cree_le")
+      .select("id,lot_id,statut,montant_propose,cree_le,cession_id")
       .order("cree_le", { ascending: false });
-    setDemandes((data ?? []) as DemandeRow[]);
+    const rows = (data ?? []) as DemandeRow[];
+    setDemandes(rows);
+
+    // Attestations générées (une fois la cession payée) — visibles car l'acquéreur
+    // est désormais rattaché à l'attributaire (RLS). Clé = cession_id.
+    const cessionIds = rows.map((d) => d.cession_id).filter(Boolean) as string[];
+    if (cessionIds.length === 0) {
+      setAttestations({});
+      return;
+    }
+    const { data: atts } = await supabase
+      .from("attestations_cession")
+      .select("reference,qr_token,cession_id")
+      .in("cession_id", cessionIds);
+    const map: Record<string, { reference: string; qr_token: string | null }> = {};
+    for (const a of (atts ?? []) as { reference: string; qr_token: string | null; cession_id: string | null }[]) {
+      if (a.cession_id) map[a.cession_id] = { reference: a.reference, qr_token: a.qr_token };
+    }
+    setAttestations(map);
   }, [supabase]);
 
   useEffect(() => {
@@ -265,25 +285,48 @@ export default function AcquisitionPage() {
             {demandes.map((d) => {
               const l = lots.find((x) => x.lot_id === d.lot_id);
               const st = DEMANDE_STATUTS[d.statut] ?? { label: d.statut, cls: "bg-slate-100 text-slate-500" };
+              const att = d.cession_id ? attestations[d.cession_id] : undefined;
               return (
-                <div
-                  key={d.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-sm"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-800">
-                      {l ? `${l.lotissement} — Îlot ${l.ilot} · Lot ${l.lot}` : "Lot du registre"}
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-400">
-                      {fmtDate(d.cree_le)}
-                      {d.montant_propose != null && ` · Offre ${fmtFcfa(d.montant_propose)}`}
-                    </p>
+                <div key={d.id} className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-800">
+                        {l ? `${l.lotissement} — Îlot ${l.ilot} · Lot ${l.lot}` : "Lot du registre"}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-400">
+                        {fmtDate(d.cree_le)}
+                        {d.montant_propose != null && ` · Offre ${fmtFcfa(d.montant_propose)}`}
+                      </p>
+                    </div>
+                    <span
+                      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${st.cls}`}
+                    >
+                      {st.label}
+                    </span>
                   </div>
-                  <span
-                    className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${st.cls}`}
-                  >
-                    {st.label}
-                  </span>
+
+                  {att ? (
+                    <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2.5">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#2D8F5A]">
+                        <ScrollText className="h-3.5 w-3.5" />
+                        Attestation {att.reference}
+                      </span>
+                      <a
+                        href={verifUrl(att.reference)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-[#0D3B66] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#1E6091]"
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        Vérifier mon attestation
+                      </a>
+                    </div>
+                  ) : d.statut === "convertie" ? (
+                    <p className="mt-2.5 flex items-center gap-1.5 border-t border-slate-100 pt-2.5 text-xs text-slate-500">
+                      <Loader2 className="h-3.5 w-3.5 text-[#F39C12]" />
+                      Cession créée — attestation en cours d&apos;émission (dès réception du paiement).
+                    </p>
+                  ) : null}
                 </div>
               );
             })}
