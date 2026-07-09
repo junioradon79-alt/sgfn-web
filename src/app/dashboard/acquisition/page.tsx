@@ -2,16 +2,58 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   BadgeCheck,
   CheckCircle2,
   Landmark,
+  Loader2,
   MapPin,
+  MapPinOff,
+  Maximize2,
   MessageSquare,
+  Navigation,
+  ScrollText,
   ShieldAlert,
   ShieldCheck,
+  X,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { createClient } from "@/utils/supabase/client";
+
+// Lien public de vérification d'un document (scannable / partageable). Utilise
+// l'origine courante : https://sgfn.ci/... en prod, localhost en dev.
+const verifUrl = (reference: string) => {
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://sgfn.ci";
+  return `${origin}/verifier?ref=${encodeURIComponent(reference)}`;
+};
+
+// Carte mono-point du modal détails — Leaflet a besoin des APIs browser.
+const LotDetailMap = dynamic(() => import("./_LotDetailMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full items-center justify-center bg-slate-100">
+      <Loader2 className="h-5 w-5 animate-spin text-[#0D3B66]" />
+    </div>
+  ),
+});
+
+const NATURE_DROIT_LABELS: Record<string, string> = {
+  droit_coutumier: "Droit coutumier",
+  attestation_villageoise: "Attestation villageoise",
+  certificat_foncier: "Certificat foncier",
+  acd: "ACD (Arrêté de Concession Définitive)",
+  titre_foncier: "Titre foncier",
+};
+
+const fmtSuperficie = (m2: number | null) => {
+  if (m2 == null) return null;
+  const base = `${new Intl.NumberFormat("fr-FR").format(m2)} m²`;
+  return m2 >= 10000 ? `${base} · ${(m2 / 10000).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ha` : base;
+};
+
+const googleMapsDirectionsUrl = (lat: number, lng: number) =>
+  `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 
 /**
  * Espace Acquisition — destiné aux visiteurs en quête de lots (acquéreurs).
@@ -47,6 +89,16 @@ type DispoRow = {
   district: string | null;
   est_lot_operateur: boolean | null;
   operateur_nom: string | null;
+  superficie_m2: number | null;
+  numero_parcelle: string | null;
+  nature_droit: string | null;
+  lot_latitude: number | null;
+  lot_longitude: number | null;
+  lz_latitude: number | null;
+  lz_longitude: number | null;
+  lz_superficie_texte: string | null;
+  attestation_reference: string | null;
+  attestation_statut: string | null;
 };
 
 const fmtDate = (d: string | null) =>
@@ -63,12 +115,13 @@ export default function AcquisitionPage() {
   const [loading, setLoading] = useState(true);
   const [interetState, setInteretState] = useState<Record<string, "idle" | "loading" | "done" | "error">>({});
   const [flash, setFlash] = useState<string | null>(null);
+  const [detailLot, setDetailLot] = useState<DispoRow | null>(null);
 
   useEffect(() => {
     (async () => {
       const [conf, dispo] = await Promise.all([
         supabase.rpc("conformite_lotissements"),
-        supabase.rpc("disponibilites_foncieres"),
+        supabase.rpc("lots_verifiables"),
       ]);
       setConformite((conf.data ?? []) as unknown as ConformiteRow[]);
       setLots((dispo.data ?? []) as unknown as DispoRow[]);
@@ -99,12 +152,22 @@ export default function AcquisitionPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
+      {detailLot && (
+        <LotDetailsModal
+          lot={detailLot}
+          conformite={conformite.find((c) => c.lotissement === detailLot.lotissement) ?? null}
+          interet={interetState[detailLot.lot_id] ?? "idle"}
+          onManifester={() => void manifester(detailLot)}
+          onClose={() => setDetailLot(null)}
+        />
+      )}
+
       {/* En-tête */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="font-display text-2xl sm:text-3xl font-bold text-brand-primary">Acquérir un lot</h1>
           <p className="mt-1.5 text-sm sm:text-base text-slate-500">
-            Foncier disponible et vérifié — conformité juridique avant toute prise de contact.
+            Registre foncier vérifiable — contrôlez l&apos;authenticité d&apos;un lot avant toute acquisition.
           </p>
         </div>
         <Link
@@ -203,8 +266,10 @@ export default function AcquisitionPage() {
       {/* Lots disponibles */}
       <section>
         <div className="mb-3">
-          <h2 className="text-sm font-semibold text-slate-800">Lots disponibles</h2>
-          <p className="text-xs text-slate-400">{lots.length} lot(s) libre(s) au registre</p>
+          <h2 className="text-sm font-semibold text-slate-800">Lots du registre</h2>
+          <p className="text-xs text-slate-400">
+            {lots.length} lot(s) attribué(s) — vérifiez l&apos;authenticité et le propriétaire avant d&apos;acquérir
+          </p>
         </div>
 
         {!loading && lzNames.length > 0 && (
@@ -264,24 +329,17 @@ export default function AcquisitionPage() {
                   )}
                   <button
                     type="button"
-                    onClick={() => void manifester(l)}
-                    disabled={state === "loading" || state === "done"}
-                    className={`mt-3 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white transition-colors disabled:opacity-70 ${
-                      state === "error"
-                        ? "bg-[#EF4444]"
-                        : state === "done"
-                          ? "bg-[#2D8F5A]"
-                          : "bg-[#0D3B66] hover:bg-[#0a2f52]"
-                    }`}
+                    onClick={() => setDetailLot(l)}
+                    className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#0D3B66] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#0a2f52]"
                   >
-                    {state === "loading"
-                      ? "Envoi…"
-                      : state === "done"
-                        ? "Intérêt transmis ✓"
-                        : state === "error"
-                          ? "Erreur — réessayer"
-                          : "Manifester un intérêt"}
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    Vérifier
                   </button>
+                  {state === "done" && (
+                    <p className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-[#2D8F5A]">
+                      <CheckCircle2 className="h-3 w-3" /> Intérêt déjà transmis
+                    </p>
+                  )}
                 </div>
               );
             })}
@@ -289,11 +347,233 @@ export default function AcquisitionPage() {
         )}
 
         <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-500">
-          « Manifester un intérêt » envoie un message à l&apos;opérateur du lotissement, au chef de
-          famille identifié et à l&apos;agence SGNF — suivez la réponse dans l&apos;onglet Messages.
-          Aucune réservation automatique n&apos;est effectuée.
+          « Vérifier » ouvre la consultation officielle du registre SGNF (authenticité, propriétaire
+          actuel, litiges éventuels) — acte payant de {" "}
+          <span className="font-semibold text-slate-600">60 000 FCFA</span>, gratuit pour la 1re
+          attestation d&apos;un lot. « Manifester un intérêt » (dans le détail du lot) envoie en plus un
+          message à l&apos;opérateur, au chef de famille et à l&apos;agence SGNF, sans réservation automatique.
         </p>
       </section>
+    </div>
+  );
+}
+
+function LotDetailsModal({
+  lot,
+  conformite,
+  interet,
+  onManifester,
+  onClose,
+}: {
+  lot: DispoRow;
+  conformite: ConformiteRow | null;
+  interet: "idle" | "loading" | "done" | "error";
+  onManifester: () => void;
+  onClose: () => void;
+}) {
+  const lat = lot.lot_latitude ?? lot.lz_latitude;
+  const lng = lot.lot_longitude ?? lot.lz_longitude;
+  const approx = lot.lot_latitude == null && lat != null;
+  const isOp = !!lot.est_lot_operateur;
+  const superficie = fmtSuperficie(lot.superficie_m2) ?? lot.lz_superficie_texte;
+  const natureDroit = lot.nature_droit
+    ? NATURE_DROIT_LABELS[lot.nature_droit] ?? lot.nature_droit
+    : null;
+  const localisation = [lot.village, lot.commune, lot.district].filter(Boolean).join(" · ");
+  const apfcOk = conformite?.apfc_statut === "delivree";
+  const noLitige = (conformite?.litiges_actifs ?? 0) === 0;
+  const attRef = lot.attestation_reference;
+
+  const facts: { icon: typeof Maximize2; label: string; value: string | null }[] = [
+    { icon: Maximize2, label: "Superficie", value: superficie },
+    { icon: ScrollText, label: "Nature du droit", value: natureDroit },
+    { icon: MapPin, label: "Localisation", value: localisation || null },
+    { icon: Landmark, label: "N° de parcelle", value: lot.numero_parcelle },
+  ].filter((f) => f.value);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-xl">
+        {/* En-tête */}
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200/60 px-6 py-4">
+          <div>
+            <p className="font-mono text-xs text-slate-400">
+              Îlot {lot.ilot} · Lot {lot.lot}
+            </p>
+            <h2 className="mt-0.5 flex items-center gap-1.5 text-base font-bold text-[#0D3B66]">
+              <Landmark className="h-4 w-4" />
+              {lot.lotissement}
+            </h2>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#2D8F5A]/10 px-2 py-0.5 text-[11px] font-semibold text-[#2D8F5A]">
+                <CheckCircle2 className="h-3 w-3" /> Libre
+              </span>
+              {isOp && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-[#9C6406]/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-[#9C6406]">
+                  Lot opérateur
+                </span>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100">
+            <X className="h-5 w-5 text-slate-500" />
+          </button>
+        </div>
+
+        <div className="space-y-5 px-6 py-5">
+          {/* Vérification — CTA principal */}
+          <div className="rounded-xl border border-[#0D3B66]/20 bg-[#0D3B66]/[0.03] p-4">
+            <div className="flex items-start gap-2.5">
+              <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#0D3B66]" />
+              <div>
+                <p className="text-sm font-semibold text-[#0D3B66]">Vérifier ce lot</p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Consultation officielle du registre SGNF : authenticité, propriétaire actuel et
+                  litiges éventuels. Acte payant de{" "}
+                  <span className="font-semibold text-[#0D3B66]">60 000 FCFA</span>{" "}
+                  (gratuit pour la 1re attestation d&apos;un lot).
+                </p>
+              </div>
+            </div>
+            {attRef && (
+              <div className="mt-3 flex flex-col items-center gap-4 sm:flex-row">
+                <div className="shrink-0 rounded-lg border border-slate-200 bg-white p-2">
+                  <QRCodeSVG value={verifUrl(attRef)} size={104} bgColor="#ffffff" fgColor="#0D3B66" level="M" />
+                </div>
+                <div className="flex-1 text-center sm:text-left">
+                  <p className="text-xs text-slate-500">Scannez le QR avec un téléphone, ou :</p>
+                  <a
+                    href={verifUrl(attRef)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-[#0D3B66] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1E6091]"
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    Ouvrir la vérification
+                  </a>
+                  <p className="mt-2 font-mono text-[11px] text-slate-400">Réf. {attRef}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Carte */}
+          <div>
+            <div className="h-56 overflow-hidden rounded-xl border border-slate-200/60">
+              {lat != null && lng != null ? (
+                <LotDetailMap lat={lat} lng={lng} label={`${lot.lotissement} — Lot ${lot.lot}`} approx={approx} />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center gap-2 bg-slate-50 text-center text-sm text-slate-400">
+                  <MapPinOff className="h-6 w-6 text-slate-300" />
+                  Localisation non encore positionnée sur la carte.
+                </div>
+              )}
+            </div>
+            <div className="mt-2 flex items-center justify-between">
+              {approx && (
+                <p className="text-[11px] text-slate-400">Position approximative (niveau lotissement).</p>
+              )}
+              {lat != null && lng != null && (
+                <a
+                  href={googleMapsDirectionsUrl(lat, lng)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-[#0D3B66] transition-colors hover:bg-slate-50"
+                >
+                  <Navigation className="h-3.5 w-3.5" />
+                  Itinéraire
+                </a>
+              )}
+            </div>
+          </div>
+
+          {/* Faits */}
+          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {facts.map((f) => (
+              <div key={f.label} className="rounded-xl border border-slate-200/60 bg-slate-50/60 px-4 py-3">
+                <dt className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                  <f.icon className="h-3.5 w-3.5" />
+                  {f.label}
+                </dt>
+                <dd className="mt-1 text-sm font-semibold text-slate-800">{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+          {isOp && lot.operateur_nom && (
+            <p className="-mt-2 text-xs font-medium text-[#9C6406]">
+              Lot cédé par l&apos;opérateur · {lot.operateur_nom}
+            </p>
+          )}
+
+          {/* Conformité du lotissement */}
+          {conformite && (
+            <div className="rounded-xl border border-slate-200/60 p-4">
+              <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Conformité juridique du lotissement
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    apfcOk ? "bg-[#2D8F5A]/10 text-[#2D8F5A]" : "bg-[#F39C12]/10 text-[#F39C12]"
+                  }`}
+                >
+                  {apfcOk ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
+                  APFC {conformite.apfc_statut ?? "non délivrée"}
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    noLitige ? "bg-[#2D8F5A]/10 text-[#2D8F5A]" : "bg-[#EF4444]/10 text-[#EF4444]"
+                  }`}
+                >
+                  {noLitige ? <CheckCircle2 className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
+                  {noLitige ? "Aucun litige actif" : `${conformite.litiges_actifs} litige(s) actif(s)`}
+                </span>
+                {conformite.autorite_coutumiere && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                    <BadgeCheck className="h-3.5 w-3.5" />
+                    {conformite.autorite_coutumiere}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Pied : action */}
+        <div className="flex flex-col gap-2 border-t border-slate-200/60 px-6 py-4 sm:flex-row">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 sm:flex-1"
+          >
+            Fermer
+          </button>
+          <button
+            type="button"
+            onClick={onManifester}
+            disabled={interet === "loading" || interet === "done"}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-70 sm:flex-1 ${
+              interet === "error"
+                ? "border-[#EF4444] text-[#EF4444]"
+                : interet === "done"
+                  ? "border-[#2D8F5A] bg-[#2D8F5A]/5 text-[#2D8F5A]"
+                  : "border-[#0D3B66]/30 text-[#0D3B66] hover:bg-[#0D3B66]/5"
+            }`}
+          >
+            <MessageSquare className="h-4 w-4" />
+            {interet === "loading"
+              ? "Envoi…"
+              : interet === "done"
+                ? "Intérêt transmis ✓"
+                : interet === "error"
+                  ? "Erreur — réessayer"
+                  : "Manifester un intérêt"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -2878,6 +2878,7 @@ export type Database = {
       }
       debug_mon_contexte: { Args: never; Returns: Json }
       disponibilites_foncieres: { Args: never; Returns: Json }
+      lots_verifiables: { Args: never; Returns: Json }
       est_admin: { Args: never; Returns: boolean }
       est_lot_eligible_marketplace: {
         Args: { p_lot_id: string }
