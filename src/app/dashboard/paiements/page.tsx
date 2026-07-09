@@ -477,6 +477,241 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
 
 // ── Page principale ──────────────────────────────────────────────────────────
 
+// ── Tarifs 3e attestation par chefferie (niveau 3) — admin ───────────────────
+// La 1re attestation est gratuite, la 2e au forfait national (table `tarifs`).
+// À partir de la 3e, le tarif est propre à chaque chefferie (autorité coutumière)
+// et vit dans `tarifs_attestation_chefferie`. Sans ligne pour une chefferie,
+// creer_cession() bloque toute 3e cession. Cet écran (admin) permet de fixer /
+// activer ces tarifs. Écriture directe : la RLS `..._admin_write` réserve l'accès.
+
+type ChefferieTarif = {
+  autorite_coutumiere_id: string;
+  nom: string;
+  montant_chefferie: number | null;
+  commission_sgfn: number | null;
+  actif: boolean;
+  hasRow: boolean;
+};
+
+function TarifsChefferieAdmin() {
+  const supabase = useMemo(() => createClient(), []);
+  const [rows, setRows] = useState<ChefferieTarif[]>([]);
+  const [edits, setEdits] = useState<Record<string, { montant: string; commission: string; actif: boolean }>>({});
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const [chefRes, tarifRes] = await Promise.all([
+      supabase.from("autorites_coutumieres").select("id, nom").order("nom", { ascending: true }),
+      supabase
+        .from("tarifs_attestation_chefferie")
+        .select("autorite_coutumiere_id, montant_chefferie, commission_sgfn, actif"),
+    ]);
+    const tarifMap = new Map<string, { montant_chefferie: number | null; commission_sgfn: number | null; actif: boolean }>();
+    for (const t of tarifRes.data ?? []) tarifMap.set(t.autorite_coutumiere_id, t);
+    const list: ChefferieTarif[] = (chefRes.data ?? []).map((c) => {
+      const t = tarifMap.get(c.id);
+      return {
+        autorite_coutumiere_id: c.id,
+        nom: c.nom,
+        montant_chefferie: t?.montant_chefferie ?? null,
+        commission_sgfn: t?.commission_sgfn ?? null,
+        actif: t?.actif ?? true,
+        hasRow: !!t,
+      };
+    });
+    setRows(list);
+    const e: Record<string, { montant: string; commission: string; actif: boolean }> = {};
+    for (const r of list) {
+      e[r.autorite_coutumiere_id] = {
+        montant: r.montant_chefferie != null ? String(r.montant_chefferie) : "",
+        commission: r.commission_sgfn != null ? String(r.commission_sgfn) : "",
+        actif: r.actif,
+      };
+    }
+    setEdits(e);
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => {
+    const run = async () => {
+      await load();
+    };
+    void run();
+  }, [load]);
+
+  const setField = (id: string, field: "montant" | "commission", value: string) =>
+    setEdits((s) => ({ ...s, [id]: { ...s[id], [field]: value.replace(/[^0-9]/g, "") } }));
+  const toggleActif = (id: string) =>
+    setEdits((s) => ({ ...s, [id]: { ...s[id], actif: !s[id]?.actif } }));
+
+  const save = async (id: string) => {
+    const e = edits[id];
+    if (!e) return;
+    const montant = e.montant.trim() === "" ? null : Number(e.montant);
+    const commission = e.commission.trim() === "" ? null : Number(e.commission);
+    if (e.actif && (montant == null || commission == null)) {
+      setError("Renseignez le montant chefferie et la commission SGNF avant d'activer le tarif.");
+      return;
+    }
+    setSavingId(id);
+    setError(null);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { error: err } = await supabase.from("tarifs_attestation_chefferie").upsert(
+      {
+        autorite_coutumiere_id: id,
+        montant_chefferie: montant,
+        commission_sgfn: commission,
+        actif: e.actif,
+        maj_par: user?.id ?? null,
+        maj_le: new Date().toISOString(),
+      },
+      { onConflict: "autorite_coutumiere_id" }
+    );
+    setSavingId(null);
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    setSavedId(id);
+    setTimeout(() => setSavedId(null), 2000);
+    await load();
+  };
+
+  const nbConfigures = rows.filter((r) => r.hasRow && r.actif).length;
+
+  return (
+    <div className="mb-6 overflow-hidden rounded-xl border border-slate-200/60 bg-white">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left hover:bg-slate-50/60"
+      >
+        <span className="flex items-center gap-2">
+          <Receipt className="h-4 w-4 text-[#0D3B66]" />
+          <span className="text-sm font-semibold text-slate-800">Tarifs 3e attestation par chefferie</span>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+            {nbConfigures}/{rows.length} actif(s)
+          </span>
+        </span>
+        <span className="text-xs font-medium text-[#0D3B66]">{open ? "Masquer" : "Configurer"}</span>
+      </button>
+
+      {open && (
+        <div className="border-t border-slate-200/60 px-5 py-4">
+          <p className="mb-3 text-xs leading-relaxed text-slate-500">
+            À partir de la 3e attestation de cession sur un lot, le tarif dépend de la chefferie
+            (autorité coutumière) du lotissement. Total facturé = montant chefferie + commission SGNF.
+            Une chefferie sans tarif actif bloque toute 3e cession de ses lots.
+          </p>
+
+          {error && (
+            <div className="mb-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              <X className="h-3.5 w-3.5 shrink-0" />
+              {error}
+            </div>
+          )}
+
+          {loading ? (
+            <p className="py-4 text-center text-sm text-slate-400">Chargement…</p>
+          ) : rows.length === 0 ? (
+            <p className="py-4 text-center text-sm text-slate-400">Aucune chefferie enregistrée.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200/60 text-[11px] uppercase tracking-wide text-slate-400">
+                    <th className="py-2 pr-3 font-medium">Chefferie</th>
+                    <th className="py-2 pr-3 font-medium">Montant chefferie</th>
+                    <th className="py-2 pr-3 font-medium">Commission SGNF</th>
+                    <th className="py-2 pr-3 font-medium">Total</th>
+                    <th className="py-2 pr-3 font-medium">Actif</th>
+                    <th className="py-2 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const e = edits[r.autorite_coutumiere_id] ?? { montant: "", commission: "", actif: true };
+                    const total = (Number(e.montant) || 0) + (Number(e.commission) || 0);
+                    return (
+                      <tr key={r.autorite_coutumiere_id} className="border-b border-slate-100 last:border-0">
+                        <td className="py-2.5 pr-3 font-medium text-slate-800">
+                          {r.nom}
+                          {!r.hasRow && (
+                            <span className="ml-2 rounded-full bg-[#F39C12]/10 px-2 py-0.5 text-[10px] font-semibold text-[#F39C12]">
+                              à définir
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 pr-3">
+                          <input
+                            inputMode="numeric"
+                            value={e.montant}
+                            onChange={(ev) => setField(r.autorite_coutumiere_id, "montant", ev.target.value)}
+                            placeholder="0"
+                            className="w-28 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm tabular-nums focus:border-[#0D3B66] focus:outline-none"
+                          />
+                        </td>
+                        <td className="py-2.5 pr-3">
+                          <input
+                            inputMode="numeric"
+                            value={e.commission}
+                            onChange={(ev) => setField(r.autorite_coutumiere_id, "commission", ev.target.value)}
+                            placeholder="0"
+                            className="w-28 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm tabular-nums focus:border-[#0D3B66] focus:outline-none"
+                          />
+                        </td>
+                        <td className="py-2.5 pr-3 font-semibold tabular-nums text-[#0D3B66]">{fcfa(total)}</td>
+                        <td className="py-2.5 pr-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleActif(r.autorite_coutumiere_id)}
+                            className={`inline-flex h-5 w-9 items-center rounded-full px-0.5 transition-colors ${
+                              e.actif ? "bg-[#2D8F5A]" : "bg-slate-300"
+                            }`}
+                            aria-pressed={e.actif}
+                          >
+                            <span
+                              className={`h-4 w-4 rounded-full bg-white transition-transform ${e.actif ? "translate-x-4" : ""}`}
+                            />
+                          </button>
+                        </td>
+                        <td className="py-2.5">
+                          <button
+                            type="button"
+                            onClick={() => void save(r.autorite_coutumiere_id)}
+                            disabled={savingId === r.autorite_coutumiere_id}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#0D3B66] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1E6091] disabled:opacity-60"
+                          >
+                            {savedId === r.autorite_coutumiere_id ? (
+                              <>
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Enregistré
+                              </>
+                            ) : savingId === r.autorite_coutumiere_id ? (
+                              "Enregistrement…"
+                            ) : (
+                              "Enregistrer"
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PaiementsPage() {
   const supabase = useMemo(() => createClient(), []);
 
@@ -674,6 +909,9 @@ export default function PaiementsPage() {
           ))}
         </div>
       )}
+
+      {/* Tarifs 3e attestation par chefferie (admin) */}
+      {isAdmin && vue === "registre" && <TarifsChefferieAdmin />}
 
       {/* Tableau */}
       <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white">
