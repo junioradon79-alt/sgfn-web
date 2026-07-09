@@ -7,6 +7,7 @@ import {
   BadgeCheck,
   CheckCircle2,
   ClipboardCheck,
+  CreditCard,
   Handshake,
   Landmark,
   Loader2,
@@ -137,10 +138,13 @@ export default function AcquisitionPage() {
   const [lots, setLots] = useState<DispoRow[]>([]);
   const [demandes, setDemandes] = useState<DemandeRow[]>([]);
   const [attestations, setAttestations] = useState<Record<string, { reference: string; qr_token: string | null }>>({});
+  const [paiements, setPaiements] = useState<Record<string, { id: string; statut: string; montant_total: number | null }>>({});
   const [filterLz, setFilterLz] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [interetState, setInteretState] = useState<Record<string, "idle" | "loading" | "done" | "error">>({});
   const [flash, setFlash] = useState<string | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
   const [detailLot, setDetailLot] = useState<DispoRow | null>(null);
 
   const loadDemandes = useCallback(async () => {
@@ -151,23 +155,54 @@ export default function AcquisitionPage() {
     const rows = (data ?? []) as DemandeRow[];
     setDemandes(rows);
 
-    // Attestations générées (une fois la cession payée) — visibles car l'acquéreur
+    // Attestations générées + paiement de la cession — visibles car l'acquéreur
     // est désormais rattaché à l'attributaire (RLS). Clé = cession_id.
     const cessionIds = rows.map((d) => d.cession_id).filter(Boolean) as string[];
     if (cessionIds.length === 0) {
       setAttestations({});
+      setPaiements({});
       return;
     }
-    const { data: atts } = await supabase
-      .from("attestations_cession")
-      .select("reference,qr_token,cession_id")
-      .in("cession_id", cessionIds);
-    const map: Record<string, { reference: string; qr_token: string | null }> = {};
-    for (const a of (atts ?? []) as { reference: string; qr_token: string | null; cession_id: string | null }[]) {
-      if (a.cession_id) map[a.cession_id] = { reference: a.reference, qr_token: a.qr_token };
+    const [attRes, payRes] = await Promise.all([
+      supabase.from("attestations_cession").select("reference,qr_token,cession_id").in("cession_id", cessionIds),
+      supabase
+        .from("paiements")
+        .select("id,statut,montant_total,cession_id")
+        .eq("type", "attestation_cession")
+        .in("cession_id", cessionIds),
+    ]);
+    const attMap: Record<string, { reference: string; qr_token: string | null }> = {};
+    for (const a of (attRes.data ?? []) as { reference: string; qr_token: string | null; cession_id: string | null }[]) {
+      if (a.cession_id) attMap[a.cession_id] = { reference: a.reference, qr_token: a.qr_token };
     }
-    setAttestations(map);
+    setAttestations(attMap);
+    const payMap: Record<string, { id: string; statut: string; montant_total: number | null }> = {};
+    for (const p of (payRes.data ?? []) as { id: string; statut: string; montant_total: number | null; cession_id: string | null }[]) {
+      if (p.cession_id) payMap[p.cession_id] = { id: p.id, statut: p.statut, montant_total: p.montant_total };
+    }
+    setPaiements(payMap);
   }, [supabase]);
+
+  // Paiement en ligne de l'attestation (CinetPay via l'edge fn initier-paiement).
+  // Même parcours que « Mon espace » : redirige vers l'agrégateur puis /paiements/retour.
+  const payerEnLigne = async (paiementId: string) => {
+    setPayingId(paiementId);
+    setPayError(null);
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) {
+      setPayingId(null);
+      return;
+    }
+    const res = await supabase.functions.invoke("initier-paiement", { body: { paiement_id: paiementId } });
+    if (res.error || res.data?.error) {
+      setPayError(res.data?.error ?? "Le paiement en ligne n'est pas disponible pour le moment.");
+      setPayingId(null);
+      return;
+    }
+    window.location.assign(res.data.payment_url);
+  };
 
   useEffect(() => {
     (async () => {
@@ -269,6 +304,13 @@ export default function AcquisitionPage() {
         </div>
       )}
 
+      {payError && (
+        <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-[#F39C12]" />
+          <span>{payError}</span>
+        </div>
+      )}
+
       {/* Mes demandes d'acquisition — suivi de l'engagement côté acquéreur */}
       {demandes.length > 0 && (
         <section className="mb-6">
@@ -286,6 +328,7 @@ export default function AcquisitionPage() {
               const l = lots.find((x) => x.lot_id === d.lot_id);
               const st = DEMANDE_STATUTS[d.statut] ?? { label: d.statut, cls: "bg-slate-100 text-slate-500" };
               const att = d.cession_id ? attestations[d.cession_id] : undefined;
+              const pay = d.cession_id ? paiements[d.cession_id] : undefined;
               return (
                 <div key={d.id} className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-sm">
                   <div className="flex items-center justify-between gap-3">
@@ -321,6 +364,33 @@ export default function AcquisitionPage() {
                         Vérifier mon attestation
                       </a>
                     </div>
+                  ) : pay && (pay.statut === "en_attente" || pay.statut === "initie") ? (
+                    <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2.5">
+                      <span className="text-xs text-slate-500">
+                        Attestation de cession à régler
+                        {pay.montant_total != null && ` — ${fmtFcfa(pay.montant_total)}`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void payerEnLigne(pay.id)}
+                        disabled={payingId === pay.id}
+                        className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-[#2D8F5A] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#24794c] disabled:opacity-60"
+                      >
+                        {payingId === pay.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <CreditCard className="h-3.5 w-3.5" />
+                        )}
+                        {payingId === pay.id ? "Redirection…" : "Payer en ligne"}
+                      </button>
+                    </div>
+                  ) : pay && pay.statut === "en_attente_validation" ? (
+                    <p className="mt-2.5 flex items-center gap-1.5 border-t border-slate-100 pt-2.5 text-xs text-slate-500">
+                      <Landmark className="h-3.5 w-3.5 text-[#0D3B66]" />
+                      À régler au guichet SGNF
+                      {pay.montant_total != null && ` — ${fmtFcfa(pay.montant_total)}`} ; l&apos;attestation
+                      sera émise à la validation.
+                    </p>
                   ) : d.statut === "convertie" ? (
                     <p className="mt-2.5 flex items-center gap-1.5 border-t border-slate-100 pt-2.5 text-xs text-slate-500">
                       <Loader2 className="h-3.5 w-3.5 text-[#F39C12]" />

@@ -424,6 +424,12 @@ function ConvertModal({
               </select>
             </div>
           </div>
+          <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-500">
+            <span className="font-semibold">Espèces / Virement</span> → validation au guichet (bouton
+            « Encaisser » ici même). <span className="font-semibold">Mobile money</span> → l&apos;acquéreur
+            règle en ligne (« Payer en ligne » dans son espace) ; l&apos;attestation est émise
+            automatiquement à la confirmation.
+          </p>
           {err && (
             <p className="flex items-start gap-1.5 rounded-lg bg-[#EF4444]/5 px-3 py-2 text-xs text-[#EF4444]">
               <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
