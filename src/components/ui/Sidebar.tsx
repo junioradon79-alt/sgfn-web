@@ -28,8 +28,10 @@ import {
   Store,
   QrCode,
 } from "lucide-react";
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useProfile } from "@/hooks/useProfile";
+import { createClient } from "@/utils/supabase/client";
+import { actionAgenceRequise, type AgenceDemande } from "@/lib/agence-actions";
 
 interface SidebarNavItem {
   label: string;
@@ -42,6 +44,8 @@ interface SidebarNavItem {
   roles?: string[];
   /** Masquer cet item pour l'admin (espaces dédiés aux autres rôles). */
   adminHide?: boolean;
+  /** Clé de compteur d'actions à faire (badge rouge). */
+  badgeKey?: "demandes";
 }
 
 interface SidebarProps {
@@ -57,17 +61,24 @@ const navItems: SidebarNavItem[] = [
     // visible par tous
   },
   {
+    label: "Mon achat",
+    href: "/dashboard/mon-achat",
+    icon: <ClipboardCheck className="w-4 h-4" />,
+    roles: ["acquereur"],
+    adminHide: true,
+  },
+  {
+    label: "Trouver un terrain",
+    href: "/dashboard/acquisition",
+    icon: <Compass className="w-4 h-4" />,
+    roles: ["acquereur", "amenageur"],
+    adminHide: true,
+  },
+  {
     label: "Mon espace",
     href: "/dashboard/proprietaire",
     icon: <Landmark className="w-4 h-4" />,
     roles: ["proprietaire", "acquereur"],
-    adminHide: true,
-  },
-  {
-    label: "Acquérir un lot",
-    href: "/dashboard/acquisition",
-    icon: <Compass className="w-4 h-4" />,
-    roles: ["acquereur", "amenageur"],
     adminHide: true,
   },
   {
@@ -140,6 +151,7 @@ const navItems: SidebarNavItem[] = [
     href: "/dashboard/demandes-acquisition",
     icon: <ClipboardCheck className="w-4 h-4" />,
     roles: ["operateur"],
+    badgeKey: "demandes",
     // admin voit aussi (pas de adminHide)
   },
   {
@@ -203,6 +215,36 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
   const { profile, loading } = useProfile();
   const groupe = profile?.groupe ?? null;
 
+  // Compteurs d'actions à faire (badges rouges). Agence uniquement.
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const estAgence = groupe === "admin" || groupe === "operateur";
+
+  const refreshCounts = useCallback(async () => {
+    if (!estAgence) {
+      setCounts({});
+      return;
+    }
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("demandes_acquisition_agence")
+      .select("statut,vente_id,vente_statut,vente_paiement_statut,cession_id,paiement_statut,attestation_reference");
+    const demandes = (data ?? []) as AgenceDemande[];
+    setCounts({ demandes: demandes.filter(actionAgenceRequise).length });
+  }, [estAgence]);
+
+  useEffect(() => {
+    void (async () => {
+      await refreshCounts();
+    })();
+  }, [refreshCounts, pathname]);
+
+  // Rafraîchissement immédiat après une action agence (event émis par les pages).
+  useEffect(() => {
+    const h = () => void refreshCounts();
+    window.addEventListener("sgnf:refresh-badges", h);
+    return () => window.removeEventListener("sgnf:refresh-badges", h);
+  }, [refreshCounts]);
+
   const visibleItems = navItems.filter((item) => {
     if (loading || !groupe) return true;
     if (groupe === "admin") return !item.adminHide;
@@ -242,6 +284,7 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
         <ul className="flex flex-col gap-1">
           {visibleItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+            const badge = item.badgeKey ? counts[item.badgeKey] ?? 0 : 0;
             return (
               <li key={item.href}>
                 <Link
@@ -260,8 +303,18 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
                   style={{ fontFamily: "Inter, sans-serif" }}
                   aria-current={isActive ? "page" : undefined}
                 >
-                  <span>{item.icon}</span>
+                  <span className="relative">
+                    {item.icon}
+                    {badge > 0 && (
+                      <span className="absolute -right-1.5 -top-1.5 h-2 w-2 rounded-full bg-[#EF4444] ring-2 ring-white" />
+                    )}
+                  </span>
                   <span className="truncate">{item.label}</span>
+                  {badge > 0 && (
+                    <span className="ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-[#EF4444] px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
+                      {badge}
+                    </span>
+                  )}
                 </Link>
               </li>
             );

@@ -19,7 +19,7 @@ import type { Database } from "../../../database.types";
  */
 const ROLE_HOME: Record<string, string> = {
   proprietaire: "/dashboard/proprietaire",
-  acquereur: "/dashboard/acquisition",
+  acquereur: "/dashboard/mon-achat",
   amenageur: "/dashboard/acquisition",
   operateur: "/dashboard/operateur",
   commissaire: "/dashboard/commissaire",

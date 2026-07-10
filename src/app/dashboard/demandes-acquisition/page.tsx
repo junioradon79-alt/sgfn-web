@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
+import { actionAgenceRequise, libelleActionAgence } from "@/lib/agence-actions";
 
 /**
  * File des demandes d'acquisition (agence) — pilotage du TUNNEL de vente réelle.
@@ -128,6 +129,8 @@ export default function DemandesAcquisitionPage() {
       .order("cree_le", { ascending: false });
     setDemandes((data ?? []) as DemandeAgence[]);
     setLoading(false);
+    // Met à jour le badge rouge du menu immédiatement après une action.
+    if (typeof window !== "undefined") window.dispatchEvent(new Event("sgnf:refresh-badges"));
   }, [supabase]);
 
   useEffect(() => {
@@ -231,8 +234,12 @@ export default function DemandesAcquisitionPage() {
   // + ventes converties tant que l'attestation n'est pas émise.
   const enCours = (d: DemandeAgence) =>
     OUVERTES.includes(d.statut) || (d.statut === "convertie" && !d.attestation_reference);
-  const shown = demandes.filter((d) => (filter === "ouvertes" ? enCours(d) : true));
+  // Les cartes « à faire » (c'est à nous de jouer) remontent en tête.
+  const shown = demandes
+    .filter((d) => (filter === "ouvertes" ? enCours(d) : true))
+    .sort((a, b) => Number(actionAgenceRequise(b)) - Number(actionAgenceRequise(a)));
   const nbOuvertes = demandes.filter(enCours).length;
+  const nbAFaire = demandes.filter(actionAgenceRequise).length;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -258,6 +265,35 @@ export default function DemandesAcquisitionPage() {
           prix du lot (certificat automatique au solde), puis facturez l&apos;attestation de cession.
         </p>
       </div>
+
+      {/* Compteur d'actions à faire — bandeau très visible pour ne rien rater. */}
+      {!loading && (
+        <div
+          className={`mb-5 flex items-center gap-3 rounded-xl border px-4 py-3 ${
+            nbAFaire > 0
+              ? "border-[#EF4444]/30 bg-[#EF4444]/5"
+              : "border-emerald-200/70 bg-emerald-50"
+          }`}
+        >
+          {nbAFaire > 0 ? (
+            <>
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#EF4444] opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#EF4444]" />
+              </span>
+              <span className="text-sm font-semibold text-[#EF4444]">
+                {nbAFaire} action{nbAFaire > 1 ? "s" : ""} à faire
+              </span>
+              <span className="text-sm text-slate-500">— traitez les cartes marquées en rouge ci-dessous.</span>
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-[#2D8F5A]" />
+              <span className="text-sm font-medium text-emerald-800">Tout est à jour — aucune action en attente.</span>
+            </>
+          )}
+        </div>
+      )}
 
       {flash && (
         <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
@@ -296,8 +332,14 @@ export default function DemandesAcquisitionPage() {
             const ouverte = OUVERTES.includes(d.statut);
             const venteSoldee = d.vente_statut === "soldee";
             const attestationEmise = !!d.attestation_reference;
+            const action = libelleActionAgence(d);
             return (
-              <div key={d.id} className="rounded-xl border border-slate-200/60 bg-white p-5 shadow-sm">
+              <div
+                key={d.id}
+                className={`rounded-xl border bg-white p-5 shadow-sm ${
+                  action ? "border-[#EF4444]/40 ring-1 ring-[#EF4444]/20" : "border-slate-200/60"
+                }`}
+              >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <p className="flex items-center gap-1.5 text-base font-semibold text-slate-800">
@@ -309,9 +351,20 @@ export default function DemandesAcquisitionPage() {
                       {[d.village, d.commune].filter(Boolean).join(" · ") || "—"}
                     </p>
                   </div>
-                  <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${meta.cls}`}>
-                    {meta.label}
-                  </span>
+                  <div className="flex flex-col items-end gap-1.5">
+                    {action && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EF4444] px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+                          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
+                        </span>
+                        À faire : {action}
+                      </span>
+                    )}
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${meta.cls}`}>
+                      {meta.label}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">

@@ -7,8 +7,6 @@ import {
   BadgeCheck,
   CheckCircle2,
   ClipboardCheck,
-  CreditCard,
-  FileCheck2,
   Handshake,
   Landmark,
   Loader2,
@@ -110,25 +108,12 @@ const fmtDate = (d: string | null) =>
     ? new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
     : null;
 
-const fmtFcfa = (n: number | null | undefined) =>
-  n == null ? null : `${new Intl.NumberFormat("fr-FR").format(n)} FCFA`;
-
 type DemandeRow = {
   id: string;
   lot_id: string;
   statut: string;
   montant_propose: number | null;
   cree_le: string;
-  cession_id: string | null;
-  vente_id: string | null;
-};
-
-type VenteRow = {
-  id: string;
-  statut: string;
-  type_vente: string;
-  prix_total: number | null;
-  montant_paye: number | null;
 };
 
 // Libellé + style de chaque statut de demande d'acquisition (côté acquéreur).
@@ -147,128 +132,21 @@ export default function AcquisitionPage() {
   const [conformite, setConformite] = useState<ConformiteRow[]>([]);
   const [lots, setLots] = useState<DispoRow[]>([]);
   const [demandes, setDemandes] = useState<DemandeRow[]>([]);
-  const [attestations, setAttestations] = useState<Record<string, { reference: string; qr_token: string | null }>>({});
-  const [paiements, setPaiements] = useState<Record<string, { id: string; statut: string; montant_total: number | null }>>({});
-  // Vente du lot (nouveau tunnel) : état + certificat + paiement du lot en cours, indexés par vente_id.
-  const [ventes, setVentes] = useState<Record<string, VenteRow>>({});
-  const [certificats, setCertificats] = useState<Record<string, { reference: string; qr_token: string | null }>>({});
-  const [ventePaies, setVentePaies] = useState<Record<string, { id: string; statut: string; montant_total: number | null }>>({});
   const [filterLz, setFilterLz] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [interetState, setInteretState] = useState<Record<string, "idle" | "loading" | "done" | "error">>({});
   const [flash, setFlash] = useState<string | null>(null);
-  const [payError, setPayError] = useState<string | null>(null);
-  const [payingId, setPayingId] = useState<string | null>(null);
   const [detailLot, setDetailLot] = useState<DispoRow | null>(null);
 
+  // Pastilles « déjà demandé » sur les cartes de lot. Le suivi complet de l'achat
+  // (paiement du terrain, certificat, attestation) vit sur « Mon achat ».
   const loadDemandes = useCallback(async () => {
     const { data } = await supabase
       .from("demandes_acquisition")
-      .select("id,lot_id,statut,montant_propose,cree_le,cession_id,vente_id")
+      .select("id,lot_id,statut,montant_propose,cree_le")
       .order("cree_le", { ascending: false });
-    const rows = (data ?? []) as DemandeRow[];
-    setDemandes(rows);
-
-    // Phase 1 — vente du LOT : état de la vente, certificat, paiement du lot en
-    // cours (l'acquéreur est rattaché à l'attributaire → tout est lisible par RLS).
-    const venteIds = rows.map((d) => d.vente_id).filter(Boolean) as string[];
-    if (venteIds.length > 0) {
-      const [vRes, cRes, vpRes] = await Promise.all([
-        supabase.from("ventes").select("id,statut,type_vente,prix_total,montant_paye").in("id", venteIds),
-        supabase.from("certificats_vente").select("reference,qr_token,vente_id").in("vente_id", venteIds),
-        supabase
-          .from("paiements")
-          .select("id,statut,montant_total,vente_id,cree_le")
-          .eq("type", "vente_terrain")
-          .neq("statut", "confirme")
-          .in("vente_id", venteIds)
-          .order("cree_le", { ascending: false }),
-      ]);
-      const vMap: Record<string, VenteRow> = {};
-      for (const v of (vRes.data ?? []) as VenteRow[]) vMap[v.id] = v;
-      setVentes(vMap);
-      const cMap: Record<string, { reference: string; qr_token: string | null }> = {};
-      for (const c of (cRes.data ?? []) as { reference: string; qr_token: string | null; vente_id: string | null }[]) {
-        if (c.vente_id) cMap[c.vente_id] = { reference: c.reference, qr_token: c.qr_token };
-      }
-      setCertificats(cMap);
-      const vpMap: Record<string, { id: string; statut: string; montant_total: number | null }> = {};
-      for (const p of (vpRes.data ?? []) as { id: string; statut: string; montant_total: number | null; vente_id: string | null }[]) {
-        if (p.vente_id && !vpMap[p.vente_id]) vpMap[p.vente_id] = { id: p.id, statut: p.statut, montant_total: p.montant_total };
-      }
-      setVentePaies(vpMap);
-    } else {
-      setVentes({});
-      setCertificats({});
-      setVentePaies({});
-    }
-
-    // Phase 2 — attestation de cession : attestation générée + son paiement. Clé = cession_id.
-    const cessionIds = rows.map((d) => d.cession_id).filter(Boolean) as string[];
-    if (cessionIds.length === 0) {
-      setAttestations({});
-      setPaiements({});
-      return;
-    }
-    const [attRes, payRes] = await Promise.all([
-      supabase.from("attestations_cession").select("reference,qr_token,cession_id").in("cession_id", cessionIds),
-      supabase
-        .from("paiements")
-        .select("id,statut,montant_total,cession_id")
-        .eq("type", "attestation_cession")
-        .in("cession_id", cessionIds),
-    ]);
-    const attMap: Record<string, { reference: string; qr_token: string | null }> = {};
-    for (const a of (attRes.data ?? []) as { reference: string; qr_token: string | null; cession_id: string | null }[]) {
-      if (a.cession_id) attMap[a.cession_id] = { reference: a.reference, qr_token: a.qr_token };
-    }
-    setAttestations(attMap);
-    const payMap: Record<string, { id: string; statut: string; montant_total: number | null }> = {};
-    for (const p of (payRes.data ?? []) as { id: string; statut: string; montant_total: number | null; cession_id: string | null }[]) {
-      if (p.cession_id) payMap[p.cession_id] = { id: p.id, statut: p.statut, montant_total: p.montant_total };
-    }
-    setPaiements(payMap);
+    setDemandes((data ?? []) as DemandeRow[]);
   }, [supabase]);
-
-  // Paiement en ligne de l'attestation (CinetPay via l'edge fn initier-paiement).
-  // Même parcours que « Mon espace » : redirige vers l'agrégateur puis /paiements/retour.
-  const payerEnLigne = async (paiementId: string) => {
-    setPayingId(paiementId);
-    setPayError(null);
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) {
-      setPayingId(null);
-      return;
-    }
-    const res = await supabase.functions.invoke("initier-paiement", { body: { paiement_id: paiementId } });
-    if (res.error || res.data?.error) {
-      setPayError(res.data?.error ?? "Le paiement en ligne n'est pas disponible pour le moment.");
-      setPayingId(null);
-      return;
-    }
-    window.location.assign(res.data.payment_url);
-  };
-
-  // Échelonné : crée le paiement de la prochaine échéance puis lance le règlement en ligne.
-  const payerEcheanceSuivante = async (venteId: string) => {
-    setPayingId(`ech:${venteId}`);
-    setPayError(null);
-    const { data, error } = await supabase.rpc("creer_paiement_echeance_suivante", {
-      p_vente_id: venteId,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      p_moyen: "orange_money" as any,
-    });
-    if (error) {
-      setPayError(error.message);
-      setPayingId(null);
-      return;
-    }
-    const pid = (data as { paiement_id?: string } | null)?.paiement_id;
-    if (pid) await payerEnLigne(pid);
-    else setPayingId(null);
-  };
 
   useEffect(() => {
     (async () => {
@@ -349,9 +227,9 @@ export default function AcquisitionPage() {
       {/* En-tête */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-brand-primary">Acquérir un lot</h1>
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-brand-primary">Trouver un terrain</h1>
           <p className="mt-1.5 text-sm sm:text-base text-slate-500">
-            Registre foncier vérifiable — contrôlez l&apos;authenticité d&apos;un lot avant toute acquisition.
+            Registre foncier vérifiable — contrôlez l&apos;authenticité d&apos;un terrain avant de vous engager.
           </p>
         </div>
         <Link
@@ -370,167 +248,22 @@ export default function AcquisitionPage() {
         </div>
       )}
 
-      {payError && (
-        <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-[#F39C12]" />
-          <span>{payError}</span>
-        </div>
-      )}
-
-      {/* Mes demandes d'acquisition — suivi de l'engagement côté acquéreur */}
+      {/* Le suivi de l'achat (paiement du terrain, certificat, attestation) vit
+          désormais sur « Mon achat » (/dashboard/mon-achat). Ici on ne fait que
+          trouver et vérifier un terrain, puis engager la demande. */}
       {demandes.length > 0 && (
-        <section className="mb-6">
-          <div className="mb-3">
-            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
-              <ClipboardCheck className="h-4 w-4 text-[#0D3B66]" />
-              Mes demandes d&apos;acquisition
-            </h2>
-            <p className="text-xs text-slate-400">
-              Suivi de vos engagements — l&apos;agence SGNF traite chaque demande
-            </p>
-          </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {demandes.map((d) => {
-              const l = lots.find((x) => x.lot_id === d.lot_id);
-              const v = d.vente_id ? ventes[d.vente_id] : undefined;
-              const cert = d.vente_id ? certificats[d.vente_id] : undefined;
-              const ventePaie = d.vente_id ? ventePaies[d.vente_id] : undefined;
-              const att = d.cession_id ? attestations[d.cession_id] : undefined;
-              const pay = d.cession_id ? paiements[d.cession_id] : undefined;
-              const venteSoldee = v?.statut === "soldee";
-
-              // Badge dynamique au stade 'convertie' (achat) : suit l'avancée réelle.
-              let st = DEMANDE_STATUTS[d.statut] ?? { label: d.statut, cls: "bg-slate-100 text-slate-500" };
-              if (d.statut === "convertie") {
-                if (att) st = { label: "Propriétaire — attestation émise", cls: "bg-[#2D8F5A]/15 text-[#2D8F5A]" };
-                else if (venteSoldee) st = { label: "Propriétaire — certificat émis", cls: "bg-[#2D8F5A]/10 text-[#2D8F5A]" };
-                else st = { label: "Achat en cours", cls: "bg-[#F39C12]/10 text-[#F39C12]" };
-              }
-
-              return (
-                <div key={d.id} className="rounded-xl border border-slate-200/60 bg-white px-4 py-3 shadow-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-800">
-                        {l ? `${l.lotissement} — Îlot ${l.ilot} · Lot ${l.lot}` : "Lot du registre"}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-400">
-                        {fmtDate(d.cree_le)}
-                        {v ? ` · Prix ${fmtFcfa(v.prix_total)}` : d.montant_propose != null ? ` · Offre ${fmtFcfa(d.montant_propose)}` : ""}
-                      </p>
-                    </div>
-                    <span
-                      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${st.cls}`}
-                    >
-                      {st.label}
-                    </span>
-                  </div>
-
-                  {/* Phase 1 — payer le lot jusqu'au Certificat de vente */}
-                  {d.statut === "convertie" && v && !venteSoldee && (
-                    <div className="mt-2.5 border-t border-slate-100 pt-2.5">
-                      <p className="text-xs text-slate-500">
-                        Prix du lot {fmtFcfa(v.prix_total)} — payé {fmtFcfa(v.montant_paye)}
-                        {v.prix_total != null && v.montant_paye != null && ` · reste ${fmtFcfa(v.prix_total - v.montant_paye)}`}
-                        {v.type_vente === "echelonne" && " (échelonné)"}
-                      </p>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {ventePaie && (ventePaie.statut === "en_attente" || ventePaie.statut === "initie") ? (
-                          <button
-                            type="button"
-                            onClick={() => void payerEnLigne(ventePaie.id)}
-                            disabled={payingId === ventePaie.id}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#2D8F5A] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#24794c] disabled:opacity-60"
-                          >
-                            {payingId === ventePaie.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
-                            {payingId === ventePaie.id ? "Redirection…" : `Payer le lot en ligne${ventePaie.montant_total != null ? ` · ${fmtFcfa(ventePaie.montant_total)}` : ""}`}
-                          </button>
-                        ) : ventePaie && ventePaie.statut === "en_attente_validation" ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
-                            <Landmark className="h-3.5 w-3.5 text-[#0D3B66]" />
-                            À régler au guichet SGNF{ventePaie.montant_total != null && ` — ${fmtFcfa(ventePaie.montant_total)}`}
-                          </span>
-                        ) : v.type_vente === "echelonne" ? (
-                          <button
-                            type="button"
-                            onClick={() => void payerEcheanceSuivante(d.vente_id!)}
-                            disabled={payingId === `ech:${d.vente_id}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#2D8F5A] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#24794c] disabled:opacity-60"
-                          >
-                            {payingId === `ech:${d.vente_id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
-                            {payingId === `ech:${d.vente_id}` ? "Redirection…" : "Payer la prochaine échéance"}
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Phase 1bis — Certificat de vente émis (propriété acquise) */}
-                  {venteSoldee && cert && (
-                    <p className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2.5 text-xs font-semibold text-[#2D8F5A]">
-                      <FileCheck2 className="h-3.5 w-3.5" />
-                      Certificat de vente {cert.reference}
-                      <a
-                        href={verifUrl(cert.reference)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium text-[#0D3B66] underline decoration-dotted hover:no-underline"
-                      >
-                        Vérifier
-                      </a>
-                    </p>
-                  )}
-
-                  {/* Phase 2 — attestation de cession */}
-                  {att ? (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#2D8F5A]">
-                        <ScrollText className="h-3.5 w-3.5" />
-                        Attestation {att.reference}
-                      </span>
-                      <a
-                        href={verifUrl(att.reference)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-[#0D3B66] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#1E6091]"
-                      >
-                        <ShieldCheck className="h-3.5 w-3.5" />
-                        Vérifier mon attestation
-                      </a>
-                    </div>
-                  ) : pay && (pay.statut === "en_attente" || pay.statut === "initie") ? (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-slate-500">
-                        Attestation de cession à régler
-                        {pay.montant_total != null && ` — ${fmtFcfa(pay.montant_total)}`}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => void payerEnLigne(pay.id)}
-                        disabled={payingId === pay.id}
-                        className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-[#2D8F5A] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#24794c] disabled:opacity-60"
-                      >
-                        {payingId === pay.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
-                        {payingId === pay.id ? "Redirection…" : "Payer l'attestation"}
-                      </button>
-                    </div>
-                  ) : pay && pay.statut === "en_attente_validation" ? (
-                    <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
-                      <Landmark className="h-3.5 w-3.5 text-[#0D3B66]" />
-                      Attestation à régler au guichet SGNF
-                      {pay.montant_total != null && ` — ${fmtFcfa(pay.montant_total)}`} ; émise à la validation.
-                    </p>
-                  ) : venteSoldee ? (
-                    <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
-                      <ScrollText className="h-3.5 w-3.5 text-[#F39C12]" />
-                      Attestation de cession à venir — l&apos;agence SGNF la facturera prochainement.
-                    </p>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        </section>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#2D8F5A]/30 bg-[#2D8F5A]/5 px-4 py-3">
+          <p className="flex items-center gap-2 text-sm text-slate-700">
+            <ClipboardCheck className="h-4 w-4 shrink-0 text-[#2D8F5A]" />
+            Vous avez {demandes.length} demande{demandes.length > 1 ? "s" : ""} en cours.
+          </p>
+          <Link
+            href="/dashboard/mon-achat"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#2D8F5A] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#24794c]"
+          >
+            Suivre mon achat
+          </Link>
+        </div>
       )}
 
       {/* Conformité par lotissement */}
