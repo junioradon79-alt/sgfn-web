@@ -937,55 +937,62 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "demandes_acquisition_attributaire_id_fkey"
+            columns: ["attributaire_id"]
+            isOneToOne: false
+            referencedRelation: "attributaires"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_acquisition_attributaire_id_fkey"
+            columns: ["attributaire_id"]
+            isOneToOne: false
+            referencedRelation: "v_collectifs_pv_manquant"
+            referencedColumns: ["collectif_id"]
+          },
+          {
+            foreignKeyName: "demandes_acquisition_cession_id_fkey"
+            columns: ["cession_id"]
+            isOneToOne: false
+            referencedRelation: "cessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_acquisition_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_acquisition_demandeur_profile_id_fkey"
+            columns: ["demandeur_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "demandes_acquisition_lot_id_fkey"
             columns: ["lot_id"]
             isOneToOne: false
             referencedRelation: "lots"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "demandes_acquisition_traite_par_fkey"
+            columns: ["traite_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_acquisition_vente_id_fkey"
+            columns: ["vente_id"]
+            isOneToOne: false
+            referencedRelation: "ventes"
+            referencedColumns: ["id"]
+          },
         ]
-      }
-      notifications: {
-        Row: {
-          id: string
-          destinataire_profile_id: string
-          canal: Database["public"]["Enums"]["canal_notification"]
-          type: string
-          params: Json
-          statut: Database["public"]["Enums"]["statut_notification"]
-          reference_table: string | null
-          reference_id: string | null
-          erreur: string | null
-          cree_le: string
-          envoye_le: string | null
-        }
-        Insert: {
-          id?: string
-          destinataire_profile_id: string
-          canal?: Database["public"]["Enums"]["canal_notification"]
-          type: string
-          params?: Json
-          statut?: Database["public"]["Enums"]["statut_notification"]
-          reference_table?: string | null
-          reference_id?: string | null
-          erreur?: string | null
-          cree_le?: string
-          envoye_le?: string | null
-        }
-        Update: {
-          id?: string
-          destinataire_profile_id?: string
-          canal?: Database["public"]["Enums"]["canal_notification"]
-          type?: string
-          params?: Json
-          statut?: Database["public"]["Enums"]["statut_notification"]
-          reference_table?: string | null
-          reference_id?: string | null
-          erreur?: string | null
-          cree_le?: string
-          envoye_le?: string | null
-        }
-        Relationships: []
       }
       demandes_contact: {
         Row: {
@@ -1696,6 +1703,13 @@ export type Database = {
             foreignKeyName: "jetons_marketplace_paiement_id_fkey"
             columns: ["paiement_id"]
             isOneToOne: false
+            referencedRelation: "demandes_acquisition_agence"
+            referencedColumns: ["vente_paiement_id"]
+          },
+          {
+            foreignKeyName: "jetons_marketplace_paiement_id_fkey"
+            columns: ["paiement_id"]
+            isOneToOne: false
             referencedRelation: "paiements"
             referencedColumns: ["id"]
           },
@@ -1989,6 +2003,56 @@ export type Database = {
           {
             foreignKeyName: "messages_expediteur_fkey"
             columns: ["expediteur"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          canal: Database["public"]["Enums"]["canal_notification"]
+          cree_le: string
+          destinataire_profile_id: string
+          envoye_le: string | null
+          erreur: string | null
+          id: string
+          params: Json
+          reference_id: string | null
+          reference_table: string | null
+          statut: Database["public"]["Enums"]["statut_notification"]
+          type: string
+        }
+        Insert: {
+          canal?: Database["public"]["Enums"]["canal_notification"]
+          cree_le?: string
+          destinataire_profile_id: string
+          envoye_le?: string | null
+          erreur?: string | null
+          id?: string
+          params?: Json
+          reference_id?: string | null
+          reference_table?: string | null
+          statut?: Database["public"]["Enums"]["statut_notification"]
+          type: string
+        }
+        Update: {
+          canal?: Database["public"]["Enums"]["canal_notification"]
+          cree_le?: string
+          destinataire_profile_id?: string
+          envoye_le?: string | null
+          erreur?: string | null
+          id?: string
+          params?: Json
+          reference_id?: string | null
+          reference_table?: string | null
+          statut?: Database["public"]["Enums"]["statut_notification"]
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_destinataire_profile_id_fkey"
+            columns: ["destinataire_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2552,6 +2616,48 @@ export type Database = {
           },
         ]
       }
+      repartitions_paiement: {
+        Row: {
+          beneficiaire_type: string
+          cree_le: string
+          id: string
+          montant: number
+          nom: string | null
+          paiement_id: string
+        }
+        Insert: {
+          beneficiaire_type: string
+          cree_le?: string
+          id?: string
+          montant?: number
+          nom?: string | null
+          paiement_id: string
+        }
+        Update: {
+          beneficiaire_type?: string
+          cree_le?: string
+          id?: string
+          montant?: number
+          nom?: string | null
+          paiement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "repartitions_paiement_paiement_id_fkey"
+            columns: ["paiement_id"]
+            isOneToOne: false
+            referencedRelation: "demandes_acquisition_agence"
+            referencedColumns: ["vente_paiement_id"]
+          },
+          {
+            foreignKeyName: "repartitions_paiement_paiement_id_fkey"
+            columns: ["paiement_id"]
+            isOneToOne: false
+            referencedRelation: "paiements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scans_qr: {
         Row: {
           id: string
@@ -2588,37 +2694,75 @@ export type Database = {
         }
         Relationships: []
       }
-      repartitions_paiement: {
+      soumissions_saisie: {
         Row: {
-          beneficiaire_type: string
+          auteur_id: string
+          commentaire_admin: string | null
           cree_le: string
           id: string
-          montant: number
-          nom: string | null
-          paiement_id: string
+          lotissement_id: string | null
+          maj_le: string
+          payload: Json
+          resultat: Json | null
+          resume: Json | null
+          statut: string
+          titre: string | null
+          traite_le: string | null
+          traite_par: string | null
+          type: string
         }
         Insert: {
-          beneficiaire_type: string
+          auteur_id: string
+          commentaire_admin?: string | null
           cree_le?: string
           id?: string
-          montant?: number
-          nom?: string | null
-          paiement_id: string
+          lotissement_id?: string | null
+          maj_le?: string
+          payload: Json
+          resultat?: Json | null
+          resume?: Json | null
+          statut?: string
+          titre?: string | null
+          traite_le?: string | null
+          traite_par?: string | null
+          type: string
         }
         Update: {
-          beneficiaire_type?: string
+          auteur_id?: string
+          commentaire_admin?: string | null
           cree_le?: string
           id?: string
-          montant?: number
-          nom?: string | null
-          paiement_id?: string
+          lotissement_id?: string | null
+          maj_le?: string
+          payload?: Json
+          resultat?: Json | null
+          resume?: Json | null
+          statut?: string
+          titre?: string | null
+          traite_le?: string | null
+          traite_par?: string | null
+          type?: string
         }
         Relationships: [
           {
-            foreignKeyName: "repartitions_paiement_paiement_id_fkey"
-            columns: ["paiement_id"]
+            foreignKeyName: "soumissions_saisie_auteur_id_fkey"
+            columns: ["auteur_id"]
             isOneToOne: false
-            referencedRelation: "paiements"
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "soumissions_saisie_lotissement_id_fkey"
+            columns: ["lotissement_id"]
+            isOneToOne: false
+            referencedRelation: "lotissements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "soumissions_saisie_traite_par_fkey"
+            columns: ["traite_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2953,7 +3097,11 @@ export type Database = {
         Row: {
           acquereur_nom: string | null
           acquereur_telephone: string | null
+          attestation_qr_token: string | null
+          attestation_reference: string | null
           attributaire_id: string | null
+          certificat_qr_token: string | null
+          certificat_reference: string | null
           cession_id: string | null
           commune: string | null
           conversation_id: string | null
@@ -2969,26 +3117,81 @@ export type Database = {
           montant_propose: number | null
           note_agence: string | null
           numero_lot: string | null
-          statut: Database["public"]["Enums"]["statut_demande_acquisition"] | null
+          paiement_montant: number | null
+          paiement_statut: string | null
+          statut:
+            | Database["public"]["Enums"]["statut_demande_acquisition"]
+            | null
           traite_par: string | null
           vente_id: string | null
-          village: string | null
+          vente_montant_paye: number | null
+          vente_paiement_id: string | null
+          vente_paiement_montant: number | null
+          vente_paiement_statut: string | null
+          vente_prix_total: number | null
+          vente_solde: number | null
           vente_statut: string | null
           vente_type: string | null
-          vente_prix_total: number | null
-          vente_montant_paye: number | null
-          vente_solde: number | null
-          certificat_reference: string | null
-          certificat_qr_token: string | null
-          vente_paiement_id: string | null
-          vente_paiement_statut: string | null
-          vente_paiement_montant: number | null
-          paiement_statut: string | null
-          paiement_montant: number | null
-          attestation_reference: string | null
-          attestation_qr_token: string | null
+          village: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "demandes_acquisition_attributaire_id_fkey"
+            columns: ["attributaire_id"]
+            isOneToOne: false
+            referencedRelation: "attributaires"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_acquisition_attributaire_id_fkey"
+            columns: ["attributaire_id"]
+            isOneToOne: false
+            referencedRelation: "v_collectifs_pv_manquant"
+            referencedColumns: ["collectif_id"]
+          },
+          {
+            foreignKeyName: "demandes_acquisition_cession_id_fkey"
+            columns: ["cession_id"]
+            isOneToOne: false
+            referencedRelation: "cessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_acquisition_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_acquisition_demandeur_profile_id_fkey"
+            columns: ["demandeur_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_acquisition_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "lots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_acquisition_traite_par_fkey"
+            columns: ["traite_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_acquisition_vente_id_fkey"
+            columns: ["vente_id"]
+            isOneToOne: false
+            referencedRelation: "ventes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       v_collectifs_pv_manquant: {
         Row: {
@@ -3047,7 +3250,24 @@ export type Database = {
       }
     }
     Functions: {
+      _appliquer_creation_structure: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      _appliquer_maj_attributions: { Args: { p_payload: Json }; Returns: Json }
+      approuver_soumission: {
+        Args: { p_commentaire?: string; p_id: string }
+        Returns: Json
+      }
       conformite_lotissements: { Args: never; Returns: Json }
+      convertir_demande_en_cession: {
+        Args: {
+          p_date_cession?: string
+          p_demande_id: string
+          p_moyen?: Database["public"]["Enums"]["moyen_paiement"]
+        }
+        Returns: Json
+      }
       creer_attestation_gratuite_si_eligible: {
         Args: { p_attributaire_id: string; p_lot_id: string }
         Returns: undefined
@@ -3062,14 +3282,6 @@ export type Database = {
         }
         Returns: Json
       }
-      convertir_demande_en_cession: {
-        Args: {
-          p_date_cession?: string
-          p_demande_id: string
-          p_moyen?: Database["public"]["Enums"]["moyen_paiement"]
-        }
-        Returns: Json
-      }
       creer_demande_acquisition: {
         Args: {
           p_lot_id: string
@@ -3079,8 +3291,11 @@ export type Database = {
         }
         Returns: Json
       }
-      encaisser_demande_acquisition: {
-        Args: { p_demande_id: string }
+      creer_paiement_echeance_suivante: {
+        Args: {
+          p_moyen?: Database["public"]["Enums"]["moyen_paiement"]
+          p_vente_id: string
+        }
         Returns: Json
       }
       creer_vente: {
@@ -3093,20 +3308,36 @@ export type Database = {
         }
         Returns: Json
       }
-      facturer_attestation_cession: {
-        Args: {
-          p_lot_id: string
-          p_moyen?: Database["public"]["Enums"]["moyen_paiement"]
-        }
-        Returns: Json
+      debug_mon_contexte: { Args: never; Returns: Json }
+      destinataires_agence_lot: {
+        Args: { p_lot_id: string }
+        Returns: string[]
       }
-      encaisser_vente_guichet: {
+      disponibilites_foncieres: { Args: never; Returns: Json }
+      encaisser_demande_acquisition: {
         Args: { p_demande_id: string }
         Returns: Json
       }
-      creer_paiement_echeance_suivante: {
+      encaisser_vente_guichet: { Args: { p_demande_id: string }; Returns: Json }
+      enqueue_notification: {
         Args: {
-          p_vente_id: string
+          p_canal?: Database["public"]["Enums"]["canal_notification"]
+          p_params: Json
+          p_profil: string
+          p_ref_id?: string
+          p_ref_table?: string
+          p_type: string
+        }
+        Returns: undefined
+      }
+      est_admin: { Args: never; Returns: boolean }
+      est_lot_eligible_marketplace: {
+        Args: { p_lot_id: string }
+        Returns: boolean
+      }
+      facturer_attestation_cession: {
+        Args: {
+          p_lot_id: string
           p_moyen?: Database["public"]["Enums"]["moyen_paiement"]
         }
         Returns: Json
@@ -3118,6 +3349,12 @@ export type Database = {
         }
         Returns: Json
       }
+      finaliser_inscription: { Args: { p_code: string }; Returns: Json }
+      generer_code_invitation: { Args: never; Returns: string }
+      get_public_stats: { Args: never; Returns: Json }
+      lot_libelle: { Args: { p_lot_id: string }; Returns: Json }
+      lots_verifiables: { Args: never; Returns: Json }
+      ma_chefferie_id: { Args: never; Returns: string }
       maj_statut_demande_acquisition: {
         Args: {
           p_demande_id: string
@@ -3126,18 +3363,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      debug_mon_contexte: { Args: never; Returns: Json }
-      disponibilites_foncieres: { Args: never; Returns: Json }
-      lots_verifiables: { Args: never; Returns: Json }
-      est_admin: { Args: never; Returns: boolean }
-      est_lot_eligible_marketplace: {
-        Args: { p_lot_id: string }
-        Returns: boolean
-      }
-      finaliser_inscription: { Args: { p_code: string }; Returns: Json }
-      generer_code_invitation: { Args: never; Returns: string }
-      get_public_stats: { Args: never; Returns: Json }
-      ma_chefferie_id: { Args: never; Returns: string }
       manifester_interet: {
         Args: { p_lot_id: string; p_message?: string }
         Returns: string
@@ -3155,13 +3380,28 @@ export type Database = {
       }
       mon_operateur_id: { Args: never; Returns: string }
       peut_contacter: { Args: { p_destinataire_id: string }; Returns: boolean }
+      profil_de_attributaire: { Args: { p_attr: string }; Returns: string }
       regenerer_document: {
         Args: { p_id: string; p_table: string }
+        Returns: undefined
+      }
+      rejeter_soumission: {
+        Args: { p_commentaire?: string; p_id: string }
         Returns: undefined
       }
       sgfn_call_edge: {
         Args: { p_payload: Json; p_slug: string }
         Returns: undefined
+      }
+      soumettre_saisie: {
+        Args: {
+          p_lotissement_id: string
+          p_payload: Json
+          p_resume?: Json
+          p_titre: string
+          p_type: string
+        }
+        Returns: string
       }
       suis_participant: {
         Args: { p_conversation_id: string }
@@ -3177,12 +3417,14 @@ export type Database = {
       verifier_document: { Args: { p_ref: string }; Returns: Json }
     }
     Enums: {
+      canal_notification: "whatsapp" | "email" | "sms"
       groupe_utilisateur:
         | "admin"
         | "chefferie"
         | "proprietaire_terrien"
         | "proprietaire"
         | "operateur"
+        | "operateur_saisie"
         | "acquereur"
         | "verificateur"
         | "agent_ia"
@@ -3197,8 +3439,6 @@ export type Database = {
         | "virement"
         | "especes"
         | "autre"
-      canal_notification: "whatsapp" | "email" | "sms"
-      statut_notification: "en_attente" | "envoye" | "echoue" | "ignore"
       nature_droit:
         | "droit_coutumier"
         | "attestation_villageoise"
@@ -3253,6 +3493,7 @@ export type Database = {
         | "occupe"
         | "vendu"
         | "en_litige"
+      statut_notification: "en_attente" | "envoye" | "echoue" | "ignore"
       statut_paiement:
         | "en_attente"
         | "confirme"
@@ -3443,12 +3684,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      canal_notification: ["whatsapp", "email", "sms"],
       groupe_utilisateur: [
         "admin",
         "chefferie",
         "proprietaire_terrien",
         "proprietaire",
         "operateur",
+        "operateur_saisie",
         "acquereur",
         "verificateur",
         "agent_ia",
@@ -3491,6 +3734,14 @@ export const Constants = {
       statut_att_cession: ["a_generer", "generee", "delivree", "revoquee"],
       statut_certificat_vente: ["a_generer", "generee", "delivree", "annulee"],
       statut_cession: ["en_cours", "solde", "annulee"],
+      statut_demande_acquisition: [
+        "nouvelle",
+        "en_discussion",
+        "accord",
+        "convertie",
+        "refusee",
+        "annulee",
+      ],
       statut_demarche: [
         "en_attente_paiement",
         "payee_en_cours",
@@ -3518,6 +3769,7 @@ export const Constants = {
         "vendu",
         "en_litige",
       ],
+      statut_notification: ["en_attente", "envoye", "echoue", "ignore"],
       statut_paiement: [
         "en_attente",
         "confirme",
