@@ -15,6 +15,7 @@ import {
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
+import { FileValidation } from "@/components/dashboard/saisie/FileValidation";
 import {
   CLASSE_LABELS,
   QUALITE_OPTIONS,
@@ -86,6 +87,7 @@ export default function SaisiePage() {
   const supabase = useMemo(() => createClient(), []);
   const { profile, loading: profileLoading } = useProfile();
 
+  const isAdmin = profile?.groupe === "admin";
   const autorise =
     !profileLoading &&
     (profile?.groupe === "operateur_saisie" || profile?.groupe === "admin");
@@ -97,6 +99,7 @@ export default function SaisiePage() {
     }
   }, [profileLoading, profile, autorise, router]);
 
+  // Onglet 2 : « File de validation » pour l'admin (checker), « Mes soumissions » pour l'opérateur.
   const [tab, setTab] = useState<"saisie" | "soumissions">("saisie");
 
   // ── Données de référence ──
@@ -223,7 +226,8 @@ export default function SaisiePage() {
   // Chargement des soumissions à l'ouverture de l'onglet (loading posé par le
   // handler d'onglet ; setState uniquement dans le callback .then).
   useEffect(() => {
-    if (tab !== "soumissions" || !autorise) return;
+    // L'admin utilise l'onglet « File de validation » (FileValidation) qui charge lui-même.
+    if (tab !== "soumissions" || !autorise || isAdmin) return;
     let active = true;
     supabase
       .from("soumissions_saisie")
@@ -237,7 +241,7 @@ export default function SaisiePage() {
     return () => {
       active = false;
     };
-  }, [tab, autorise, supabase]);
+  }, [tab, autorise, isAdmin, supabase]);
 
   const etatByLot = useMemo(() => {
     const m = new Map<string, LotEtat>();
@@ -397,6 +401,8 @@ export default function SaisiePage() {
     setMods({});
     setNouveaux([]);
     setTitre("");
+    // Met à jour la pastille « à valider » (utile si un admin soumet lui-même).
+    window.dispatchEvent(new Event("sgnf:refresh-badges"));
   };
 
   if (profileLoading || !autorise) {
@@ -429,13 +435,13 @@ export default function SaisiePage() {
       <div className="mb-6 flex gap-1 rounded-full border border-slate-200/70 bg-white p-1 text-sm shadow-sm w-fit">
         {[
           { key: "saisie" as const, label: "Nouvelle saisie" },
-          { key: "soumissions" as const, label: "Mes soumissions" },
+          { key: "soumissions" as const, label: isAdmin ? "File de validation" : "Mes soumissions" },
         ].map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => {
-              if (t.key === "soumissions") setSoumissionsLoading(true);
+              if (t.key === "soumissions" && !isAdmin) setSoumissionsLoading(true);
               setTab(t.key);
             }}
             className={`rounded-full px-4 py-1.5 font-medium transition ${
@@ -802,8 +808,11 @@ export default function SaisiePage() {
             </>
           )}
         </div>
+      ) : isAdmin ? (
+        /* ── Onglet File de validation (admin) ── */
+        <FileValidation />
       ) : (
-        /* ── Onglet Mes soumissions ── */
+        /* ── Onglet Mes soumissions (opérateur) ── */
         <div className="rounded-2xl border border-slate-200/60 bg-white p-5 shadow-sm sm:p-6">
           {soumissionsLoading ? (
             <div className="flex items-center gap-2 text-sm text-slate-500">

@@ -46,7 +46,7 @@ interface SidebarNavItem {
   /** Masquer cet item pour l'admin (espaces dédiés aux autres rôles). */
   adminHide?: boolean;
   /** Clé de compteur d'actions à faire (badge rouge). */
-  badgeKey?: "demandes";
+  badgeKey?: "demandes" | "saisie";
 }
 
 interface SidebarProps {
@@ -115,6 +115,7 @@ const navItems: SidebarNavItem[] = [
     icon: <ClipboardEdit className="w-4 h-4" />,
     // opérateur de saisie (seul item qu'il voit) ; admin y accède aussi (file de validation).
     roles: ["operateur_saisie"],
+    badgeKey: "saisie", // admin : nb de soumissions en attente de validation
   },
   {
     label: "Concertation",
@@ -233,12 +234,22 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
       return;
     }
     const supabase = createClient();
+    const next: Record<string, number> = {};
     const { data } = await supabase
       .from("demandes_acquisition_agence")
       .select("statut,vente_id,vente_statut,vente_paiement_statut,cession_id,paiement_statut,attestation_reference");
     const demandes = (data ?? []) as AgenceDemande[];
-    setCounts({ demandes: demandes.filter(actionAgenceRequise).length });
-  }, [estAgence]);
+    next.demandes = demandes.filter(actionAgenceRequise).length;
+    // Badge « à valider » du module de saisie : réservé à l'admin (le checker).
+    if (groupe === "admin") {
+      const { count } = await supabase
+        .from("soumissions_saisie")
+        .select("id", { count: "exact", head: true })
+        .eq("statut", "en_attente");
+      next.saisie = count ?? 0;
+    }
+    setCounts(next);
+  }, [estAgence, groupe]);
 
   useEffect(() => {
     void (async () => {
