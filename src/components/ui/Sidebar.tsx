@@ -27,6 +27,7 @@ import {
   MapPinned,
   Store,
   QrCode,
+  ClipboardEdit,
 } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { useProfile } from "@/hooks/useProfile";
@@ -107,6 +108,13 @@ const navItems: SidebarNavItem[] = [
     icon: <Home className="w-4 h-4" />,
     roles: ["proprietaire_terrien"],
     adminHide: true,
+  },
+  {
+    label: "Saisie foncière",
+    href: "/dashboard/saisie",
+    icon: <ClipboardEdit className="w-4 h-4" />,
+    // opérateur de saisie (seul item qu'il voit) ; admin y accède aussi (file de validation).
+    roles: ["operateur_saisie"],
   },
   {
     label: "Concertation",
@@ -248,6 +256,8 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
   const visibleItems = navItems.filter((item) => {
     if (loading || !groupe) return true;
     if (groupe === "admin") return !item.adminHide;
+    // Opérateur de saisie : accès strictement limité à son module.
+    if (groupe === "operateur_saisie") return item.roles?.includes("operateur_saisie") ?? false;
     if (!item.roles) return true;
     return item.roles.includes(groupe);
   });
