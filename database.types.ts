@@ -945,6 +945,48 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          id: string
+          destinataire_profile_id: string
+          canal: Database["public"]["Enums"]["canal_notification"]
+          type: string
+          params: Json
+          statut: Database["public"]["Enums"]["statut_notification"]
+          reference_table: string | null
+          reference_id: string | null
+          erreur: string | null
+          cree_le: string
+          envoye_le: string | null
+        }
+        Insert: {
+          id?: string
+          destinataire_profile_id: string
+          canal?: Database["public"]["Enums"]["canal_notification"]
+          type: string
+          params?: Json
+          statut?: Database["public"]["Enums"]["statut_notification"]
+          reference_table?: string | null
+          reference_id?: string | null
+          erreur?: string | null
+          cree_le?: string
+          envoye_le?: string | null
+        }
+        Update: {
+          id?: string
+          destinataire_profile_id?: string
+          canal?: Database["public"]["Enums"]["canal_notification"]
+          type?: string
+          params?: Json
+          statut?: Database["public"]["Enums"]["statut_notification"]
+          reference_table?: string | null
+          reference_id?: string | null
+          erreur?: string | null
+          cree_le?: string
+          envoye_le?: string | null
+        }
+        Relationships: []
+      }
       demandes_contact: {
         Row: {
           annonce_id: string
@@ -3155,6 +3197,8 @@ export type Database = {
         | "virement"
         | "especes"
         | "autre"
+      canal_notification: "whatsapp" | "email" | "sms"
+      statut_notification: "en_attente" | "envoye" | "echoue" | "ignore"
       nature_droit:
         | "droit_coutumier"
         | "attestation_villageoise"
