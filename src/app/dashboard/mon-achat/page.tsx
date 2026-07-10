@@ -8,6 +8,7 @@ import {
   Compass,
   CreditCard,
   FileCheck2,
+  HelpCircle,
   Landmark,
   Loader2,
   MapPin,
@@ -174,6 +175,13 @@ export default function MonAchatPage() {
         <p className="mt-1.5 text-sm text-slate-500 sm:text-base">
           Suivez votre achat étape par étape. À chaque moment, une seule chose à faire.
         </p>
+        <Link
+          href="/guide-achat"
+          className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[#0D3B66] underline decoration-dotted underline-offset-2 hover:no-underline"
+        >
+          <HelpCircle className="h-4 w-4" />
+          Comment ça marche ?
+        </Link>
       </div>
 
       {payError && (
@@ -238,6 +246,15 @@ function EmptyState() {
         <Compass className="h-4 w-4" />
         Trouver un terrain
       </Link>
+      <div className="mt-3">
+        <Link
+          href="/guide-achat"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0D3B66] underline decoration-dotted underline-offset-2 hover:no-underline"
+        >
+          <HelpCircle className="h-4 w-4" />
+          Comment ça marche ?
+        </Link>
+      </div>
     </div>
   );
 }
