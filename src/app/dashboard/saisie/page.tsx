@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ClipboardEdit,
+  HelpCircle,
   Loader2,
   Plus,
   Search,
@@ -432,16 +434,26 @@ export default function SaisiePage() {
   return (
     <div className="mx-auto max-w-6xl">
       {/* En-tête */}
-      <div className="mb-6">
-        <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
-          <ClipboardEdit className="h-4 w-4" />
-          Saisie foncière
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
+            <ClipboardEdit className="h-4 w-4" />
+            Saisie foncière
+          </div>
+          <h1 className="mt-2 text-2xl font-bold text-[#0D3B66]">Mise à jour de la base</h1>
+          <p className="mt-1.5 text-sm text-slate-500">
+            Renseignez les attributions puis soumettez pour validation. Rien n&apos;est appliqué avant
+            l&apos;approbation d&apos;un administrateur.
+          </p>
         </div>
-        <h1 className="mt-2 text-2xl font-bold text-[#0D3B66]">Mise à jour de la base</h1>
-        <p className="mt-1.5 text-sm text-slate-500">
-          Renseignez les attributions puis soumettez pour validation. Rien n&apos;est appliqué avant
-          l&apos;approbation d&apos;un administrateur.
-        </p>
+        <Link
+          href="/mode-emploi-saisie"
+          target="_blank"
+          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-[#1E6091] shadow-sm transition hover:bg-slate-50"
+        >
+          <HelpCircle className="h-4 w-4" />
+          Mode d&apos;emploi
+        </Link>
       </div>
 
       {/* Onglets */}
