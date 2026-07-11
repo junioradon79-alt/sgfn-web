@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ScanLine,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { HomeMetrics } from "./HomeMetrics";
 import { metiers } from "@/lib/metiers";
 
@@ -67,6 +68,12 @@ const benefices = [
   { titre: "Réduire les risques", description: "Historique complet et traçabilité de chaque opération foncière.", icon: ShieldCheck },
   { titre: "Travailler en confiance", description: "Accès sécurisé réservé aux utilisateurs autorisés selon leur rôle.", icon: Lock },
   { titre: "Mieux piloter", description: "Des tableaux de bord facilitent le pilotage stratégique de vos projets.", icon: LayoutDashboard },
+];
+
+const piliers: { titre: string; description: string; icon: LucideIcon }[] = [
+  { titre: "Sécurisée", description: "Chiffrement et contrôle d'accès à chaque étape.", icon: Lock },
+  { titre: "Traçable", description: "Historique complet et immuable de chaque opération.", icon: ShieldCheck },
+  { titre: "Contrôlée", description: "Validation par les autorités compétentes avant publication.", icon: LayoutDashboard },
 ];
 
 const indicateurs = ["Une seule plateforme", "Une traçabilité complète", "Une collaboration fluide", "Une sécurité renforcée"];
@@ -247,33 +254,34 @@ export function HomeContent() {
 
       <main className="min-w-0 flex-1">
         {/* ── Hero ── */}
-        <section className="mx-auto flex max-w-5xl flex-col items-center px-4 pb-16 pt-14 text-center sm:px-6 sm:pb-24 sm:pt-20 lg:pb-32 lg:pt-28">
+        <section className="mx-auto flex max-w-4xl flex-col items-center px-4 pb-16 pt-14 text-center sm:px-6 sm:pb-24 sm:pt-20 lg:pb-28 lg:pt-28">
           <span className="mb-5 rounded-full border border-[#0D3B66]/12 bg-[#0D3B66]/6 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#1E6091]">
             Infrastructure numérique foncière
           </span>
-          <h1 className="max-w-4xl text-3xl font-black leading-[1.08] tracking-[-0.03em] text-[#0D3B66] sm:text-5xl lg:text-6xl">
-            La plateforme de référence pour sécuriser, centraliser et piloter vos opérations foncières.
+          <h1 className="max-w-3xl text-3xl font-black leading-[1.1] tracking-[-0.03em] text-[#0D3B66] sm:text-5xl lg:text-6xl">
+            La plateforme de référence pour sécuriser vos opérations foncières.
           </h1>
-          <p className="mt-6 max-w-2xl text-base leading-relaxed text-slate-500 sm:text-lg">
-            SGNF accompagne les collectivités, aménageurs, promoteurs immobiliers et opérateurs fonciers
-            dans la digitalisation complète de leurs projets grâce à une plateforme sécurisée,
-            collaborative et conforme aux exigences du secteur.
+          <p className="mt-6 max-w-xl text-base leading-relaxed text-slate-500 sm:text-lg">
+            Une seule plateforme pour centraliser lots, attributions et documents — pour les
+            collectivités, aménageurs, promoteurs et notaires.
           </p>
-          <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:mt-10 sm:flex-row">
-            <Link href="/contact" className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0D3B66] px-7 py-3.5 text-sm font-semibold text-white shadow-md transition hover:bg-[#1E6091] active:scale-[0.98] sm:w-auto">
+
+          <div className="mt-8 sm:mt-10">
+            <Link href="/contact" className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0D3B66] px-8 py-3.5 text-sm font-semibold text-white shadow-md transition hover:bg-[#1E6091] active:scale-[0.98] sm:w-auto">
               Demander une démonstration
             </Link>
-            <Link href="/login" className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-7 py-3.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-[#0D3B66]/30 hover:text-[#0D3B66] sm:w-auto">
+          </div>
+
+          <div className="mt-5 flex items-center gap-6 text-sm font-medium text-slate-500">
+            <Link href="/login" className="transition-colors hover:text-[#0D3B66]">
               Accéder à la plateforme
             </Link>
+            <span className="text-slate-300">·</span>
+            <Link href="/verifier?scan=1" className="inline-flex items-center gap-1.5 transition-colors hover:text-emerald-700">
+              <ScanLine className="h-4 w-4" />
+              Vérifier un QR code
+            </Link>
           </div>
-          <Link
-            href="/verifier?scan=1"
-            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-emerald-600/30 bg-emerald-50 px-7 py-3.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100 active:scale-[0.98] sm:w-auto"
-          >
-            <ScanLine className="h-4 w-4" />
-            Vérifier un QR code
-          </Link>
         </section>
 
         {/* ── Confiance ── */}
@@ -283,11 +291,14 @@ export function HomeContent() {
               <h2 className="text-2xl font-bold tracking-tight text-[#0D3B66] sm:text-3xl">Pourquoi les professionnels choisissent SGNF ?</h2>
               <p className="mt-3 text-base text-slate-500 sm:text-lg">Parce qu'en matière de foncier, une simple erreur peut coûter des millions.</p>
             </div>
-            <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
-              {["Traçable", "Sécurisée", "Transparente", "Contrôlée", "Documentée"].map((item) => (
-                <div key={item} className="flex items-center gap-2.5 rounded-full border border-emerald-200/70 bg-emerald-50/60 px-5 py-3 text-sm font-semibold text-emerald-800">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white">✓</span>
-                  Chaque opération est {item}
+            <div className="grid gap-6 sm:grid-cols-3">
+              {piliers.map((p) => (
+                <div key={p.titre} className="flex flex-col items-center gap-3 rounded-2xl border border-slate-200/60 px-6 py-8 text-center">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                    <p.icon className="h-5 w-5" />
+                  </span>
+                  <h3 className="text-base font-bold text-[#0D3B66]">{p.titre}</h3>
+                  <p className="text-sm leading-relaxed text-slate-500">{p.description}</p>
                 </div>
               ))}
             </div>
