@@ -11,7 +11,13 @@ import { Input } from "@/components/ui/Input";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Participant = { id: string; nom_complet: string; groupe: string };
+type Participant = {
+  id: string;
+  nom_complet: string;
+  groupe: string;
+  autorite_coutumiere_id?: string | null;
+  famille_id?: string | null;
+};
 
 type Espace = {
   id: string;
@@ -121,7 +127,7 @@ function NouvelEspaceModal({
 
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, nom_complet, groupe")
+        .select("id, nom_complet, groupe, autorite_coutumiere_id, famille_id")
         .eq("actif", true)
         .order("nom_complet");
       setAllProfiles((profiles ?? []) as Participant[]);
@@ -140,14 +146,10 @@ function NouvelEspaceModal({
     // Admins SGNF
     allProfiles.filter((p) => p.groupe === "admin").forEach((p) => autoIds.add(p.id));
 
-    // Chefferie liée au lotissement
+    // Chefferie (village) liée au lotissement — même autorité coutumière
     if (lot.autorite_coutumiere_id) {
       allProfiles
-        .filter((p) => {
-          // On cherche les profils chefferie — ils auront autorite_coutumiere_id
-          // (non disponible ici, on filtre par groupe et laisse l'admin ajuster)
-          return p.groupe === "chefferie";
-        })
+        .filter((p) => p.groupe === "chefferie" && p.autorite_coutumiere_id === lot.autorite_coutumiere_id)
         .forEach((p) => autoIds.add(p.id));
     }
 
@@ -156,9 +158,11 @@ function NouvelEspaceModal({
       allProfiles.filter((p) => p.groupe === "operateur").forEach((p) => autoIds.add(p.id));
     }
 
-    // Chef de famille lié (filtré par groupe propriétaire / chefferie)
+    // Chef de famille / propriétaire terrien lié — même famille (couvre les
+    // deux rôles possibles, `chefferie` conflaté historique et le nouveau
+    // `proprietaire_terrien`, cf. conflation_chefferie_chef_famille)
     if (lot.famille_id) {
-      allProfiles.filter((p) => p.groupe === "proprietaire").forEach((p) => autoIds.add(p.id));
+      allProfiles.filter((p) => p.famille_id === lot.famille_id).forEach((p) => autoIds.add(p.id));
     }
 
     setSelectedIds(autoIds);

@@ -1565,12 +1565,14 @@ export type Database = {
       invitations: {
         Row: {
           attributaire_id: string | null
+          autorite_coutumiere_id: string | null
           code: string
           commissaire_id: string | null
           cree_le: string
           cree_par: string
           email: string | null
           expire_le: string
+          famille_id: string | null
           groupe: Database["public"]["Enums"]["groupe_utilisateur"]
           id: string
           nom_complet: string | null
@@ -1581,12 +1583,14 @@ export type Database = {
         }
         Insert: {
           attributaire_id?: string | null
+          autorite_coutumiere_id?: string | null
           code?: string
           commissaire_id?: string | null
           cree_le?: string
           cree_par?: string
           email?: string | null
           expire_le?: string
+          famille_id?: string | null
           groupe: Database["public"]["Enums"]["groupe_utilisateur"]
           id?: string
           nom_complet?: string | null
@@ -1597,12 +1601,14 @@ export type Database = {
         }
         Update: {
           attributaire_id?: string | null
+          autorite_coutumiere_id?: string | null
           code?: string
           commissaire_id?: string | null
           cree_le?: string
           cree_par?: string
           email?: string | null
           expire_le?: string
+          famille_id?: string | null
           groupe?: Database["public"]["Enums"]["groupe_utilisateur"]
           id?: string
           nom_complet?: string | null
@@ -1627,6 +1633,13 @@ export type Database = {
             referencedColumns: ["collectif_id"]
           },
           {
+            foreignKeyName: "invitations_autorite_coutumiere_id_fkey"
+            columns: ["autorite_coutumiere_id"]
+            isOneToOne: false
+            referencedRelation: "autorites_coutumieres"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "invitations_commissaire_id_fkey"
             columns: ["commissaire_id"]
             isOneToOne: false
@@ -1638,6 +1651,13 @@ export type Database = {
             columns: ["cree_par"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitations_famille_id_fkey"
+            columns: ["famille_id"]
+            isOneToOne: false
+            referencedRelation: "familles"
             referencedColumns: ["id"]
           },
         ]

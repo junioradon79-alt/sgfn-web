@@ -34,8 +34,20 @@ const STATUT_LABELS: Record<string, string> = {
 };
 
 const GROUPES_ATTRIBUTAIRE_REQUIS = ["proprietaire", "acquereur"];
+const GROUPES_AUTORITE_REQUIS = ["chefferie"];
+const GROUPES_FAMILLE_REQUIS = ["proprietaire_terrien"];
 
 type Attributaire = {
+  id: string;
+  nom: string;
+};
+
+type Autorite = {
+  id: string;
+  nom: string;
+};
+
+type Famille = {
   id: string;
   nom: string;
 };
@@ -98,8 +110,14 @@ export default function InvitationsPage() {
   const [telephone, setTelephone] = useState("");
   const [attributaireId, setAttributaireId] = useState("");
   const [attributaires, setAttributaires] = useState<Attributaire[]>([]);
+  const [autoriteCoutumiereId, setAutoriteCoutumiereId] = useState("");
+  const [autorites, setAutorites] = useState<Autorite[]>([]);
+  const [familleId, setFamilleId] = useState("");
+  const [familles, setFamilles] = useState<Famille[]>([]);
 
   const attributaireRequis = GROUPES_ATTRIBUTAIRE_REQUIS.includes(groupe);
+  const autoriteRequise = GROUPES_AUTORITE_REQUIS.includes(groupe);
+  const familleRequise = GROUPES_FAMILLE_REQUIS.includes(groupe);
 
   useEffect(() => {
     supabase
@@ -107,6 +125,18 @@ export default function InvitationsPage() {
       .select("id, nom")
       .order("nom")
       .then(({ data }) => setAttributaires((data as Attributaire[]) ?? []));
+
+    supabase
+      .from("autorites_coutumieres")
+      .select("id, nom")
+      .order("nom")
+      .then(({ data }) => setAutorites((data as Autorite[]) ?? []));
+
+    supabase
+      .from("familles")
+      .select("id, nom")
+      .order("nom")
+      .then(({ data }) => setFamilles((data as Famille[]) ?? []));
   }, []);
 
   const fetchInvitations = async () => {
@@ -146,6 +176,8 @@ export default function InvitationsPage() {
       email: email || null,
       telephone: telephone || null,
       attributaire_id: attributaireRequis ? attributaireId : null,
+      autorite_coutumiere_id: autoriteRequise ? autoriteCoutumiereId : null,
+      famille_id: familleRequise ? familleId : null,
       cree_par: user.id,
     });
 
@@ -158,6 +190,8 @@ export default function InvitationsPage() {
       setEmail("");
       setTelephone("");
       setAttributaireId("");
+      setAutoriteCoutumiereId("");
+      setFamilleId("");
       await fetchInvitations();
     }
 
@@ -208,7 +242,12 @@ export default function InvitationsPage() {
               <select
                 required
                 value={groupe}
-                onChange={(e) => { setGroupe(e.target.value); setAttributaireId(""); }}
+                onChange={(e) => {
+                  setGroupe(e.target.value);
+                  setAttributaireId("");
+                  setAutoriteCoutumiereId("");
+                  setFamilleId("");
+                }}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/20"
               >
                 <option value="" disabled>
@@ -244,6 +283,58 @@ export default function InvitationsPage() {
                 </select>
                 <p className="mt-1 text-xs text-slate-400">
                   Un compte propriétaire ou acquéreur doit être rattaché à un attributaire existant.
+                </p>
+              </div>
+            )}
+
+            {autoriteRequise && (
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Chefferie / autorité coutumière <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={autoriteCoutumiereId}
+                  onChange={(e) => setAutoriteCoutumiereId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/20"
+                >
+                  <option value="" disabled>
+                    Sélectionner une chefferie…
+                  </option>
+                  {autorites.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.nom}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-400">
+                  Un compte Chefferie doit être rattaché à son autorité coutumière dès l&apos;invitation.
+                </p>
+              </div>
+            )}
+
+            {familleRequise && (
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Famille concernée <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={familleId}
+                  onChange={(e) => setFamilleId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/20"
+                >
+                  <option value="" disabled>
+                    Sélectionner une famille…
+                  </option>
+                  {familles.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.nom}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-400">
+                  Un compte Propriétaire terrien doit être rattaché à sa famille dès l&apos;invitation.
                 </p>
               </div>
             )}
@@ -300,7 +391,13 @@ export default function InvitationsPage() {
               </button>
               <SGFNButton
                 type="submit"
-                disabled={isPending || !groupe || (attributaireRequis && !attributaireId)}
+                disabled={
+                  isPending ||
+                  !groupe ||
+                  (attributaireRequis && !attributaireId) ||
+                  (autoriteRequise && !autoriteCoutumiereId) ||
+                  (familleRequise && !familleId)
+                }
                 className="rounded-xl bg-[#0D3B66] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091] disabled:opacity-60"
               >
                 {isPending ? "Génération…" : "Générer le code"}
