@@ -7,10 +7,12 @@ import { useProfile } from "@/hooks/useProfile";
 import {
   Copy,
   Handshake,
+  Loader2,
   Mail,
   MessageCircle,
   MessageSquareText,
   Phone,
+  RefreshCw,
   ShieldAlert,
   User,
 } from "lucide-react";
@@ -79,6 +81,8 @@ export default function ContactsMarketplacePage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [siteAJour, setSiteAJour] = useState(true);
+  const [marquantReconstruit, setMarquantReconstruit] = useState(false);
 
   const loadDemandes = useCallback(async () => {
     setDataLoading(true);
@@ -99,9 +103,42 @@ export default function ContactsMarketplacePage() {
     setDataLoading(false);
   }, [supabase]);
 
+  const loadEtatSite = useCallback(async () => {
+    const [{ data: etat }, { data: derniere }] = await Promise.all([
+      supabase.from("marketplace_etat_site").select("derniere_reconstruction").maybeSingle(),
+      supabase
+        .from("annonces_marketplace")
+        .select("publiee_le")
+        .eq("statut", "active")
+        .order("publiee_le", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    const derniereReconstruction = etat?.derniere_reconstruction ?? null;
+    const dernierePublication = derniere?.publiee_le ?? null;
+    setSiteAJour(!dernierePublication || (!!derniereReconstruction && dernierePublication <= derniereReconstruction));
+  }, [supabase]);
+
   useEffect(() => {
-    if (isAdmin) void loadDemandes();
-  }, [isAdmin, loadDemandes]);
+    if (isAdmin) {
+      void loadDemandes();
+      void loadEtatSite();
+    }
+  }, [isAdmin, loadDemandes, loadEtatSite]);
+
+  const marquerReconstruit = async () => {
+    setMarquantReconstruit(true);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    await supabase
+      .from("marketplace_etat_site")
+      .update({ derniere_reconstruction: new Date().toISOString(), reconstruit_par: user?.id ?? null })
+      .eq("id", true);
+    await loadEtatSite();
+    window.dispatchEvent(new Event("sgnf:refresh-badges"));
+    setMarquantReconstruit(false);
+  };
 
   const handleStatutChange = async (id: string, statut: string) => {
     setUpdatingId(id);
@@ -152,6 +189,25 @@ export default function ContactsMarketplacePage() {
           </span>
         </p>
       </div>
+
+      {!siteAJour && (
+        <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-amber-200/70 bg-amber-50 px-4 py-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            Une annonce a été publiée ou modifiée depuis le dernier déploiement du site. Pensez à
+            reconstruire et redéployer <strong>monterrain-web</strong> (export statique, aucune mise à
+            jour automatique).
+          </p>
+          <button
+            type="button"
+            onClick={() => void marquerReconstruit()}
+            disabled={marquantReconstruit}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-700 disabled:opacity-60"
+          >
+            {marquantReconstruit ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Marquer comme reconstruit
+          </button>
+        </div>
+      )}
 
       {errorMessage && (
         <div className="mb-4 rounded-2xl border border-red-200/70 bg-red-50 px-4 py-3 text-sm text-red-700">

@@ -46,7 +46,7 @@ interface SidebarNavItem {
   /** Masquer cet item pour l'admin (espaces dédiés aux autres rôles). */
   adminHide?: boolean;
   /** Clé de compteur d'actions à faire (badge rouge). */
-  badgeKey?: "demandes" | "saisie";
+  badgeKey?: "demandes" | "saisie" | "marketplace";
 }
 
 interface SidebarProps {
@@ -174,6 +174,7 @@ const navItems: SidebarNavItem[] = [
     href: "/dashboard/contacts-marketplace",
     icon: <Store className="w-4 h-4" />,
     roles: ["admin"],
+    badgeKey: "marketplace", // site monterrain-web à reconstruire après publication
   },
   {
     label: "Consultations QR",
@@ -247,6 +248,23 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
         .select("id", { count: "exact", head: true })
         .eq("statut", "en_attente");
       next.saisie = count ?? 0;
+
+      // Badge « site Mon Terrain à reconstruire » : une annonce a été
+      // publiée/modifiée depuis le dernier déploiement cPanel connu.
+      const [{ data: etat }, { data: derniere }] = await Promise.all([
+        supabase.from("marketplace_etat_site").select("derniere_reconstruction").maybeSingle(),
+        supabase
+          .from("annonces_marketplace")
+          .select("publiee_le")
+          .eq("statut", "active")
+          .order("publiee_le", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      const derniereReconstruction = etat?.derniere_reconstruction ?? null;
+      const dernierePublication = derniere?.publiee_le ?? null;
+      next.marketplace =
+        dernierePublication && (!derniereReconstruction || dernierePublication > derniereReconstruction) ? 1 : 0;
     }
     setCounts(next);
   }, [estAgence, groupe]);

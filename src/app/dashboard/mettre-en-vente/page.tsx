@@ -9,6 +9,8 @@ import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 
 // Leaflet a besoin des APIs browser → import dynamique ssr:false
+import PhotosAnnonce from "./_PhotosAnnonce";
+
 const VenteMap = dynamic(() => import("./_VenteMap"), {
   ssr: false,
   loading: () => (
@@ -38,6 +40,7 @@ type LotEligible = {
 };
 
 type AnnonceExistante = {
+  id: string;
   lot_id: string;
   titre: string;
   prix: number | null;
@@ -96,7 +99,7 @@ export default function MettreEnVentePage() {
           .in("id", lotIds),
         supabase
           .from("annonces_marketplace")
-          .select("lot_id, titre, prix, usage, zone, description, statut")
+          .select("id, lot_id, titre, prix, usage, zone, description, statut")
           .in("lot_id", lotIds),
       ]);
 
@@ -184,7 +187,7 @@ export default function MettreEnVentePage() {
     });
     setAnnonces((prev) => ({
       ...prev,
-      [lotId]: { lot_id: lotId, titre, prix: Number(prix), usage, zone, description, statut },
+      [lotId]: { id: res.data.annonce.id, lot_id: lotId, titre, prix: Number(prix), usage, zone, description, statut },
     }));
     setSubmitting(false);
   };
@@ -317,6 +320,17 @@ export default function MettreEnVentePage() {
                     </p>
                   </div>
                 </div>
+              </Section>
+
+              {/* 4 — Photos */}
+              <Section n={4} title="Photos">
+                {annonces[lotId]?.id ? (
+                  <PhotosAnnonce annonceId={annonces[lotId].id} />
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    Enregistrez d&apos;abord l&apos;annonce (brouillon ou publication) pour pouvoir ajouter des photos.
+                  </p>
+                )}
               </Section>
 
               {/* Actions */}

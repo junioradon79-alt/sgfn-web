@@ -1987,6 +1987,32 @@ export type Database = {
           },
         ]
       }
+      marketplace_etat_site: {
+        Row: {
+          derniere_reconstruction: string | null
+          id: boolean
+          reconstruit_par: string | null
+        }
+        Insert: {
+          derniere_reconstruction?: string | null
+          id?: boolean
+          reconstruit_par?: string | null
+        }
+        Update: {
+          derniere_reconstruction?: string | null
+          id?: boolean
+          reconstruit_par?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_etat_site_reconstruit_par_fkey"
+            columns: ["reconstruit_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           conversation_id: string
@@ -2290,6 +2316,45 @@ export type Database = {
           valeur?: string
         }
         Relationships: []
+      }
+      photos_annonces: {
+        Row: {
+          annonce_id: string
+          chemin: string
+          cree_le: string
+          id: string
+          ordre: number
+        }
+        Insert: {
+          annonce_id: string
+          chemin: string
+          cree_le?: string
+          id?: string
+          ordre?: number
+        }
+        Update: {
+          annonce_id?: string
+          chemin?: string
+          cree_le?: string
+          id?: string
+          ordre?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "photos_annonces_annonce_id_fkey"
+            columns: ["annonce_id"]
+            isOneToOne: false
+            referencedRelation: "annonces_marketplace"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "photos_annonces_annonce_id_fkey"
+            columns: ["annonce_id"]
+            isOneToOne: false
+            referencedRelation: "annonces_publiques"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -3104,6 +3169,7 @@ export type Database = {
           lat_approx: number | null
           lng_approx: number | null
           lot_numero: string | null
+          photo_couverture: string | null
           prix: number | null
           publiee_le: string | null
           superficie_m2: number | null
@@ -3209,6 +3275,30 @@ export type Database = {
             columns: ["vente_id"]
             isOneToOne: false
             referencedRelation: "ventes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      photos_annonces_publiques: {
+        Row: {
+          annonce_id: string | null
+          chemin: string | null
+          id: string | null
+          ordre: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "photos_annonces_annonce_id_fkey"
+            columns: ["annonce_id"]
+            isOneToOne: false
+            referencedRelation: "annonces_marketplace"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "photos_annonces_annonce_id_fkey"
+            columns: ["annonce_id"]
+            isOneToOne: false
+            referencedRelation: "annonces_publiques"
             referencedColumns: ["id"]
           },
         ]
