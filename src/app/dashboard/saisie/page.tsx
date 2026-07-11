@@ -16,6 +16,8 @@ import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import { FileValidation } from "@/components/dashboard/saisie/FileValidation";
+import { ImportExcel } from "@/components/dashboard/saisie/ImportExcel";
+import { CreationStructure } from "@/components/dashboard/saisie/CreationStructure";
 import {
   CLASSE_LABELS,
   QUALITE_OPTIONS,
@@ -28,6 +30,7 @@ import {
   type OperationCible,
   type PayloadMajAttributions,
   type Qualite,
+  type ResumeCreation,
   type ResumeMaj,
   type StatutSoumission,
   type TypeSoumission,
@@ -48,7 +51,7 @@ type Soumission = {
   type: TypeSoumission;
   titre: string | null;
   statut: StatutSoumission;
-  resume: ResumeMaj | null;
+  resume: ResumeMaj | ResumeCreation | null;
   resultat: Record<string, unknown> | null;
   commentaire_admin: string | null;
   cree_le: string | null;
@@ -102,6 +105,10 @@ export default function SaisiePage() {
   // Onglet 2 : « File de validation » pour l'admin (checker), « Mes soumissions » pour l'opérateur.
   const [tab, setTab] = useState<"saisie" | "soumissions">("saisie");
 
+  // Mettre à jour un lotissement existant (attributions), ou en créer un nouveau
+  // (formulaire séparé, cf. décision : l'Excel ne sert qu'aux attributions).
+  const [modeType, setModeType] = useState<"maj" | "creation">("maj");
+
   // ── Données de référence ──
   const [lotissements, setLotissements] = useState<Lotissement[]>([]);
   const [lotissementId, setLotissementId] = useState("");
@@ -111,6 +118,11 @@ export default function SaisiePage() {
   // ── Modifications en cours (une cible par lot) ──
   const [mods, setMods] = useState<Record<string, CibleChoisie>>({});
   const [nouveaux, setNouveaux] = useState<NouvelAttributaire[]>([]);
+
+  // Saisie manuelle lot par lot, ou import d'un fichier Excel simplifié — les
+  // deux modes alimentent les mêmes `mods`/`nouveaux`, donc le même aperçu du
+  // diff et la même soumission ci-dessous.
+  const [modeSaisie, setModeSaisie] = useState<"manuel" | "import">("manuel");
 
   // ── Éditeur de lot ──
   const [lotFiltre, setLotFiltre] = useState("");
@@ -164,6 +176,7 @@ export default function SaisiePage() {
     setMessage(null);
     setEtats([]);
     setEtatsLoading(!!id);
+    setModeSaisie("manuel");
   };
 
   // Chargement de l'état du lotissement sélectionné
@@ -467,6 +480,29 @@ export default function SaisiePage() {
 
       {tab === "saisie" ? (
         <div className="space-y-6">
+          {/* Bascule Mettre à jour un lotissement existant / Créer un nouveau */}
+          <div className="flex gap-1 rounded-full border border-slate-200/70 bg-white p-1 text-sm shadow-sm w-fit">
+            {[
+              { key: "maj" as const, label: "Mettre à jour un lotissement" },
+              { key: "creation" as const, label: "Créer un nouveau lotissement" },
+            ].map((m) => (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => setModeType(m.key)}
+                className={`rounded-full px-4 py-1.5 font-medium transition ${
+                  modeType === m.key ? "bg-[#0D3B66] text-white shadow-sm" : "text-slate-500 hover:text-[#0D3B66]"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {modeType === "creation" ? (
+            <CreationStructure onSubmitted={setMessage} />
+          ) : (
+            <>
           {/* Sélection lotissement */}
           <div className="rounded-2xl border border-slate-200/60 bg-white p-5 shadow-sm sm:p-6">
             <label className="text-sm font-medium text-slate-700">Lotissement à mettre à jour</label>
@@ -487,7 +523,41 @@ export default function SaisiePage() {
 
           {lotissementId && (
             <>
+              {/* Bascule Manuel / Import Excel */}
+              <div className="flex gap-1 rounded-full border border-slate-200/70 bg-white p-1 text-sm shadow-sm w-fit">
+                {[
+                  { key: "manuel" as const, label: "Ligne par ligne" },
+                  { key: "import" as const, label: "Import Excel" },
+                ].map((m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => setModeSaisie(m.key)}
+                    className={`rounded-full px-4 py-1.5 font-medium transition ${
+                      modeSaisie === m.key ? "bg-[#0D3B66] text-white shadow-sm" : "text-slate-500 hover:text-[#0D3B66]"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+
+              {modeSaisie === "import" && (
+                <ImportExcel
+                  etats={etats}
+                  onImport={(nouveauxMods, nouveauxAttributaires) => {
+                    setMods((m) => ({ ...m, ...nouveauxMods }));
+                    setNouveaux((n) => [...n, ...nouveauxAttributaires]);
+                    setMessage({
+                      kind: "ok",
+                      text: `${Object.keys(nouveauxMods).length} ligne(s) ajoutée(s) à l'aperçu des changements.`,
+                    });
+                  }}
+                />
+              )}
+
               {/* Éditeur de lot */}
+              {modeSaisie === "manuel" && (
               <div className="rounded-2xl border border-slate-200/60 bg-white p-5 shadow-sm sm:p-6">
                 <h2 className="text-sm font-semibold text-[#0D3B66]">Ajouter une modification</h2>
                 {etatsLoading ? (
@@ -695,6 +765,7 @@ export default function SaisiePage() {
                   </div>
                 )}
               </div>
+              )}
 
               {/* Liste des modifications + aperçu */}
               <div className="rounded-2xl border border-slate-200/60 bg-white p-5 shadow-sm sm:p-6">
@@ -807,6 +878,8 @@ export default function SaisiePage() {
               </div>
             </>
           )}
+            </>
+          )}
         </div>
       ) : isAdmin ? (
         /* ── Onglet File de validation (admin) ── */
@@ -835,8 +908,10 @@ export default function SaisiePage() {
                         </p>
                         <p className="mt-0.5 text-xs text-slate-400">
                           {s.cree_le ? new Date(s.cree_le).toLocaleString("fr-FR") : ""}
-                          {s.resume &&
-                            ` · ${s.resume.nouvelles_attributions} nouvelle(s), ${s.resume.reassignations} réassign., ${s.resume.remises_libre} libre`}
+                          {s.resume && s.type === "maj_attributions" &&
+                            ` · ${(s.resume as ResumeMaj).nouvelles_attributions} nouvelle(s), ${(s.resume as ResumeMaj).reassignations} réassign., ${(s.resume as ResumeMaj).remises_libre} libre`}
+                          {s.resume && s.type === "creation_structure" &&
+                            ` · ${(s.resume as ResumeCreation).nb_ilots} îlot(s), ${(s.resume as ResumeCreation).nb_lots} lot(s)`}
                         </p>
                         {s.statut === "rejetee" && s.commentaire_admin && (
                           <p className="mt-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-700">

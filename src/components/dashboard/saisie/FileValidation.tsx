@@ -12,8 +12,10 @@ import {
   type ClasseChangement,
   type LotEtat,
   type OperationCible,
+  type PayloadCreationStructure,
   type PayloadMajAttributions,
   type Qualite,
+  type ResumeCreation,
   type ResumeMaj,
   type StatutSoumission,
   type TypeSoumission,
@@ -24,7 +26,7 @@ type Soumission = {
   type: TypeSoumission;
   titre: string | null;
   statut: StatutSoumission;
-  resume: ResumeMaj | null;
+  resume: ResumeMaj | ResumeCreation | null;
   resultat: Record<string, unknown> | null;
   commentaire_admin: string | null;
   cree_le: string | null;
@@ -184,10 +186,50 @@ function CarteSoumission({
 }) {
   const [open, setOpen] = useState(false);
   const [lignes, setLignes] = useState<LigneDiff[] | null>(null);
+  const [structureNoms, setStructureNoms] = useState<{ autorite?: string; operateur?: string; famille?: string } | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [busy, setBusy] = useState<null | "approve" | "reject">(null);
   const [rejectMode, setRejectMode] = useState(false);
   const [comment, setComment] = useState("");
+
+  const chargerDetailCreation = async () => {
+    if (structureNoms) return;
+    setDetailLoading(true);
+    const payload = soumission.payload as PayloadCreationStructure;
+    const meta = payload.lotissement;
+    const noms: { autorite?: string; operateur?: string; famille?: string } = {};
+    if (payload.nouvelle_autorite) noms.autorite = `${payload.nouvelle_autorite.nom} (nouvelle)`;
+    if (payload.nouvel_operateur) noms.operateur = `${payload.nouvel_operateur.nom} (nouveau)`;
+    if (payload.nouvelle_famille) noms.famille = `${payload.nouvelle_famille.nom} (nouvelle)`;
+    await Promise.all([
+      !payload.nouvelle_autorite && meta.autorite_coutumiere_id
+        ? supabase
+            .from("autorites_coutumieres")
+            .select("nom")
+            .eq("id", meta.autorite_coutumiere_id)
+            .maybeSingle()
+            .then(({ data }) => { noms.autorite = data?.nom ?? undefined; })
+        : Promise.resolve(),
+      !payload.nouvel_operateur && meta.operateur_id
+        ? supabase
+            .from("operateurs")
+            .select("nom")
+            .eq("id", meta.operateur_id)
+            .maybeSingle()
+            .then(({ data }) => { noms.operateur = data?.nom ?? undefined; })
+        : Promise.resolve(),
+      !payload.nouvelle_famille && meta.famille_id
+        ? supabase
+            .from("familles")
+            .select("nom")
+            .eq("id", meta.famille_id)
+            .maybeSingle()
+            .then(({ data }) => { noms.famille = data?.nom ?? undefined; })
+        : Promise.resolve(),
+    ]);
+    setStructureNoms(noms);
+    setDetailLoading(false);
+  };
 
   const chargerDetail = async () => {
     if (lignes || soumission.type !== "maj_attributions") return;
@@ -267,7 +309,9 @@ function CarteSoumission({
   const toggle = () => {
     const next = !open;
     setOpen(next);
-    if (next) void chargerDetail();
+    if (!next) return;
+    if (soumission.type === "creation_structure") void chargerDetailCreation();
+    else void chargerDetail();
   };
 
   const approuver = async () => {
@@ -309,16 +353,20 @@ function CarteSoumission({
           </p>
           <p className="mt-0.5 text-xs text-slate-400">
             {soumission.cree_le ? new Date(soumission.cree_le).toLocaleString("fr-FR") : ""}
-            {r &&
-              ` · ${r.nouvelles_attributions} nouvelle(s), ${r.reassignations} réassign., ${r.remises_libre} libre${
-                r.nouveaux_attributaires ? `, ${r.nouveaux_attributaires} nouvel(s) attributaire(s)` : ""
-              }`}
+            {r && soumission.type === "maj_attributions" && (() => {
+              const m = r as ResumeMaj;
+              return ` · ${m.nouvelles_attributions} nouvelle(s), ${m.reassignations} réassign., ${m.remises_libre} libre${
+                m.nouveaux_attributaires ? `, ${m.nouveaux_attributaires} nouvel(s) attributaire(s)` : ""
+              }`;
+            })()}
+            {r && soumission.type === "creation_structure" &&
+              ` · ${(r as ResumeCreation).nb_ilots} îlot(s), ${(r as ResumeCreation).nb_lots} lot(s)`}
           </p>
         </div>
         <Badge status="en_validation">En attente</Badge>
       </div>
 
-      {soumission.type === "maj_attributions" && (
+      {(soumission.type === "maj_attributions" || soumission.type === "creation_structure") && (
         <button
           type="button"
           onClick={toggle}
@@ -329,7 +377,7 @@ function CarteSoumission({
         </button>
       )}
 
-      {open && (
+      {open && soumission.type === "maj_attributions" && (
         <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200/70">
           {detailLoading ? (
             <div className="flex items-center gap-2 px-4 py-4 text-sm text-slate-500">
@@ -359,6 +407,21 @@ function CarteSoumission({
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+      )}
+
+      {open && soumission.type === "creation_structure" && (
+        <div className="mt-3">
+          {detailLoading ? (
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200/70 px-4 py-4 text-sm text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
+            </div>
+          ) : (
+            <ApercuCreationStructure
+              payload={soumission.payload as PayloadCreationStructure}
+              noms={structureNoms}
+            />
           )}
         </div>
       )}
@@ -414,6 +477,83 @@ function CarteSoumission({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Aperçu en lecture seule d'un payload creation_structure, pour la revue admin avant approbation. */
+function ApercuCreationStructure({
+  payload,
+  noms,
+}: {
+  payload: PayloadCreationStructure;
+  noms: { autorite?: string; operateur?: string; famille?: string } | null;
+}) {
+  const meta = payload.lotissement;
+  const totalLots = payload.ilots.reduce((n, i) => n + i.lots.length, 0);
+  const totalEquipements = payload.ilots.reduce((n, i) => n + i.lots.filter((l) => l.est_equipement).length, 0);
+
+  return (
+    <div className="space-y-3 rounded-xl border border-slate-200/70 bg-slate-50/40 p-4">
+      <div className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
+        <div>
+          <span className="text-slate-400">Nom : </span>
+          <span className="font-medium text-slate-700">{meta.nom}</span>
+        </div>
+        {meta.village && (
+          <div><span className="text-slate-400">Village : </span><span className="text-slate-700">{meta.village}</span></div>
+        )}
+        {meta.commune && (
+          <div><span className="text-slate-400">Commune : </span><span className="text-slate-700">{meta.commune}</span></div>
+        )}
+        {meta.district && (
+          <div><span className="text-slate-400">District : </span><span className="text-slate-700">{meta.district}</span></div>
+        )}
+        {meta.superficie_texte && (
+          <div><span className="text-slate-400">Superficie : </span><span className="text-slate-700">{meta.superficie_texte}</span></div>
+        )}
+        {meta.guide_reference && (
+          <div><span className="text-slate-400">Réf. guide : </span><span className="text-slate-700">{meta.guide_reference}</span></div>
+        )}
+        {noms?.autorite && (
+          <div><span className="text-slate-400">Autorité coutumière : </span><span className="text-slate-700">{noms.autorite}</span></div>
+        )}
+        {noms?.operateur && (
+          <div><span className="text-slate-400">Opérateur : </span><span className="text-slate-700">{noms.operateur}</span></div>
+        )}
+        {noms?.famille && (
+          <div><span className="text-slate-400">Famille : </span><span className="text-slate-700">{noms.famille}</span></div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2 border-t border-slate-200/70 pt-3 text-xs">
+        <span className="rounded-full bg-[#0D3B66]/10 px-2.5 py-1 font-medium text-[#0D3B66]">
+          {payload.ilots.length} îlot(s)
+        </span>
+        <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">
+          {totalLots} lot(s)
+        </span>
+        {totalEquipements > 0 && (
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+            {totalEquipements} équipement(s)
+          </span>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {payload.ilots.map((ilot) => (
+          <div key={ilot.numero} className="rounded-lg border border-slate-200/70 bg-white p-3">
+            <p className="text-sm font-semibold text-[#0D3B66]">
+              Îlot {ilot.numero}
+              <span className="ml-1 text-xs font-normal text-slate-400">({ilot.lots.length} lot(s))</span>
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              {ilot.lots.map((l) => l.numero_lot + (l.est_equipement ? "*" : "")).join(", ")}
+            </p>
+          </div>
+        ))}
+      </div>
+      {totalEquipements > 0 && <p className="text-xs text-slate-400">* réserve / équipement</p>}
     </div>
   );
 }

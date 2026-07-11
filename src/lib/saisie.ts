@@ -62,6 +62,12 @@ export type LotStructure = {
   est_equipement?: boolean;
 };
 
+// Créées à l'approbation, jamais à la soumission (même principe que les
+// nouveaux attributaires côté maj_attributions) — jamais de création silencieuse.
+export type NouvelleAutorite = { nom: string; type?: string; village?: string; chef?: string; contact?: string };
+export type NouvelOperateur = { nom: string; type?: string; contact?: string };
+export type NouvelleFamille = { nom: string; chef_de_famille?: string; contact?: string };
+
 export type PayloadCreationStructure = {
   lotissement: {
     nom: string;
@@ -74,6 +80,9 @@ export type PayloadCreationStructure = {
     guide_reference?: string;
     superficie_texte?: string;
   };
+  nouvelle_autorite?: NouvelleAutorite;
+  nouvel_operateur?: NouvelOperateur;
+  nouvelle_famille?: NouvelleFamille;
   ilots: { numero: string; lots: LotStructure[] }[];
 };
 
@@ -135,4 +144,12 @@ export type ResumeMaj = {
   remises_libre: number;
   inchanges: number;
   nouveaux_attributaires: number;
+};
+
+/** Résumé d'une soumission creation_structure (resume jsonb). */
+export type ResumeCreation = {
+  nom_lotissement: string;
+  nb_ilots: number;
+  nb_lots: number;
+  nb_equipements: number;
 };
