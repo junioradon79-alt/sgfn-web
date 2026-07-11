@@ -8,6 +8,7 @@ import {
   Lock,
   LayoutDashboard,
   ChevronDown,
+  ScanLine,
 } from "lucide-react";
 import { HomeMetrics } from "./HomeMetrics";
 import { metiers } from "@/lib/metiers";
@@ -266,6 +267,13 @@ export function HomeContent() {
               Accéder à la plateforme
             </Link>
           </div>
+          <Link
+            href="/verifier?scan=1"
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-emerald-600/30 bg-emerald-50 px-7 py-3.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100 active:scale-[0.98] sm:w-auto"
+          >
+            <ScanLine className="h-4 w-4" />
+            Vérifier un QR code
+          </Link>
         </section>
 
         {/* ── Confiance ── */}

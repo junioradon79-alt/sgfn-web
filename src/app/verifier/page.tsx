@@ -198,7 +198,11 @@ function VerifierForm() {
   const [ref, setRef] = useState(refInitiale);
   const [verdict, setVerdict] = useState<Verdict>("idle");
   const [resultat, setResultat] = useState<ResultatVerification | null>(null);
-  const [scannerOuvert, setScannerOuvert] = useState(false);
+  // Depuis un raccourci "?scan=1" (page d'accueil, app mobile) : ouvrir la caméra
+  // directement, sans passer par le clic sur "Scanner avec la caméra".
+  const [scannerOuvert, setScannerOuvert] = useState(
+    () => searchParams.get("scan") === "1" && !refInitiale,
+  );
   const [paiementEnCours, setPaiementEnCours] = useState(false);
   const [messagePaiement, setMessagePaiement] = useState<string | null>(null);
 
