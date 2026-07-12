@@ -15,8 +15,26 @@ AddType font/woff2 .woff2
   Require all granted
 </IfModule>
 
+# En-têtes de sécurité (audit 12/07/2026)
+# - HSTS sans includeSubDomains : monterrain.sgfn.ci et les sous-domaines cPanel
+#   ne sont pas garantis HTTPS-only.
+# - Pas de CSP : Next.js injecte des scripts inline, une CSP stricte casserait le site.
+# - camera/geolocation=(self) : requis par le scan QR de /verifier.
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000"
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "camera=(self), geolocation=(self), microphone=(), payment=()"
+</IfModule>
+
 RewriteEngine On
 RewriteBase /
+
+# Page de debug /test retirée du build — bloquer aussi l'ancien fichier
+# test.html resté sur le serveur (l'extraction d'un tar.gz ne supprime pas
+# les fichiers orphelins).
+RewriteRule ^test(\.html)?/?$ /404.html [L]
 
 # 1. Fichiers réels (_next/, images, etc.) — servis directement
 RewriteCond %{REQUEST_FILENAME} -f
