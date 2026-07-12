@@ -33,8 +33,8 @@ RewriteBase /
 
 # Page de debug /test retirée du build — bloquer aussi l'ancien fichier
 # test.html resté sur le serveur (l'extraction d'un tar.gz ne supprime pas
-# les fichiers orphelins).
-RewriteRule ^test(\.html)?/?$ /404.html [L]
+# les fichiers orphelins). R=404 renvoie un vrai statut 404.
+RewriteRule ^test(\.html)?/?$ - [R=404,L]
 
 # 1. Fichiers réels (_next/, images, etc.) — servis directement
 RewriteCond %{REQUEST_FILENAME} -f
