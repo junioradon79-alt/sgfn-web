@@ -748,6 +748,10 @@ export default function LotsPage() {
     setIsSubmitting(true);
     const { data: { user } } = await supabase.auth.getUser();
 
+    if (data.actuel) {
+      await supabase.from("attributions").update({ actuel: false } as any).eq("lot_id", transfertLot.id).eq("actuel", true);
+    }
+
     await supabase.from("attributions").insert([{
       lot_id: transfertLot.id,
       attributaire_id: data.attributaire_id,
