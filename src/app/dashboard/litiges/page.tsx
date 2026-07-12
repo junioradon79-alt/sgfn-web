@@ -3,6 +3,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import KpiCard from "@/components/dashboard/KpiCard";
+import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import {
@@ -127,16 +128,19 @@ export default function LitigesPage() {
             </span>
           </p>
         </div>
-        {isAdmin && (
-          <button
-            type="button"
-            onClick={() => { setIsModalOpen(true); setErrorMessage(null); }}
-            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#EF4444] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#DC2626] active:scale-[0.98]"
-          >
-            <Plus className="h-4 w-4" />
-            Ouvrir un dossier de litige
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          <BoutonImprimer />
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => { setIsModalOpen(true); setErrorMessage(null); }}
+              className="print:hidden inline-flex items-center gap-2 rounded-full bg-[#EF4444] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#DC2626] active:scale-[0.98]"
+            >
+              <Plus className="h-4 w-4" />
+              Ouvrir un dossier de litige
+            </button>
+          )}
+        </div>
       </div>
 
       {successMessage && (
@@ -165,13 +169,13 @@ export default function LitigesPage() {
       </div>
 
       {/* Tableau */}
-      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white">
+      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white print:overflow-visible print:rounded-none print:border-none">
         <div className="border-b border-slate-200/60 bg-slate-50/50 px-5 py-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Registre des litiges
           </p>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto print:overflow-visible">
           <table className="w-full min-w-[760px] border-collapse text-left">
             <thead>
               <tr className="border-b border-slate-200/60 bg-slate-50/50">
@@ -179,7 +183,7 @@ export default function LitigesPage() {
                   <th
                     key={header}
                     scope="col"
-                    className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-slate-500 last:text-right"
+                    className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-slate-500 last:text-right print:last:hidden"
                   >
                     {header}
                   </th>
@@ -225,7 +229,7 @@ export default function LitigesPage() {
                             })
                           : "—"}
                       </td>
-                      <td className="px-5 py-4 text-right">
+                      <td className="px-5 py-4 text-right print:hidden">
                         <button
                           type="button"
                           className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#0D3B66]"

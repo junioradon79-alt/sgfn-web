@@ -7,6 +7,7 @@ import {
   UserPlus, ChevronRight, Crown, Landmark, Link2, Unlink, Building2, Plus,
 } from "lucide-react";
 import { Input } from "@/components/ui/Input";
+import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
 import Link from "next/link";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -851,17 +852,20 @@ export default function FamillesPage() {
             Gérez la hiérarchie familiale et liez les comptes numériques aux familles et autorités coutumières.
           </p>
         </div>
-        <Link
-          href="/dashboard/invitations"
-          className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091]"
-        >
-          <UserPlus className="h-4 w-4" />
-          Inviter un chef
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <BoutonImprimer />
+          <Link
+            href="/dashboard/invitations"
+            className="print:hidden inline-flex items-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091]"
+          >
+            <UserPlus className="h-4 w-4" />
+            Inviter un chef
+          </Link>
+        </div>
       </div>
 
       {/* Onglets */}
-      <div className="flex flex-wrap gap-1 rounded-2xl border border-slate-200/60 bg-slate-50 p-1 w-fit">
+      <div className="print:hidden flex flex-wrap gap-1 rounded-2xl border border-slate-200/60 bg-slate-50 p-1 w-fit">
         <button
           onClick={() => setTab("grandesfamilles")}
           className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${tab === "grandesfamilles" ? "bg-white shadow-sm text-[#0D3B66]" : "text-slate-500 hover:text-slate-700"}`}
@@ -907,7 +911,7 @@ export default function FamillesPage() {
             </p>
             <button
               onClick={() => setShowCreerGF(true)}
-              className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-[#0D3B66] px-3 py-2 text-sm font-semibold text-[#0D3B66] transition hover:bg-[#0D3B66] hover:text-white"
+              className="print:hidden inline-flex shrink-0 items-center gap-2 rounded-xl border border-[#0D3B66] px-3 py-2 text-sm font-semibold text-[#0D3B66] transition hover:bg-[#0D3B66] hover:text-white"
             >
               <Plus className="h-4 w-4" />
               Nouvelle
@@ -1069,12 +1073,12 @@ export default function FamillesPage() {
             </div>
           )}
 
-          <div className="relative w-full max-w-sm">
+          <div className="print:hidden relative w-full max-w-sm">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input placeholder="Rechercher une lignée…" className="pl-9" value={searchFamilles} onChange={(e) => setSearchFamilles(e.target.value)} />
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm print:overflow-visible print:rounded-none print:border-none">
             {famillesLoading ? (
               <div className="flex items-center justify-center py-16 text-sm text-slate-400">Chargement…</div>
             ) : filteredFamilles.length === 0 ? (
@@ -1091,7 +1095,7 @@ export default function FamillesPage() {
                     <th className="px-5 py-3">Collectif d&apos;ayants-droit</th>
                     <th className="px-5 py-3">Chef (registre)</th>
                     <th className="px-5 py-3">Compte lié</th>
-                    <th className="px-5 py-3"></th>
+                    <th className="px-5 py-3 print:hidden"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1181,7 +1185,7 @@ export default function FamillesPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="px-5 py-3.5 text-right print:hidden">
                         <button
                           onClick={() => setModalFamille(f)}
                           className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-[#0D3B66]"
@@ -1233,12 +1237,12 @@ export default function FamillesPage() {
             </div>
           )}
 
-          <div className="relative w-full max-w-sm">
+          <div className="print:hidden relative w-full max-w-sm">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input placeholder="Rechercher une autorité ou un village…" className="pl-9" value={searchAutorites} onChange={(e) => setSearchAutorites(e.target.value)} />
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm print:overflow-visible print:rounded-none print:border-none">
             {autoritesLoading ? (
               <div className="flex items-center justify-center py-16 text-sm text-slate-400">Chargement…</div>
             ) : filteredAutorites.length === 0 ? (
@@ -1253,7 +1257,7 @@ export default function FamillesPage() {
                     <th className="px-5 py-3">Autorité</th>
                     <th className="px-5 py-3">Chef (registre)</th>
                     <th className="px-5 py-3">Compte(s) lié(s)</th>
-                    <th className="px-5 py-3"></th>
+                    <th className="px-5 py-3 print:hidden"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1285,7 +1289,7 @@ export default function FamillesPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="px-5 py-3.5 text-right print:hidden">
                         <button
                           onClick={() => setModalAutorite(a)}
                           className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-[#0D3B66]"

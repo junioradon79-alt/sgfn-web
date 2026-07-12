@@ -3,6 +3,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
+import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import { Building2, ChevronRight, Mail, MapPin, Phone, Plus, Search, User, X } from "lucide-react";
@@ -308,11 +309,14 @@ export default function AttributairesPage() {
             Registre officiel des attributaires, suivi des identités et des droits fonciers rattachés.
           </p>
         </div>
-        <button type="button" onClick={() => { setIsModalOpen(true); setErrorMessage(null); setSuccessMessage(null); }}
-          className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:bg-[#1E6091] hover:shadow-md active:scale-[0.98]">
-          <Plus className="h-4 w-4" />
-          Nouvel Attributaire
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <BoutonImprimer />
+          <button type="button" onClick={() => { setIsModalOpen(true); setErrorMessage(null); setSuccessMessage(null); }}
+            className="print:hidden inline-flex items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:bg-[#1E6091] hover:shadow-md active:scale-[0.98]">
+            <Plus className="h-4 w-4" />
+            Nouvel Attributaire
+          </button>
+        </div>
       </div>
 
       {successMessage && (
@@ -320,7 +324,7 @@ export default function AttributairesPage() {
       )}
 
       {/* Recherche */}
-      <div className="mb-6">
+      <div className="print:hidden mb-6">
         <div className="relative w-full max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <Input type="search" placeholder="Rechercher un attributaire, un numéro de pièce…" className="pl-9"
@@ -329,13 +333,13 @@ export default function AttributairesPage() {
       </div>
 
       {/* Tableau */}
-      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white">
-        <div className="overflow-x-auto">
+      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white print:overflow-visible print:rounded-none print:border-none">
+        <div className="overflow-x-auto print:overflow-visible">
           <table className="w-full min-w-[760px] border-collapse text-left">
             <thead>
               <tr className="border-b border-slate-200/60 bg-slate-50/50">
                 {TABLE_HEADERS.map((header) => (
-                  <th key={header} scope="col" className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-slate-500 last:text-right">
+                  <th key={header} scope="col" className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-slate-500 last:text-right print:last:hidden">
                     {header}
                   </th>
                 ))}
@@ -366,7 +370,7 @@ export default function AttributairesPage() {
                           {isValidated ? "Validé" : "En validation"}
                         </Badge>
                       </td>
-                      <td className="px-5 py-4 text-right">
+                      <td className="px-5 py-4 text-right print:hidden">
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); setDetailAttributaire(item); }}

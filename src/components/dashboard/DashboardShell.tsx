@@ -53,7 +53,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden print:h-auto print:overflow-visible">
       {/* Backdrop sombre (mobile uniquement) */}
       {mobileOpen && (
         <div
@@ -63,13 +63,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* Sidebar : drawer coulissant sur mobile, colonne fixe sur lg+ */}
+      {/* Sidebar : drawer coulissant sur mobile, colonne fixe sur lg+ (masquée à l'impression) */}
       <aside
         className={`
           fixed inset-y-0 left-0 z-50 w-64 shrink-0
           bg-white border-r border-slate-200/60
           transform transition-transform duration-200 ease-out
           lg:static lg:translate-x-0
+          print:hidden
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
@@ -86,9 +87,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Zone de droite */}
-      <div className="flex h-full min-w-0 flex-1 flex-col bg-[#F8FAFC]">
-        {/* Header */}
-        <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-200/60 bg-white px-4 sm:px-6 lg:px-8 z-30">
+      <div className="flex h-full min-w-0 flex-1 flex-col bg-[#F8FAFC] print:h-auto">
+        {/* Header (masqué à l'impression) */}
+        <header className="print:hidden flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-200/60 bg-white px-4 sm:px-6 lg:px-8 z-30">
           <div className="flex min-w-0 items-center gap-3">
             {/* Hamburger (mobile) */}
             <button
@@ -121,7 +122,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Contenu applicatif principal */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 print:overflow-visible print:p-0">
           {children}
         </main>
       </div>

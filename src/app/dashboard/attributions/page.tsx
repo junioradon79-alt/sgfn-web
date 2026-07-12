@@ -2,6 +2,7 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
+import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import { Link2, Plus, X } from "lucide-react";
@@ -138,16 +139,19 @@ export default function AttributionsPage() {
             Enregistrement et suivi des attributions de lots aux ayants droit et acquéreurs.
           </p>
         </div>
-        {isAdmin && (
-          <button
-            type="button"
-            onClick={() => { setIsModalOpen(true); setErrorMessage(null); }}
-            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#1E6091] active:scale-[0.98]"
-          >
-            <Plus className="h-4 w-4" />
-            Nouvelle attribution
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          <BoutonImprimer />
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => { setIsModalOpen(true); setErrorMessage(null); }}
+              className="print:hidden inline-flex items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#1E6091] active:scale-[0.98]"
+            >
+              <Plus className="h-4 w-4" />
+              Nouvelle attribution
+            </button>
+          )}
+        </div>
       </div>
 
       {successMessage && (
@@ -157,8 +161,8 @@ export default function AttributionsPage() {
       )}
 
       {/* Tableau */}
-      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white">
-        <div className="overflow-x-auto">
+      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white print:overflow-visible print:rounded-none print:border-none">
+        <div className="overflow-x-auto print:overflow-visible">
           <table className="w-full min-w-[760px] border-collapse text-left">
             <thead>
               <tr className="border-b border-slate-200/60 bg-slate-50/50">

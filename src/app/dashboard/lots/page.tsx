@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
+import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import { MOYEN_OPTIONS, fcfa, type MoyenPaiement } from "@/lib/paiements";
@@ -853,11 +854,14 @@ export default function LotsPage() {
           <h1 className="font-display text-2xl sm:text-3xl font-bold text-brand-primary">Gestion des Lots</h1>
           <p className="mt-1.5 text-sm sm:text-base text-slate-500">Suivi, traçabilité et statut juridique des parcelles cadastrales enregistrées.</p>
         </div>
-        <button type="button" onClick={() => { setIsModalOpen(true); setErrorMessage(null); setSuccessMessage(null); }}
-          className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:bg-[#1E6091] hover:shadow-md active:scale-[0.98]">
-          <Plus className="h-4 w-4" />
-          Ajouter un lot
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <BoutonImprimer />
+          <button type="button" onClick={() => { setIsModalOpen(true); setErrorMessage(null); setSuccessMessage(null); }}
+            className="print:hidden inline-flex items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:bg-[#1E6091] hover:shadow-md active:scale-[0.98]">
+            <Plus className="h-4 w-4" />
+            Ajouter un lot
+          </button>
+        </div>
       </div>
 
       {successMessage && (
@@ -865,7 +869,7 @@ export default function LotsPage() {
       )}
 
       {/* Barre de recherche */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="print:hidden mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative w-full max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <Input
@@ -902,7 +906,7 @@ export default function LotsPage() {
         <button
           type="button"
           onClick={() => setPvFilter((v) => !v)}
-          className={`mb-4 flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
+          className={`print:hidden mb-4 flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
             pvFilter
               ? "border-amber-300 bg-amber-100 text-amber-800"
               : "border-amber-200/70 bg-amber-50 text-amber-700 hover:bg-amber-100/70"
@@ -920,13 +924,13 @@ export default function LotsPage() {
       )}
 
       {/* Tableau */}
-      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white">
-        <div className="overflow-x-auto">
+      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white print:overflow-visible print:rounded-none print:border-none">
+        <div className="overflow-x-auto print:overflow-visible">
           <table className="w-full min-w-[860px] border-collapse text-left">
             <thead>
               <tr className="border-b border-slate-200/60 bg-slate-50/50">
                 {TABLE_HEADERS.map((header) => (
-                  <th key={header} scope="col" className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-slate-500 last:text-right">
+                  <th key={header} scope="col" className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-slate-500 last:text-right print:last:hidden">
                     {header}
                   </th>
                 ))}
@@ -983,7 +987,7 @@ export default function LotsPage() {
                       </td>
 
                       {/* Actions */}
-                      <td className="px-5 py-4 text-right">
+                      <td className="px-5 py-4 text-right print:hidden">
                         <div className="inline-flex items-center gap-0.5">
                           <button
                             type="button"
