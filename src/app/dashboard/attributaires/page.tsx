@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useEffect, useState } from "react";
+import { useChargement } from "@/hooks/useChargement";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
@@ -221,7 +222,7 @@ export default function AttributairesPage() {
   useProfile();
 
   const [attributaires, setAttributaires] = useState<AttributaireRecord[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
+
   const [search, setSearch] = useState("");
 
   // Create modal
@@ -236,22 +237,19 @@ export default function AttributairesPage() {
   const [attributaireLots, setAttributaireLots] = useState<AttributaireLot[]>([]);
 
   const loadAttributaires = async () => {
-    setDataLoading(true);
     const { data } = await supabase
       .from("attributaires")
       .select("id, nom, type, piece_nature, piece_num, telephone, email, adresse")
       .order("nom", { ascending: true });
     if (data) setAttributaires(data as AttributaireRecord[]);
-    setDataLoading(false);
   };
 
-  useEffect(() => {
-    void loadAttributaires();
-  }, []);
+  const { isLoading: dataLoading, recharger } = useChargement(loadAttributaires);
 
-  // Load lots when detail opens
+  // Load lots when detail opens (le modal n'est pas rendu quand detailAttributaire
+  // est null, une liste résiduelle est donc sans effet — pas de reset synchrone).
   useEffect(() => {
-    if (!detailAttributaire) { setAttributaireLots([]); return; }
+    if (!detailAttributaire) return;
     supabase
       .from("attributions")
       .select("qualite, actuel, depuis, lots(id, numero_lot, statut, superficie_m2, ilots(numero, lotissements(nom)))")
@@ -296,7 +294,7 @@ export default function AttributairesPage() {
     setIsSubmitting(false);
     setSuccessMessage("Attributaire enregistré avec succès.");
     setTimeout(() => setSuccessMessage(null), 4000);
-    await loadAttributaires();
+    await recharger();
   };
 
   return (
@@ -354,7 +352,7 @@ export default function AttributairesPage() {
                 filtered.map((item) => {
                   const isValidated = Boolean(item.piece_num);
                   return (
-                    <tr key={item.id} className="cursor-pointer transition-colors hover:bg-slate-50/60" onClick={() => setDetailAttributaire(item)}>
+                    <tr key={item.id} className="cursor-pointer transition-colors hover:bg-slate-50/60" onClick={() => { setAttributaireLots([]); setDetailAttributaire(item); }}>
                       <td className="px-5 py-4">
                         <p className="text-sm font-medium text-slate-800">{item.nom || "N/A"}</p>
                         {item.email && <p className="mt-0.5 text-xs text-slate-400">{item.email}</p>}
@@ -373,7 +371,7 @@ export default function AttributairesPage() {
                       <td className="px-5 py-4 text-right print:hidden">
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); setDetailAttributaire(item); }}
+                          onClick={(e) => { e.stopPropagation(); setAttributaireLots([]); setDetailAttributaire(item); }}
                           className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#0D3B66]"
                         >
                           Voir la fiche
@@ -406,7 +404,7 @@ export default function AttributairesPage() {
             <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
               {/* Type */}
               <div className="space-y-1.5">
-                <label htmlFor="attrib-type" className="text-sm font-medium text-slate-700">Type d'attributaire</label>
+                <label htmlFor="attrib-type" className="text-sm font-medium text-slate-700">Type d&apos;attributaire</label>
                 <select id="attrib-type" value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10">
                   {TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}

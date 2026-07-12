@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useChargement } from "@/hooks/useChargement";
 import { createClient } from "@/utils/supabase/client";
 import { Badge } from "@/components/ui/Badge";
 import { useProfile } from "@/hooks/useProfile";
@@ -519,7 +520,7 @@ export default function DocumentsPage() {
   const [attestations, setAttestations] = useState<AttestationRow[]>([]);
   const [pvs, setPvs] = useState<PvRow[]>([]);
   const [docs, setDocs] = useState<DocumentRow[]>([]);
-  const [loading, setLoading] = useState(true);
+
   const [dlState, setDlState] = useState<DlState>({});
   const [qrAtt, setQrAtt] = useState<AttestationRow | null>(null);
   const [showUpload, setShowUpload] = useState(false);
@@ -529,7 +530,7 @@ export default function DocumentsPage() {
   const peutTeleverserPlan = isAdmin || profile?.groupe === "geometre";
 
   const load = useCallback(async () => {
-    setLoading(true);
+
     const [attRes, pvRes, docRes] = await Promise.all([
       supabase
         .from("attestations_cession")
@@ -553,10 +554,10 @@ export default function DocumentsPage() {
     setAttestations((attRes.data ?? []) as unknown as AttestationRow[]);
     setPvs((pvRes.data ?? []) as unknown as PvRow[]);
     setDocs((docRes.data ?? []) as unknown as DocumentRow[]);
-    setLoading(false);
+
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  const { isLoading: loading } = useChargement(load, [load]);
 
   // Récupère une URL signée pour un document générique (table "documents")
   const signerDocument = useCallback(async (id: string, variant: "original" | "apercu") => {

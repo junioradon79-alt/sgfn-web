@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useChargement } from "@/hooks/useChargement";
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
@@ -44,12 +45,11 @@ export default function ConsultationsQrPage() {
   const { loading: profilLoading, isAdmin } = useProfile();
 
   const [consultations, setConsultations] = useState<ConsultationRecord[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
+
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const loadConsultations = useCallback(async () => {
-    setDataLoading(true);
     const { data, error } = await supabase
       .from("consultations_qr")
       .select(
@@ -63,12 +63,9 @@ export default function ConsultationsQrPage() {
     } else {
       setConsultations((data ?? []) as ConsultationRecord[]);
     }
-    setDataLoading(false);
   }, [supabase]);
 
-  useEffect(() => {
-    if (isAdmin) void loadConsultations();
-  }, [isAdmin, loadConsultations]);
+  const { isLoading: dataLoading } = useChargement(loadConsultations, [loadConsultations], isAdmin);
 
   const changerStatut = async (c: ConsultationRecord, statut: "payee" | "annulee") => {
     setUpdatingId(c.id);

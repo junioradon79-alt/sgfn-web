@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
+import { useChargement } from "@/hooks/useChargement";
 import { createClient } from "@/utils/supabase/client";
 import { Building2, FileText, ClipboardList, CheckCircle2, Clock, PenLine } from "lucide-react";
 import type { Profile, AttestationCoutumiere, PvReunion } from "./types";
@@ -46,12 +47,12 @@ export function ChefFamilleView({ profile }: { profile: Profile }) {
   const [lotsCollectifs, setLotsCollectifs] = useState<Attribution[]>([]);
   const [apfc, setApfc] = useState<AttestationCoutumiere[]>([]);
   const [pvs, setPvs] = useState<PvReunion[]>([]);
-  const [loading, setLoading] = useState(true);
+
   const [signing, setSigning] = useState<string | null>(null);
   const [signError, setSignError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
+
     const [familleRes, mesLotsRes, apfcRes, pvRes] = await Promise.all([
       supabase
         .from("familles")
@@ -116,12 +117,10 @@ export function ChefFamilleView({ profile }: { profile: Profile }) {
         nb_lots: pv.pv_reunions_famille_lots?.length ?? 0,
       }))
     );
-    setLoading(false);
+
   }, [profile.famille_id, profile.attributaire_id]);
 
-  useEffect(() => {
-    void fetchData();
-  }, [fetchData]);
+  const { isLoading: loading } = useChargement(fetchData, [fetchData]);
 
   const signerApfc = async (apfcId: string) => {
     setSigning(apfcId);

@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+
+import { useChargement } from "@/hooks/useChargement";
 
 import {
   getLotissements,
@@ -17,12 +19,10 @@ import type {
 
 export function useLotissements() {
   const [lotissements, setLotissements] = useState<Lotissement[]>([]);
-  const [loading, setLoading] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-
+  const load = useCallback(async () => {
     const { data, error } = await getLotissements();
 
     if (error) {
@@ -31,13 +31,9 @@ export function useLotissements() {
     } else {
       setLotissements((data || []) as Lotissement[]);
     }
-
-    setLoading(false);
   }, []);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  const { isLoading: loading, recharger: refresh } = useChargement(load, [load]);
 
   // ➕ CREATE
   const create = async (values: NewLotissement) => {

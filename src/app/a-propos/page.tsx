@@ -23,7 +23,7 @@ export default function AboutPage() {
           href="/"
           className="mb-8 self-start sm:self-center text-sm font-semibold text-[#1E6091] transition hover:text-[#0D3B66]"
         >
-          ← Retour à l'accueil
+          ← Retour à l&apos;accueil
         </Link>
 
         <p className="mb-4 text-xs sm:text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">À propos</p>
@@ -32,7 +32,7 @@ export default function AboutPage() {
         </h1>
 
         <p className="mx-auto mt-6 sm:mt-8 max-w-3xl text-base sm:text-lg leading-relaxed text-slate-600">
-          SGNF accompagne la transformation numérique du foncier en Côte d'Ivoire avec une approche claire, institutionnelle et souveraine.
+          SGNF accompagne la transformation numérique du foncier en Côte d&apos;Ivoire avec une approche claire, institutionnelle et souveraine.
         </p>
 
         <div className="mt-10 sm:mt-16 grid gap-4 sm:gap-6 sm:grid-cols-3">

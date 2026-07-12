@@ -1,9 +1,10 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { Plus, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { createClient } from "@/utils/supabase/client";
+import { useChargement } from "@/hooks/useChargement";
 
 type IlotRecord = {
   id: string;
@@ -24,7 +25,6 @@ export default function IlotsPage() {
 
   const [ilots, setIlots] = useState<IlotRecord[]>([]);
   const [lotissements, setLotissements] = useState<LotissementOption[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -33,7 +33,6 @@ export default function IlotsPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadData = async () => {
-    setLoading(true);
     const [ilotsRes, lotsRes] = await Promise.all([
       supabase.from("ilots").select("id, numero, lotissement_id").order("numero", { ascending: true }),
       supabase.from("lotissements").select("id, nom").order("nom", { ascending: true }),
@@ -41,12 +40,9 @@ export default function IlotsPage() {
 
     setIlots((ilotsRes.data ?? []) as IlotRecord[]);
     setLotissements((lotsRes.data ?? []) as LotissementOption[]);
-    setLoading(false);
   };
 
-  useEffect(() => {
-    void loadData();
-  }, []);
+  const { isLoading: loading, recharger } = useChargement(loadData);
 
   const lotName = (id: string | null) =>
     lotissements.find((l) => l.id === id)?.nom ?? "—";
@@ -94,7 +90,7 @@ export default function IlotsPage() {
     setIsSubmitting(false);
     setSuccessMessage("Îlot créé avec succès.");
     setTimeout(() => setSuccessMessage(null), 4000);
-    await loadData();
+    await recharger();
   };
 
   return (

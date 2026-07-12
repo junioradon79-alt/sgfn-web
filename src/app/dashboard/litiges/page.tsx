@@ -1,6 +1,7 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
+import { useChargement } from "@/hooks/useChargement";
 import { Badge } from "@/components/ui/Badge";
 import KpiCard from "@/components/dashboard/KpiCard";
 import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
@@ -43,7 +44,6 @@ export default function LitigesPage() {
 
   const [litiges, setLitiges] = useState<LitigeRecord[]>([]);
   const [lotsOptions, setLotsOptions] = useState<LotOption[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState({ lot_id: "", objet: "", notes: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,13 +51,11 @@ export default function LitigesPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadLitiges = async () => {
-    setDataLoading(true);
     const { data } = await supabase
       .from("litiges")
       .select("id, lot_id, objet, statut, ouvert_le, notes, lots(numero_lot)")
       .order("ouvert_le", { ascending: false });
     setLitiges((data ?? []) as LitigeRecord[]);
-    setDataLoading(false);
   };
 
   const loadLots = async () => {
@@ -68,10 +66,9 @@ export default function LitigesPage() {
     setLotsOptions((data ?? []) as LotOption[]);
   };
 
-  useEffect(() => {
-    void loadLitiges();
-    void loadLots();
-  }, []);
+  const { isLoading: dataLoading, recharger } = useChargement(async () => {
+    await Promise.all([loadLitiges(), loadLots()]);
+  });
 
   const ouverts = litiges.filter((l) => l.statut === "ouvert" || l.statut === "en_mediation").length;
   const clos = litiges.filter((l) => l.statut === "tranche" || l.statut === "clos").length;
@@ -83,15 +80,21 @@ export default function LitigesPage() {
       setErrorMessage("L'objet du litige est obligatoire.");
       return;
     }
+    // lot_id est NOT NULL en base : un litige sans lot a toujours été rejeté
+    // (l'ancien `as any` masquait cette contrainte).
+    if (!form.lot_id) {
+      setErrorMessage("Sélectionnez le lot concerné par le litige.");
+      return;
+    }
 
     setIsSubmitting(true);
     setErrorMessage(null);
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    const { error } = await (supabase.from("litiges") as any).insert([
+    const { error } = await supabase.from("litiges").insert([
       {
-        ...(form.lot_id ? { lot_id: form.lot_id } : {}),
+        lot_id: form.lot_id,
         objet: form.objet.trim(),
         notes: form.notes.trim() || null,
         statut: "ouvert",
@@ -110,7 +113,7 @@ export default function LitigesPage() {
     setIsSubmitting(false);
     setSuccessMessage("Dossier de litige ouvert avec succès.");
     setTimeout(() => setSuccessMessage(null), 4000);
-    await loadLitiges();
+    await recharger();
   };
 
   return (
@@ -282,7 +285,7 @@ export default function LitigesPage() {
                   onChange={(e) => setForm((f) => ({ ...f, lot_id: e.target.value }))}
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
                 >
-                  <option value="">— Sélectionner un lot (optionnel) —</option>
+                  <option value="">— Sélectionner un lot —</option>
                   {lotsOptions.map((lot) => (
                     <option key={lot.id} value={lot.id}>
                       Lot {lot.numero_lot}
@@ -325,7 +328,7 @@ export default function LitigesPage() {
               <div className="flex items-start gap-3 rounded-2xl border border-amber-200/70 bg-amber-50 p-3">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                 <p className="text-xs text-amber-700">
-                  L'ouverture d'un dossier de litige est enregistrée dans le journal d'audit et notifiée aux parties concernées.
+                  L&apos;ouverture d&apos;un dossier de litige est enregistrée dans le journal d&apos;audit et notifiée aux parties concernées.
                 </p>
               </div>
 

@@ -49,7 +49,7 @@ export default function ServicesPage() {
           className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-[#0D3B66] group"
         >
           <span className="transform transition-transform group-hover:-translate-x-0.5">←</span>
-          Retour à l'accueil
+          Retour à l&apos;accueil
         </Link>
       </div>
 
@@ -57,7 +57,7 @@ export default function ServicesPage() {
       <section className="mx-auto max-w-6xl px-4 sm:px-6 py-12 sm:py-20 lg:py-24 text-center">
         <p className="mb-4 text-xs sm:text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Modules SGNF</p>
         <h1 className="font-display text-3xl sm:text-4xl lg:text-6xl font-black tracking-[-0.03em] text-[#0D3B66]">
-          L'infrastructure technique de SGNF.
+          L&apos;infrastructure technique de SGNF.
         </h1>
         <p className="mx-auto mt-4 sm:mt-6 max-w-3xl text-base sm:text-lg leading-relaxed text-slate-500">
           Découvrez la puissance et la rigueur de nos modules conçus pour réinventer la gestion foncière privée.

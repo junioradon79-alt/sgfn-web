@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
 import { createClient } from "@/utils/supabase/client";
+import { useChargement } from "@/hooks/useChargement";
 import { useProfile } from "@/hooks/useProfile";
 import { MOYEN_OPTIONS, fcfa, type MoyenPaiement } from "@/lib/paiements";
 import type { Database } from "../../../../database.types";
@@ -83,7 +84,7 @@ const NATURE_DROIT_LABELS: Record<string, string> = {
   titre_foncier: "Titre foncier",
 };
 
-const NATURE_DROIT_OPTIONS = Object.entries(NATURE_DROIT_LABELS).map(([value, label]) => ({ value, label }));
+
 
 const QUALITE_OPTIONS = [
   { value: "ayant_droit", label: "Propriétaire d'origine" },
@@ -256,7 +257,7 @@ function LotDetailModal({ lot, litiges, pvAlert, onClose }: {
             <div className="flex items-center gap-2 rounded-xl border border-emerald-200/70 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-700">
               <span className="font-semibold">{attestation.reference}</span>
               <span>· {attestation.statut}</span>
-              {!attestation.cession_id && <span className="text-emerald-600/80">· gratuite (1er propriétaire d'origine)</span>}
+              {!attestation.cession_id && <span className="text-emerald-600/80">· gratuite (1er propriétaire d&apos;origine)</span>}
             </div>
           )}
 
@@ -374,7 +375,7 @@ function AttributionModal({ lot, attributaires, onClose, onSubmit, isSubmitting 
           </SelectField>
 
           <div className="space-y-1.5">
-            <label htmlFor="attr-depuis" className="text-sm font-medium text-slate-700">Date d'effet</label>
+            <label htmlFor="attr-depuis" className="text-sm font-medium text-slate-700">Date d&apos;effet</label>
             <input
               id="attr-depuis" type="date" value={form.depuis}
               onChange={(e) => setForm((f) => ({ ...f, depuis: e.target.value }))}
@@ -385,7 +386,7 @@ function AttributionModal({ lot, attributaires, onClose, onSubmit, isSubmitting 
           <label className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/70 px-4 py-3 text-sm text-slate-700">
             <input type="checkbox" checked={form.actuel} onChange={(e) => setForm((f) => ({ ...f, actuel: e.target.checked }))}
               className="h-4 w-4 rounded border-slate-300 text-[#0D3B66] focus:ring-[#0D3B66]" />
-            Attribution actuelle (met le lot en statut "Attribué")
+            Attribution actuelle (met le lot en statut &quot;Attribué&quot;)
           </label>
 
           <div className="space-y-1.5">
@@ -464,7 +465,7 @@ function LitigeModal({ lot, onClose, onSubmit, isSubmitting }: {
 
           <div className="flex items-start gap-2.5 rounded-2xl border border-amber-200/70 bg-amber-50 p-3">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-            <p className="text-xs text-amber-700">L'ouverture d'un dossier de litige est définitive et consignée dans le journal d'audit.</p>
+            <p className="text-xs text-amber-700">L&apos;ouverture d&apos;un dossier de litige est définitive et consignée dans le journal d&apos;audit.</p>
           </div>
 
           {error && <div className="rounded-2xl border border-red-200/70 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
@@ -621,7 +622,7 @@ export default function LotsPage() {
   const [pvFilter, setPvFilter] = useState(false);
   const [search, setSearch] = useState("");
   const [statutFilter, setStatutFilter] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+
 
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -638,7 +639,6 @@ export default function LotsPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadLots = async () => {
-    setIsLoading(true);
     const { data } = await supabase
       .from("lots")
       .select(
@@ -646,12 +646,11 @@ export default function LotsPage() {
       )
       .order("numero_lot", { ascending: true });
     setLotRows((data ?? []) as unknown as LotRecord[]);
-    setIsLoading(false);
   };
 
-  useEffect(() => {
-    void loadLots();
+  const { isLoading, recharger } = useChargement(loadLots);
 
+  useEffect(() => {
     supabase
       .from("ilots")
       .select("id, numero, lotissements(nom, commune)")
@@ -704,7 +703,7 @@ export default function LotsPage() {
 
   // Load litiges when a lot detail is opened
   useEffect(() => {
-    if (!detailLot) { setLotLitiges([]); return; }
+    if (!detailLot) return;
     supabase
       .from("litiges")
       .select("id, objet, statut, ouvert_le")
@@ -726,7 +725,7 @@ export default function LotsPage() {
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    const { error } = await (supabase.from("lots") as any).insert([{
+    const { error } = await supabase.from("lots").insert([{
       numero_lot: formState.numero_lot.trim(),
       ilot_id: formState.ilot_id,
       est_equipement: formState.est_equipement,
@@ -743,7 +742,7 @@ export default function LotsPage() {
     setIsSubmitting(false);
     setSuccessMessage("Parcelle enregistrée avec succès.");
     setTimeout(() => setSuccessMessage(null), 4000);
-    await loadLots();
+    await recharger();
   };
 
   const handleAttributionSubmit = async (data: { attributaire_id: string; qualite: string; actuel: boolean; depuis: string; observation: string }): Promise<string | null> => {
@@ -767,7 +766,7 @@ export default function LotsPage() {
     setTransfertLot(null);
     setSuccessMessage("Attribution enregistrée.");
     setTimeout(() => setSuccessMessage(null), 4000);
-    await loadLots();
+    await recharger();
     return null;
   };
 
@@ -776,7 +775,7 @@ export default function LotsPage() {
     setIsSubmitting(true);
     const { data: { user } } = await supabase.auth.getUser();
 
-    const { error: litigeError } = await (supabase.from("litiges") as any).insert([{
+    const { error: litigeError } = await supabase.from("litiges").insert([{
       lot_id: litigeLot.id,
       objet: data.objet.trim(),
       notes: data.notes.trim() || null,
@@ -789,7 +788,7 @@ export default function LotsPage() {
       return `Échec de l'ouverture du litige : ${litigeError.message}`;
     }
 
-    const { error: statutError } = await supabase.from("lots").update({ statut: "en_litige" } as any).eq("id", litigeLot.id);
+    const { error: statutError } = await supabase.from("lots").update({ statut: "en_litige" }).eq("id", litigeLot.id);
     if (statutError) {
       setIsSubmitting(false);
       return `Litige créé mais statut du lot non mis à jour : ${statutError.message}`;
@@ -799,7 +798,7 @@ export default function LotsPage() {
     setIsSubmitting(false);
     setSuccessMessage("Dossier de litige ouvert.");
     setTimeout(() => setSuccessMessage(null), 4000);
-    await loadLots();
+    await recharger();
     return null;
   };
 
@@ -832,7 +831,7 @@ export default function LotsPage() {
         : "Paiement en attente de règlement en ligne par l'acquéreur.")
     );
     setTimeout(() => setSuccessMessage(null), 6000);
-    await loadLots();
+    await recharger();
     return null;
   };
 
@@ -1003,7 +1002,7 @@ export default function LotsPage() {
                         <div className="inline-flex items-center gap-0.5">
                           <button
                             type="button"
-                            onClick={() => setDetailLot(lot)}
+                            onClick={() => { setLotLitiges([]); setDetailLot(lot); }}
                             title="Voir le dossier"
                             className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#0D3B66]"
                           >

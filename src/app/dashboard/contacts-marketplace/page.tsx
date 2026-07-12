@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useChargement } from "@/hooks/useChargement";
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
@@ -77,7 +78,7 @@ export default function ContactsMarketplacePage() {
   const { loading: profilLoading, isAdmin } = useProfile();
 
   const [demandes, setDemandes] = useState<DemandeContactRecord[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
+
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -85,7 +86,6 @@ export default function ContactsMarketplacePage() {
   const [marquantReconstruit, setMarquantReconstruit] = useState(false);
 
   const loadDemandes = useCallback(async () => {
-    setDataLoading(true);
     const { data, error } = await supabase
       .from("demandes_contact")
       .select(
@@ -100,7 +100,6 @@ export default function ContactsMarketplacePage() {
     } else {
       setDemandes((data ?? []) as unknown as DemandeContactRecord[]);
     }
-    setDataLoading(false);
   }, [supabase]);
 
   const loadEtatSite = useCallback(async () => {
@@ -119,12 +118,13 @@ export default function ContactsMarketplacePage() {
     setSiteAJour(!dernierePublication || (!!derniereReconstruction && dernierePublication <= derniereReconstruction));
   }, [supabase]);
 
-  useEffect(() => {
-    if (isAdmin) {
-      void loadDemandes();
-      void loadEtatSite();
-    }
-  }, [isAdmin, loadDemandes, loadEtatSite]);
+  const { isLoading: dataLoading } = useChargement(
+    async () => {
+      await Promise.all([loadDemandes(), loadEtatSite()]);
+    },
+    [loadDemandes, loadEtatSite],
+    isAdmin
+  );
 
   const marquerReconstruit = async () => {
     setMarquantReconstruit(true);

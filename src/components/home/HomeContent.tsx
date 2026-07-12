@@ -162,10 +162,16 @@ const faq = [
 
 function FaqItem({ q, a, open, onToggle }: { q: string; a: string; open: boolean; onToggle: () => void }) {
   const bodyRef = useRef<HTMLDivElement>(null);
+  // Hauteur mesurée au clic (les refs ne doivent pas être lues pendant le render) ;
+  // scrollHeight mesure le contenu complet même clippé par maxHeight: 0.
+  const [hauteur, setHauteur] = useState(500);
   return (
     <div className="border-b border-slate-200/60 last:border-b-0">
       <button
-        onClick={onToggle}
+        onClick={() => {
+          if (!open) setHauteur(bodyRef.current?.scrollHeight ?? 500);
+          onToggle();
+        }}
         className="flex w-full items-start justify-between gap-4 px-4 py-5 text-left sm:px-6 sm:py-6"
       >
         <span className={`text-sm font-semibold leading-snug transition-colors sm:text-base ${open ? "text-[#0D3B66]" : "text-slate-700"}`}>
@@ -176,7 +182,7 @@ function FaqItem({ q, a, open, onToggle }: { q: string; a: string; open: boolean
       <div
         ref={bodyRef}
         className="overflow-hidden transition-all duration-300 ease-in-out"
-        style={{ maxHeight: open ? (bodyRef.current?.scrollHeight ?? 500) : 0 }}
+        style={{ maxHeight: open ? hauteur : 0 }}
       >
         <p className="px-4 pb-5 text-sm leading-relaxed text-slate-500 sm:px-6 sm:pb-6">{a}</p>
       </div>
@@ -289,7 +295,7 @@ export function HomeContent() {
           <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 sm:py-20 lg:py-24">
             <div className="mb-10 text-center sm:mb-14">
               <h2 className="text-2xl font-bold tracking-tight text-[#0D3B66] sm:text-3xl">Pourquoi les professionnels choisissent SGNF ?</h2>
-              <p className="mt-3 text-base text-slate-500 sm:text-lg">Parce qu'en matière de foncier, une simple erreur peut coûter des millions.</p>
+              <p className="mt-3 text-base text-slate-500 sm:text-lg">Parce qu&apos;en matière de foncier, une simple erreur peut coûter des millions.</p>
             </div>
             <div className="grid gap-6 sm:grid-cols-3">
               {piliers.map((p) => (
@@ -313,7 +319,7 @@ export function HomeContent() {
               <h2 className="text-2xl font-bold tracking-tight text-[#0D3B66] sm:text-3xl lg:text-4xl">Une plateforme professionnelle dédiée à la gouvernance foncière.</h2>
             </div>
             <div className="space-y-5 text-base leading-relaxed text-slate-600 sm:text-lg">
-              <p>SGNF est une plateforme professionnelle dédiée à la transformation numérique des opérations foncières en Côte d'Ivoire. Sa mission est de permettre aux acteurs du foncier de travailler plus rapidement tout en renforçant la transparence, la sécurité et la maîtrise des risques.</p>
+              <p>SGNF est une plateforme professionnelle dédiée à la transformation numérique des opérations foncières en Côte d&apos;Ivoire. Sa mission est de permettre aux acteurs du foncier de travailler plus rapidement tout en renforçant la transparence, la sécurité et la maîtrise des risques.</p>
               <p>Toutes les parcelles, tous les documents, toutes les transactions et toutes les décisions sont centralisés dans un environnement unique, sécurisé et collaboratif.</p>
             </div>
           </div>
@@ -530,7 +536,7 @@ export function HomeContent() {
           <div className="text-center">
             <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091] sm:text-sm">Contact</p>
             <h2 className="text-2xl font-bold text-[#0D3B66] sm:text-3xl">Contactez notre équipe</h2>
-            <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">Une question sur le déploiement ou besoin d'une démonstration ? Écrivez-nous.</p>
+            <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">Une question sur le déploiement ou besoin d&apos;une démonstration ? Écrivez-nous.</p>
           </div>
           <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-slate-200/60 bg-white p-6 sm:mt-10 sm:p-10">
             <Link href="/contact" className="flex h-12 w-full items-center justify-center rounded-2xl bg-[#0D3B66] px-4 text-sm font-semibold text-white transition hover:bg-[#1E6091]">

@@ -7,7 +7,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { useLotissements } from "../hooks/useLotissements";
 import LotissementTable from "../components/LotissementTable";
 import LotissementForm from "../components/LotissementForm";
-import type { Lotissement } from "../types";
+import type { Lotissement, NewLotissement } from "../types";
 
 const PAGE_SIZE = 8;
 
@@ -36,7 +36,7 @@ export default function LotissementsPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async (values: NewLotissement) => {
     if (selected) {
       await update(selected.id, values);
       showToast("Lotissement modifié avec succès.");

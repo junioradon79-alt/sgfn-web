@@ -1,6 +1,7 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
+import { useChargement } from "@/hooks/useChargement";
 import { Badge } from "@/components/ui/Badge";
 import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
 import { createClient } from "@/utils/supabase/client";
@@ -40,7 +41,6 @@ export default function AttributionsPage() {
   const [attributions, setAttributions] = useState<AttributionRecord[]>([]);
   const [lotsOptions, setLotsOptions] = useState<LotOption[]>([]);
   const [attributairesOptions, setAttributairesOptions] = useState<AttributaireOption[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState({
     lot_id: "",
@@ -55,24 +55,22 @@ export default function AttributionsPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadAttributions = async () => {
-    setDataLoading(true);
     const { data } = await supabase
       .from("attributions")
       .select("id, lot_id, attributaire_id, qualite, actuel, depuis, observation, lots(numero_lot), attributaires(nom)")
       .order("depuis", { ascending: false });
     setAttributions((data ?? []) as AttributionRecord[]);
-    setDataLoading(false);
   };
 
-  useEffect(() => {
-    void loadAttributions();
-    supabase.from("lots").select("id, numero_lot").eq("statut", "libre").order("numero_lot").then(({ data }) => {
-      setLotsOptions((data ?? []) as LotOption[]);
-    });
-    supabase.from("attributaires").select("id, nom").order("nom").then(({ data }) => {
-      setAttributairesOptions((data ?? []) as AttributaireOption[]);
-    });
-  }, []);
+  const { isLoading: dataLoading, recharger } = useChargement(async () => {
+    const [, lotsRes, attrRes] = await Promise.all([
+      loadAttributions(),
+      supabase.from("lots").select("id, numero_lot").eq("statut", "libre").order("numero_lot"),
+      supabase.from("attributaires").select("id, nom").order("nom"),
+    ]);
+    setLotsOptions((lotsRes.data ?? []) as LotOption[]);
+    setAttributairesOptions((attrRes.data ?? []) as AttributaireOption[]);
+  });
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -113,7 +111,7 @@ export default function AttributionsPage() {
     setIsSubmitting(false);
     setSuccessMessage("Attribution enregistrée avec succès.");
     setTimeout(() => setSuccessMessage(null), 4000);
-    await loadAttributions();
+    await recharger();
 
     supabase.from("lots").select("id, numero_lot").eq("statut", "libre").order("numero_lot").then(({ data }) => {
       setLotsOptions((data ?? []) as LotOption[]);
@@ -289,7 +287,7 @@ export default function AttributionsPage() {
               {/* Qualité */}
               <div className="space-y-1.5">
                 <label htmlFor="attr-qualite" className="text-sm font-medium text-slate-700">
-                  Qualité de l'attributaire
+                  Qualité de l&apos;attributaire
                 </label>
                 <select
                   id="attr-qualite"
@@ -308,7 +306,7 @@ export default function AttributionsPage() {
               {/* Depuis */}
               <div className="space-y-1.5">
                 <label htmlFor="attr-depuis" className="text-sm font-medium text-slate-700">
-                  Date d'effet
+                  Date d&apos;effet
                 </label>
                 <input
                   id="attr-depuis"
@@ -327,7 +325,7 @@ export default function AttributionsPage() {
                   onChange={(e) => setForm((f) => ({ ...f, actuel: e.target.checked }))}
                   className="h-4 w-4 rounded border-slate-300 text-[#0D3B66] focus:ring-[#0D3B66]"
                 />
-                Attribution actuelle (marque le lot comme "Attribué")
+                Attribution actuelle (marque le lot comme &quot;Attribué&quot;)
               </label>
 
               {/* Observation */}

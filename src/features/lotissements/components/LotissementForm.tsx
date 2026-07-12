@@ -3,12 +3,12 @@
 import { useState, type FormEvent } from "react";
 import { X } from "lucide-react";
 import { Input } from "@/components/ui/Input";
-import type { Lotissement, NewLotissement, UpdateLotissement } from "../types";
+import type { Lotissement, NewLotissement } from "../types";
 
 type Props = {
   initialData?: Lotissement | null;
   onClose: () => void;
-  onSubmit: (values: NewLotissement | UpdateLotissement) => void;
+  onSubmit: (values: NewLotissement) => void;
 };
 
 export default function LotissementForm({ initialData, onClose, onSubmit }: Props) {
@@ -39,7 +39,7 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
       nb_lots: form.nb_lots === "" ? null : Number(form.nb_lots),
       nb_ilots: form.nb_ilots === "" ? null : Number(form.nb_ilots),
       guide_reference: form.guide_reference.trim() || null,
-    } as any);
+    });
   };
 
   return (
@@ -154,7 +154,7 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
             </div>
             <div className="space-y-1.5">
               <label htmlFor="lot-nb-ilots" className="text-sm font-medium text-slate-700">
-                Nombre d'îlots
+                Nombre d&apos;îlots
               </label>
               <Input
                 id="lot-nb-ilots"

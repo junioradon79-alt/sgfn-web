@@ -196,7 +196,9 @@ function VerifierForm() {
   const jetonUrl = searchParams.get("consultation");
 
   const [ref, setRef] = useState(refInitiale);
-  const [verdict, setVerdict] = useState<Verdict>("idle");
+  // "loading" d'emblée quand on arrive via un QR scanné : la vérification
+  // démarre automatiquement (effet ci-dessous), sans flash "idle".
+  const [verdict, setVerdict] = useState<Verdict>(() => (refInitiale ? "loading" : "idle"));
   const [resultat, setResultat] = useState<ResultatVerification | null>(null);
   // Depuis un raccourci "?scan=1" (page d'accueil, app mobile) : ouvrir la caméra
   // directement, sans passer par le clic sur "Scanner avec la caméra".
@@ -206,12 +208,11 @@ function VerifierForm() {
   const [paiementEnCours, setPaiementEnCours] = useState(false);
   const [messagePaiement, setMessagePaiement] = useState<string | null>(null);
 
-  const verifier = useCallback(async (reference: string) => {
+  // Partie asynchrone de la vérification — aucun setState synchrone, elle peut
+  // donc être appelée directement depuis l'effet de vérification automatique.
+  const executerVerification = useCallback(async (reference: string) => {
     const r = reference.trim();
     if (!r) return;
-    setVerdict("loading");
-    setResultat(null);
-    setMessagePaiement(null);
 
     // Géolocalisation facultative (DCFT §6 : géolocalisation des scans)
     const position = await new Promise<GeolocationPosition | null>((resolve) => {
@@ -254,10 +255,23 @@ function VerifierForm() {
     }
   }, [jetonUrl]);
 
+  // Point d'entrée des interactions (bouton, scan) : reset synchrone autorisé
+  // dans un event handler, puis vérification asynchrone.
+  const verifier = useCallback((reference: string) => {
+    if (!reference.trim()) return;
+    setVerdict("loading");
+    setResultat(null);
+    setMessagePaiement(null);
+    void executerVerification(reference);
+  }, [executerVerification]);
+
   // Vérification automatique quand on arrive via un QR code scanné
+  // (verdict déjà initialisé à "loading" dans ce cas).
   useEffect(() => {
-    if (refInitiale) verifier(refInitiale);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Tous les setState d'executerVerification sont post-await (asynchrones) ;
+    // le traceur du plugin les signale quand même à travers le useCallback.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (refInitiale) void executerVerification(refInitiale);
   }, [refInitiale]);
 
   const handleScanReussi = useCallback(

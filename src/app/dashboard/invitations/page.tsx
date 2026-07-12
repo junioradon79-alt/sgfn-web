@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useChargement } from "@/hooks/useChargement";
 import { createClient } from "@/utils/supabase/client";
 import type { Database } from "../../../../database.types";
 import SGFNButton from "@/components/ui/SGFNButton";
@@ -98,7 +99,6 @@ export default function InvitationsPage() {
   const supabase = createClient();
 
   const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
@@ -141,7 +141,6 @@ export default function InvitationsPage() {
   }, []);
 
   const fetchInvitations = async () => {
-    setLoading(true);
     const { data } = await supabase
       .from("invitations")
       .select(
@@ -149,12 +148,9 @@ export default function InvitationsPage() {
       )
       .order("cree_le", { ascending: false });
     setInvitations((data as Invitation[]) ?? []);
-    setLoading(false);
   };
 
-  useEffect(() => {
-    fetchInvitations();
-  }, []);
+  const { isLoading: loading, recharger } = useChargement(fetchInvitations);
 
   const handleCreer = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -193,7 +189,7 @@ export default function InvitationsPage() {
       setAttributaireId("");
       setAutoriteCoutumiereId("");
       setFamilleId("");
-      await fetchInvitations();
+      await recharger();
     }
 
     setIsPending(false);
@@ -208,7 +204,7 @@ export default function InvitationsPage() {
       .eq("id", id)
       .eq("statut", "en_attente");
     if (revErr) setRevokeError(`Révocation non enregistrée — le code reste actif : ${revErr.message}`);
-    await fetchInvitations();
+    await recharger();
     setRevoking(null);
   };
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { useChargement } from "@/hooks/useChargement";
 import {
   MessageSquare, FileText, Plus, X, Send, Upload,
   Users, Building2, Crown, HandCoins, ShieldCheck,
@@ -134,10 +135,12 @@ function NouvelEspaceModal({
     })();
   }, []);
 
-  // Auto-sélectionner les participants du lotissement
-  useEffect(() => {
-    if (!lotissementId) return;
-    const lot = lotissements.find((l) => l.id === lotissementId);
+  // Auto-sélection des participants du lotissement — déclenchée par le
+  // changement du select (event handler), pas par un effet.
+  const choisirLotissement = (id: string) => {
+    setLotissementId(id);
+    if (!id) return;
+    const lot = lotissements.find((l) => l.id === id);
     if (!lot) return;
 
     const autoIds = new Set<string>();
@@ -166,7 +169,7 @@ function NouvelEspaceModal({
     }
 
     setSelectedIds(autoIds);
-  }, [lotissementId, lotissements, allProfiles, myId]);
+  };
 
   const toggleParticipant = (id: string) => {
     if (myId && id === myId) return; // l'initiateur reste toujours dedans
@@ -241,7 +244,7 @@ function NouvelEspaceModal({
               <label className="mb-1.5 block text-xs font-semibold text-slate-600">Lotissement concerné (optionnel)</label>
               <select
                 value={lotissementId}
-                onChange={(e) => setLotissementId(e.target.value)}
+                onChange={(e) => choisirLotissement(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#1E6091]/30"
               >
                 <option value="">— Aucun lotissement sélectionné —</option>
@@ -354,7 +357,6 @@ function EspaceDetail({
 
   // Messages
   const [messages, setMessages] = useState<Message[]>([]);
-  const [messagesLoading, setMessagesLoading] = useState(true);
   const [corps, setCorps] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
@@ -362,35 +364,30 @@ function EspaceDetail({
 
   // Documents
   const [docs, setDocs] = useState<Doc[]>([]);
-  const [docsLoading, setDocsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
 
   const fetchMessages = useCallback(async () => {
-    setMessagesLoading(true);
     const { data } = await supabase
       .from("messages")
       .select("id, expediteur, corps, envoye_le, profil:profiles!messages_expediteur_fkey(nom_complet, groupe)")
       .eq("conversation_id", espace.id)
       .order("envoye_le");
     setMessages((data ?? []) as unknown as Message[]);
-    setMessagesLoading(false);
   }, [espace.id]);
 
   const fetchDocs = useCallback(async () => {
-    setDocsLoading(true);
     const { data } = await supabase
       .from("conversation_documents")
       .select("id, nom_fichier, storage_path, taille_octets, type_mime, created_at, uploader:profiles!conversation_documents_uploaded_by_fkey(nom_complet)")
       .eq("conversation_id", espace.id)
       .order("created_at", { ascending: false });
     setDocs((data ?? []) as unknown as Doc[]);
-    setDocsLoading(false);
   }, [espace.id]);
 
-  useEffect(() => { void fetchMessages(); }, [fetchMessages]);
-  useEffect(() => { if (tab === "documents") void fetchDocs(); }, [tab, fetchDocs]);
+  const { isLoading: messagesLoading } = useChargement(fetchMessages, [fetchMessages]);
+  const { isLoading: docsLoading } = useChargement(fetchDocs, [fetchDocs], tab === "documents");
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   // Temps réel messages
@@ -643,8 +640,7 @@ export default function ConcertationPage() {
   const supabase = createClient();
   const [myId, setMyId] = useState<string | null>(null);
   const [espaces, setEspaces] = useState<Espace[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<Espace | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showNouveau, setShowNouveau] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -656,7 +652,6 @@ export default function ConcertationPage() {
   }, []);
 
   const fetchEspaces = useCallback(async () => {
-    setLoading(true);
     // Espaces où je suis participant
     const { data: participations } = await supabase
       .from("conversation_participants")
@@ -664,7 +659,7 @@ export default function ConcertationPage() {
       .eq("profile_id", (await supabase.auth.getUser()).data.user?.id ?? "");
 
     const ids = (participations ?? []).map((p) => p.conversation_id);
-    if (ids.length === 0) { setEspaces([]); setLoading(false); return; }
+    if (ids.length === 0) { setEspaces([]); return; }
 
     const { data: convs } = await supabase
       .from("conversations")
@@ -707,23 +702,17 @@ export default function ConcertationPage() {
         participants: participantsByConv[c.id] ?? [],
       }))
     );
-    setLoading(false);
   }, []);
 
-  useEffect(() => { void fetchEspaces(); }, [fetchEspaces]);
+  const { isLoading: loading } = useChargement(fetchEspaces, [fetchEspaces]);
 
   const filteredEspaces = espaces.filter((e) => {
     const q = search.toLowerCase();
     return !q || (e.sujet ?? "").toLowerCase().includes(q) || (e.lotissement?.nom ?? "").toLowerCase().includes(q);
   });
 
-  // Synchroniser l'espace sélectionné après refresh
-  useEffect(() => {
-    if (selected) {
-      const updated = espaces.find((e) => e.id === selected.id);
-      if (updated) setSelected(updated);
-    }
-  }, [espaces]);
+  // L'espace sélectionné est dérivé de la liste : toujours à jour après refresh.
+  const selected = selectedId ? espaces.find((e) => e.id === selectedId) ?? null : null;
 
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
@@ -776,7 +765,7 @@ export default function ConcertationPage() {
                 return (
                   <li key={e.id}>
                     <button
-                      onClick={() => setSelected(e)}
+                      onClick={() => setSelectedId(e.id)}
                       className={`w-full px-4 py-3.5 text-left transition ${isSelected ? "bg-[#0D3B66]/6 border-l-2 border-[#0D3B66]" : "hover:bg-slate-50 border-l-2 border-transparent"}`}
                     >
                       <p className="truncate text-sm font-semibold text-slate-800">{e.sujet ?? "Sans titre"}</p>
@@ -813,7 +802,7 @@ export default function ConcertationPage() {
           <EspaceDetail
             espace={selected}
             myId={myId}
-            onBack={() => setSelected(null)}
+            onBack={() => setSelectedId(null)}
           />
         ) : (
           <div className="flex flex-col items-center justify-center gap-4 h-full text-center px-8">
@@ -841,7 +830,7 @@ export default function ConcertationPage() {
           onSuccess={(id) => {
             setShowNouveau(false);
             void fetchEspaces().then(() => {
-              setSelected(espaces.find((e) => e.id === id) ?? null);
+              setSelectedId(id);
             });
           }}
         />

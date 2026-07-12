@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ImagePlus, Loader2, Trash2, ImageOff } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import { useChargement } from "@/hooks/useChargement";
 
 const MAX_PHOTOS = 8;
 const MAX_TAILLE_OCTETS = 5 * 1024 * 1024;
@@ -17,21 +18,16 @@ type Photo = {
 export default function PhotosAnnonce({ annonceId }: { annonceId: string }) {
   const supabase = useMemo(() => createClient(), []);
   const [photos, setPhotos] = useState<Photo[]>([]);
-  const [loading, setLoading] = useState(true);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
-  useEffect(() => {
-    setLoading(true);
-    supabase
+  const { isLoading: loading } = useChargement(async () => {
+    const { data } = await supabase
       .from("photos_annonces")
       .select("id, chemin, ordre")
       .eq("annonce_id", annonceId)
-      .order("ordre", { ascending: true })
-      .then(({ data }) => {
-        setPhotos((data as Photo[]) ?? []);
-        setLoading(false);
-      });
+      .order("ordre", { ascending: true });
+    setPhotos((data as Photo[]) ?? []);
   }, [supabase, annonceId]);
 
   const publicUrl = (chemin: string) =>

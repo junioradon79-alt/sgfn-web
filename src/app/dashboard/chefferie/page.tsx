@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useChargement } from "@/hooks/useChargement";
 import { createClient } from "@/utils/supabase/client";
 import Link from "next/link";
 import {
@@ -66,14 +67,11 @@ function ChefVillageView({ profile }: { profile: Profile }) {
   const [apfc, setApfc] = useState<AttestationCoutumiere[]>([]);
   const [pvs, setPvs] = useState<PvReunion[]>([]);
   const [litiges, setLitiges] = useState<Litige[]>([]);
-  const [loading, setLoading] = useState(true);
   const [signing, setSigning] = useState<string | null>(null);
   const [signingApfc, setSigningApfc] = useState<string | null>(null);
   const [signError, setSignError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
-
     const [autoriteRes, lotissementsRes, apfcRes] = await Promise.all([
       supabase
         .from("autorites_coutumieres")
@@ -176,12 +174,9 @@ function ChefVillageView({ profile }: { profile: Profile }) {
       }
     }
 
-    setLoading(false);
   }, [profile.autorite_coutumiere_id]);
 
-  useEffect(() => {
-    void fetchData();
-  }, [fetchData]);
+  const { isLoading: loading } = useChargement(fetchData, [fetchData]);
 
   const signerAttestation = async (id: string) => {
     setSigning(id);
@@ -475,7 +470,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
               Litiges actifs
             </h2>
             <p className="mt-0.5 text-xs text-red-400">
-              Lecture seule — Géré par l'équipe SGNF
+              Lecture seule — Géré par l&apos;équipe SGNF
             </p>
           </div>
           <div className="divide-y divide-red-50">
@@ -541,7 +536,7 @@ export default function ChefferiePage() {
     return (
       <div className="flex min-h-[300px] items-center justify-center">
         <p className="text-sm text-slate-400">
-          Profil introuvable. Contactez l'administration.
+          Profil introuvable. Contactez l&apos;administration.
         </p>
       </div>
     );
@@ -561,8 +556,8 @@ export default function ChefferiePage() {
           Compte en cours de provisionnement
         </p>
         <p className="mt-2 text-sm leading-relaxed text-slate-400">
-          Votre compte n'est pas encore rattaché à une famille ou une autorité
-          coutumière. Contactez l'administration SGNF pour finaliser le
+          Votre compte n&apos;est pas encore rattaché à une famille ou une autorité
+          coutumière. Contactez l&apos;administration SGNF pour finaliser le
           provisionnement.
         </p>
         <Link
@@ -570,7 +565,7 @@ export default function ChefferiePage() {
           className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1E6091]"
         >
           <MessageSquare className="h-4 w-4" />
-          Contacter l'administration
+          Contacter l&apos;administration
         </Link>
       </div>
     </div>

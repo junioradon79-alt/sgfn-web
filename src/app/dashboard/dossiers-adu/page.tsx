@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import type { Database } from "../../../../database.types";
+import { useChargement } from "@/hooks/useChargement";
 import {
   ChevronRight,
   FileText,
@@ -78,7 +80,7 @@ export default function DossiersAduPage() {
   const supabase = createClient();
 
   const [dossiers, setDossiers] = useState<DossierAdu[]>([]);
-  const [loading, setLoading] = useState(true);
+
   const [search, setSearch] = useState("");
   const [statutFilter, setStatutFilter] = useState("");
   const [selected, setSelected] = useState<DossierAdu | null>(null);
@@ -97,7 +99,7 @@ export default function DossiersAduPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const load = async () => {
-    setLoading(true);
+
     const { data } = await supabase
       .from("dossiers_adu")
       .select(
@@ -105,10 +107,10 @@ export default function DossiersAduPage() {
       )
       .order("cree_le", { ascending: false });
     setDossiers((data ?? []) as unknown as DossierAdu[]);
-    setLoading(false);
+
   };
 
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const { isLoading: loading, recharger } = useChargement(load);
 
   const filtered = dossiers.filter((d) => {
     if (statutFilter && d.statut !== statutFilter) return false;
@@ -160,9 +162,9 @@ export default function DossiersAduPage() {
     setSubmitting(true);
     setFormError(null);
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await (supabase.from("dossiers_adu") as any).insert([{
+    const { error } = await supabase.from("dossiers_adu").insert([{
       lot_id: form.lot_id,
-      statut: form.statut,
+      statut: form.statut as Database["public"]["Enums"]["statut_dossier_adu"],
       adu_numero: form.adu_numero.trim() || null,
       depose_le: form.depose_le || null,
       notes: form.notes.trim() || null,
@@ -171,7 +173,7 @@ export default function DossiersAduPage() {
     setSubmitting(false);
     if (error) { setFormError(error.message); return; }
     setShowCreate(false);
-    load();
+    void recharger();
   };
 
   // ── Render ────────────────────────────────────────────────────────────────

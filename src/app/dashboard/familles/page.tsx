@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { useChargement } from "@/hooks/useChargement";
 import {
   Users, UserCheck, AlertTriangle, Search, X, Check,
   UserPlus, ChevronRight, Crown, Landmark, Link2, Unlink, Building2, Plus,
@@ -722,25 +723,25 @@ export default function FamillesPage() {
 
   // ── Grandes familles ──
   const [grandesFamilles, setGrandesFamilles] = useState<GrandeFamille[]>([]);
-  const [grandesFamillesLoading, setGrandesFamillesLoading] = useState(true);
+
   const [showCreerGF, setShowCreerGF] = useState(false);
   const [modalGrandeFamille, setModalGrandeFamille] = useState<Famille | null>(null);
 
   // ── Familles (lignées) ──
   const [familles, setFamilles] = useState<Famille[]>([]);
-  const [famillesLoading, setFamillesLoading] = useState(true);
+
   const [searchFamilles, setSearchFamilles] = useState("");
   const [modalFamille, setModalFamille] = useState<Famille | null>(null);
   const [modalCollectif, setModalCollectif] = useState<Famille | null>(null);
 
   // ── Autorités coutumières ──
   const [autorites, setAutorites] = useState<AutoriteCoutumiere[]>([]);
-  const [autoritesLoading, setAutoritesLoading] = useState(true);
+
   const [searchAutorites, setSearchAutorites] = useState("");
   const [modalAutorite, setModalAutorite] = useState<AutoriteCoutumiere | null>(null);
 
   const fetchGrandesFamilles = useCallback(async () => {
-    setGrandesFamillesLoading(true);
+
     const { data: gfs } = await supabase.from("grandes_familles").select("id, nom, description").order("nom");
 
     // Lignées de premier niveau (rattachées à une grande famille, sans parent lignée)
@@ -786,11 +787,11 @@ export default function FamillesPage() {
     }
 
     setGrandesFamilles((gfs ?? []).map((gf) => ({ ...gf, lignees: ligneesByGF[gf.id] ?? [] })));
-    setGrandesFamillesLoading(false);
+
   }, []);
 
   const fetchFamilles = useCallback(async () => {
-    setFamillesLoading(true);
+
     const { data } = await supabase
       .from("familles")
       .select(
@@ -802,11 +803,11 @@ export default function FamillesPage() {
       )
       .order("nom");
     setFamilles((data ?? []) as unknown as Famille[]);
-    setFamillesLoading(false);
+
   }, []);
 
   const fetchAutorites = useCallback(async () => {
-    setAutoritesLoading(true);
+
     const { data: acs } = await supabase.from("autorites_coutumieres").select("id, nom, type, village, chef").order("nom");
 
     const { data: chefsProfils } = await supabase
@@ -822,12 +823,12 @@ export default function FamillesPage() {
     }
 
     setAutorites((acs ?? []).map((ac) => ({ ...ac, chefs_profils: chefsByAutorite[ac.id] ?? [] })));
-    setAutoritesLoading(false);
+
   }, []);
 
-  useEffect(() => { void fetchGrandesFamilles(); }, [fetchGrandesFamilles]);
-  useEffect(() => { void fetchFamilles(); }, [fetchFamilles]);
-  useEffect(() => { void fetchAutorites(); }, [fetchAutorites]);
+  const { isLoading: grandesFamillesLoading } = useChargement(fetchGrandesFamilles, [fetchGrandesFamilles]);
+  const { isLoading: famillesLoading } = useChargement(fetchFamilles, [fetchFamilles]);
+  const { isLoading: autoritesLoading } = useChargement(fetchAutorites, [fetchAutorites]);
 
   const sansChefFamille = familles.filter((f) => !f.chef_profile_id).length;
   // Une sous-lignée (lignee_id défini) est implicitement rattachée à une grande famille
