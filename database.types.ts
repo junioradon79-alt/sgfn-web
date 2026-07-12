@@ -3517,6 +3517,17 @@ export type Database = {
         Args: { p_conversation_id: string }
         Returns: boolean
       }
+      transferer_attribution: {
+        Args: {
+          p_lot_id: string
+          p_attributaire_id: string
+          p_qualite: Database["public"]["Enums"]["qualite_attribution"]
+          p_actuel?: boolean
+          p_depuis?: string
+          p_observation?: string
+        }
+        Returns: Json
+      }
       type_document_annonce: { Args: { p_lot_id: string }; Returns: string }
       valider_invitation: { Args: { p_code: string }; Returns: Json }
       valider_paiement_manuel: {

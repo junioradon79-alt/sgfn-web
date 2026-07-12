@@ -103,6 +103,7 @@ export default function InvitationsPage() {
   const [isPending, setIsPending] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [revokeError, setRevokeError] = useState("");
 
   const [groupe, setGroupe] = useState("");
   const [nomComplet, setNomComplet] = useState("");
@@ -200,11 +201,13 @@ export default function InvitationsPage() {
 
   const handleRevoquer = async (id: string) => {
     setRevoking(id);
-    await supabase
+    setRevokeError("");
+    const { error: revErr } = await supabase
       .from("invitations")
       .update({ statut: "revoquee" })
       .eq("id", id)
       .eq("statut", "en_attente");
+    if (revErr) setRevokeError(`Révocation non enregistrée — le code reste actif : ${revErr.message}`);
     await fetchInvitations();
     setRevoking(null);
   };
@@ -227,6 +230,10 @@ export default function InvitationsPage() {
           Nouvelle invitation
         </SGFNButton>
       </div>
+
+      {revokeError && (
+        <div className="rounded-2xl border border-red-200/70 bg-red-50 px-4 py-3 text-sm text-red-700">{revokeError}</div>
+      )}
 
       {/* Formulaire de création */}
       {showForm && (

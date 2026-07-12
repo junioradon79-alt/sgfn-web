@@ -84,29 +84,21 @@ export default function AttributionsPage() {
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    if (form.actuel) {
-      await supabase.from("attributions").update({ actuel: false }).eq("lot_id", form.lot_id).eq("actuel", true);
-    }
-
-    const { error } = await supabase.from("attributions").insert([
-      {
-        lot_id: form.lot_id,
-        attributaire_id: form.attributaire_id,
-        qualite: form.qualite as "ayant_droit" | "ayant_droit_transmission" | "acquereur" | "operateur" | "entrepreneur" | "reservataire",
-        actuel: form.actuel,
-        depuis: form.depuis || null,
-        observation: form.observation.trim() || null,
-      },
-    ]);
+    // RPC transactionnel : désactive l'ancienne attribution, insère la nouvelle
+    // et met à jour le statut du lot en une seule transaction.
+    const { error } = await supabase.rpc("transferer_attribution", {
+      p_lot_id: form.lot_id,
+      p_attributaire_id: form.attributaire_id,
+      p_qualite: form.qualite as "ayant_droit" | "ayant_droit_transmission" | "acquereur" | "operateur" | "entrepreneur" | "reservataire",
+      p_actuel: form.actuel,
+      p_depuis: form.depuis || undefined,
+      p_observation: form.observation.trim() || undefined,
+    });
 
     if (error) {
       setErrorMessage(error.message);
       setIsSubmitting(false);
       return;
-    }
-
-    if (form.actuel) {
-      await supabase.from("lots").update({ statut: "attribue" }).eq("id", form.lot_id);
     }
 
     setForm({

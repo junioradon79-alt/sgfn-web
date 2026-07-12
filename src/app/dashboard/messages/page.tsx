@@ -377,9 +377,9 @@ export default function MessagesPage() {
         (m) => !m.lu && m.expediteur !== myId
       );
       if (aLire.length === 0) return;
-      for (const m of aLire) {
-        await supabase.from("messages").update({ lu: true }).eq("id", m.id);
-      }
+      // Update groupé ; en cas d'échec le badge reste et la prochaine ouverture réessaie.
+      const { error } = await supabase.from("messages").update({ lu: true }).in("id", aLire.map((m) => m.id));
+      if (error) return;
       await chargerConversations(myId);
     },
     [supabase, myId, chargerConversations]

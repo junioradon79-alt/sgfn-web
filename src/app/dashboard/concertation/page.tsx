@@ -357,6 +357,7 @@ function EspaceDetail({
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [corps, setCorps] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Documents
@@ -409,7 +410,14 @@ function EspaceDetail({
   const handleSend = async () => {
     if (!corps.trim() || sending || !myId) return;
     setSending(true);
-    await supabase.from("messages").insert({ conversation_id: espace.id, corps: corps.trim(), expediteur: myId });
+    setSendError("");
+    const { error } = await supabase.from("messages").insert({ conversation_id: espace.id, corps: corps.trim(), expediteur: myId });
+    if (error) {
+      // On garde le message saisi pour permettre une nouvelle tentative.
+      setSendError(`Message non envoyé : ${error.message}`);
+      setSending(false);
+      return;
+    }
     setCorps("");
     setSending(false);
   };
@@ -444,8 +452,11 @@ function EspaceDetail({
   };
 
   const handleDelete = async (doc: Doc) => {
-    await supabase.storage.from("concertation-docs").remove([doc.storage_path]);
-    await supabase.from("conversation_documents").delete().eq("id", doc.id);
+    setUploadError("");
+    const { error: e1 } = await supabase.storage.from("concertation-docs").remove([doc.storage_path]);
+    if (e1) { setUploadError(`Suppression du fichier impossible : ${e1.message}`); return; }
+    const { error: e2 } = await supabase.from("conversation_documents").delete().eq("id", doc.id);
+    if (e2) { setUploadError(`Fichier supprimé mais entrée non retirée : ${e2.message}`); }
     void fetchDocs();
   };
 
@@ -531,6 +542,7 @@ function EspaceDetail({
 
           {/* Zone de saisie */}
           <div className="border-t border-slate-100 bg-white px-4 py-3">
+            {sendError && <p className="mb-2 text-sm text-red-600">{sendError}</p>}
             <div className="flex items-end gap-2">
               <textarea
                 value={corps}

@@ -457,13 +457,15 @@ function DesignerChefFamilleModal({
     const { error: e1 } = await supabase.from("familles").update({ chef_profile_id: profile.id }).eq("id", famille.id);
     if (e1) { setError(e1.message); setSaving(null); return; }
     if (!profile.famille_id) {
-      await supabase.from("profiles").update({ famille_id: famille.id }).eq("id", profile.id);
+      const { error: e2 } = await supabase.from("profiles").update({ famille_id: famille.id }).eq("id", profile.id);
+      if (e2) { setError(`Chef désigné mais rattachement à la famille échoué : ${e2.message}`); setSaving(null); return; }
     }
     // Nouvelles désignations : rôle "Propriétaire terrien" par défaut. Un compte déjà
     // "chefferie" (ex. Koelea-Accor Revu) n'est jamais rétrogradé — coexistence permanente
     // des deux modèles, voir TerraCI_SGNF_Document_Directeur_Unique_v1.md.
     if (profile.groupe !== "chefferie" && profile.groupe !== "proprietaire_terrien") {
-      await supabase.from("profiles").update({ groupe: "proprietaire_terrien" }).eq("id", profile.id);
+      const { error: e3 } = await supabase.from("profiles").update({ groupe: "proprietaire_terrien" }).eq("id", profile.id);
+      if (e3) { setError(`Chef désigné mais changement de rôle échoué : ${e3.message}`); setSaving(null); return; }
     }
     setSaving(null);
     onSuccess();

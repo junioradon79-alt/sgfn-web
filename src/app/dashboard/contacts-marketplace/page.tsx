@@ -128,13 +128,15 @@ export default function ContactsMarketplacePage() {
 
   const marquerReconstruit = async () => {
     setMarquantReconstruit(true);
+    setErrorMessage(null);
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    await supabase
+    const { error } = await supabase
       .from("marketplace_etat_site")
       .update({ derniere_reconstruction: new Date().toISOString(), reconstruit_par: user?.id ?? null })
       .eq("id", true);
+    if (error) setErrorMessage(`Marquage « site reconstruit » non enregistré : ${error.message}`);
     await loadEtatSite();
     window.dispatchEvent(new Event("sgnf:refresh-badges"));
     setMarquantReconstruit(false);

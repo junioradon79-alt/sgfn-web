@@ -69,6 +69,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
   const [loading, setLoading] = useState(true);
   const [signing, setSigning] = useState<string | null>(null);
   const [signingApfc, setSigningApfc] = useState<string | null>(null);
+  const [signError, setSignError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -184,20 +185,24 @@ function ChefVillageView({ profile }: { profile: Profile }) {
 
   const signerAttestation = async (id: string) => {
     setSigning(id);
-    await supabase
+    setSignError(null);
+    const { error } = await supabase
       .from("attestations_cession")
       .update({ sig_chefferie_le: new Date().toISOString() })
       .eq("id", id);
+    if (error) setSignError(`Signature non enregistrée : ${error.message}`);
     setSigning(null);
     void fetchData();
   };
 
   const signerApfc = async (id: string) => {
     setSigningApfc(id);
-    await supabase
+    setSignError(null);
+    const { error } = await supabase
       .from("attestations_coutumieres")
       .update({ sig_chef_village_le: new Date().toISOString() })
       .eq("id", id);
+    if (error) setSignError(`Signature non enregistrée : ${error.message}`);
     setSigningApfc(null);
     void fetchData();
   };
@@ -220,6 +225,10 @@ function ChefVillageView({ profile }: { profile: Profile }) {
           <p className="text-sm text-slate-500">Village : {autorite.village}</p>
         )}
       </div>
+
+      {signError && (
+        <div className="rounded-2xl border border-red-200/70 bg-red-50 px-4 py-3 text-sm text-red-700">{signError}</div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

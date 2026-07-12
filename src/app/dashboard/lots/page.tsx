@@ -10,6 +10,7 @@ import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import { MOYEN_OPTIONS, fcfa, type MoyenPaiement } from "@/lib/paiements";
+import type { Database } from "../../../../database.types";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -413,7 +414,7 @@ function AttributionModal({ lot, attributaires, onClose, onSubmit, isSubmitting 
 function LitigeModal({ lot, onClose, onSubmit, isSubmitting }: {
   lot: LotRecord;
   onClose: () => void;
-  onSubmit: (data: { objet: string; notes: string }) => Promise<void>;
+  onSubmit: (data: { objet: string; notes: string }) => Promise<string | null>;
   isSubmitting: boolean;
 }) {
   const [form, setForm] = useState({ objet: "", notes: "" });
@@ -423,7 +424,8 @@ function LitigeModal({ lot, onClose, onSubmit, isSubmitting }: {
     e.preventDefault();
     if (!form.objet.trim()) { setError("L'objet est obligatoire."); return; }
     setError(null);
-    await onSubmit(form);
+    const err = await onSubmit(form);
+    if (err) setError(err);
   };
 
   return (
@@ -748,25 +750,19 @@ export default function LotsPage() {
     if (!transfertLot) return "Aucun lot sélectionné.";
     setIsSubmitting(true);
 
-    if (data.actuel) {
-      await supabase.from("attributions").update({ actuel: false } as any).eq("lot_id", transfertLot.id).eq("actuel", true);
-    }
-
-    const { error } = await supabase.from("attributions").insert([{
-      lot_id: transfertLot.id,
-      attributaire_id: data.attributaire_id,
-      qualite: data.qualite as any,
-      actuel: data.actuel,
-      depuis: data.depuis || null,
-      observation: data.observation.trim() || null,
-    }] as any);
+    // RPC transactionnel : désactive l'ancienne attribution, insère la nouvelle
+    // et met à jour le statut du lot en une seule transaction.
+    const { error } = await supabase.rpc("transferer_attribution", {
+      p_lot_id: transfertLot.id,
+      p_attributaire_id: data.attributaire_id,
+      p_qualite: data.qualite as Database["public"]["Enums"]["qualite_attribution"],
+      p_actuel: data.actuel,
+      p_depuis: data.depuis || undefined,
+      p_observation: data.observation.trim() || undefined,
+    });
 
     setIsSubmitting(false);
     if (error) return error.message;
-
-    if (data.actuel) {
-      await supabase.from("lots").update({ statut: "attribue" } as any).eq("id", transfertLot.id);
-    }
 
     setTransfertLot(null);
     setSuccessMessage("Attribution enregistrée.");
@@ -775,12 +771,12 @@ export default function LotsPage() {
     return null;
   };
 
-  const handleLitigeSubmit = async (data: { objet: string; notes: string }) => {
-    if (!litigeLot) return;
+  const handleLitigeSubmit = async (data: { objet: string; notes: string }): Promise<string | null> => {
+    if (!litigeLot) return "Aucun lot sélectionné.";
     setIsSubmitting(true);
     const { data: { user } } = await supabase.auth.getUser();
 
-    await (supabase.from("litiges") as any).insert([{
+    const { error: litigeError } = await (supabase.from("litiges") as any).insert([{
       lot_id: litigeLot.id,
       objet: data.objet.trim(),
       notes: data.notes.trim() || null,
@@ -788,13 +784,23 @@ export default function LotsPage() {
       cree_par: user?.id ?? null,
     }]);
 
-    await supabase.from("lots").update({ statut: "en_litige" } as any).eq("id", litigeLot.id);
+    if (litigeError) {
+      setIsSubmitting(false);
+      return `Échec de l'ouverture du litige : ${litigeError.message}`;
+    }
+
+    const { error: statutError } = await supabase.from("lots").update({ statut: "en_litige" } as any).eq("id", litigeLot.id);
+    if (statutError) {
+      setIsSubmitting(false);
+      return `Litige créé mais statut du lot non mis à jour : ${statutError.message}`;
+    }
 
     setLitigeLot(null);
     setIsSubmitting(false);
     setSuccessMessage("Dossier de litige ouvert.");
     setTimeout(() => setSuccessMessage(null), 4000);
     await loadLots();
+    return null;
   };
 
   const handleCessionSubmit = async (data: {

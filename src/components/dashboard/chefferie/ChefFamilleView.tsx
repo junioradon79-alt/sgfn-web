@@ -48,6 +48,7 @@ export function ChefFamilleView({ profile }: { profile: Profile }) {
   const [pvs, setPvs] = useState<PvReunion[]>([]);
   const [loading, setLoading] = useState(true);
   const [signing, setSigning] = useState<string | null>(null);
+  const [signError, setSignError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -124,10 +125,12 @@ export function ChefFamilleView({ profile }: { profile: Profile }) {
 
   const signerApfc = async (apfcId: string) => {
     setSigning(apfcId);
-    await supabase
+    setSignError(null);
+    const { error } = await supabase
       .from("attestations_coutumieres")
       .update({ sig_chef_famille_le: new Date().toISOString() })
       .eq("id", apfcId);
+    if (error) setSignError(`Signature non enregistrée : ${error.message}`);
     setSigning(null);
     void fetchData();
   };
@@ -151,6 +154,10 @@ export function ChefFamilleView({ profile }: { profile: Profile }) {
           <p className="text-sm text-slate-500">Lignée : {famille.lignee.nom}</p>
         )}
       </div>
+
+      {signError && (
+        <div className="rounded-2xl border border-red-200/70 bg-red-50 px-4 py-3 text-sm text-red-700">{signError}</div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
