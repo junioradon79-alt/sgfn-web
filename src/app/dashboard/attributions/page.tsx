@@ -84,7 +84,9 @@ export default function AttributionsPage() {
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    const { data: { user } } = await supabase.auth.getUser();
+    if (form.actuel) {
+      await supabase.from("attributions").update({ actuel: false }).eq("lot_id", form.lot_id).eq("actuel", true);
+    }
 
     const { error } = await supabase.from("attributions").insert([
       {
@@ -94,7 +96,6 @@ export default function AttributionsPage() {
         actuel: form.actuel,
         depuis: form.depuis || null,
         observation: form.observation.trim() || null,
-        operateur_id: user?.id ?? null,
       },
     ]);
 

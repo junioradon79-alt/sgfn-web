@@ -329,7 +329,7 @@ function AttributionModal({ lot, attributaires, onClose, onSubmit, isSubmitting 
   lot: LotRecord;
   attributaires: AttributaireOption[];
   onClose: () => void;
-  onSubmit: (data: { attributaire_id: string; qualite: string; actuel: boolean; depuis: string; observation: string }) => Promise<void>;
+  onSubmit: (data: { attributaire_id: string; qualite: string; actuel: boolean; depuis: string; observation: string }) => Promise<string | null>;
   isSubmitting: boolean;
 }) {
   const [form, setForm] = useState({
@@ -345,7 +345,8 @@ function AttributionModal({ lot, attributaires, onClose, onSubmit, isSubmitting 
     e.preventDefault();
     if (!form.attributaire_id) { setError("Sélectionnez un attributaire."); return; }
     setError(null);
-    await onSubmit(form);
+    const err = await onSubmit(form);
+    if (err) setError(err);
   };
 
   return (
@@ -743,34 +744,35 @@ export default function LotsPage() {
     await loadLots();
   };
 
-  const handleAttributionSubmit = async (data: { attributaire_id: string; qualite: string; actuel: boolean; depuis: string; observation: string }) => {
-    if (!transfertLot) return;
+  const handleAttributionSubmit = async (data: { attributaire_id: string; qualite: string; actuel: boolean; depuis: string; observation: string }): Promise<string | null> => {
+    if (!transfertLot) return "Aucun lot sélectionné.";
     setIsSubmitting(true);
-    const { data: { user } } = await supabase.auth.getUser();
 
     if (data.actuel) {
       await supabase.from("attributions").update({ actuel: false } as any).eq("lot_id", transfertLot.id).eq("actuel", true);
     }
 
-    await supabase.from("attributions").insert([{
+    const { error } = await supabase.from("attributions").insert([{
       lot_id: transfertLot.id,
       attributaire_id: data.attributaire_id,
       qualite: data.qualite as any,
       actuel: data.actuel,
       depuis: data.depuis || null,
       observation: data.observation.trim() || null,
-      operateur_id: user?.id ?? null,
     }] as any);
+
+    setIsSubmitting(false);
+    if (error) return error.message;
 
     if (data.actuel) {
       await supabase.from("lots").update({ statut: "attribue" } as any).eq("id", transfertLot.id);
     }
 
     setTransfertLot(null);
-    setIsSubmitting(false);
     setSuccessMessage("Attribution enregistrée.");
     setTimeout(() => setSuccessMessage(null), 4000);
     await loadLots();
+    return null;
   };
 
   const handleLitigeSubmit = async (data: { objet: string; notes: string }) => {
