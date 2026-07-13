@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/client";
 import { Badge } from "@/components/ui/Badge";
 import { useProfile } from "@/hooks/useProfile";
 import UploadPlanModal from "@/components/dashboard/UploadPlanModal";
+import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
 import {
   Download,
   FileCheck,
@@ -20,6 +21,7 @@ import {
   Upload,
   Image as ImageIcon,
   Loader2 as LoaderIcon,
+  Sparkles,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -526,12 +528,15 @@ export default function DocumentsPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [apercuUrls, setApercuUrls] = useState<Record<string, string>>({});
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [attestationsEligibles, setAttestationsEligibles] = useState(0);
+  const [genererEnCours, setGenererEnCours] = useState(false);
+  const [genererErreur, setGenererErreur] = useState<string | null>(null);
 
   const peutTeleverserPlan = isAdmin || profile?.groupe === "geometre";
 
   const load = useCallback(async () => {
 
-    const [attRes, pvRes, docRes] = await Promise.all([
+    const [attRes, pvRes, docRes, eligiblesRes] = await Promise.all([
       supabase
         .from("attestations_cession")
         .select(
@@ -550,12 +555,30 @@ export default function DocumentsPage() {
           "id, type, titre, emetteur, date_document, url_fichier, apercu_url, hash_fichier, televerse_le, lots(numero_lot, ilots(lotissements(nom)))"
         )
         .order("televerse_le", { ascending: false }),
+      supabase.from("v_attestations_gratuites_manquantes").select("lot_id", { count: "exact", head: true }),
     ]);
     setAttestations((attRes.data ?? []) as unknown as AttestationRow[]);
     setPvs((pvRes.data ?? []) as unknown as PvRow[]);
     setDocs((docRes.data ?? []) as unknown as DocumentRow[]);
+    setAttestationsEligibles(eligiblesRes.count ?? 0);
 
   }, []);
+
+  // Rattrapage permanent : reste affiché en continu (contrairement à l'alerte du
+  // Centre de pilotage, qui disparaît une fois soldée) -- ne génère effectivement
+  // que si des lots remplissent les conditions d'éligibilité (rejoue exactement
+  // la règle du trigger via generer_attestations_gratuites_manquantes()).
+  const genererAttestations = useCallback(async () => {
+    setGenererEnCours(true);
+    setGenererErreur(null);
+    const { error } = await supabase.rpc("generer_attestations_gratuites_manquantes");
+    setGenererEnCours(false);
+    if (error) {
+      setGenererErreur(error.message);
+      return;
+    }
+    void load();
+  }, [load]);
 
   const { isLoading: loading } = useChargement(load, [load]);
 
@@ -649,16 +672,48 @@ export default function DocumentsPage() {
             Attestations de cession, PV de famille et documents officiels.
           </p>
         </div>
-        {peutTeleverserPlan && (
-          <button
-            onClick={() => setShowUpload(true)}
-            className="flex shrink-0 items-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091]"
-          >
-            <Upload className="h-4 w-4" />
-            Téléverser un plan
-          </button>
-        )}
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <BoutonImprimer />
+          {isAdmin && (
+            <button
+              onClick={genererAttestations}
+              disabled={attestationsEligibles === 0 || genererEnCours}
+              title={
+                attestationsEligibles === 0
+                  ? "Aucune attestation gratuite éligible en attente : les conditions ne sont pas réunies."
+                  : `${attestationsEligibles} lot${attestationsEligibles > 1 ? "s" : ""} éligible${attestationsEligibles > 1 ? "s" : ""} à l'attestation gratuite, jamais générée (imports faits trigger désactivé).`
+              }
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
+            >
+              {genererEnCours ? (
+                <LoaderIcon className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {genererEnCours
+                ? "Génération…"
+                : attestationsEligibles > 0
+                  ? `Générer les attestations éligibles (${attestationsEligibles})`
+                  : "Générer les attestations éligibles"}
+            </button>
+          )}
+          {peutTeleverserPlan && (
+            <button
+              onClick={() => setShowUpload(true)}
+              className="flex items-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091]"
+            >
+              <Upload className="h-4 w-4" />
+              Téléverser un plan
+            </button>
+          )}
+        </div>
       </div>
+
+      {genererErreur && (
+        <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+          Échec de la génération des attestations : {genererErreur}
+        </p>
+      )}
 
       {/* KPIs */}
       {!loading && (
