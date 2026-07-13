@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
-import { Building2, ChevronRight, Mail, MapPin, Phone, Plus, Search, User, X } from "lucide-react";
+import { Building2, ChevronRight, Mail, MapPin, Pencil, Phone, Plus, Search, User, X } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -85,10 +85,11 @@ const EMPTY_FORM: FormState = {
 
 // ─── Fiche Attributaire Modal ─────────────────────────────────────────────────
 
-function AttributaireDetailModal({ attributaire, lots, onClose }: {
+function AttributaireDetailModal({ attributaire, lots, onClose, onEdit }: {
   attributaire: AttributaireRecord;
   lots: AttributaireLot[];
   onClose: () => void;
+  onEdit: () => void;
 }) {
   const isValidated = Boolean(attributaire.piece_num);
   const lotsActuels = lots.filter((l) => l.actuel);
@@ -114,6 +115,15 @@ function AttributaireDetailModal({ attributaire, lots, onClose }: {
             <Badge status={isValidated ? "disponible" : "en_validation"}>
               {isValidated ? "KYC Validé" : "KYC en attente"}
             </Badge>
+            <button
+              type="button"
+              onClick={onEdit}
+              title="Modifier le profil"
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Modifier
+            </button>
             <button type="button" onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
               <X className="h-4 w-4" />
             </button>
@@ -225,8 +235,9 @@ export default function AttributairesPage() {
 
   const [search, setSearch] = useState("");
 
-  // Create modal
+  // Modale création/édition (édition si editingId non nul)
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -273,7 +284,7 @@ export default function AttributairesPage() {
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    const { error } = await supabase.from("attributaires").insert([{
+    const payload = {
       nom: form.nom.trim(),
       type: form.type as "personne_physique" | "collectif_ayants_droit" | "personne_morale",
       piece_nature: form.piece_nature.trim() || null,
@@ -281,7 +292,11 @@ export default function AttributairesPage() {
       telephone: form.telephone.trim() || null,
       email: form.email.trim() || null,
       adresse: form.adresse.trim() || null,
-    }]);
+    };
+
+    const { error } = editingId
+      ? await supabase.from("attributaires").update(payload).eq("id", editingId)
+      : await supabase.from("attributaires").insert([payload]);
 
     if (error) {
       setErrorMessage(error.message);
@@ -292,9 +307,27 @@ export default function AttributairesPage() {
     setForm(EMPTY_FORM);
     setIsModalOpen(false);
     setIsSubmitting(false);
-    setSuccessMessage("Attributaire enregistré avec succès.");
+    setEditingId(null);
+    setSuccessMessage(editingId ? "Profil mis à jour avec succès." : "Attributaire enregistré avec succès.");
     setTimeout(() => setSuccessMessage(null), 4000);
     await recharger();
+  };
+
+  const openEdit = (a: AttributaireRecord) => {
+    setEditingId(a.id);
+    setForm({
+      type: a.type ?? "personne_physique",
+      nom: a.nom ?? "",
+      piece_nature: a.piece_nature ?? "",
+      piece_num: a.piece_num ?? "",
+      telephone: a.telephone ?? "",
+      email: a.email ?? "",
+      adresse: a.adresse ?? "",
+    });
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setDetailAttributaire(null);
+    setIsModalOpen(true);
   };
 
   return (
@@ -309,7 +342,7 @@ export default function AttributairesPage() {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <BoutonImprimer />
-          <button type="button" onClick={() => { setIsModalOpen(true); setErrorMessage(null); setSuccessMessage(null); }}
+          <button type="button" onClick={() => { setEditingId(null); setForm(EMPTY_FORM); setIsModalOpen(true); setErrorMessage(null); setSuccessMessage(null); }}
             className="print:hidden inline-flex items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:bg-[#1E6091] hover:shadow-md active:scale-[0.98]">
             <Plus className="h-4 w-4" />
             Nouvel Attributaire
@@ -393,10 +426,14 @@ export default function AttributairesPage() {
           <div className="w-full max-w-lg rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-2xl sm:p-8">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Nouvel attributaire</p>
-                <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">Enregistrer un attributaire</h2>
+                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
+                  {editingId ? "Modifier le profil" : "Nouvel attributaire"}
+                </p>
+                <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">
+                  {editingId ? "Mettre à jour l'attributaire" : "Enregistrer un attributaire"}
+                </h2>
               </div>
-              <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Fermer">
+              <button type="button" onClick={() => { setIsModalOpen(false); setEditingId(null); }} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Fermer">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -452,9 +489,9 @@ export default function AttributairesPage() {
               )}
 
               <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Annuler</button>
+                <button type="button" onClick={() => { setIsModalOpen(false); setEditingId(null); }} className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Annuler</button>
                 <button type="submit" disabled={isSubmitting} className="rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E6091] disabled:opacity-70">
-                  {isSubmitting ? "Enregistrement…" : "Enregistrer"}
+                  {isSubmitting ? "Enregistrement…" : editingId ? "Mettre à jour" : "Enregistrer"}
                 </button>
               </div>
             </form>
@@ -468,6 +505,7 @@ export default function AttributairesPage() {
           attributaire={detailAttributaire}
           lots={attributaireLots}
           onClose={() => setDetailAttributaire(null)}
+          onEdit={() => openEdit(detailAttributaire)}
         />
       )}
     </div>
