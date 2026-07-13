@@ -1,0 +1,167 @@
+import {
+  Boxes,
+  ClipboardCheck,
+  ClipboardEdit,
+  ClipboardList,
+  Compass,
+  Crown,
+  FileText,
+  FileWarning,
+  HandCoins,
+  Handshake,
+  Home,
+  Landmark,
+  LayoutDashboard,
+  Link2,
+  MailOpen,
+  Map,
+  MapPinned,
+  MessageSquare,
+  QrCode,
+  ShieldCheck,
+  Sparkles,
+  Store,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { actionAgenceRequise, type AgenceDemande } from "./agence-actions";
+
+/**
+ * Source unique de la navigation SGNF.
+ *
+ * Extrait de `components/ui/Sidebar.tsx` pour que l'ancienne barre latérale, la
+ * nouvelle (Centre de pilotage) et la palette ⌘K partagent exactement les mêmes
+ * règles d'accès. Une permission ne doit exister qu'à un seul endroit.
+ */
+
+export type BadgeKey = "demandes" | "saisie" | "marketplace";
+
+/** Regroupement affiché en sections dans la barre latérale. */
+export type NavSection = "pilotage" | "registre" | "instruction" | "espaces" | "general";
+
+export interface NavItem {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  section: NavSection;
+  /** Groupes autorisés. Omis = visible par tous. */
+  roles?: string[];
+  /** Masqué pour l'admin (espaces dédiés aux autres rôles). */
+  adminHide?: boolean;
+  badgeKey?: BadgeKey;
+  /** Mots-clés supplémentaires pour la recherche ⌘K. */
+  keywords?: string;
+}
+
+export const SECTION_LABELS: Record<NavSection, string> = {
+  pilotage: "Pilotage",
+  registre: "Registre foncier",
+  instruction: "Instruction",
+  espaces: "Mon espace",
+  general: "Général",
+};
+
+export const SECTION_ORDER: NavSection[] = ["pilotage", "registre", "instruction", "espaces", "general"];
+
+/**
+ * ⚠️ Périmètre d'accès identique à l'existant : mêmes `href`, mêmes `roles`,
+ * mêmes `adminHide`, mêmes `badgeKey`. Seul le regroupement en sections est
+ * nouveau. Ne pas ajouter d'entrée ici sans vérifier le RLS de la page visée.
+ */
+export const NAV_ITEMS: NavItem[] = [
+  // ── Pilotage ──
+  { label: "Centre de pilotage", href: "/dashboard", icon: LayoutDashboard, section: "pilotage", keywords: "accueil tableau de bord home" },
+  { label: "Carte foncière", href: "/dashboard/carte", icon: MapPinned, section: "pilotage", roles: ["geometre", "commissaire", "verificateur"], keywords: "gps parcelles géolocalisation" },
+  { label: "Supervision", href: "/dashboard/commissaire", icon: ShieldCheck, section: "pilotage", roles: ["commissaire", "verificateur"] },
+  { label: "SGNF AI", href: "/dashboard/ia", icon: Sparkles, section: "pilotage", roles: ["verificateur", "agent_ia", "geometre"] },
+
+  // ── Registre foncier ──
+  { label: "Lotissements", href: "/lotissements", icon: Map, section: "registre", roles: ["operateur", "amenageur", "geometre", "chefferie", "verificateur", "proprietaire_terrien"] },
+  { label: "Lots", href: "/dashboard/lots", icon: Boxes, section: "registre", roles: ["operateur", "amenageur", "geometre", "chefferie", "verificateur", "commissaire", "proprietaire_terrien"], keywords: "parcelles terrains" },
+  { label: "Attributaires", href: "/dashboard/attributaires", icon: Users, section: "registre", roles: ["operateur", "amenageur", "chefferie", "verificateur", "commissaire", "proprietaire_terrien"], keywords: "bénéficiaires" },
+  { label: "Attributions", href: "/dashboard/attributions", icon: Link2, section: "registre", roles: ["operateur", "amenageur", "chefferie", "verificateur", "commissaire", "proprietaire_terrien"] },
+  { label: "Familles", href: "/dashboard/familles", icon: Home, section: "registre", roles: [] },
+  { label: "Dossiers ADU", href: "/dashboard/dossiers-adu", icon: ClipboardList, section: "registre", roles: [], keywords: "acd instruction urbanisme" },
+
+  // ── Instruction ──
+  { label: "Demandes d'acquisition", href: "/dashboard/demandes-acquisition", icon: ClipboardCheck, section: "instruction", roles: ["operateur"], badgeKey: "demandes", keywords: "ventes tunnel acquéreur" },
+  { label: "Saisie foncière", href: "/dashboard/saisie", icon: ClipboardEdit, section: "instruction", roles: ["operateur_saisie"], badgeKey: "saisie", keywords: "import excel validation" },
+  { label: "Litiges", href: "/dashboard/litiges", icon: FileWarning, section: "instruction", roles: ["commissaire", "verificateur", "chefferie", "proprietaire_terrien"], keywords: "conflits contentieux" },
+  { label: "Concertation", href: "/dashboard/concertation", icon: Handshake, section: "instruction", roles: ["chefferie", "proprietaire", "operateur", "proprietaire_terrien"] },
+  { label: "Invitations", href: "/dashboard/invitations", icon: MailOpen, section: "instruction", roles: ["operateur", "amenageur", "chefferie", "proprietaire_terrien"] },
+  { label: "Contacts Mon Terrain", href: "/dashboard/contacts-marketplace", icon: Store, section: "instruction", roles: ["admin"], badgeKey: "marketplace", keywords: "marketplace annonces" },
+  { label: "Consultations QR", href: "/dashboard/consultations-qr", icon: QrCode, section: "instruction", roles: ["admin"], keywords: "vérification qr code" },
+
+  // ── Espaces dédiés (masqués pour l'admin) ──
+  { label: "Mon achat", href: "/dashboard/mon-achat", icon: ClipboardCheck, section: "espaces", roles: ["acquereur"], adminHide: true },
+  { label: "Trouver un terrain", href: "/dashboard/acquisition", icon: Compass, section: "espaces", roles: ["acquereur", "amenageur"], adminHide: true },
+  { label: "Mon espace", href: "/dashboard/proprietaire", icon: Landmark, section: "espaces", roles: ["proprietaire", "acquereur"], adminHide: true },
+  { label: "Mon activité", href: "/dashboard/operateur", icon: HandCoins, section: "espaces", roles: ["operateur"], adminHide: true },
+  { label: "Espace Chefferie", href: "/dashboard/chefferie", icon: Crown, section: "espaces", roles: ["chefferie"], adminHide: true },
+  { label: "Propriétaire terrien", href: "/dashboard/proprietaire-terrien", icon: Home, section: "espaces", roles: ["proprietaire_terrien"], adminHide: true },
+
+  // ── Général ──
+  { label: "Documents", href: "/dashboard/documents", icon: FileText, section: "general" },
+  { label: "Messages", href: "/dashboard/messages", icon: MessageSquare, section: "general" },
+];
+
+/** Filtre d'accès — règles reprises telles quelles de la barre latérale historique. */
+export function visibleNavItems(groupe: string | null, loading: boolean): NavItem[] {
+  return NAV_ITEMS.filter((item) => {
+    if (loading || !groupe) return true;
+    if (groupe === "admin") return !item.adminHide;
+    // Opérateur de saisie : accès strictement limité à son module.
+    if (groupe === "operateur_saisie") return item.roles?.includes("operateur_saisie") ?? false;
+    if (!item.roles) return true;
+    return item.roles.includes(groupe);
+  });
+}
+
+/**
+ * Compteurs d'actions à faire (pastilles rouges). Agence uniquement.
+ * Rouge = « c'est à nous de jouer », jamais « on attend le client ».
+ */
+export async function fetchBadgeCounts(
+  supabase: SupabaseClient,
+  groupe: string | null,
+): Promise<Partial<Record<BadgeKey, number>>> {
+  const estAgence = groupe === "admin" || groupe === "operateur";
+  if (!estAgence) return {};
+
+  const next: Partial<Record<BadgeKey, number>> = {};
+
+  const { data } = await supabase
+    .from("demandes_acquisition_agence")
+    .select("statut,vente_id,vente_statut,vente_paiement_statut,cession_id,paiement_statut,attestation_reference");
+  next.demandes = ((data ?? []) as AgenceDemande[]).filter(actionAgenceRequise).length;
+
+  // La file de validation de la saisie est réservée à l'admin (le checker).
+  if (groupe === "admin") {
+    const { count } = await supabase
+      .from("soumissions_saisie")
+      .select("id", { count: "exact", head: true })
+      .eq("statut", "en_attente");
+    next.saisie = count ?? 0;
+
+    // « Site Mon Terrain à reconstruire » : une annonce a été publiée depuis le
+    // dernier déploiement cPanel connu.
+    const [{ data: etat }, { data: derniere }] = await Promise.all([
+      supabase.from("marketplace_etat_site").select("derniere_reconstruction").maybeSingle(),
+      supabase
+        .from("annonces_marketplace")
+        .select("publiee_le")
+        .eq("statut", "active")
+        .order("publiee_le", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    const derniereReconstruction = (etat as { derniere_reconstruction: string | null } | null)?.derniere_reconstruction ?? null;
+    const dernierePublication = (derniere as { publiee_le: string | null } | null)?.publiee_le ?? null;
+    next.marketplace =
+      dernierePublication && (!derniereReconstruction || dernierePublication > derniereReconstruction) ? 1 : 0;
+  }
+
+  return next;
+}

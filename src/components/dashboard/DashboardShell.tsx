@@ -54,6 +54,17 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Le Centre de pilotage (racine /dashboard) fournit son propre shell (barre
+  // latérale + en-tête) : on n'empile pas le chrome historique par-dessus.
+  //
+  // La barre oblique finale n'est pas cosmétique : `trailingSlash: true`
+  // (next.config.ts) fait que `usePathname()` renvoie « /dashboard/ ». Comparer
+  // à « /dashboard » sans la normaliser affichait deux barres latérales et deux
+  // en-têtes superposés.
+  if (pathname.replace(/\/+$/, "") === "/dashboard") {
+    return <div className="print:h-auto">{children}</div>;
+  }
+
   const pageTitles: Record<string, string> = {
     "/dashboard": "Tableau de bord",
     "/dashboard/lots": "Gestion des lots",
