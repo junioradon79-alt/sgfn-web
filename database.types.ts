@@ -3333,6 +3333,46 @@ export type Database = {
           },
         ]
       }
+      v_attestations_gratuites_manquantes: {
+        Row: {
+          attributaire_id: string | null
+          depuis: string | null
+          lot_id: string | null
+        }
+        Insert: {
+          attributaire_id?: string | null
+          depuis?: string | null
+          lot_id?: string | null
+        }
+        Update: {
+          attributaire_id?: string | null
+          depuis?: string | null
+          lot_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attributions_attributaire_id_fkey"
+            columns: ["attributaire_id"]
+            isOneToOne: false
+            referencedRelation: "attributaires"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attributions_attributaire_id_fkey"
+            columns: ["attributaire_id"]
+            isOneToOne: false
+            referencedRelation: "v_collectifs_pv_manquant"
+            referencedColumns: ["collectif_id"]
+          },
+          {
+            foreignKeyName: "attributions_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "lots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_collectifs_pv_manquant: {
         Row: {
           collectif: string | null
@@ -3491,6 +3531,7 @@ export type Database = {
         Returns: Json
       }
       finaliser_inscription: { Args: { p_code: string }; Returns: Json }
+      generer_attestations_gratuites_manquantes: { Args: never; Returns: Json }
       generer_code_invitation: { Args: never; Returns: string }
       get_public_stats: { Args: never; Returns: Json }
       lot_libelle: { Args: { p_lot_id: string }; Returns: Json }
@@ -3551,12 +3592,12 @@ export type Database = {
       }
       transferer_attribution: {
         Args: {
-          p_lot_id: string
-          p_attributaire_id: string
-          p_qualite: Database["public"]["Enums"]["qualite_attribution"]
           p_actuel?: boolean
+          p_attributaire_id: string
           p_depuis?: string
+          p_lot_id: string
           p_observation?: string
+          p_qualite: Database["public"]["Enums"]["qualite_attribution"]
         }
         Returns: Json
       }
@@ -3605,6 +3646,7 @@ export type Database = {
         | "operateur"
         | "entrepreneur"
         | "reservataire"
+        | "legs"
       role_partie:
         | "cedant"
         | "cessionnaire"
@@ -3875,6 +3917,7 @@ export const Constants = {
         "operateur",
         "entrepreneur",
         "reservataire",
+        "legs",
       ],
       role_partie: [
         "cedant",

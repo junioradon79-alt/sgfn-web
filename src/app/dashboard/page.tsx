@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 
+import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import { useAdminOverview } from "@/hooks/useAdminOverview";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
@@ -64,14 +65,32 @@ export default function CentrePilotagePage() {
 
   const overview = useAdminOverview(actif);
   const { counts, refresh: refreshBadges } = useBadgeCounts();
+  const supabase = useMemo(() => createClient(), []);
 
   const [aduOuvert, setAduOuvert] = useState(false);
+  const [genererEnCours, setGenererEnCours] = useState(false);
+  const [genererErreur, setGenererErreur] = useState<string | null>(null);
 
   const { refresh: refreshOverview } = overview;
   const rafraichir = useCallback(() => {
     refreshOverview();
     refreshBadges();
   }, [refreshOverview, refreshBadges]);
+
+  // Rattrapage : génère l'attestation gratuite des lots dont l'attribution
+  // rang 1 est éligible mais n'en a jamais reçu (imports faits trigger désactivé).
+  // Rejoue exactement la règle du trigger, via generer_attestations_gratuites_manquantes().
+  const genererAttestations = useCallback(async () => {
+    setGenererEnCours(true);
+    setGenererErreur(null);
+    const { error } = await supabase.rpc("generer_attestations_gratuites_manquantes");
+    setGenererEnCours(false);
+    if (error) {
+      setGenererErreur(error.message);
+      return;
+    }
+    rafraichir();
+  }, [supabase, rafraichir]);
 
   if (profileLoading || redirectTo) {
     return (
@@ -112,6 +131,8 @@ export default function CentrePilotagePage() {
               recettes={overview.recettes}
               marketplaceARebuild={(counts.marketplace ?? 0) > 0}
               loading={overview.loading}
+              onGenererAttestations={genererAttestations}
+              genererAttestationsEnCours={genererEnCours}
             />
             <ActivityCenter activite={overview.activite} loading={overview.loading} />
           </div>
@@ -127,6 +148,12 @@ export default function CentrePilotagePage() {
         {overview.error && (
           <p role="alert" className="rounded-lg border border-danger/30 bg-danger-subtle px-4 py-2.5 text-[13px] text-danger">
             Certaines données n&apos;ont pas pu être chargées : {overview.error}
+          </p>
+        )}
+
+        {genererErreur && (
+          <p role="alert" className="rounded-lg border border-danger/30 bg-danger-subtle px-4 py-2.5 text-[13px] text-danger">
+            Échec de la génération des attestations : {genererErreur}
           </p>
         )}
       </AppShell>

@@ -7,6 +7,7 @@ import {
   ChevronRight,
   ClipboardCheck,
   ClipboardEdit,
+  FileCheck2,
   FileWarning,
   ReceiptText,
   ShieldCheck,
@@ -19,20 +20,21 @@ import { fadeUp, stagger } from "@/lib/motion";
 import type { AdminOverview } from "@/hooks/useAdminOverview";
 import { Card, CardHeader, CardTitle, CardDescription, CardAction } from "@/components/ds/card";
 import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
 import { EmptyState } from "@/components/ds/empty-state";
 import { Skeleton } from "@/components/ds/skeleton";
 
 type Gravite = "critique" | "attention" | "info";
 
+/** Une alerte navigue vers un registre (`href`), sauf si elle porte sa propre action (`onAction`) : c'est le seul cas où toute la ligne n'est pas un lien. */
 type Alerte = {
   id: string;
   icon: LucideIcon;
   gravite: Gravite;
   titre: string;
   detail: string;
-  href: string;
   compte: number;
-};
+} & ({ href: string; onAction?: undefined } | { href?: undefined; onAction: () => void; enCours: boolean });
 
 const STYLE: Record<Gravite, { puce: string; fond: string; badge: "danger" | "warning" | "accent" }> = {
   critique: { puce: "text-danger", fond: "bg-danger-subtle", badge: "danger" },
@@ -58,11 +60,15 @@ export function AlertCenter({
   recettes,
   marketplaceARebuild,
   loading,
+  onGenererAttestations,
+  genererAttestationsEnCours,
 }: {
   files: AdminOverview["files"];
   recettes: AdminOverview["recettes"];
   marketplaceARebuild: boolean;
   loading: boolean;
+  onGenererAttestations: () => void;
+  genererAttestationsEnCours: boolean;
 }) {
   const alertes = React.useMemo<Alerte[]>(() => {
     const out: Alerte[] = [];
@@ -100,6 +106,18 @@ export function AlertCenter({
         compte: files.saisieAValider,
       });
 
+    if (files.attestationsGratuitesEnAttente > 0)
+      out.push({
+        id: "attestations-gratuites",
+        icon: FileCheck2,
+        gravite: "attention",
+        titre: `${files.attestationsGratuitesEnAttente} attestation${files.attestationsGratuitesEnAttente > 1 ? "s" : ""} gratuite${files.attestationsGratuitesEnAttente > 1 ? "s" : ""} en attente`,
+        detail: "Attribution déjà enregistrée, jamais génératrice d'attestation (import fait trigger désactivé).",
+        onAction: onGenererAttestations,
+        enCours: genererAttestationsEnCours,
+        compte: files.attestationsGratuitesEnAttente,
+      });
+
     if (recettes.enAttente > 0)
       out.push({
         id: "paiements",
@@ -134,7 +152,7 @@ export function AlertCenter({
       });
 
     return out.sort((a, b) => ORDRE[a.gravite] - ORDRE[b.gravite]);
-  }, [files, recettes, marketplaceARebuild]);
+  }, [files, recettes, marketplaceARebuild, onGenererAttestations, genererAttestationsEnCours]);
 
   const critiques = alertes.filter((a) => a.gravite === "critique").length;
 
@@ -174,19 +192,44 @@ export function AlertCenter({
               {alertes.map((a) => {
                 const s = STYLE[a.gravite];
                 const Icon = a.icon;
+                const contenu = (
+                  <>
+                    <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", s.fond)}>
+                      <Icon className={cn("size-4", s.puce)} aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-semibold text-foreground">{a.titre}</span>
+                      <span className="block truncate text-[12px] text-muted-foreground">{a.detail}</span>
+                    </span>
+                  </>
+                );
+
+                if (a.onAction) {
+                  return (
+                    <motion.li key={a.id} variants={fadeUp}>
+                      <div className="flex items-center gap-3 rounded-lg px-3 py-2.5">
+                        {contenu}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          loading={a.enCours}
+                          onClick={a.onAction}
+                          className="shrink-0"
+                        >
+                          {a.enCours ? "Génération…" : "Générer"}
+                        </Button>
+                      </div>
+                    </motion.li>
+                  );
+                }
+
                 return (
                   <motion.li key={a.id} variants={fadeUp}>
                     <Link
                       href={a.href}
                       className="group flex items-center gap-3 rounded-lg px-3 py-2.5 outline-none transition-colors hover:bg-inset focus-visible:ring-2 focus-visible:ring-ring/50"
                     >
-                      <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", s.fond)}>
-                        <Icon className={cn("size-4", s.puce)} aria-hidden />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13px] font-semibold text-foreground">{a.titre}</span>
-                        <span className="block truncate text-[12px] text-muted-foreground">{a.detail}</span>
-                      </span>
+                      {contenu}
                       <ChevronRight
                         className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
                         aria-hidden
