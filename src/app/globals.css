@@ -1,21 +1,30 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Poppins:wght@500..950&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Manrope:wght@500..800&display=swap');
 @import "tailwindcss";
 
 @theme {
   /* Palette Officielle SGNF conforme Tailwind v4 */
-  --color-brand-primary: #0D3B66;
-  --color-brand-secondary: #1E6091;
-  --color-brand-success: #2D8F5A;
-  --color-brand-accent: #F39C12;
-  --color-brand-bg: #F8FAFC;
-  --color-brand-text: #1F2937;
+  --color-brand-primary: #0B2E4F;
+  --color-brand-secondary: #0F5E8C;
+  --color-brand-success: #147A55;
+  --color-brand-accent: #0F5E8C;
+  --color-brand-bg: #F7F9FC;
+  --color-brand-text: #172033;
 
   /* Typographies SGNF */
   --font-sans: "Inter", sans-serif;
-  --font-display: "Poppins", sans-serif;
+  --font-display: "Manrope", sans-serif;
 }
 
 /* Base de style globale */
+:root {
+  --sgfn-navy: #0B2E4F;
+  --sgfn-action: #0F5E8C;
+  --sgfn-canvas: #F7F9FC;
+  --sgfn-ink: #172033;
+  --sgfn-muted: #526176;
+  --sgfn-border: #E3E8EF;
+}
+
 body {
   background-color: var(--color-brand-bg);
   color: var(--color-brand-text);
@@ -27,4 +36,18 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
   @apply font-display;
+}
+
+*:focus-visible {
+  outline: 3px solid rgba(15, 94, 140, 0.38);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

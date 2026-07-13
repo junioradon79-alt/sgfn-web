@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Check, Eye, EyeOff } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import SGFNButton from "@/components/ui/SGFNButton";
 import { createClient } from "@/utils/supabase/client";
@@ -36,6 +37,7 @@ export default function InscriptionPage() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleValiderCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,8 +114,8 @@ export default function InscriptionPage() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-4 font-sans antialiased">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200/40 bg-white p-8 shadow-sm">
+    <main className="flex min-h-screen items-center justify-center bg-[#F7F9FC] px-4 py-10 font-sans antialiased">
+      <div className="w-full max-w-md rounded-2xl border border-[#E3E8EF] bg-white p-6 sm:p-8">
         {/* En-tête */}
         <div className="mb-8 flex flex-col items-center text-center">
           <div className="mb-5 flex items-center gap-3">
@@ -187,6 +189,15 @@ export default function InscriptionPage() {
             </>
           )}
         </div>
+
+        {step !== "success" && (
+          <ol className="mb-8 grid grid-cols-3 gap-2" aria-label="Progression de l’inscription">
+            {[["Invitation", step === "code"], ["Identité", step === "form"], ["Confirmation", false]].map(([label, active], index) => {
+              const done = step === "form" && index === 0;
+              return <li key={String(label)}><div className={`h-1 rounded-full ${active || done ? "bg-[#0F5E8C]" : "bg-[#E3E8EF]"}`} /><p className={`mt-2 text-xs font-semibold ${active ? "text-[#0B2E4F]" : "text-slate-400"}`}>{done && <Check className="mr-1 inline h-3 w-3" />}{String(label)}</p></li>;
+            })}
+          </ol>
+        )}
 
         {/* Étape 1 : Code d'invitation */}
         {step === "code" && (
@@ -284,14 +295,12 @@ export default function InscriptionPage() {
               >
                 Mot de passe <span className="text-red-500">*</span>
               </label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="8 caractères minimum"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <div className="relative">
+                <Input id="password" type={showPassword ? "text" : "password"} placeholder="8 caractères minimum" value={password} onChange={(e) => setPassword(e.target.value)} className="pr-12" required />
+                <button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-1 top-1 flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100" aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
 
             {error && (

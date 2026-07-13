@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Loader2, Menu, X } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { Bell, Loader2, Menu, Search, UserRound, X } from "lucide-react";
 import { Sidebar } from "@/components/ui/Sidebar";
 import { createClient } from "@/utils/supabase/client";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   // Garde d'authentification côté client : indispensable car en export statique
   // le middleware (proxy.ts) ne s'exécute jamais. Le RLS protège les données,
@@ -52,6 +54,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const pageTitles: Record<string, string> = {
+    "/dashboard": "Tableau de bord",
+    "/dashboard/lots": "Gestion des lots",
+    "/dashboard/documents": "Documents",
+    "/dashboard/paiements": "Paiements",
+    "/dashboard/messages": "Messages",
+    "/dashboard/profil": "Profil et support",
+  };
+  const pageTitle = pageTitles[pathname] ?? "Espace de travail";
+
   return (
     <div className="flex h-screen overflow-hidden print:h-auto print:overflow-visible">
       {/* Backdrop sombre (mobile uniquement) */}
@@ -89,13 +101,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* Zone de droite */}
       <div className="flex h-full min-w-0 flex-1 flex-col bg-[#F8FAFC] print:h-auto">
         {/* Header (masqué à l'impression) */}
-        <header className="print:hidden flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-200/60 bg-white px-4 sm:px-6 lg:px-8 z-30">
+        <header className="print:hidden z-30 flex h-[72px] shrink-0 items-center justify-between gap-3 border-b border-[#E3E8EF] bg-white px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             {/* Hamburger (mobile) */}
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 lg:hidden"
+              className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-600 transition-colors hover:bg-slate-100 lg:hidden"
               aria-label="Ouvrir le menu"
             >
               <Menu className="h-5 w-5" />
@@ -103,22 +115,19 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             {/* Fil d'Ariane */}
             <nav aria-label="Breadcrumb" className="min-w-0">
               <ol className="flex items-center space-x-1 text-xs text-slate-500 select-none">
-                <li className="font-medium text-slate-400/90">SGNF</li>
+                <li className="font-bold uppercase tracking-[0.12em] text-[#0F5E8C]">SGFN</li>
                 <li>
                   <span className="mx-2 text-slate-300">/</span>
                 </li>
-                <li className="font-semibold text-slate-700">Dashboard</li>
+                <li className="font-semibold text-[#172033]">{pageTitle}</li>
               </ol>
             </nav>
           </div>
-          {/* Profil utilisateur */}
-          <button
-            type="button"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-100 font-bold text-slate-700 transition hover:bg-slate-200 focus:outline-none"
-            title="Mon profil"
-          >
-            <span className="select-none text-sm">AB</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <Link href="/dashboard/lots" className="hidden h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 sm:inline-flex" title="Rechercher dans les lots"><Search className="h-4 w-4" /> Rechercher</Link>
+            <Link href="/dashboard/messages" className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100" aria-label="Ouvrir les messages"><Bell className="h-5 w-5" /></Link>
+            <Link href="/dashboard/profil" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#E3E8EF] bg-white text-[#0B2E4F] transition hover:bg-slate-50" aria-label="Ouvrir mon profil"><UserRound className="h-5 w-5" /></Link>
+          </div>
         </header>
 
         {/* Contenu applicatif principal */}
