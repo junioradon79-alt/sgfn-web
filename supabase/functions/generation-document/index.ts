@@ -1,5 +1,5 @@
 // =====================================================================
-//  SGFN — Edge Function : GENERATION-DOCUMENT  (v30 : attestations_cession ne bascule plus seule en "delivree" — la remise est desormais confirmee a la main, cf. marquer_attestation_delivree())
+//  SGFN — Edge Function : GENERATION-DOCUMENT  (v33 : gabarit PDFMonkey surchargeable par lotissement pour attestations_cession, cf. lotissements.pdfmonkey_template_attestation_cession — Brignan Kakodji configure)
 // =====================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import QRCode from "npm:qrcode";
@@ -469,7 +469,16 @@ Deno.serve(async (req) => {
     ...d,
   };
 
-  const pdfmonkeyTemplateId = Deno.env.get(cfg.pdfmonkeyEnv) ?? cfg.pdfmonkeyTemplateIdDefault;
+  let pdfmonkeyTemplateId = Deno.env.get(cfg.pdfmonkeyEnv) ?? cfg.pdfmonkeyTemplateIdDefault;
+  if (table === "attestations_cession" && rec.lot_id) {
+    // Surcharge par lotissement (ex. Brignan Kakodji) -- ne remplace le gabarit
+    // global que si la colonne est renseignee pour ce lotissement precis.
+    const { data: lotLo } = await supabase.from("lots")
+      .select("ilots(lotissements(pdfmonkey_template_attestation_cession))")
+      .eq("id", rec.lot_id).single();
+    const override = (lotLo as any)?.ilots?.lotissements?.pdfmonkey_template_attestation_cession;
+    if (override) pdfmonkeyTemplateId = override;
+  }
   const filename = `${cfg.type_doc}_${baseVars.reference}.pdf`;
 
   async function renderFallback(): Promise<Response> {

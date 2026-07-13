@@ -1852,6 +1852,7 @@ export type Database = {
           nb_lots: number | null
           nom: string
           operateur_id: string | null
+          pdfmonkey_template_attestation_cession: string | null
           pv_commissaire_justice_id: string | null
           pv_numero_enregistrement: string | null
           reference_plan: string | null
@@ -1882,6 +1883,7 @@ export type Database = {
           nb_lots?: number | null
           nom: string
           operateur_id?: string | null
+          pdfmonkey_template_attestation_cession?: string | null
           pv_commissaire_justice_id?: string | null
           pv_numero_enregistrement?: string | null
           reference_plan?: string | null
@@ -1912,6 +1914,7 @@ export type Database = {
           nb_lots?: number | null
           nom?: string
           operateur_id?: string | null
+          pdfmonkey_template_attestation_cession?: string | null
           pv_commissaire_justice_id?: string | null
           pv_numero_enregistrement?: string | null
           reference_plan?: string | null
