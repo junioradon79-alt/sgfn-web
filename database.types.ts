@@ -84,6 +84,7 @@ export type Database = {
           cession_id: string | null
           cree_le: string
           date_emission: string | null
+          delivree_le: string | null
           id: string
           lot_id: string
           qr_token: string | null
@@ -99,6 +100,7 @@ export type Database = {
           cession_id?: string | null
           cree_le?: string
           date_emission?: string | null
+          delivree_le?: string | null
           id?: string
           lot_id: string
           qr_token?: string | null
@@ -114,6 +116,7 @@ export type Database = {
           cession_id?: string | null
           cree_le?: string
           date_emission?: string | null
+          delivree_le?: string | null
           id?: string
           lot_id?: string
           qr_token?: string | null
@@ -3548,6 +3551,10 @@ export type Database = {
       manifester_interet: {
         Args: { p_lot_id: string; p_message?: string }
         Returns: string
+      }
+      marquer_attestation_delivree: {
+        Args: { p_id: string }
+        Returns: undefined
       }
       marquer_echeances_en_retard: { Args: never; Returns: undefined }
       marquer_paiement_recu: {

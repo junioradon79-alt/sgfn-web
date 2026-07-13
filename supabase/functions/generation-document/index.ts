@@ -1,5 +1,5 @@
 // =====================================================================
-//  SGFN — Edge Function : GENERATION-DOCUMENT  (v29 : garde d'auth fail-closed — service_role ou x-hook-secret)
+//  SGFN — Edge Function : GENERATION-DOCUMENT  (v30 : attestations_cession ne bascule plus seule en "delivree" — la remise est desormais confirmee a la main, cf. marquer_attestation_delivree())
 // =====================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import QRCode from "npm:qrcode";
@@ -17,7 +17,7 @@ const PUBLIC_VERIFY_BASE = Deno.env.get("PUBLIC_VERIFY_BASE");
 const HOOK_SECRET    = Deno.env.get("HOOK_SECRET");
 
 const CONFIG: Record<string, { titre: string; type_doc: string; template: string; pdfmonkeyEnv: string; pdfmonkeyTemplateIdDefault?: string; flipStatutDelivree: boolean }> = {
-  attestations_cession:     { titre: "ATTESTATION DE CESSION",                       type_doc: "attestation_cession",            template: "attestation_cession.html", pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_ATTESTATION_CESSION", flipStatutDelivree: true },
+  attestations_cession:     { titre: "ATTESTATION DE CESSION",                       type_doc: "attestation_cession",            template: "attestation_cession.html", pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_ATTESTATION_CESSION", flipStatutDelivree: false },
   certificats_vente:        { titre: "CERTIFICAT DE VENTE",                          type_doc: "certificat_vente",               template: "certificat_vente.html",     pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_CERTIFICAT_VENTE", flipStatutDelivree: true },
   attestations_coutumieres: { titre: "ATTESTATION DE PROPRIETE FONCIERE COUTUMIERE", type_doc: "certificat_propriete_coutumiere", template: "apfc.html",               pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_APFC", flipStatutDelivree: true },
   // pdfmonkeyTemplateIdDefault : template "QUITTANCE" créé via l'API PDFMonkey le 03/07/2026 (pas de secret

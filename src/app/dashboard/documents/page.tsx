@@ -22,6 +22,7 @@ import {
   Image as ImageIcon,
   Loader2 as LoaderIcon,
   Sparkles,
+  PackageCheck,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -148,11 +149,13 @@ function SigDots({ proprietaire, operateur, chefferie }: { proprietaire: string 
 
 // ─── Onglets Attestations ─────────────────────────────────────────────────────
 
-function AttestationsTab({ rows, dlState, onDownload, onShowQr }: {
+function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree }: {
   rows: AttestationRow[];
   dlState: DlState;
+  remiseState: DlState;
   onDownload: (ref: string) => void;
   onShowQr: (att: AttestationRow) => void;
+  onMarquerDelivree: (id: string) => void;
 }) {
   if (rows.length === 0) {
     return (
@@ -184,6 +187,7 @@ function AttestationsTab({ rows, dlState, onDownload, onShowQr }: {
               : "—";
             const lotissement = lot?.ilots?.lotissements?.nom ?? null;
             const dl = dlState[att.reference] ?? "idle";
+            const remise = remiseState[att.id] ?? "idle";
             return (
               <tr key={att.id} className="transition hover:bg-slate-50/50">
                 <td className="px-5 py-3.5 font-mono text-xs font-semibold text-[#0D3B66]">
@@ -215,6 +219,20 @@ function AttestationsTab({ rows, dlState, onDownload, onShowQr }: {
                 </td>
                 <td className="px-5 py-3.5 text-right">
                   <div className="flex items-center justify-end gap-1">
+                  {att.statut === "generee" && (
+                    <button
+                      onClick={() => onMarquerDelivree(att.id)}
+                      disabled={remise === "loading"}
+                      title="Marquer comme délivrée (remise physique au bénéficiaire)"
+                      className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
+                        remise === "error"
+                          ? "text-red-500"
+                          : "text-slate-400 hover:bg-slate-100 hover:text-emerald-600"
+                      } disabled:opacity-50`}
+                    >
+                      <PackageCheck className={`h-4 w-4 ${remise === "loading" ? "animate-pulse" : ""}`} />
+                    </button>
+                  )}
                   {att.qr_token && (
                     <button
                       onClick={() => onShowQr(att)}
@@ -524,6 +542,7 @@ export default function DocumentsPage() {
   const [docs, setDocs] = useState<DocumentRow[]>([]);
 
   const [dlState, setDlState] = useState<DlState>({});
+  const [remiseState, setRemiseState] = useState<DlState>({});
   const [qrAtt, setQrAtt] = useState<AttestationRow | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [apercuUrls, setApercuUrls] = useState<Record<string, string>>({});
@@ -626,6 +645,18 @@ export default function DocumentsPage() {
     } catch {
       // erreur silencieuse, pas de state dédié pour ce bouton
     }
+  };
+
+  const marquerDelivree = async (id: string) => {
+    setRemiseState((s) => ({ ...s, [id]: "loading" }));
+    const { error } = await supabase.rpc("marquer_attestation_delivree", { p_id: id });
+    if (error) {
+      setRemiseState((s) => ({ ...s, [id]: "error" }));
+      setTimeout(() => setRemiseState((s) => ({ ...s, [id]: "idle" })), 2500);
+      return;
+    }
+    setRemiseState((s) => ({ ...s, [id]: "idle" }));
+    void load();
   };
 
   const telecharger = async (reference: string) => {
@@ -772,7 +803,14 @@ export default function DocumentsPage() {
             Chargement…
           </div>
         ) : activeTab === "attestations" ? (
-          <AttestationsTab rows={attestations} dlState={dlState} onDownload={telecharger} onShowQr={setQrAtt} />
+          <AttestationsTab
+            rows={attestations}
+            dlState={dlState}
+            remiseState={remiseState}
+            onDownload={telecharger}
+            onShowQr={setQrAtt}
+            onMarquerDelivree={marquerDelivree}
+          />
         ) : activeTab === "pv" ? (
           <PvTab rows={pvs} />
         ) : (
