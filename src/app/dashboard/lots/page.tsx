@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
+import RadialGauge from "@/components/ui/RadialGauge";
 import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
 import { createClient } from "@/utils/supabase/client";
 import { useChargement } from "@/hooks/useChargement";
@@ -66,6 +67,15 @@ type AttributaireOption = { id: string; nom: string | null };
 
 type TarifTier2 = { montant_min: number | null; commission_min: number | null; actif: boolean };
 type TarifChefferie = { montant_chefferie: number | null; commission_sgfn: number | null; actif: boolean };
+
+type ScoreConfiance = {
+  total: number;
+  geometrie: number;
+  attribution: number;
+  litige: number;
+  documents: number;
+  dossier: number;
+};
 
 type LitigeRow = {
   id: string;
@@ -167,8 +177,16 @@ function SelectField({ id, label, value, onChange, children, required }: {
 
 // ─── Lot Detail Modal ─────────────────────────────────────────────────────────
 
-function LotDetailModal({ lot, litiges, pvAlert, onClose }: {
-  lot: LotRecord; litiges: LitigeRow[]; pvAlert: PvInfo | null; onClose: () => void;
+const SCORE_LABELS: Record<keyof Omit<ScoreConfiance, "total">, string> = {
+  geometrie: "Géométrie",
+  attribution: "Attribution",
+  litige: "Litige",
+  documents: "Documents",
+  dossier: "Dossier",
+};
+
+function LotDetailModal({ lot, litiges, score, pvAlert, onClose }: {
+  lot: LotRecord; litiges: LitigeRow[]; score: ScoreConfiance | null; pvAlert: PvInfo | null; onClose: () => void;
 }) {
   const badge = getBadgeConfig(lot);
   const lotissementNom = lot.ilots?.lotissements?.nom ?? "—";
@@ -259,6 +277,31 @@ function LotDetailModal({ lot, litiges, pvAlert, onClose }: {
               <span>· {attestation.statut}</span>
               {!attestation.cession_id && <span className="text-emerald-600/80">· gratuite (1er propriétaire d&apos;origine)</span>}
             </div>
+          )}
+
+          {/* Score de confiance */}
+          {score && (
+            <section>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Score de confiance</p>
+              <div className="flex flex-wrap items-center gap-4 rounded-xl bg-slate-50 p-4 sm:gap-6">
+                <RadialGauge
+                  value={score.total}
+                  size={88}
+                  strokeWidth={9}
+                  gradient={score.total >= 70 ? ["#16A34A", "#4ADE80"] : score.total >= 40 ? ["#D97706", "#FBBF24"] : ["#DC2626", "#F87171"]}
+                >
+                  <span className="text-lg font-bold tracking-tight text-slate-700">{score.total}</span>
+                </RadialGauge>
+                <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-3">
+                  {(Object.keys(SCORE_LABELS) as (keyof typeof SCORE_LABELS)[]).map((key) => (
+                    <div key={key} className="rounded-lg bg-white p-2 text-center shadow-sm">
+                      <p className="text-[10px] uppercase tracking-wide text-slate-400">{SCORE_LABELS[key]}</p>
+                      <p className="text-sm font-semibold text-slate-700">{score[key]}/20</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
           )}
 
           {/* Historique de propriété */}
@@ -628,6 +671,7 @@ export default function LotsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [detailLot, setDetailLot] = useState<LotRecord | null>(null);
   const [lotLitiges, setLotLitiges] = useState<LitigeRow[]>([]);
+  const [scoreConfiance, setScoreConfiance] = useState<ScoreConfiance | null>(null);
   const [transfertLot, setTransfertLot] = useState<LotRecord | null>(null);
   const [litigeLot, setLitigeLot] = useState<LotRecord | null>(null);
   const [cessionLot, setCessionLot] = useState<LotRecord | null>(null);
@@ -701,14 +745,20 @@ export default function LotsPage() {
       });
   }, []);
 
-  // Load litiges when a lot detail is opened
+  // Load litiges + score de confiance when a lot detail is opened
   useEffect(() => {
-    if (!detailLot) return;
+    if (!detailLot) {
+      setScoreConfiance(null);
+      return;
+    }
     supabase
       .from("litiges")
       .select("id, objet, statut, ouvert_le")
       .eq("lot_id", detailLot.id)
       .then(({ data }) => setLotLitiges((data ?? []) as LitigeRow[]));
+    supabase
+      .rpc("calculer_score_confiance", { p_lot_id: detailLot.id })
+      .then(({ data }) => setScoreConfiance((data ?? null) as ScoreConfiance | null));
   }, [detailLot]);
 
   const handleCreateSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -1111,7 +1161,7 @@ export default function LotsPage() {
       )}
 
       {/* Modals d'action */}
-      {detailLot && <LotDetailModal lot={detailLot} litiges={lotLitiges} pvAlert={lotPvAlert(detailLot, pvByCollectif)} onClose={() => setDetailLot(null)} />}
+      {detailLot && <LotDetailModal lot={detailLot} litiges={lotLitiges} score={scoreConfiance} pvAlert={lotPvAlert(detailLot, pvByCollectif)} onClose={() => setDetailLot(null)} />}
       {transfertLot && <AttributionModal lot={transfertLot} attributaires={attributaireOptions} isSubmitting={isSubmitting} onClose={() => setTransfertLot(null)} onSubmit={handleAttributionSubmit} />}
       {litigeLot && <LitigeModal lot={litigeLot} isSubmitting={isSubmitting} onClose={() => setLitigeLot(null)} onSubmit={handleLitigeSubmit} />}
       {cessionLot && (() => {

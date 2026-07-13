@@ -3369,6 +3369,7 @@ export type Database = {
         Args: { p_commentaire?: string; p_id: string }
         Returns: Json
       }
+      calculer_score_confiance: { Args: { p_lot_id: string }; Returns: Json }
       conformite_lotissements: { Args: never; Returns: Json }
       convertir_demande_en_cession: {
         Args: {
@@ -3499,6 +3500,7 @@ export type Database = {
         Args: { p_commentaire?: string; p_id: string }
         Returns: undefined
       }
+      score_confiance_lot: { Args: { p_lot_id: string }; Returns: number }
       sgfn_call_edge: {
         Args: { p_payload: Json; p_slug: string }
         Returns: undefined

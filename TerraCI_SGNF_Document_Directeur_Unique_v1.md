@@ -1,6 +1,6 @@
 # TerraCI × SGNF — Document Directeur Unique
 
-**Version 1.12 — 12 juillet 2026**
+**Version 1.14 — 13 juillet 2026**
 
 > Cette version fusionne la v1.0 (vision stratégique TerraCI + état des lieux SGNF du matin du 07/07) et la Fiche projet SGNF (journal opérationnel détaillé) en **une seule référence de pilotage**. Les deux documents séparés sont désormais obsolètes : ce fichier est la référence unique pour comprendre où en est le projet, ce qui a été décidé stratégiquement, et ce qu'il reste à faire. La référence technique détaillée (schéma, conventions, pièges connus) reste le dossier `docs/` du repo `sgfn-web`, consolidé en PDF dans `docs/pdf/Dossier_Passation_SGNF.pdf`.
 
@@ -84,6 +84,7 @@ Tout choix produit doit satisfaire quatre critères : **Sécurité, Simplicité,
 - Table `tarifs` en base, **désormais branchée au formulaire `/dashboard/paiements`** (07/07 soir) — la saisie n'est plus totalement libre, les montants/commissions par type de démarche sont pré-remplis et validés.
 - Dossier de passation développeur (27 pages, `docs/pdf/Dossier_Passation_SGNF.pdf`) — référence pour toute reprise du projet.
 - **Rôle « Propriétaire terrien »** (nuit du 07 au 08/07) : le sous-rôle « chef de famille », jusqu'ici confondu avec la Chefferie (chef de village), devient un rôle formel à part entière (`groupe_utilisateur.proprietaire_terrien`), avec son propre tableau de bord `/dashboard/proprietaire-terrien`. **Coexistence permanente avec l'ancien modèle** — les comptes existants (Koelea-Accor Revu / N'CHO KOUTOUAN JULES) restent sous `groupe='chefferie'` indéfiniment ; seules les nouvelles familles/lotissements utilisent le nouveau rôle. Terminologie « Ayant droit » renommée en affichage « Propriétaire terrien » partout dans l'appli. **Déployé en production et validé par test fonctionnel e2e au navigateur le 08/07 après-midi** (nouveau rôle + non-régression chefferie/village — voir §10).
+- **Score de confiance v1 — sans IA (13/07).** Phase 1 point 3 : `calculer_score_confiance(lot_id)` (5 critères × 20 pts — géométrie, cohérence attributaire, absence de litige, statut des documents, complétude du dossier, détail réservé au dashboard admin) et `score_confiance_lot(lot_id)` (total seul, exécutable sans connexion, injecté dans `verifier_attestation()`/`verifier_document()`). Affiché via `RadialGauge` sur `/dashboard/lots` (fiche détail, jauge + 5 sous-scores) et `/verifier` (verdict de vérification QR, attestation de cession et certificat de vente — pas l'APFC, document de lotissement). Le score suit le même chemin de paywall que le reste des champs de l'attestation. Marketplace différée (pas de Passeport parcelle pour l'instant). Testé sur données réelles (lot avec attestation délivrée → 70/100, lot avec attribution non entérinée et dossier incomplet → 30/100, lot libre → 20/100) et vérifié en navigateur.
 - **Module « Opérateur de saisie » (maker-checker) — COMPLET (étapes 1-5) et DÉPLOYÉ EN PROD (11/07).** Nouveau rôle `groupe_utilisateur.operateur_saisie` dédié à la mise à jour de la base (attributions + création de lotissements/îlots/lots, y compris nouvelle autorité coutumière/opérateur/famille), soit à la main, soit par import d'un template Excel simplifié. Workflow de **double validation** : l'opérateur soumet un diff résolu (RPC `soumettre_saisie` → table `soumissions_saisie`, file + journal), **un admin approuve** (`approuver_soumission`, applique réellement avec historique préservé et garde-fou anti-attestation via GUC `sgnf.skip_free_attestation`) **ou rejette** (`rejeter_soumission` + motif). Front `/dashboard/saisie` : l'opérateur ne voit que ce module, aperçu du diff classé avant soumission (saisie manuelle ou import Excel, cumulables) ; l'admin a une file de validation + **pastille de rappel** au menu. Toutes les étapes livrées, committées (`72b633e`/`7d56d21`/`57cc2f3`/`8cdd4a6`) et testées e2e au navigateur/Playwright. Généralise le travail manuel des Guides de Répartition. Reste : le mode d'emploi du module (format pas encore choisi).
 
 ### 4.2 Décisions d'architecture actées
@@ -133,9 +134,9 @@ Tout choix produit doit satisfaire quatre critères : **Sécurité, Simplicité,
 
 ## 5. Arbitrages stratégiques (à trancher, dans cet ordre)
 
-### A1 — Architecture de marque
+### A1 — Architecture de marque ✅ TRANCHÉ (13/07/2026)
 
-**Recommandation : architecture à deux niveaux.**
+**Décision actée : architecture à deux niveaux.**
 - **SGNF** reste la marque institutionnelle et back-office (crédibilité auprès des chefferies, commissaires, administrations ; le domaine sgfn.ci est en ligne et connu des utilisateurs).
 - **TerraCI** devient la marque produit grand public et commerciale, coiffant progressivement Mon Terrain (→ TerraCI Market), la vérification (→ TerraCI Verify), etc.
 - Aucun renommage de ce qui fonctionne ; la migration de marque se fait produit par produit, au rythme des refontes.
@@ -192,9 +193,9 @@ Le monolithe Supabase actuel est **conservé** jusqu'à la fin du pilote multi-s
 
 *Objectif : matérialiser les deux différenciateurs de la vision sur la base existante.*
 
-1. **Arbitrage A1 (marque)** acté et documenté.
+1. ~~Arbitrage A1 (marque) acté et documenté~~ — **fait (13/07)** : architecture à deux niveaux (SGNF institutionnel/back-office, TerraCI grand public), voir §5.
 2. **Passeport parcelle v1** : écran unique conforme au Livre VI — identifiant, QR, informations générales, propriétaire(s), documents, chronologie, géométrie, vérifications. Assemblage de briques existantes — une partie de la donnée (historique de propriété par rang, statut de la cession en cours) est déjà exposée par `verifier_attestation()` et la page `/dashboard/lots`, ce qui facilite l'assemblage.
-3. **Score de confiance v1 — sans IA** : score sur règles calculable en SQL (complétude du dossier, statut des documents, géométrie présente, cohérence attributaire, absence de litige connu). Affiché sur le Passeport et les annonces. L'IA (Livre sur le Score TerraTrust) est explicitement reportée en V2.
+3. ~~Score de confiance v1 — sans IA~~ — **fait (13/07)**, voir §4.1. Score sur règles calculable en SQL (5 critères × 20 pts : géométrie, cohérence attributaire, absence de litige, statut des documents, complétude du dossier). Affiché sur `/dashboard/lots` et `/verifier` (le Passeport n'existant pas encore, la marketplace reste différée). L'IA (Livre sur le Score TerraTrust) reste explicitement reportée en V2.
 4. Marketplace maturité : photos d'annonces, webhook/procédure de rebuild, parcours d'acquisition en libre-service, transition `generee → delivree` tranchée.
 5. Comptes chefferies réels provisionnés, avec leurs tarifs de 3e attestation le cas échéant.
 

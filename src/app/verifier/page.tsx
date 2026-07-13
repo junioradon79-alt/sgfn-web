@@ -5,6 +5,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ShieldCheck, ShieldX, ShieldAlert, Loader2, ScanLine, Camera, X, Lock } from "lucide-react";
 import { CONSULTATION_QR, fmtMontantFCFA } from "@/lib/consultation-qr";
+import RadialGauge from "@/components/ui/RadialGauge";
 
 type Verdict = "idle" | "loading" | "trouve" | "introuvable" | "erreur" | "paiement_requis";
 
@@ -17,6 +18,7 @@ type ResultatVerification = {
   jeton_consultation?: string;
   statut_consultation?: string;
   consultation_payee?: boolean;
+  score_confiance?: number;
   [key: string]: unknown;
 };
 
@@ -521,7 +523,7 @@ function VerifierForm() {
                 ) : (
                   <ShieldCheck className="mt-0.5 h-8 w-8 shrink-0 text-emerald-600" />
                 )}
-                <div>
+                <div className="flex-1">
                   <p
                     className={`font-semibold ${
                       litigeActif ? "text-amber-800" : "text-emerald-800"
@@ -540,7 +542,26 @@ function VerifierForm() {
                       : "Ce document est enregistré au registre foncier numérique SGNF."}
                   </p>
                 </div>
+                {typeof resultat.score_confiance === "number" && (
+                  <RadialGauge
+                    value={resultat.score_confiance}
+                    size={72}
+                    strokeWidth={7}
+                    gradient={
+                      resultat.score_confiance >= 70
+                        ? ["#16A34A", "#4ADE80"]
+                        : resultat.score_confiance >= 40
+                          ? ["#D97706", "#FBBF24"]
+                          : ["#DC2626", "#F87171"]
+                    }
+                  >
+                    <span className="text-sm font-bold text-slate-700">{resultat.score_confiance}</span>
+                  </RadialGauge>
+                )}
               </div>
+              {typeof resultat.score_confiance === "number" && (
+                <p className="mt-2 text-center text-xs text-slate-400">Score de confiance sur 100</p>
+              )}
 
               <dl className="mt-6 grid gap-x-8 gap-y-3 rounded-2xl border border-slate-200 p-6 sm:grid-cols-2">
                 {Object.entries(CHAMP_LABEL)
