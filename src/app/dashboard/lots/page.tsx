@@ -2,7 +2,7 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import {
-  AlertTriangle, ArrowRightLeft, Banknote, Eye, Filter, Lock, Plus, Search, X,
+  AlertTriangle, ArrowRightLeft, Banknote, Eye, ExternalLink, Filter, Lock, Plus, Search, X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
@@ -276,6 +276,15 @@ function LotDetailModal({ lot, litiges, score, pvAlert, onClose }: {
               <span className="font-semibold">{attestation.reference}</span>
               <span>· {attestation.statut}</span>
               {!attestation.cession_id && <span className="text-emerald-600/80">· gratuite (1er propriétaire d&apos;origine)</span>}
+              <a
+                href={`/passeport?ref=${encodeURIComponent(attestation.reference ?? "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto flex items-center gap-1 font-semibold text-emerald-800 underline-offset-2 hover:underline"
+              >
+                Voir le Passeport public
+                <ExternalLink className="h-3 w-3" />
+              </a>
             </div>
           )}
 
