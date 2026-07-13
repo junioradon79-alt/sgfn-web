@@ -19,6 +19,16 @@ export type Database = {
           guide_reference: string | null;
           pv_numero_enregistrement: string | null;
           pv_commissaire_justice_id: string | null;
+          tf_numero: string | null;
+          livre_foncier: string | null;
+          centre_cadastral: string | null;
+          reference_plan: string | null;
+          cedant: string | null;
+          beneficiaire_immatriculation: string | null;
+          geometre_expert: string | null;
+          cabinet_geometre: string | null;
+          date_leve_topographique: string | null;
+          nb_bornes: number | null;
         };
         Insert: {
           id?: string;
@@ -32,6 +42,16 @@ export type Database = {
           nb_lots?: number | null;
           cree_le?: string;
           guide_reference?: string | null;
+          tf_numero?: string | null;
+          livre_foncier?: string | null;
+          centre_cadastral?: string | null;
+          reference_plan?: string | null;
+          cedant?: string | null;
+          beneficiaire_immatriculation?: string | null;
+          geometre_expert?: string | null;
+          cabinet_geometre?: string | null;
+          date_leve_topographique?: string | null;
+          nb_bornes?: number | null;
         };
         Update: {
           id?: string;
@@ -44,6 +64,16 @@ export type Database = {
           nb_ilots?: number | null;
           nb_lots?: number | null;
           guide_reference?: string | null;
+          tf_numero?: string | null;
+          livre_foncier?: string | null;
+          centre_cadastral?: string | null;
+          reference_plan?: string | null;
+          cedant?: string | null;
+          beneficiaire_immatriculation?: string | null;
+          geometre_expert?: string | null;
+          cabinet_geometre?: string | null;
+          date_leve_topographique?: string | null;
+          nb_bornes?: number | null;
         };
       };
     };

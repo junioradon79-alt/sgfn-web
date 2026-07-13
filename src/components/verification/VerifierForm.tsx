@@ -18,6 +18,23 @@ const PasseportMap = dynamic(() => import("./PasseportMap"), {
 
 type Verdict = "idle" | "loading" | "trouve" | "introuvable" | "erreur" | "paiement_requis";
 
+// Métadonnées cadastrales du lotissement (plan de Titre Foncier), exposées par
+// verifier_attestation()/verifier_document() dans l'objet `cadastre`.
+type Cadastre = {
+  livre_foncier?: string | null;
+  centre_cadastral?: string | null;
+  reference_plan?: string | null;
+  tf_numero?: string | null;
+  cedant?: string | null;
+  beneficiaire_immatriculation?: string | null;
+  geometre_expert?: string | null;
+  cabinet_geometre?: string | null;
+  date_leve_topographique?: string | null;
+  nb_bornes?: number | null;
+  superficie?: string | null;
+  operateur?: string | null;
+};
+
 type ResultatVerification = {
   type_document?: string | null;
   statut?: string;
@@ -31,6 +48,7 @@ type ResultatVerification = {
   lat_approx?: number | null;
   lng_approx?: number | null;
   nb_verifications?: number;
+  cadastre?: Cadastre | null;
   [key: string]: unknown;
 };
 
@@ -215,6 +233,21 @@ function PasseportSections({ resultat, urlPasseport }: { resultat: ResultatVerif
       ? [resultat.lat_approx, resultat.lng_approx]
       : null;
 
+  const cadastre = (resultat.cadastre ?? null) as Cadastre | null;
+  const cadastreItems = cadastre
+    ? [
+        { label: "Superficie (contenance)", value: cadastre.superficie },
+        { label: "N° Titre Foncier", value: cadastre.tf_numero },
+        { label: "Livre Foncier", value: cadastre.livre_foncier },
+        { label: "Centre cadastral", value: cadastre.centre_cadastral },
+        { label: "Référence du plan", value: cadastre.reference_plan },
+        { label: "Cédant", value: cadastre.cedant },
+        { label: "Bénéficiaire", value: cadastre.beneficiaire_immatriculation },
+        { label: "Opérateur", value: cadastre.operateur },
+        { label: "Nombre de bornes", value: cadastre.nb_bornes != null ? String(cadastre.nb_bornes) : null },
+      ].filter((it) => it.value != null && it.value !== "")
+    : [];
+
   return (
     <div className="mt-6 space-y-6">
       {/* Identifiant / informations générales */}
@@ -237,6 +270,28 @@ function PasseportSections({ resultat, urlPasseport }: { resultat: ResultatVerif
           ))}
         </div>
       </section>
+
+      {/* Données cadastrales (plan de Titre Foncier) */}
+      {cadastreItems.length > 0 && (
+        <section>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Données cadastrales</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {cadastreItems.map((item) => (
+              <div key={item.label} className="rounded-xl bg-slate-50 p-3">
+                <p className="text-xs text-slate-400">{item.label}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-700">{fmtValeur(item.value)}</p>
+              </div>
+            ))}
+          </div>
+          {cadastre?.geometre_expert && (
+            <p className="mt-3 text-xs text-slate-400">
+              Levé et dressé par {cadastre.geometre_expert}
+              {cadastre.cabinet_geometre ? ` — ${cadastre.cabinet_geometre}` : ""}
+              {cadastre.date_leve_topographique ? `, le ${fmtValeur(cadastre.date_leve_topographique)}` : ""}.
+            </p>
+          )}
+        </section>
+      )}
 
       {/* Documents (document courant consulté) */}
       <section>

@@ -1829,62 +1829,92 @@ export type Database = {
       lotissements: {
         Row: {
           autorite_coutumiere_id: string | null
+          beneficiaire_immatriculation: string | null
+          cabinet_geometre: string | null
+          cedant: string | null
+          centre_cadastral: string | null
           commune: string | null
           cree_le: string
+          date_leve_topographique: string | null
           district: string | null
           famille_id: string | null
+          geometre_expert: string | null
           guide_reference: string | null
           id: string
           latitude: number | null
+          livre_foncier: string | null
           longitude: number | null
+          nb_bornes: number | null
           nb_ilots: number | null
           nb_lots: number | null
           nom: string
           operateur_id: string | null
           pv_commissaire_justice_id: string | null
           pv_numero_enregistrement: string | null
+          reference_plan: string | null
           superficie_m2: number | null
           superficie_texte: string | null
+          tf_numero: string | null
           village: string | null
         }
         Insert: {
           autorite_coutumiere_id?: string | null
+          beneficiaire_immatriculation?: string | null
+          cabinet_geometre?: string | null
+          cedant?: string | null
+          centre_cadastral?: string | null
           commune?: string | null
           cree_le?: string
+          date_leve_topographique?: string | null
           district?: string | null
           famille_id?: string | null
+          geometre_expert?: string | null
           guide_reference?: string | null
           id?: string
           latitude?: number | null
+          livre_foncier?: string | null
           longitude?: number | null
+          nb_bornes?: number | null
           nb_ilots?: number | null
           nb_lots?: number | null
           nom: string
           operateur_id?: string | null
           pv_commissaire_justice_id?: string | null
           pv_numero_enregistrement?: string | null
+          reference_plan?: string | null
           superficie_m2?: number | null
           superficie_texte?: string | null
+          tf_numero?: string | null
           village?: string | null
         }
         Update: {
           autorite_coutumiere_id?: string | null
+          beneficiaire_immatriculation?: string | null
+          cabinet_geometre?: string | null
+          cedant?: string | null
+          centre_cadastral?: string | null
           commune?: string | null
           cree_le?: string
+          date_leve_topographique?: string | null
           district?: string | null
           famille_id?: string | null
+          geometre_expert?: string | null
           guide_reference?: string | null
           id?: string
           latitude?: number | null
+          livre_foncier?: string | null
           longitude?: number | null
+          nb_bornes?: number | null
           nb_ilots?: number | null
           nb_lots?: number | null
           nom?: string
           operateur_id?: string | null
           pv_commissaire_justice_id?: string | null
           pv_numero_enregistrement?: string | null
+          reference_plan?: string | null
           superficie_m2?: number | null
           superficie_texte?: string | null
+          tf_numero?: string | null
           village?: string | null
         }
         Relationships: [
