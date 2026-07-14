@@ -3,11 +3,13 @@
 import { useState, type FormEvent } from "react";
 import type { Database } from "../../../../database.types";
 import { useChargement } from "@/hooks/useChargement";
+import { useProfile } from "@/hooks/useProfile";
 import {
   ChevronRight,
   FileText,
   Filter,
   Loader2,
+  Pencil,
   Plus,
   Search,
   X,
@@ -78,12 +80,64 @@ function lotLabel(d: DossierAdu): string {
 
 export default function DossiersAduPage() {
   const supabase = createClient();
+  const { isAdmin } = useProfile();
 
   const [dossiers, setDossiers] = useState<DossierAdu[]>([]);
 
   const [search, setSearch] = useState("");
   const [statutFilter, setStatutFilter] = useState("");
   const [selected, setSelected] = useState<DossierAdu | null>(null);
+
+  // Édition du dossier sélectionné — seul point d'entrée pour faire progresser
+  // un statut après création (la modale de création ne sert qu'à l'état initial).
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    statut: "en_preparation",
+    adu_numero: "",
+    depose_le: "",
+    adu_date: "",
+    acd_reference: "",
+    notes: "",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const startEdit = (d: DossierAdu) => {
+    setEditForm({
+      statut: d.statut ?? "en_preparation",
+      adu_numero: d.adu_numero ?? "",
+      depose_le: d.depose_le ? d.depose_le.slice(0, 10) : "",
+      adu_date: d.adu_date ? d.adu_date.slice(0, 10) : "",
+      acd_reference: d.acd_reference ?? "",
+      notes: d.notes ?? "",
+    });
+    setEditError(null);
+    setEditing(true);
+  };
+
+  const saveEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!selected) return;
+    setSavingEdit(true);
+    setEditError(null);
+    const payload = {
+      statut: editForm.statut as Database["public"]["Enums"]["statut_dossier_adu"],
+      adu_numero: editForm.adu_numero.trim() || null,
+      depose_le: editForm.depose_le || null,
+      adu_date: editForm.adu_date || null,
+      acd_reference: editForm.acd_reference.trim() || null,
+      notes: editForm.notes.trim() || null,
+    };
+    const { error } = await supabase.from("dossiers_adu").update(payload).eq("id", selected.id);
+    setSavingEdit(false);
+    if (error) {
+      setEditError(error.message);
+      return;
+    }
+    setSelected({ ...selected, ...payload });
+    setEditing(false);
+    void recharger();
+  };
 
   // Create modal
   const [showCreate, setShowCreate] = useState(false);
@@ -317,14 +371,112 @@ export default function DossiersAduPage() {
                 </h2>
                 <p className="mt-0.5 text-sm text-slate-500">{lotLabel(selected)}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                className="rounded-full p-2 text-slate-400 hover:bg-slate-100"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                {isAdmin && !editing && (
+                  <button
+                    type="button"
+                    onClick={() => startEdit(selected)}
+                    title="Modifier le dossier"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Modifier
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => { setSelected(null); setEditing(false); }}
+                  className="rounded-full p-2 text-slate-400 hover:bg-slate-100"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
+            {editing ? (
+              <form className="space-y-4 p-6" onSubmit={saveEdit}>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700">Statut</label>
+                  <select
+                    value={editForm.statut}
+                    onChange={(e) => setEditForm((f) => ({ ...f, statut: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
+                  >
+                    {STATUT_ADU_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-slate-700">Numéro ADU</label>
+                    <input
+                      type="text"
+                      value={editForm.adu_numero}
+                      onChange={(e) => setEditForm((f) => ({ ...f, adu_numero: e.target.value }))}
+                      placeholder="Ex. ADU-2026-001"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-slate-700">Référence ACD</label>
+                    <input
+                      type="text"
+                      value={editForm.acd_reference}
+                      onChange={(e) => setEditForm((f) => ({ ...f, acd_reference: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-slate-700">Date de dépôt</label>
+                    <input
+                      type="date"
+                      value={editForm.depose_le}
+                      onChange={(e) => setEditForm((f) => ({ ...f, depose_le: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-slate-700">Date ADU</label>
+                    <input
+                      type="date"
+                      value={editForm.adu_date}
+                      onChange={(e) => setEditForm((f) => ({ ...f, adu_date: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700">Notes</label>
+                  <textarea
+                    rows={3}
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+                    className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-[#0D3B66] focus:outline-none"
+                  />
+                </div>
+                {editError && (
+                  <div className="rounded-2xl border border-red-200/70 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {editError}
+                  </div>
+                )}
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setEditing(false); setEditError(null); }}
+                    className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingEdit}
+                    className="rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E6091] disabled:opacity-70"
+                  >
+                    {savingEdit ? "Enregistrement…" : "Enregistrer"}
+                  </button>
+                </div>
+              </form>
+            ) : (
             <div className="space-y-4 p-6">
               <div className="mb-2">
                 <Badge status={badgeStatus(selected.statut)}>
@@ -379,6 +531,7 @@ export default function DossiersAduPage() {
                 </button>
               </div>
             </div>
+            )}
           </div>
         </div>
       )}
