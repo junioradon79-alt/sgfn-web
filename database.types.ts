@@ -2739,6 +2739,7 @@ export type Database = {
       }
       repartitions_paiement: {
         Row: {
+          autorite_coutumiere_id: string | null
           beneficiaire_type: string
           cree_le: string
           id: string
@@ -2747,6 +2748,7 @@ export type Database = {
           paiement_id: string
         }
         Insert: {
+          autorite_coutumiere_id?: string | null
           beneficiaire_type: string
           cree_le?: string
           id?: string
@@ -2755,6 +2757,7 @@ export type Database = {
           paiement_id: string
         }
         Update: {
+          autorite_coutumiere_id?: string | null
           beneficiaire_type?: string
           cree_le?: string
           id?: string
@@ -2763,6 +2766,13 @@ export type Database = {
           paiement_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "repartitions_paiement_autorite_coutumiere_id_fkey"
+            columns: ["autorite_coutumiere_id"]
+            isOneToOne: false
+            referencedRelation: "autorites_coutumieres"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "repartitions_paiement_paiement_id_fkey"
             columns: ["paiement_id"]

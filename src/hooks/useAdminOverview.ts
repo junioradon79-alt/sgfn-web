@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createClient } from "@/utils/supabase/client";
 import { actionAgenceRequise, type AgenceDemande } from "@/lib/agence-actions";
+import { JOUR_MS, serieParJour } from "@/lib/series";
 
 /**
  * Source unique du Centre de pilotage.
@@ -176,27 +177,9 @@ export type AdminOverview = {
 
 // ─── Utilitaires ──────────────────────────────────────────────────────────────
 
-const JOUR_MS = 86_400_000;
-
-/** Compte des horodatages par jour sur les `n` derniers jours (index 0 = le plus ancien). */
-function serieParJour(dates: Array<string | null>, jours: number): number[] {
-  const out = new Array<number>(jours).fill(0);
-  const debutAujourdhui = new Date();
-  debutAujourdhui.setHours(0, 0, 0, 0);
-
-  for (const d of dates) {
-    if (!d) continue;
-    const t = new Date(d);
-    if (Number.isNaN(t.getTime())) continue;
-    t.setHours(0, 0, 0, 0);
-    const ecart = Math.round((debutAujourdhui.getTime() - t.getTime()) / JOUR_MS);
-    if (ecart >= 0 && ecart < jours) out[jours - 1 - ecart] += 1;
-  }
-  return out;
-}
-
 const ADU_TERMINE = ["adu_delivree", "acd_obtenu", "rejete"];
-const LOT_OCCUPE = ["attribue", "vendu", "occupe"];
+/** Statuts de lot considérés "occupés" — partagé avec les dashboards scopés par rôle (chefferie…) pour que la composition du patrimoine ne se contredise pas d'un écran à l'autre. */
+export const LOT_OCCUPE = ["attribue", "vendu", "occupe"];
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 

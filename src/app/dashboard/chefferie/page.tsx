@@ -1,21 +1,16 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useChargement } from "@/hooks/useChargement";
 import { createClient } from "@/utils/supabase/client";
 import Link from "next/link";
-import {
-  FileText,
-  MessageSquare,
-  CheckCircle2,
-  AlertTriangle,
-  PenLine,
-  Map,
-  Crown,
-} from "lucide-react";
+import { MessageSquare, CheckCircle2, Crown } from "lucide-react";
 import type { Profile, AttestationCoutumiere, PvReunion } from "@/components/dashboard/chefferie/types";
 import { PV_STATUT_LABELS, PV_STATUT_COLORS, SignaturesBadges, ProgressBar, LoadingScreen, MessagerieLink } from "@/components/dashboard/chefferie/SharedUI";
 import { ChefFamilleView } from "@/components/dashboard/chefferie/ChefFamilleView";
+import { AnalyticsKpis } from "@/components/dashboard/chefferie/AnalyticsKpis";
+import { LOT_OCCUPE } from "@/hooks/useAdminOverview";
+import { serieParJour } from "@/lib/series";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,10 +47,32 @@ type AttestationCession = {
 type Litige = {
   id: string;
   statut: string;
-  description: string | null;
-  date_ouverture: string | null;
+  objet: string | null;
+  ouvert_le: string | null;
   lot: { numero_lot: string | null } | null;
 };
+
+/** Lot du territoire, version légère pour la composition analytique (occupé/libre/en litige). */
+type LotTerritoire = { id: string; statut: string | null; ilot_id: string | null };
+type AttestationTerritoire = { statut: string | null; cree_le: string | null };
+type RecetteTerritoire = { montant: number; cree_le: string | null };
+
+/**
+ * Un `.in("lot_id", ids)` avec plusieurs centaines d'UUID dépasse la longueur
+ * d'URL acceptée par PostgREST/Supabase (400 Bad Request) — Brignan Kakodji à
+ * lui seul compte 846 lots. On découpe en lots de requêtes et on fusionne côté
+ * client plutôt que de filtrer sur une seule requête géante.
+ */
+async function selectParLots<T>(
+  run: (chunk: string[]) => PromiseLike<{ data: T[] | null }>,
+  ids: string[],
+  taille = 100,
+): Promise<T[]> {
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += taille) chunks.push(ids.slice(i, i + taille));
+  const resultats = await Promise.all(chunks.map(run));
+  return resultats.flatMap((r) => r.data ?? []);
+}
 
 // ─── Vue Chef de Village ──────────────────────────────────────────────────────
 
@@ -67,12 +84,16 @@ function ChefVillageView({ profile }: { profile: Profile }) {
   const [apfc, setApfc] = useState<AttestationCoutumiere[]>([]);
   const [pvs, setPvs] = useState<PvReunion[]>([]);
   const [litiges, setLitiges] = useState<Litige[]>([]);
+  const [ilotsTerritoire, setIlotsTerritoire] = useState<{ id: string; lotissement_id: string | null }[]>([]);
+  const [lotsTerritoire, setLotsTerritoire] = useState<LotTerritoire[]>([]);
+  const [attestationsTerritoire, setAttestationsTerritoire] = useState<AttestationTerritoire[]>([]);
+  const [recettes, setRecettes] = useState<RecetteTerritoire[]>([]);
   const [signing, setSigning] = useState<string | null>(null);
   const [signingApfc, setSigningApfc] = useState<string | null>(null);
   const [signError, setSignError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    const [autoriteRes, lotissementsRes, apfcRes] = await Promise.all([
+    const [autoriteRes, lotissementsRes, apfcRes, recettesRes] = await Promise.all([
       supabase
         .from("autorites_coutumieres")
         .select("id, nom, type, village, chef")
@@ -88,56 +109,81 @@ function ChefVillageView({ profile }: { profile: Profile }) {
           "id, reference, numero, statut, date_delivrance, sig_chef_famille_le, sig_chef_village_le, sig_cvgfr_le, chef_de_famille"
         )
         .eq("autorite_coutumiere_id", profile.autorite_coutumiere_id!),
+      // Recettes perçues par la chefferie — scopées directement par autorite_coutumiere_id
+      // (dénormalisée sur la ligne par ventiler_paiement()), pas besoin des lotIds.
+      supabase
+        .from("repartitions_paiement")
+        .select("montant, cree_le")
+        .eq("autorite_coutumiere_id", profile.autorite_coutumiere_id!)
+        .order("cree_le", { ascending: true }),
     ]);
 
     setAutorite(autoriteRes.data as AutoriteCoutumiere | null);
     const lotissementData = (lotissementsRes.data ?? []) as Lotissement[];
     setLotissements(lotissementData);
     setApfc((apfcRes.data ?? []) as AttestationCoutumiere[]);
+    setRecettes((recettesRes.data ?? []) as RecetteTerritoire[]);
 
     if (lotissementData.length > 0) {
       const lotissementIds = lotissementData.map((l) => l.id);
 
       const { data: ilotsData } = await supabase
         .from("ilots")
-        .select("id")
+        .select("id, lotissement_id")
         .in("lotissement_id", lotissementIds);
-      const ilotIds = (ilotsData ?? []).map((i: { id: string }) => i.id);
+      const ilotsList = (ilotsData ?? []) as { id: string; lotissement_id: string | null }[];
+      setIlotsTerritoire(ilotsList);
+      const ilotIds = ilotsList.map((i) => i.id);
 
       if (ilotIds.length > 0) {
         const { data: lotsData } = await supabase
           .from("lots")
-          .select("id")
+          .select("id, statut, ilot_id")
           .in("ilot_id", ilotIds);
-        const lotIds = (lotsData ?? []).map((l: { id: string }) => l.id);
+        const lotsList = (lotsData ?? []) as LotTerritoire[];
+        setLotsTerritoire(lotsList);
+        const lotIds = lotsList.map((l) => l.id);
 
         if (lotIds.length > 0) {
-          const [attRes, pvLotsRes, litigesRes] = await Promise.all([
-            supabase
-              .from("attestations_cession")
-              .select(
-                "id, reference, statut, sig_chefferie_le, sig_proprietaire_le, sig_operateur_le, date_emission, lot:lot_id(numero_lot, ilots(numero, lotissements(id, nom)))"
-              )
-              .in("lot_id", lotIds)
-              .is("sig_chefferie_le", null),
-            supabase
-              .from("pv_reunions_famille_lots")
-              .select("pv_id")
-              .in("lot_id", lotIds),
-            supabase
-              .from("litiges")
-              .select("id, statut, description, date_ouverture, lot:lot_id(numero_lot)")
-              .in("lot_id", lotIds),
+          const [attestationsPendantes, pvLotsRows, litigesRows, attestationsToutes] = await Promise.all([
+            selectParLots(
+              (chunk) =>
+                supabase
+                  .from("attestations_cession")
+                  .select(
+                    "id, reference, statut, sig_chefferie_le, sig_proprietaire_le, sig_operateur_le, date_emission, lot:lot_id(numero_lot, ilots(numero, lotissements(id, nom)))"
+                  )
+                  .in("lot_id", chunk)
+                  .is("sig_chefferie_le", null),
+              lotIds,
+            ),
+            selectParLots(
+              (chunk) => supabase.from("pv_reunions_famille_lots").select("pv_id").in("lot_id", chunk),
+              lotIds,
+            ),
+            selectParLots(
+              (chunk) =>
+                supabase
+                  .from("litiges")
+                  .select("id, statut, objet, ouvert_le, lot:lot_id(numero_lot)")
+                  .in("lot_id", chunk),
+              lotIds,
+            ),
+            // Toutes les attestations du territoire (pas seulement celles en attente de
+            // signature) — pour le total émis et la tendance 30 j de l'écran analytique.
+            selectParLots(
+              (chunk) => supabase.from("attestations_cession").select("statut, cree_le").in("lot_id", chunk),
+              lotIds,
+            ),
           ]);
 
-          setAttestations(
-            (attRes.data ?? []) as unknown as AttestationCession[]
-          );
-          setLitiges((litigesRes.data ?? []) as unknown as Litige[]);
+          setAttestations(attestationsPendantes as unknown as AttestationCession[]);
+          setLitiges(litigesRows as unknown as Litige[]);
+          setAttestationsTerritoire(attestationsToutes as AttestationTerritoire[]);
 
           const pvIds = [
             ...new Set(
-              (pvLotsRes.data ?? []).map(
+              pvLotsRows.map(
                 (r: { pv_id: string }) => r.pv_id
               )
             ),
@@ -202,6 +248,42 @@ function ChefVillageView({ profile }: { profile: Profile }) {
     void fetchData();
   };
 
+  // Composition du territoire (global + par lotissement) — dérivée des lots déjà
+  // chargés, sans requête supplémentaire.
+  const composition = useMemo(() => {
+    const ilotVersLotissement = new Map(ilotsTerritoire.map((i) => [i.id, i.lotissement_id]));
+    let occupes = 0;
+    let libres = 0;
+    let enLitige = 0;
+    const parLotissement = new Map<string, { lots: number; occupes: number; libres: number; enLitige: number }>();
+
+    for (const lot of lotsTerritoire) {
+      const statut = lot.statut ?? "";
+      const estOccupe = LOT_OCCUPE.includes(statut);
+      const estLibre = statut === "libre" || statut === "reserve_equipement";
+      const estEnLitige = statut === "en_litige";
+      if (estOccupe) occupes += 1;
+      else if (estLibre) libres += 1;
+      else if (estEnLitige) enLitige += 1;
+
+      const lotissementId = lot.ilot_id ? ilotVersLotissement.get(lot.ilot_id) : null;
+      if (!lotissementId) continue;
+      const acc = parLotissement.get(lotissementId) ?? { lots: 0, occupes: 0, libres: 0, enLitige: 0 };
+      acc.lots += 1;
+      if (estOccupe) acc.occupes += 1;
+      else if (estLibre) acc.libres += 1;
+      else if (estEnLitige) acc.enLitige += 1;
+      parLotissement.set(lotissementId, acc);
+    }
+
+    return { occupes, libres, enLitige, parLotissement };
+  }, [lotsTerritoire, ilotsTerritoire]);
+
+  const acteSerie = useMemo(
+    () => serieParJour(attestationsTerritoire.map((a) => a.cree_le), 30),
+    [attestationsTerritoire],
+  );
+
   if (loading) return <LoadingScreen />;
 
   const apfcAValider = apfc.filter((a) => !a.sig_chef_village_le).length;
@@ -225,52 +307,31 @@ function ChefVillageView({ profile }: { profile: Profile }) {
         <div className="rounded-2xl border border-red-200/70 bg-red-50 px-4 py-3 text-sm text-red-700">{signError}</div>
       )}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          {
-            label: "Lotissements",
-            value: lotissements.length,
-            icon: Map,
-            color: "text-[#0D3B66]",
-            bg: "bg-[#0D3B66]/5",
-          },
-          {
-            label: "Attestations à valider",
-            value: attestations.length,
-            icon: PenLine,
-            color:
-              attestations.length > 0 ? "text-amber-600" : "text-emerald-600",
-            bg: attestations.length > 0 ? "bg-amber-50" : "bg-emerald-50",
-          },
-          {
-            label: "APFC à valider",
-            value: apfcAValider,
-            icon: FileText,
-            color:
-              apfcAValider > 0 ? "text-amber-600" : "text-emerald-600",
-            bg: apfcAValider > 0 ? "bg-amber-50" : "bg-emerald-50",
-          },
-          {
-            label: "Litiges actifs",
-            value: litiges.length,
-            icon: AlertTriangle,
-            color: litiges.length > 0 ? "text-red-600" : "text-slate-400",
-            bg: litiges.length > 0 ? "bg-red-50" : "bg-slate-50",
-          },
-        ].map((kpi) => (
-          <div
-            key={kpi.label}
-            className="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm"
-          >
-            <div className={`mb-2 inline-flex rounded-xl ${kpi.bg} p-2`}>
-              <kpi.icon className={`h-4 w-4 ${kpi.color}`} />
-            </div>
-            <p className="text-2xl font-bold text-slate-800">{kpi.value}</p>
-            <p className="mt-0.5 text-xs text-slate-400">{kpi.label}</p>
-          </div>
-        ))}
-      </div>
+      {/* Analytics du territoire */}
+      <AnalyticsKpis
+        loading={loading}
+        territoire={{
+          lots: lotsTerritoire.length,
+          occupes: composition.occupes,
+          libres: composition.libres,
+          enLitige: composition.enLitige,
+          lotissements: lotissements.length,
+        }}
+        actes={{
+          total: attestationsTerritoire.length,
+          delivrees: attestationsTerritoire.filter((a) => a.statut === "delivree").length,
+          serie: acteSerie,
+        }}
+        recettes={{
+          total: recettes.reduce((s, r) => s + (r.montant ?? 0), 0),
+          serie: recettes.map((r) => r.montant ?? 0),
+        }}
+        alertes={{
+          attestationsAValider: attestations.length,
+          litiges: litiges.length,
+          apfcEnAttente: apfcAValider,
+        }}
+      />
 
       {/* Lotissements du territoire */}
       <section className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
@@ -285,24 +346,32 @@ function ChefVillageView({ profile }: { profile: Profile }) {
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {lotissements.map((l) => (
-              <div
-                key={l.id}
-                className="flex items-center justify-between px-5 py-3.5"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">
-                    {l.nom}
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    {[l.village, l.commune].filter(Boolean).join(" · ")}
-                  </p>
+            {lotissements.map((l) => {
+              const c = composition.parLotissement.get(l.id);
+              return (
+                <div key={l.id} className="px-5 py-3.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">
+                        {l.nom}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {[l.village, l.commune].filter(Boolean).join(" · ")}
+                      </p>
+                    </div>
+                    <span className="text-xs text-slate-400">
+                      {l.nb_lots ?? "—"} lots
+                    </span>
+                  </div>
+                  {c && c.lots > 0 && (
+                    <p className="mt-1.5 text-xs text-slate-400">
+                      {c.occupes} occupé{c.occupes > 1 ? "s" : ""} · {c.libres} libre{c.libres > 1 ? "s" : ""}
+                      {c.enLitige > 0 ? ` · ${c.enLitige} en litige` : ""}
+                    </p>
+                  )}
                 </div>
-                <span className="text-xs text-slate-400">
-                  {l.nb_lots ?? "—"} lots
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -481,9 +550,9 @@ function ChefVillageView({ profile }: { profile: Profile }) {
                     <p className="text-sm font-semibold text-slate-800">
                       Lot {l.lot?.numero_lot ?? "—"}
                     </p>
-                    {l.description && (
+                    {l.objet && (
                       <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">
-                        {l.description}
+                        {l.objet}
                       </p>
                     )}
                   </div>
