@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
-import { Building2, IdCard, Link2, Phone, Pencil, Plus, Ruler, Search, X } from "lucide-react";
+import { Building2, Check, Copy, IdCard, Link2, Phone, Pencil, Plus, Ruler, Search, ThumbsDown, ThumbsUp, UserPlus, X } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { useChargement } from "@/hooks/useChargement";
@@ -16,6 +16,36 @@ type GeometreRecord = {
   cabinet: string | null;
   contact: string | null;
 };
+
+type DemandeRecord = {
+  id: string;
+  nom: string;
+  numero_ordre: string | null;
+  cabinet: string | null;
+  telephone: string;
+  email: string | null;
+  message: string | null;
+  cree_le: string;
+};
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title="Copier le code"
+      className="ml-1 rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
 
 type ProfileOption = {
   id: string;
@@ -46,20 +76,61 @@ export default function GeometresExpertsPage() {
 
   const [geometres, setGeometres] = useState<GeometreRecord[]>([]);
   const [profiles, setProfiles] = useState<ProfileOption[]>([]);
+  const [demandes, setDemandes] = useState<DemandeRecord[]>([]);
   const [search, setSearch] = useState("");
+  const [codesGeneres, setCodesGeneres] = useState<Record<string, string>>({});
+  const [demandeEnCours, setDemandeEnCours] = useState<string | null>(null);
+  const [demandeErreur, setDemandeErreur] = useState<string | null>(null);
 
   const load = async () => {
-    const [{ data: g }, { data: p }] = await Promise.all([
+    const [{ data: g }, { data: p }, { data: d }] = await Promise.all([
       supabase.from("geometres_experts").select("id, nom, numero_ordre, cabinet, contact").order("nom"),
       supabase.from("profiles").select("id, nom_complet, geometre_id").eq("groupe", "geometre"),
+      supabase
+        .from("demandes_inscription_geometre")
+        .select("id, nom, numero_ordre, cabinet, telephone, email, message, cree_le")
+        .eq("statut", "en_attente")
+        .order("cree_le"),
     ]);
     setGeometres((g ?? []) as GeometreRecord[]);
     setProfiles((p ?? []) as ProfileOption[]);
+    setDemandes((d ?? []) as DemandeRecord[]);
   };
 
   const { isLoading: loading, recharger } = useChargement(load);
 
   const comptePourGeometre = (geometreId: string) => profiles.find((p) => p.geometre_id === geometreId) ?? null;
+
+  const handleApprouver = async (id: string) => {
+    setDemandeEnCours(id);
+    setDemandeErreur(null);
+    const { data, error } = await supabase.rpc("approuver_demande_geometre", { p_id: id });
+    setDemandeEnCours(null);
+    if (error) {
+      setDemandeErreur(error.message);
+      return;
+    }
+    const code = (data as { code?: string } | null)?.code;
+    if (code) {
+      setCodesGeneres((prev) => ({ ...prev, [id]: code }));
+    }
+    // La fiche registre créée par l'approbation doit apparaître dans le tableau — recharge le registre,
+    // mais garde la demande affichée localement (avec son code) tant que l'admin ne l'a pas rechargée.
+    const { data: g } = await supabase.from("geometres_experts").select("id, nom, numero_ordre, cabinet, contact").order("nom");
+    setGeometres((g ?? []) as GeometreRecord[]);
+  };
+
+  const handleRejeter = async (id: string) => {
+    setDemandeEnCours(id);
+    setDemandeErreur(null);
+    const { error } = await supabase.rpc("rejeter_demande_geometre", { p_id: id });
+    setDemandeEnCours(null);
+    if (error) {
+      setDemandeErreur(error.message);
+      return;
+    }
+    setDemandes((prev) => prev.filter((d) => d.id !== id));
+  };
 
   const filtered = geometres.filter((g) => {
     const q = search.toLowerCase();
@@ -178,6 +249,90 @@ export default function GeometresExpertsPage() {
           Nouveau géomètre-expert
         </button>
       </div>
+
+      {/* Demandes d'inscription en attente */}
+      {demandes.length > 0 && (
+        <div className="mb-8 space-y-3">
+          <div className="flex items-center gap-2">
+            <UserPlus className="h-4 w-4 text-[#1E6091]" />
+            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#1E6091]">
+              Demandes en attente ({demandes.length})
+            </h2>
+          </div>
+
+          {demandeErreur && (
+            <div className="rounded-2xl border border-red-200/70 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {demandeErreur}
+            </div>
+          )}
+
+          {demandes.map((d) => {
+            const code = codesGeneres[d.id];
+            return (
+              <div
+                key={d.id}
+                className="rounded-2xl border border-amber-200/70 bg-amber-50/40 px-5 py-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800">{d.nom}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                      {d.numero_ordre && (
+                        <span className="inline-flex items-center gap-1">
+                          <IdCard className="h-3 w-3" /> {d.numero_ordre}
+                        </span>
+                      )}
+                      {d.cabinet && (
+                        <span className="inline-flex items-center gap-1">
+                          <Building2 className="h-3 w-3" /> {d.cabinet}
+                        </span>
+                      )}
+                      <span className="inline-flex items-center gap-1">
+                        <Phone className="h-3 w-3" /> {d.telephone}
+                      </span>
+                      {d.email && <span>{d.email}</span>}
+                    </div>
+                    {d.message && <p className="mt-2 text-xs text-slate-500">« {d.message} »</p>}
+                  </div>
+
+                  {code ? (
+                    <div className="flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-mono font-semibold text-emerald-700">
+                      {code}
+                      <CopyButton text={code} />
+                    </div>
+                  ) : (
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleRejeter(d.id)}
+                        disabled={demandeEnCours === d.id}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        <ThumbsDown className="h-3.5 w-3.5" />
+                        Rejeter
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApprouver(d.id)}
+                        disabled={demandeEnCours === d.id}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-[#0D3B66] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[#1E6091] disabled:opacity-50"
+                      >
+                        <ThumbsUp className="h-3.5 w-3.5" />
+                        {demandeEnCours === d.id ? "..." : "Approuver"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {code && (
+                  <p className="mt-2 text-xs text-emerald-700">
+                    Fiche créée — transmettez ce code au géomètre pour qu&apos;il finalise son inscription sur /inscription.
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Recherche */}
       <div className="mb-6">

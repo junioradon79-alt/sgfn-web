@@ -4,9 +4,21 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Check, Eye, EyeOff } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  HelpCircle,
+  KeyRound,
+  LockKeyhole,
+  Mail,
+  Phone,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { Input } from "@/components/ui/Input";
-import SGFNButton from "@/components/ui/SGFNButton";
 import { createClient } from "@/utils/supabase/client";
 
 const GROUPES_LABELS: Record<string, string> = {
@@ -23,6 +35,22 @@ const GROUPES_LABELS: Record<string, string> = {
 };
 
 type Step = "code" | "form" | "success";
+
+const steps: { key: Step; label: string }[] = [
+  { key: "code", label: "Invitation" },
+  { key: "form", label: "Identité" },
+  { key: "success", label: "Confirmation" },
+];
+
+const trustItems = [
+  "Invitation vérifiée côté serveur",
+  "Compte rattaché au rôle de votre organisation",
+  "Accès journalisé dans le registre SGFN",
+];
+
+function stepIndex(step: Step) {
+  return steps.findIndex((item) => item.key === step);
+}
 
 export default function InscriptionPage() {
   const router = useRouter();
@@ -51,14 +79,14 @@ export default function InscriptionPage() {
     setIsLoading(false);
 
     if (rpcError) {
-      setError("Erreur de vérification. Veuillez réessayer.");
+      setError("La vérification du code n'a pas abouti. Réessayez ou contactez votre administrateur.");
       return;
     }
 
     const data = rpcData as { valide: boolean; groupe?: string; message?: string } | null;
 
     if (!data?.valide) {
-      setError(data?.message ?? "Code invalide.");
+      setError(data?.message ?? "Ce code d'invitation n'est pas reconnu.");
       return;
     }
 
@@ -101,254 +129,224 @@ export default function InscriptionPage() {
       return;
     }
 
-    // Si session immédiate → redirection dashboard
     if (data.session) {
       router.push("/dashboard");
       router.refresh();
       return;
     }
 
-    // Sinon → confirmation email en attente
     setStep("success");
     setIsLoading(false);
   };
 
+  const currentStepIndex = stepIndex(step);
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#F7F9FC] px-4 py-10 font-sans antialiased">
-      <div className="w-full max-w-md rounded-2xl border border-[#E3E8EF] bg-white p-6 sm:p-8">
-        {/* En-tête */}
-        <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0D3B66] p-[2px] shadow-sm">
-              <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-[10px] bg-white">
-                <Image
-                  src="/logo-embleme.png"
-                  alt="SGNF"
-                  width={48}
-                  height={48}
-                  className="h-12 w-12 object-contain"
-                  priority
-                />
+    <main className="min-h-dvh bg-[#F7F9FC] px-4 py-6 text-[#172033] antialiased sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-[1180px] items-center">
+        <div className="grid w-full gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+          <section className="hidden rounded-2xl border border-[#D5E0E9] bg-white p-8 shadow-[0_18px_48px_-36px_rgba(11,46,79,0.35)] lg:block">
+            <Link href="/" className="inline-flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F5E8C]/40" aria-label="Accueil SGFN">
+              <Image src="/logo-embleme.png" alt="" width={44} height={44} className="h-11 w-11 object-contain" priority />
+              <div>
+                <p className="font-display text-xl font-extrabold tracking-tight text-[#0B2E4F]">SGFN</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#0F5E8C]">Activation sécurisée</p>
               </div>
+            </Link>
+
+            <div className="mt-16 max-w-md">
+              <p className="inline-flex items-center gap-2 rounded-full border border-[#0F5E8C]/20 bg-[#F7F9FC] px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-[#0F5E8C]">
+                <ShieldCheck className="h-4 w-4" />
+                Accès par invitation
+              </p>
+              <h1 className="mt-5 font-display text-4xl font-extrabold leading-tight tracking-tight text-[#0B2E4F]">
+                Activez votre espace sans exposer vos dossiers.
+              </h1>
+              <p className="mt-4 leading-7 text-[#526176]">
+                Le code reçu confirme votre organisation, votre rôle et les droits associés avant la création du compte.
+              </p>
             </div>
-            <span className="text-2xl font-black tracking-tight text-[#0D3B66] uppercase">
-              SGNF
-            </span>
-          </div>
 
-          {step === "code" && (
-            <>
-              <h1 className="font-display text-2xl font-bold text-[#0D3B66]">
-                Créer votre compte
-              </h1>
-              <p className="mt-2 text-sm text-slate-500">
-                Saisissez le code d&apos;invitation reçu pour commencer.
+            <div className="mt-10 space-y-3">
+              {trustItems.map((item) => (
+                <div key={item} className="flex items-center gap-3 rounded-xl border border-[#E3E8EF] bg-[#F7F9FC] px-4 py-3 text-sm font-semibold text-[#172033]">
+                  <CheckCircle2 className="h-4 w-4 text-[#147A55]" />
+                  {item}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="mx-auto w-full max-w-[520px] rounded-2xl border border-[#D5E0E9] bg-white p-6 shadow-[0_18px_48px_-36px_rgba(11,46,79,0.35)] sm:p-8">
+            <Link href="/" className="mb-8 flex items-center gap-3 lg:hidden">
+              <Image src="/logo-embleme.png" alt="" width={40} height={40} className="h-10 w-10 object-contain" priority />
+              <span className="font-display text-xl font-extrabold tracking-tight text-[#0B2E4F]">SGFN</span>
+            </Link>
+
+            <div className="mb-8">
+              <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#0F5E8C]">
+                {step === "code" ? "Invitation" : step === "form" ? "Identité" : "Confirmation"}
               </p>
-            </>
-          )}
-
-          {step === "form" && (
-            <>
-              <h1 className="font-display text-2xl font-bold text-[#0D3B66]">
-                Vos informations
-              </h1>
-              <p className="mt-2 text-sm text-slate-500">
-                Espace{" "}
-                <span className="font-semibold text-[#0D3B66]">
-                  {GROUPES_LABELS[groupe] ?? groupe}
-                </span>
+              <h2 className="mt-2 font-display text-3xl font-extrabold tracking-tight text-[#0B2E4F]">
+                {step === "code" && "Créer votre compte"}
+                {step === "form" && "Compléter votre profil"}
+                {step === "success" && "Compte créé"}
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-[#526176]">
+                {step === "code" && "Saisissez le code d'invitation transmis par votre organisation."}
+                {step === "form" && (
+                  <>
+                    Votre accès sera rattaché à l&apos;espace{" "}
+                    <span className="font-bold text-[#0B2E4F]">{GROUPES_LABELS[groupe] ?? groupe}</span>.
+                  </>
+                )}
+                {step === "success" && (
+                  <>
+                    Un lien de confirmation a été envoyé à <span className="font-bold text-[#172033]">{email}</span>.
+                  </>
+                )}
               </p>
-            </>
-          )}
+            </div>
 
-          {step === "success" && (
-            <>
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
-                <svg
-                  className="h-7 w-7 text-emerald-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
+            <ol className="mb-8 grid grid-cols-3 gap-2" aria-label="Progression de l'inscription">
+              {steps.map((item, index) => {
+                const active = index === currentStepIndex;
+                const done = index < currentStepIndex;
+                return (
+                  <li key={item.key}>
+                    <div className={`h-1 rounded-full ${active || done ? "bg-[#0F5E8C]" : "bg-[#E3E8EF]"}`} />
+                    <p className={`mt-2 flex items-center gap-1 text-xs font-bold ${active ? "text-[#0B2E4F]" : done ? "text-[#147A55]" : "text-[#8B98AA]"}`}>
+                      {done && <Check className="h-3 w-3" />}
+                      {item.label}
+                    </p>
+                  </li>
+                );
+              })}
+            </ol>
+
+            {step === "code" && (
+              <form onSubmit={handleValiderCode} className="space-y-5">
+                <div>
+                  <label htmlFor="code" className="mb-2 block text-sm font-semibold text-[#172033]">
+                    Code d&apos;invitation
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#8B98AA]" />
+                    <Input
+                      id="code"
+                      type="text"
+                      placeholder="SGFN-XXXXXXXX"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.toUpperCase())}
+                      required
+                      className="h-12 border-[#C9D5E0] bg-white pl-10 font-mono tracking-widest"
+                    />
+                  </div>
+                  <p className="mt-2 flex items-center gap-1.5 text-xs text-[#526176]">
+                    <HelpCircle className="h-3.5 w-3.5" />
+                    Le code est fourni par l&apos;administrateur de votre organisation.
+                  </p>
+                </div>
+
+                {error && <p role="alert" className="rounded-xl border border-[#B42318]/25 bg-[#B42318]/[0.06] px-3 py-3 text-sm text-[#8E1D16]">{error}</p>}
+
+                <button
+                  type="submit"
+                  disabled={isLoading || !code.trim()}
+                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0B2E4F] px-5 text-sm font-bold text-white transition hover:bg-[#0F5E8C] disabled:cursor-not-allowed disabled:opacity-55"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              </div>
-              <h1 className="font-display text-2xl font-bold text-[#0D3B66]">
-                Compte créé !
-              </h1>
-              <p className="mt-2 text-sm text-slate-500">
-                Un lien de confirmation a été envoyé à{" "}
-                <span className="font-medium text-slate-700">{email}</span>.
-                Cliquez dessus pour activer votre compte.
-              </p>
-            </>
-          )}
-        </div>
-
-        {step !== "success" && (
-          <ol className="mb-8 grid grid-cols-3 gap-2" aria-label="Progression de l’inscription">
-            {[["Invitation", step === "code"], ["Identité", step === "form"], ["Confirmation", false]].map(([label, active], index) => {
-              const done = step === "form" && index === 0;
-              return <li key={String(label)}><div className={`h-1 rounded-full ${active || done ? "bg-[#0F5E8C]" : "bg-[#E3E8EF]"}`} /><p className={`mt-2 text-xs font-semibold ${active ? "text-[#0B2E4F]" : "text-slate-400"}`}>{done && <Check className="mr-1 inline h-3 w-3" />}{String(label)}</p></li>;
-            })}
-          </ol>
-        )}
-
-        {/* Étape 1 : Code d'invitation */}
-        {step === "code" && (
-          <form onSubmit={handleValiderCode} className="space-y-5">
-            <div>
-              <label
-                htmlFor="code"
-                className="mb-1.5 block text-sm font-medium text-slate-700"
-              >
-                Code d&apos;invitation
-              </label>
-              <Input
-                id="code"
-                type="text"
-                placeholder="SGNF-XXXXXXXX"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                required
-                className="font-mono tracking-widest"
-              />
-            </div>
-
-            {error && (
-              <p className="text-sm font-medium text-red-600">{error}</p>
-            )}
-
-            <SGFNButton
-              type="submit"
-              size="lg"
-              disabled={isLoading || !code.trim()}
-              className="mt-2 w-full rounded-xl bg-[#0D3B66] text-white shadow-sm transition-all hover:bg-[#1E6091] active:scale-[0.98]"
-            >
-              {isLoading ? "Vérification..." : "Valider le code"}
-            </SGFNButton>
-          </form>
-        )}
-
-        {/* Étape 2 : Formulaire d'inscription */}
-        {step === "form" && (
-          <form onSubmit={handleInscription} className="space-y-4">
-            <div>
-              <label
-                htmlFor="nom"
-                className="mb-1.5 block text-sm font-medium text-slate-700"
-              >
-                Nom complet <span className="text-red-500">*</span>
-              </label>
-              <Input
-                id="nom"
-                type="text"
-                placeholder="Prénom NOM"
-                value={nomComplet}
-                onChange={(e) => setNomComplet(e.target.value)}
-                required
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="telephone"
-                className="mb-1.5 block text-sm font-medium text-slate-700"
-              >
-                Téléphone
-              </label>
-              <Input
-                id="telephone"
-                type="tel"
-                placeholder="+225 07 00 00 00 00"
-                value={telephone}
-                onChange={(e) => setTelephone(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="email"
-                className="mb-1.5 block text-sm font-medium text-slate-700"
-              >
-                Adresse e-mail <span className="text-red-500">*</span>
-              </label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="vous@exemple.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="password"
-                className="mb-1.5 block text-sm font-medium text-slate-700"
-              >
-                Mot de passe <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <Input id="password" type={showPassword ? "text" : "password"} placeholder="8 caractères minimum" value={password} onChange={(e) => setPassword(e.target.value)} className="pr-12" required />
-                <button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-1 top-1 flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100" aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {isLoading ? "Vérification en cours..." : "Valider le code"}
                 </button>
-              </div>
-            </div>
 
-            {error && (
-              <p className="text-sm font-medium text-red-600">{error}</p>
+                <p className="text-center text-sm text-[#526176]">
+                  Vous êtes géomètre-expert et n&apos;avez pas de code ?{" "}
+                  <Link href="/devenir-geometre" className="font-bold text-[#0F5E8C] hover:underline">
+                    Faire une demande d&apos;inscription.
+                  </Link>
+                </p>
+              </form>
             )}
 
-            <div className="flex gap-3 pt-1">
-              <button
-                type="button"
-                onClick={() => { setStep("code"); setError(""); }}
-                className="flex-none rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-              >
-                ← Retour
-              </button>
-              <SGFNButton
-                type="submit"
-                size="lg"
-                disabled={isLoading}
-                className="flex-1 rounded-xl bg-[#0D3B66] text-white shadow-sm transition-all hover:bg-[#1E6091] active:scale-[0.98]"
-              >
-                {isLoading ? "Création en cours..." : "Créer mon compte"}
-              </SGFNButton>
-            </div>
-          </form>
-        )}
+            {step === "form" && (
+              <form onSubmit={handleInscription} className="space-y-4">
+                <div>
+                  <label htmlFor="nom" className="mb-2 block text-sm font-semibold text-[#172033]">Nom complet</label>
+                  <div className="relative">
+                    <UserRound className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#8B98AA]" />
+                    <Input id="nom" type="text" placeholder="Prénom NOM" value={nomComplet} onChange={(e) => setNomComplet(e.target.value)} className="h-12 border-[#C9D5E0] pl-10" required />
+                  </div>
+                </div>
 
-        {/* Étape 3 : Succès */}
-        {step === "success" && (
-          <div className="text-center">
-            <Link
-              href="/login"
-              className="inline-block rounded-xl bg-[#0D3B66] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091]"
-            >
-              Aller à la connexion
-            </Link>
-          </div>
-        )}
+                <div>
+                  <label htmlFor="telephone" className="mb-2 block text-sm font-semibold text-[#172033]">Téléphone</label>
+                  <div className="relative">
+                    <Phone className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#8B98AA]" />
+                    <Input id="telephone" type="tel" placeholder="+225 07 00 00 00 00" value={telephone} onChange={(e) => setTelephone(e.target.value)} className="h-12 border-[#C9D5E0] pl-10" />
+                  </div>
+                </div>
 
-        {step !== "success" && (
-          <p className="mt-8 text-center">
-            <Link
-              href="/"
-              className="text-sm text-slate-400 transition-colors hover:text-[#1E6091]"
-            >
-              ← Retour à l&apos;accueil
-            </Link>
-          </p>
-        )}
+                <div>
+                  <label htmlFor="email" className="mb-2 block text-sm font-semibold text-[#172033]">Adresse e-mail</label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#8B98AA]" />
+                    <Input id="email" type="email" placeholder="vous@organisation.ci" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 border-[#C9D5E0] pl-10" required />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="password" className="mb-2 block text-sm font-semibold text-[#172033]">Mot de passe</label>
+                  <div className="relative">
+                    <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#8B98AA]" />
+                    <Input id="password" type={showPassword ? "text" : "password"} placeholder="8 caractères minimum" value={password} onChange={(e) => setPassword(e.target.value)} className="h-12 border-[#C9D5E0] pl-10 pr-12" required />
+                    <button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-1 top-1 flex h-10 w-10 items-center justify-center rounded-lg text-[#526176] transition hover:bg-[#F1F5F9]" aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {error && <p role="alert" className="rounded-xl border border-[#B42318]/25 bg-[#B42318]/[0.06] px-3 py-3 text-sm text-[#8E1D16]">{error}</p>}
+
+                <div className="grid gap-3 pt-1 sm:grid-cols-[auto_1fr]">
+                  <button
+                    type="button"
+                    onClick={() => { setStep("code"); setError(""); }}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-[#C9D5E0] bg-white px-4 text-sm font-bold text-[#0B2E4F] transition hover:bg-[#F7F9FC]"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Retour
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="inline-flex h-12 items-center justify-center rounded-xl bg-[#0B2E4F] px-5 text-sm font-bold text-white transition hover:bg-[#0F5E8C] disabled:cursor-not-allowed disabled:opacity-55"
+                  >
+                    {isLoading ? "Création en cours..." : "Créer mon compte"}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {step === "success" && (
+              <div className="space-y-5 text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#147A55]/10 text-[#147A55]">
+                  <CheckCircle2 className="h-7 w-7" />
+                </div>
+                <Link href="/login" className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-[#0B2E4F] px-5 text-sm font-bold text-white transition hover:bg-[#0F5E8C]">
+                  Aller à la connexion
+                </Link>
+              </div>
+            )}
+
+            {step !== "success" && (
+              <p className="mt-8 text-center">
+                <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-[#526176] transition-colors hover:text-[#0F5E8C]">
+                  <ArrowLeft className="h-4 w-4" />
+                  Retour à l&apos;accueil
+                </Link>
+              </p>
+            )}
+          </section>
+        </div>
       </div>
     </main>
   );

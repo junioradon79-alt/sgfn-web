@@ -1046,6 +1046,66 @@ export type Database = {
           },
         ]
       }
+      demandes_inscription_geometre: {
+        Row: {
+          cabinet: string | null
+          cree_le: string
+          email: string | null
+          id: string
+          invitation_id: string | null
+          message: string | null
+          nom: string
+          numero_ordre: string | null
+          statut: string
+          telephone: string
+          traite_le: string | null
+          traite_par: string | null
+        }
+        Insert: {
+          cabinet?: string | null
+          cree_le?: string
+          email?: string | null
+          id?: string
+          invitation_id?: string | null
+          message?: string | null
+          nom: string
+          numero_ordre?: string | null
+          statut?: string
+          telephone: string
+          traite_le?: string | null
+          traite_par?: string | null
+        }
+        Update: {
+          cabinet?: string | null
+          cree_le?: string
+          email?: string | null
+          id?: string
+          invitation_id?: string | null
+          message?: string | null
+          nom?: string
+          numero_ordre?: string | null
+          statut?: string
+          telephone?: string
+          traite_le?: string | null
+          traite_par?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demandes_inscription_geometre_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: false
+            referencedRelation: "invitations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_inscription_geometre_traite_par_fkey"
+            columns: ["traite_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       demarches: {
         Row: {
           agent_assigne: string | null
@@ -1576,6 +1636,7 @@ export type Database = {
           email: string | null
           expire_le: string
           famille_id: string | null
+          geometre_id: string | null
           groupe: Database["public"]["Enums"]["groupe_utilisateur"]
           id: string
           nom_complet: string | null
@@ -1594,6 +1655,7 @@ export type Database = {
           email?: string | null
           expire_le?: string
           famille_id?: string | null
+          geometre_id?: string | null
           groupe: Database["public"]["Enums"]["groupe_utilisateur"]
           id?: string
           nom_complet?: string | null
@@ -1612,6 +1674,7 @@ export type Database = {
           email?: string | null
           expire_le?: string
           famille_id?: string | null
+          geometre_id?: string | null
           groupe?: Database["public"]["Enums"]["groupe_utilisateur"]
           id?: string
           nom_complet?: string | null
@@ -1661,6 +1724,13 @@ export type Database = {
             columns: ["famille_id"]
             isOneToOne: false
             referencedRelation: "familles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitations_geometre_id_fkey"
+            columns: ["geometre_id"]
+            isOneToOne: false
+            referencedRelation: "geometres_experts"
             referencedColumns: ["id"]
           },
         ]
@@ -3583,6 +3653,7 @@ export type Database = {
         Returns: Json
       }
       _appliquer_maj_attributions: { Args: { p_payload: Json }; Returns: Json }
+      approuver_demande_geometre: { Args: { p_id: string }; Returns: Json }
       approuver_soumission: {
         Args: { p_commentaire?: string; p_id: string }
         Returns: Json
@@ -3638,6 +3709,17 @@ export type Database = {
         Returns: Json
       }
       debug_mon_contexte: { Args: never; Returns: Json }
+      demander_inscription_geometre: {
+        Args: {
+          p_cabinet?: string
+          p_email?: string
+          p_message?: string
+          p_nom: string
+          p_numero_ordre?: string
+          p_telephone?: string
+        }
+        Returns: string
+      }
       destinataires_agence_lot: {
         Args: { p_lot_id: string }
         Returns: string[]
@@ -3727,6 +3809,10 @@ export type Database = {
       profil_de_attributaire: { Args: { p_attr: string }; Returns: string }
       regenerer_document: {
         Args: { p_id: string; p_table: string }
+        Returns: undefined
+      }
+      rejeter_demande_geometre: {
+        Args: { p_id: string; p_motif?: string }
         Returns: undefined
       }
       rejeter_soumission: {
