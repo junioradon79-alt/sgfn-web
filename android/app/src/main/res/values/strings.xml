@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">SGFN</string>
-    <string name="title_activity_main">SGFN</string>
-    <string name="package_name">ci.sgfn.app</string>
-    <string name="custom_url_scheme">ci.sgfn.app</string>
+    <string name="app_name">SGNF</string>
+    <string name="title_activity_main">SGNF</string>
+    <string name="package_name">ci.sgnf.app</string>
+    <string name="custom_url_scheme">ci.sgnf.app</string>
 </resources>

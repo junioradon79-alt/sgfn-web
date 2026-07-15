@@ -1,4 +1,4 @@
-package ci.sgfn.app;
+package ci.sgnf.app;
 
 import com.getcapacitor.BridgeActivity;
 

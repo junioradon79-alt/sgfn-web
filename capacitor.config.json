@@ -1,6 +1,6 @@
 {
-  "appId": "ci.sgfn.app",
-  "appName": "SGFN",
+  "appId": "ci.sgnf.app",
+  "appName": "SGNF",
   "webDir": "out",
   "server": {
     "androidScheme": "https",
