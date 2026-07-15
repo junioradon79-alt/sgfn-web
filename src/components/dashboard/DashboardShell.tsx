@@ -54,14 +54,17 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Le Centre de pilotage (racine /dashboard) fournit son propre shell (barre
-  // latérale + en-tête) : on n'empile pas le chrome historique par-dessus.
+  // Écrans déjà migrés sur le Design System (`AppShell`) : ils fournissent leur
+  // propre chrome (barre latérale + en-tête), on n'empile pas l'historique
+  // par-dessus. Liste volontairement close — les ~25 autres pages `/dashboard/*`
+  // gardent le chrome historique jusqu'à leur migration (cf. docs/DESIGN_SYSTEM.md §9).
   //
   // La barre oblique finale n'est pas cosmétique : `trailingSlash: true`
-  // (next.config.ts) fait que `usePathname()` renvoie « /dashboard/ ». Comparer
-  // à « /dashboard » sans la normaliser affichait deux barres latérales et deux
+  // (next.config.ts) fait que `usePathname()` renvoie « /dashboard/geometre/ ».
+  // Comparer sans la normaliser affichait deux barres latérales et deux
   // en-têtes superposés.
-  if (pathname.replace(/\/+$/, "") === "/dashboard") {
+  const ECRANS_DS = ["/dashboard", "/dashboard/geometre", "/dashboard/missions", "/dashboard/demarches"];
+  if (ECRANS_DS.includes(pathname.replace(/\/+$/, ""))) {
     return <div className="print:h-auto">{children}</div>;
   }
 

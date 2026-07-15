@@ -36,6 +36,7 @@ function initiales(nom: string) {
  * au contact de la donnée qu'il modifie.
  */
 export function AppHeader({
+  title = "Centre de pilotage",
   nom,
   role,
   majLe,
@@ -46,6 +47,8 @@ export function AppHeader({
   theme,
   onSetTheme,
 }: {
+  /** Libellé du fil d'Ariane — un écran par rôle porte son propre titre. */
+  title?: string;
   nom: string;
   role: string;
   majLe: Date | null;
@@ -83,7 +86,7 @@ export function AppHeader({
           <li className="hidden text-border-strong sm:block" aria-hidden>
             /
           </li>
-          <li className="truncate font-semibold text-foreground">Centre de pilotage</li>
+          <li className="truncate font-semibold text-foreground">{title}</li>
         </ol>
       </nav>
 

@@ -63,6 +63,8 @@ skills-lock.json
 # graphify (graphe de connaissance regenere localement via `graphify update .`, pas un artefact projet)
 /graphify-out/
 .graphify_*
+.graphify/
+.graphify.zip
 
 # typescript
 *.tsbuildinfo

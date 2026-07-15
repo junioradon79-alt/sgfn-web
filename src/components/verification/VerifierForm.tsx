@@ -56,6 +56,7 @@ const TYPE_LABEL: Record<string, string> = {
   attestation_cession: "Attestation de cession",
   certificat_vente: "Certificat de vente",
   apfc: "Attestation de propriété foncière coutumière (APFC)",
+  pv_bornage: "Procès-verbal de bornage",
 };
 
 const CHAMP_LABEL: Record<string, string> = {
@@ -90,6 +91,17 @@ const CHAMP_LABEL: Record<string, string> = {
   pv_commissaire_nom: "Commissaire de justice",
   pv_commissaire_etude: "Étude",
   guide_reference: "Guide de référence",
+  geometre: "Géomètre-expert",
+  geometre_cabinet: "Cabinet",
+  geometre_numero_ordre: "N° d'ordre",
+  client: "Client / demandeur",
+  lieu: "Lieu",
+  date_bornage: "Date du bornage",
+  superficie_mesuree_m2: "Superficie mesurée (m²)",
+  superficie_enregistree_m2: "Superficie enregistrée (m²)",
+  sig_demandeur: "Signature du demandeur",
+  sig_geometre: "Signature du géomètre",
+  sig_autorite: "Signature de l'autorité coutumière",
 };
 
 const QR_READER_ID = "qr-reader-camera";

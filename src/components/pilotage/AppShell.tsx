@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { useProfile } from "@/hooks/useProfile";
 import { useTheme } from "@/hooks/useTheme";
 import { usePersistentState } from "@/hooks/usePersistentState";
-import { visibleNavItems, type BadgeKey } from "@/lib/navigation";
+import { hasCustomNavOrder, visibleNavItems, type BadgeKey } from "@/lib/navigation";
 import { TooltipProvider } from "@/components/ds/tooltip";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ds/sheet";
 import { AppSidebar } from "./AppSidebar";
@@ -29,20 +29,25 @@ const CLE_REPLI = "sgnf:nav-collapsed";
  */
 export function AppShell({
   children,
+  title,
   loading,
-  majLe,
+  majLe = null,
   counts,
   onRefresh,
   onNouveauDossier,
 }: {
   children: React.ReactNode;
+  /** Libellé du fil d'Ariane, dans l'en-tête et le rail mobile. */
+  title?: string;
   loading: boolean;
-  majLe: Date | null;
+  majLe?: Date | null;
   /** Pastilles « à faire » — fournies par la page (cf. `useBadgeCounts`), pour
    *  que la barre latérale et le Centre d'alertes affichent le même chiffre. */
   counts: Partial<Record<BadgeKey, number>>;
   onRefresh: () => void;
-  onNouveauDossier: () => void;
+  /** Action « Nouveau dossier ADU » — propre au Centre de pilotage admin.
+   *  Omise sur les autres écrans : la palette masque alors l'entrée. */
+  onNouveauDossier?: () => void;
 }) {
   const { profile, loading: profileLoading } = useProfile();
   const { choice, isDark, setTheme } = useTheme();
@@ -55,6 +60,9 @@ export function AppShell({
 
   const groupe = profile?.groupe ?? null;
   const items = React.useMemo(() => visibleNavItems(groupe, profileLoading), [groupe, profileLoading]);
+  // Un rôle avec un ordre de nav personnalisé veut une liste plate, lue dans
+  // cet ordre précis — le regroupement par section le shufflerait.
+  const grouped = !hasCustomNavOrder(groupe);
 
   const toggleCollapsed = React.useCallback(() => setRepli(collapsed ? "0" : "1"), [collapsed, setRepli]);
 
@@ -91,6 +99,7 @@ export function AppShell({
                   items={items}
                   counts={counts}
                   collapsed={collapsed}
+                  grouped={grouped}
                   onToggleCollapsed={toggleCollapsed}
                 />
               </div>
@@ -104,6 +113,7 @@ export function AppShell({
                   items={items}
                   counts={counts}
                   collapsed={false}
+                  grouped={grouped}
                   onNavigate={() => setMobileOpen(false)}
                 />
               </SheetContent>
@@ -111,6 +121,7 @@ export function AppShell({
 
             <div className="flex min-w-0 flex-1 flex-col">
               <AppHeader
+                title={title}
                 nom={nom}
                 role={role}
                 majLe={majLe}

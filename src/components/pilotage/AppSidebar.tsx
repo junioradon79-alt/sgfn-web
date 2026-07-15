@@ -29,16 +29,82 @@ export function AppSidebar({
   items,
   counts,
   collapsed,
+  grouped = true,
   onToggleCollapsed,
   onNavigate,
 }: {
   items: NavItem[];
   counts: Partial<Record<BadgeKey, number>>;
   collapsed: boolean;
+  /** false = liste plate dans l'ordre donné (rôles avec un ordre personnalisé,
+   *  cf. `hasCustomNavOrder`) — le regroupement par section le shufflerait. */
+  grouped?: boolean;
   onToggleCollapsed?: () => void;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+
+  const renderItem = (item: NavItem) => {
+    const active = pathname === item.href || pathname.startsWith(item.href + "/");
+    const badge = item.badgeKey ? counts[item.badgeKey] ?? 0 : 0;
+    const Icon = item.icon;
+
+    const link = (
+      <Link
+        href={item.href}
+        onClick={onNavigate}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "group relative flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] font-medium outline-none transition-colors",
+          "focus-visible:ring-2 focus-visible:ring-ring/50",
+          active ? "bg-accent-subtle text-accent" : "text-muted-foreground hover:bg-inset hover:text-foreground",
+          collapsed && "justify-center px-0",
+        )}
+      >
+        {/* Repère d'onglet actif — un trait, pas un fond criard. */}
+        {active && (
+          <motion.span
+            layoutId="nav-active"
+            transition={spring}
+            className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-accent"
+            aria-hidden
+          />
+        )}
+        <span className="relative shrink-0">
+          <Icon className="size-4" aria-hidden />
+          {badge > 0 && collapsed && (
+            <span className="absolute -top-1 -right-1 size-2 rounded-full bg-danger ring-2 ring-card" aria-hidden />
+          )}
+        </span>
+        {!collapsed && (
+          <>
+            <span className="truncate">{item.label}</span>
+            {badge > 0 && (
+              <span className="ml-auto inline-flex min-w-[18px] items-center justify-center rounded-full bg-danger px-1.5 py-0.5 text-[10.5px] font-bold leading-none text-white tabular">
+                {badge}
+              </span>
+            )}
+          </>
+        )}
+      </Link>
+    );
+
+    return (
+      <li key={item.href}>
+        {collapsed ? (
+          <Tooltip>
+            <TooltipTrigger asChild>{link}</TooltipTrigger>
+            <TooltipContent side="right">
+              {item.label}
+              {badge > 0 && ` · ${badge} à traiter`}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          link
+        )}
+      </li>
+    );
+  };
 
   return (
     <div className="flex h-full flex-col bg-card">
@@ -78,88 +144,27 @@ export function AppSidebar({
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-3" aria-label="Navigation principale">
-        {SECTION_ORDER.map((section) => {
-          const sectionItems = items.filter((i) => i.section === section);
-          if (sectionItems.length === 0) return null;
+        {grouped ? (
+          SECTION_ORDER.map((section) => {
+            const sectionItems = items.filter((i) => i.section === section);
+            if (sectionItems.length === 0) return null;
 
-          return (
-            <div key={section} className="mb-4 last:mb-0">
-              {collapsed ? (
-                <div className="mx-2 mb-2 h-px bg-border" aria-hidden />
-              ) : (
-                <p className="mb-1 px-2 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                  {SECTION_LABELS[section]}
-                </p>
-              )}
-
-              <ul className="flex flex-col gap-0.5">
-                {sectionItems.map((item) => {
-                  const active = pathname === item.href || pathname.startsWith(item.href + "/");
-                  const badge = item.badgeKey ? counts[item.badgeKey] ?? 0 : 0;
-                  const Icon = item.icon;
-
-                  const link = (
-                    <Link
-                      href={item.href}
-                      onClick={onNavigate}
-                      aria-current={active ? "page" : undefined}
-                      className={cn(
-                        "group relative flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] font-medium outline-none transition-colors",
-                        "focus-visible:ring-2 focus-visible:ring-ring/50",
-                        active
-                          ? "bg-accent-subtle text-accent"
-                          : "text-muted-foreground hover:bg-inset hover:text-foreground",
-                        collapsed && "justify-center px-0",
-                      )}
-                    >
-                      {/* Repère d'onglet actif — un trait, pas un fond criard. */}
-                      {active && (
-                        <motion.span
-                          layoutId="nav-active"
-                          transition={spring}
-                          className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-accent"
-                          aria-hidden
-                        />
-                      )}
-                      <span className="relative shrink-0">
-                        <Icon className="size-4" aria-hidden />
-                        {badge > 0 && collapsed && (
-                          <span className="absolute -top-1 -right-1 size-2 rounded-full bg-danger ring-2 ring-card" aria-hidden />
-                        )}
-                      </span>
-                      {!collapsed && (
-                        <>
-                          <span className="truncate">{item.label}</span>
-                          {badge > 0 && (
-                            <span className="ml-auto inline-flex min-w-[18px] items-center justify-center rounded-full bg-danger px-1.5 py-0.5 text-[10.5px] font-bold leading-none text-white tabular">
-                              {badge}
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </Link>
-                  );
-
-                  return (
-                    <li key={item.href}>
-                      {collapsed ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>{link}</TooltipTrigger>
-                          <TooltipContent side="right">
-                            {item.label}
-                            {badge > 0 && ` · ${badge} à traiter`}
-                          </TooltipContent>
-                        </Tooltip>
-                      ) : (
-                        link
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          );
-        })}
+            return (
+              <div key={section} className="mb-4 last:mb-0">
+                {collapsed ? (
+                  <div className="mx-2 mb-2 h-px bg-border" aria-hidden />
+                ) : (
+                  <p className="mb-1 px-2 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                    {SECTION_LABELS[section]}
+                  </p>
+                )}
+                <ul className="flex flex-col gap-0.5">{sectionItems.map((item) => renderItem(item))}</ul>
+              </div>
+            );
+          })
+        ) : (
+          <ul className="flex flex-col gap-0.5">{items.map((item) => renderItem(item))}</ul>
+        )}
       </nav>
 
       {collapsed && onToggleCollapsed && (

@@ -1,5 +1,5 @@
 // =====================================================================
-//  SGFN — Edge Function : GENERATION-DOCUMENT  (v33 : gabarit PDFMonkey surchargeable par lotissement pour attestations_cession, cf. lotissements.pdfmonkey_template_attestation_cession — Brignan Kakodji configure)
+//  SGFN — Edge Function : GENERATION-DOCUMENT  (v34 : ajout pv_bornage — PV de bornage genere pour les missions du portefeuille geometre, cf. missions_geometre/pv_bornage)
 // =====================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import QRCode from "npm:qrcode";
@@ -23,6 +23,8 @@ const CONFIG: Record<string, { titre: string; type_doc: string; template: string
   // pdfmonkeyTemplateIdDefault : template "QUITTANCE" créé via l'API PDFMonkey le 03/07/2026 (pas de secret
   // PDFMONKEY_TEMPLATE_ID_QUITTANCE posé) — un secret du même nom, s'il est ajouté plus tard, prend le dessus.
   paiements:                { titre: "QUITTANCE DE PAIEMENT",                       type_doc: "quittance",                      template: "quittance.html",           pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_QUITTANCE", pdfmonkeyTemplateIdDefault: "ea7baf50-0341-4ccb-be53-4e2701b7e87d", flipStatutDelivree: false },
+  // Pas de gabarit PDFMonkey configure pour l'instant -> repli HTML/Gotenberg (cf. QUITTANCE_GABARIT/PV_BORNAGE_GABARIT).
+  pv_bornage:                { titre: "PROCES-VERBAL DE BORNAGE",                    type_doc: "pv_bornage",                     template: "pv_bornage.html",          pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_PV_BORNAGE", flipStatutDelivree: false },
 };
 
 const TYPE_PAIEMENT_LABELS: Record<string, string> = {
@@ -35,6 +37,11 @@ const MOYEN_LABELS: Record<string, string> = {
   wave: "Wave", orange_money: "Orange Money", mtn_money: "MTN Money", moov_money: "Moov Money",
   virement: "Virement bancaire", especes: "Especes", autre: "Autre",
 };
+const TYPE_MISSION_LABELS: Record<string, string> = {
+  bornage: "Bornage", morcellement: "Morcellement", implantation: "Implantation",
+  expertise_judiciaire: "Expertise judiciaire", leve_topographique: "Leve topographique",
+  immatriculation: "Immatriculation", copropriete: "Copropriete", autre: "Autre",
+};
 
 const MOIS = ["Janvier","Fevrier","Mars","Avril","Mai","Juin","Juillet","Aout","Septembre","Octobre","Novembre","Decembre"];
 function dateFr(d?: string): string {
@@ -44,6 +51,10 @@ function dateFr(d?: string): string {
 function montantFr(n?: number | null): string {
   if (n == null) return "—";
   return new Intl.NumberFormat("fr-FR").format(n) + " FCFA";
+}
+function superficieFr(n?: number | null): string {
+  if (n == null) return "—";
+  return new Intl.NumberFormat("fr-FR").format(n) + " m²";
 }
 
 async function chargerGabarit(nom: string): Promise<string | null> {
@@ -67,11 +78,12 @@ async function chargerAttributaire(id: string) {
 
 async function chargerLot(id: string) {
   const { data: lot } = await supabase.from("lots")
-    .select("numero_lot, ilots(numero, lotissements(nom, village, commune))").eq("id", id).single();
+    .select("numero_lot, superficie_m2, ilots(numero, lotissements(nom, village, commune))").eq("id", id).single();
   const il: any = (lot as any)?.ilots; const lo: any = il?.lotissements;
   return {
     lot: lot?.numero_lot ?? "—", ilot: il?.numero ?? "—",
     lotissement: lo?.nom ?? "—", village: lo?.village ?? "—", commune: lo?.commune ?? "—",
+    superficie_enregistree: superficieFr(lot?.superficie_m2 ?? null),
   };
 }
 
@@ -153,6 +165,29 @@ async function chargerDonnees(table: string, rec: any): Promise<Record<string, s
         out.beneficiaire = out.beneficiaire !== "—" ? out.beneficiaire : att.nom;
         out.acquereur_contacts = att.contacts;
       }
+    }
+
+    if (table === "pv_bornage") {
+      const { data: m } = await supabase.from("missions_geometre")
+        .select("client_nom,client_contact,lieu,type_mission,lot_id,geometre_id").eq("id", rec.mission_id).single();
+      out.client_nom = m?.client_nom ?? "—";
+      out.client_contact = m?.client_contact ?? "—";
+      out.lieu = m?.lieu ?? "—";
+      out.type_mission = TYPE_MISSION_LABELS[m?.type_mission ?? ""] ?? m?.type_mission ?? "—";
+      if (m?.geometre_id) {
+        const { data: ge } = await supabase.from("geometres_experts").select("nom,numero_ordre,cabinet").eq("id", m.geometre_id).single();
+        out.geometre_nom = ge?.nom ?? "—";
+        out.geometre_numero_ordre = ge?.numero_ordre ?? "—";
+        out.geometre_cabinet = ge?.cabinet ?? "—";
+      }
+      if (m?.lot_id) {
+        Object.assign(out, await chargerLot(m.lot_id));
+      } else {
+        out.lot = "—"; out.ilot = "—"; out.lotissement = "—"; out.superficie_enregistree = "—";
+      }
+      out.date_bornage = rec.date_bornage ? dateFr(rec.date_bornage) : "—";
+      out.superficie_mesuree = superficieFr(rec.superficie_mesuree_m2 ?? null);
+      out.observations = rec.observations ?? "—";
     }
   } catch (e) { console.error("chargerDonnees", table, e); }
   return out;
@@ -354,8 +389,169 @@ const QUITTANCE_GABARIT = `<!doctype html>
 </html>
 `;
 
+const PV_BORNAGE_GABARIT = `<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>{{titre}} — {{reference}}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, "Helvetica Neue", sans-serif;
+    color: #1F2937;
+    background: #ffffff;
+    width: 210mm;
+    min-height: 297mm;
+    padding: 16mm 18mm;
+  }
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 3px solid #0D3B66; padding-bottom: 14px; margin-bottom: 28px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .badge {
+    width: 48px; height: 48px; border-radius: 12px;
+    background: linear-gradient(135deg, #0D3B66, #1E6091);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .brand .badge svg { width: 26px; height: 26px; }
+  .brand .name { font-size: 20px; font-weight: 800; color: #0D3B66; letter-spacing: 0.02em; }
+  .brand .tagline { font-size: 10px; color: #64748b; margin-top: 2px; }
+  .doc-meta { text-align: right; }
+  .doc-meta .titre { font-size: 15px; font-weight: 800; color: #0D3B66; letter-spacing: 0.06em; text-transform: uppercase; }
+  .doc-meta .ref { font-size: 12px; color: #475569; margin-top: 3px; font-family: "Courier New", monospace; }
+  .doc-meta .date { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+  .geometre-box {
+    background: linear-gradient(135deg, #0D3B66, #1E6091);
+    border-radius: 14px; padding: 18px 24px; color: #ffffff; margin-bottom: 24px;
+  }
+  .geometre-box .label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.85; }
+  .geometre-box .nom { font-size: 18px; font-weight: 800; margin-top: 3px; }
+  .geometre-box .sous { font-size: 11.5px; margin-top: 4px; opacity: 0.9; }
+
+  .superficies { display: flex; gap: 14px; margin-bottom: 24px; }
+  .superficie-card {
+    flex: 1; border: 1px solid #E2E8F0; border-radius: 12px; padding: 14px 18px;
+  }
+  .superficie-card .label { font-size: 10.5px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .superficie-card .valeur { font-size: 20px; font-weight: 800; color: #0D3B66; margin-top: 4px; }
+
+  .details { border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
+  .details .row { display: flex; padding: 12px 18px; border-bottom: 1px solid #F1F5F9; }
+  .details .row:last-child { border-bottom: none; }
+  .details .row:nth-child(even) { background: #F8FAFC; }
+  .details .label { width: 42%; font-size: 11.5px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .details .value { width: 58%; font-size: 13px; color: #1F2937; font-weight: 600; }
+
+  .observations { border: 1px dashed #CBD5E1; border-radius: 12px; padding: 14px 18px; margin-bottom: 24px; }
+  .observations .label { font-size: 10.5px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px; }
+  .observations .texte { font-size: 12.5px; color: #334155; line-height: 1.6; }
+
+  .signatures { display: flex; gap: 14px; margin-bottom: 24px; }
+  .signature-box { flex: 1; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; text-align: center; }
+  .signature-box .role { font-size: 11px; font-weight: 700; color: #0D3B66; text-transform: uppercase; letter-spacing: 0.03em; }
+  .signature-box .ligne { border-top: 1px solid #CBD5E1; margin-top: 36px; padding-top: 6px; font-size: 10px; color: #94a3b8; }
+
+  .verif {
+    display: flex; align-items: center; gap: 18px; border: 1px dashed #CBD5E1;
+    border-radius: 12px; padding: 16px 20px; margin-bottom: 24px;
+  }
+  .verif img { width: 84px; height: 84px; flex-shrink: 0; }
+  .verif .titre-verif { font-size: 12.5px; font-weight: 700; color: #0D3B66; }
+  .verif .texte-verif { font-size: 11px; color: #64748b; margin-top: 4px; line-height: 1.5; }
+  .verif .url-verif { font-size: 10.5px; color: #1E6091; margin-top: 4px; word-break: break-all; }
+
+  .mention-legale { font-size: 10px; color: #94a3b8; line-height: 1.6; border-top: 1px solid #E2E8F0; padding-top: 14px; }
+  .footer { margin-top: 40px; text-align: center; font-size: 9.5px; color: #CBD5E1; }
+</style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="brand">
+      <div class="badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+      </div>
+      <div>
+        <div class="name">SGNF</div>
+        <div class="tagline">Système de Gestion Numérique du Foncier</div>
+      </div>
+    </div>
+    <div class="doc-meta">
+      <div class="titre">{{titre}}</div>
+      <div class="ref">{{reference}}</div>
+      <div class="date">Émis le {{date}} — bornage du {{date_bornage}}</div>
+    </div>
+  </div>
+
+  <div class="geometre-box">
+    <div class="label">Géomètre-expert</div>
+    <div class="nom">{{geometre_nom}}</div>
+    <div class="sous">{{geometre_cabinet}} · N° d'ordre {{geometre_numero_ordre}}</div>
+  </div>
+
+  <div class="superficies">
+    <div class="superficie-card">
+      <div class="label">Superficie mesurée</div>
+      <div class="valeur">{{superficie_mesuree}}</div>
+    </div>
+    <div class="superficie-card">
+      <div class="label">Superficie enregistrée</div>
+      <div class="valeur">{{superficie_enregistree}}</div>
+    </div>
+  </div>
+
+  <div class="details">
+    <div class="row"><div class="label">Client / demandeur</div><div class="value">{{client_nom}}</div></div>
+    <div class="row"><div class="label">Contact</div><div class="value">{{client_contact}}</div></div>
+    <div class="row"><div class="label">Type de mission</div><div class="value">{{type_mission}}</div></div>
+    <div class="row"><div class="label">Lieu</div><div class="value">{{lieu}}</div></div>
+    <div class="row"><div class="label">Lot / lotissement</div><div class="value">{{lot}} · {{lotissement}}</div></div>
+  </div>
+
+  <div class="observations">
+    <div class="label">Observations</div>
+    <div class="texte">{{observations}}</div>
+  </div>
+
+  <div class="signatures">
+    <div class="signature-box"><div class="role">Le demandeur</div><div class="ligne">Signature</div></div>
+    <div class="signature-box"><div class="role">Le géomètre-expert</div><div class="ligne">Signature</div></div>
+    <div class="signature-box"><div class="role">L'autorité coutumière</div><div class="ligne">Signature</div></div>
+  </div>
+
+  <div class="verif">
+    <img src="{{qr_data_uri}}" alt="QR code de vérification" />
+    <div>
+      <div class="titre-verif">Vérifier l'authenticité de ce procès-verbal</div>
+      <div class="texte-verif">
+        Scannez ce QR code avec l'appareil photo de votre téléphone, ou saisissez la
+        référence <strong>{{reference}}</strong> sur la page de vérification SGNF.
+      </div>
+      <div class="url-verif">{{verify_url}}</div>
+    </div>
+  </div>
+
+  <p class="mention-legale">
+    Ce procès-verbal constate les opérations de bornage réalisées par le géomètre-expert
+    désigné ci-dessus. Il engage sa responsabilité professionnelle et n'a valeur légale
+    définitive qu'une fois signé par l'ensemble des parties présentes. Chaque vérification
+    de ce document est journalisée par SGNF.
+  </p>
+
+  <div class="footer">SGNF — Système de Gestion Numérique du Foncier · Document généré automatiquement</div>
+
+</body>
+</html>
+`;
+
 function gabaritInterne(cfg: { titre: string; type_doc: string }): string {
   if (cfg.type_doc === "quittance") return QUITTANCE_GABARIT;
+  if (cfg.type_doc === "pv_bornage") return PV_BORNAGE_GABARIT;
   return `<!DOCTYPE html><html><body><h1>${cfg.titre}</h1><p>{{reference}} — document genere sans gabarit specifique (repli minimal)</p></body></html>`;
 }
 
@@ -436,6 +632,9 @@ Deno.serve(async (req) => {
           type_paiement: "Vente terrain", montant_total: "250 000 FCFA", commission_sgfn: "10 000 FCFA",
           montant_reverse: "240 000 FCFA", beneficiaire: "TEST BENEFICIAIRE", moyen: "Wave",
           reference_externe: "cinetpay:TEST", date_confirmation: "24 Juin 2026", acquereur_contacts: "+225 00 00",
+          client_nom: "TEST CLIENT", client_contact: "+225 00 00", type_mission: "Bornage",
+          geometre_nom: "TEST GEOMETRE", geometre_numero_ordre: "TEST-0000", geometre_cabinet: "TEST CABINET",
+          date_bornage: "24 Juin 2026", superficie_mesuree: "1 000 m²", superficie_enregistree: "1 000 m²", observations: "—",
         };
         const bytes = await renderViaPdfMonkey(tplId, sample, "debug.pdf");
         diag.success = true; diag.pdfSizeBytes = bytes.length;
@@ -464,7 +663,7 @@ Deno.serve(async (req) => {
   const baseVars: Record<string, string> = {
     titre: cfg.titre,
     reference: rec.reference ?? rec.numero ?? rec.id ?? "",
-    date: dateFr(rec.date_emission ?? rec.date_delivrance ?? rec.confirme_le),
+    date: dateFr(rec.date_emission ?? rec.date_delivrance ?? rec.confirme_le ?? rec.cree_le),
     qr_svg: qrSvg, qr_data_uri: qrDataUri, verify_url: verifyUrl,
     ...d,
   };

@@ -22,7 +22,7 @@ import { AduDialog } from "@/components/pilotage/AduDialog";
  * Centre National de Pilotage du Foncier.
  *
  * Routage par rôle : à l'arrivée sur /dashboard, chaque groupe est redirigé vers
- * son espace. Les groupes absents de cette table (admin, geometre, agent_ia…)
+ * son espace. Les groupes absents de cette table (admin, agent_ia…)
  * restent sur le Centre de pilotage ci-dessous.
  */
 const ROLE_HOME: Record<string, string> = {
@@ -35,6 +35,7 @@ const ROLE_HOME: Record<string, string> = {
   chefferie: "/dashboard/chefferie",
   proprietaire_terrien: "/dashboard/proprietaire-terrien",
   operateur_saisie: "/dashboard/saisie",
+  geometre: "/dashboard/geometre",
 };
 
 /**

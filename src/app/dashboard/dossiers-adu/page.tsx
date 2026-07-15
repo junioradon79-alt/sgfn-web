@@ -11,6 +11,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Ruler,
   Search,
   X,
 } from "lucide-react";
@@ -30,6 +31,7 @@ type DossierAdu = {
   adu_date?: string | null;
   acd_reference?: string | null;
   cree_le?: string | null;
+  geometre_id?: string | null;
   lots?: {
     numero_lot?: string | number | null;
     ilots?: {
@@ -37,12 +39,22 @@ type DossierAdu = {
       lotissements?: { nom?: string | null } | null;
     } | null;
   } | null;
+  geometres_experts?: {
+    nom?: string | null;
+    cabinet?: string | null;
+  } | null;
 };
 
 type LotOption = {
   id: string;
   numero_lot: string | null;
   ilots?: { numero: string | null; lotissements?: { nom: string | null } | null } | null;
+};
+
+type GeometreOption = {
+  id: string;
+  nom: string;
+  cabinet: string | null;
 };
 
 const STATUT_ADU_LABELS: Record<string, string> = {
@@ -98,11 +110,17 @@ export default function DossiersAduPage() {
     adu_date: "",
     acd_reference: "",
     notes: "",
+    geometre_id: "",
   });
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [geometreOptions, setGeometreOptions] = useState<GeometreOption[]>([]);
 
-  const startEdit = (d: DossierAdu) => {
+  const startEdit = async (d: DossierAdu) => {
+    if (geometreOptions.length === 0) {
+      const { data } = await supabase.from("geometres_experts").select("id, nom, cabinet").order("nom");
+      setGeometreOptions((data ?? []) as GeometreOption[]);
+    }
     setEditForm({
       statut: d.statut ?? "en_preparation",
       adu_numero: d.adu_numero ?? "",
@@ -110,6 +128,7 @@ export default function DossiersAduPage() {
       adu_date: d.adu_date ? d.adu_date.slice(0, 10) : "",
       acd_reference: d.acd_reference ?? "",
       notes: d.notes ?? "",
+      geometre_id: d.geometre_id ?? "",
     });
     setEditError(null);
     setEditing(true);
@@ -127,6 +146,7 @@ export default function DossiersAduPage() {
       adu_date: editForm.adu_date || null,
       acd_reference: editForm.acd_reference.trim() || null,
       notes: editForm.notes.trim() || null,
+      geometre_id: editForm.geometre_id || null,
     };
     const { error } = await supabase.from("dossiers_adu").update(payload).eq("id", selected.id);
     setSavingEdit(false);
@@ -134,7 +154,12 @@ export default function DossiersAduPage() {
       setEditError(error.message);
       return;
     }
-    setSelected({ ...selected, ...payload });
+    const geometreChoisi = geometreOptions.find((g) => g.id === payload.geometre_id) ?? null;
+    setSelected({
+      ...selected,
+      ...payload,
+      geometres_experts: geometreChoisi ? { nom: geometreChoisi.nom, cabinet: geometreChoisi.cabinet } : null,
+    });
     setEditing(false);
     void recharger();
   };
@@ -157,7 +182,7 @@ export default function DossiersAduPage() {
     const { data } = await supabase
       .from("dossiers_adu")
       .select(
-        "id, lot_id, adu_numero, statut, depose_le, notes, adu_date, acd_reference, cree_le, lots(numero_lot, ilots(numero, lotissements(nom)))"
+        "id, lot_id, adu_numero, statut, depose_le, notes, adu_date, acd_reference, cree_le, geometre_id, lots(numero_lot, ilots(numero, lotissements(nom))), geometres_experts(nom, cabinet)"
       )
       .order("cree_le", { ascending: false });
     setDossiers((data ?? []) as unknown as DossierAdu[]);
@@ -349,6 +374,11 @@ export default function DossiersAduPage() {
                   Déposé le {new Date(d.depose_le).toLocaleDateString("fr-FR")}
                 </p>
               )}
+              {d.geometres_experts?.nom && (
+                <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-[#0D3B66]">
+                  <Ruler className="h-3 w-3" /> {d.geometres_experts.nom}
+                </p>
+              )}
             </button>
           ))
         )}
@@ -370,6 +400,13 @@ export default function DossiersAduPage() {
                   {selected.adu_numero || "Dossier sans numéro"}
                 </h2>
                 <p className="mt-0.5 text-sm text-slate-500">{lotLabel(selected)}</p>
+                {selected.geometres_experts?.nom && (
+                  <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-[#0D3B66]">
+                    <Ruler className="h-3 w-3" />
+                    {selected.geometres_experts.nom}
+                    {selected.geometres_experts.cabinet ? ` · ${selected.geometres_experts.cabinet}` : ""}
+                  </p>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {isAdmin && !editing && (
@@ -403,6 +440,21 @@ export default function DossiersAduPage() {
                   >
                     {STATUT_ADU_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700">Géomètre-expert assigné</label>
+                  <select
+                    value={editForm.geometre_id}
+                    onChange={(e) => setEditForm((f) => ({ ...f, geometre_id: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
+                  >
+                    <option value="">Aucun</option>
+                    {geometreOptions.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.nom}{g.cabinet ? ` · ${g.cabinet}` : ""}
+                      </option>
                     ))}
                   </select>
                 </div>

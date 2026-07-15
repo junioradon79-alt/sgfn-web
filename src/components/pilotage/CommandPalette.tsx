@@ -36,7 +36,7 @@ export function CommandPalette({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   items: NavItem[];
-  onNouveauDossier: () => void;
+  onNouveauDossier?: () => void;
   onRefresh: () => void;
   onSetTheme: (t: ThemeChoice) => void;
 }) {
@@ -62,13 +62,15 @@ export function CommandPalette({
         <CommandEmpty>Aucun résultat.</CommandEmpty>
 
         <CommandGroup heading="Actions">
-          <CommandItem
-            value="nouveau dossier adu instruction créer"
-            onSelect={() => run(onNouveauDossier)}
-          >
-            <FilePlus2 />
-            Nouveau dossier ADU
-          </CommandItem>
+          {onNouveauDossier && (
+            <CommandItem
+              value="nouveau dossier adu instruction créer"
+              onSelect={() => run(onNouveauDossier)}
+            >
+              <FilePlus2 />
+              Nouveau dossier ADU
+            </CommandItem>
+          )}
           <CommandItem value="actualiser rafraîchir données recharger" onSelect={() => run(onRefresh)}>
             <RefreshCw />
             Actualiser les données

@@ -2091,6 +2091,82 @@ export type Database = {
           },
         ]
       }
+      missions_geometre: {
+        Row: {
+          client_contact: string | null
+          client_nom: string
+          cree_le: string
+          cree_par: string | null
+          description: string | null
+          geometre_id: string
+          id: string
+          lieu: string | null
+          lot_id: string | null
+          montant_honoraires: number | null
+          montant_recu: number | null
+          ouverte_le: string
+          statut: Database["public"]["Enums"]["statut_mission_geometre"]
+          terminee_le: string | null
+          type_mission: Database["public"]["Enums"]["type_mission_geometre"]
+        }
+        Insert: {
+          client_contact?: string | null
+          client_nom: string
+          cree_le?: string
+          cree_par?: string | null
+          description?: string | null
+          geometre_id: string
+          id?: string
+          lieu?: string | null
+          lot_id?: string | null
+          montant_honoraires?: number | null
+          montant_recu?: number | null
+          ouverte_le?: string
+          statut?: Database["public"]["Enums"]["statut_mission_geometre"]
+          terminee_le?: string | null
+          type_mission: Database["public"]["Enums"]["type_mission_geometre"]
+        }
+        Update: {
+          client_contact?: string | null
+          client_nom?: string
+          cree_le?: string
+          cree_par?: string | null
+          description?: string | null
+          geometre_id?: string
+          id?: string
+          lieu?: string | null
+          lot_id?: string | null
+          montant_honoraires?: number | null
+          montant_recu?: number | null
+          ouverte_le?: string
+          statut?: Database["public"]["Enums"]["statut_mission_geometre"]
+          terminee_le?: string | null
+          type_mission?: Database["public"]["Enums"]["type_mission_geometre"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "missions_geometre_cree_par_fkey"
+            columns: ["cree_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "missions_geometre_geometre_id_fkey"
+            columns: ["geometre_id"]
+            isOneToOne: false
+            referencedRelation: "geometres_experts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "missions_geometre_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "lots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           canal: Database["public"]["Enums"]["canal_notification"]
@@ -2553,6 +2629,62 @@ export type Database = {
             columns: ["valide_par"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pv_bornage: {
+        Row: {
+          cree_le: string
+          date_bornage: string | null
+          delivree_le: string | null
+          id: string
+          mission_id: string
+          observations: string | null
+          qr_token: string | null
+          reference: string
+          sig_autorite_le: string | null
+          sig_demandeur_le: string | null
+          sig_geometre_le: string | null
+          statut: Database["public"]["Enums"]["statut_pv_bornage"]
+          superficie_mesuree_m2: number | null
+        }
+        Insert: {
+          cree_le?: string
+          date_bornage?: string | null
+          delivree_le?: string | null
+          id?: string
+          mission_id: string
+          observations?: string | null
+          qr_token?: string | null
+          reference: string
+          sig_autorite_le?: string | null
+          sig_demandeur_le?: string | null
+          sig_geometre_le?: string | null
+          statut?: Database["public"]["Enums"]["statut_pv_bornage"]
+          superficie_mesuree_m2?: number | null
+        }
+        Update: {
+          cree_le?: string
+          date_bornage?: string | null
+          delivree_le?: string | null
+          id?: string
+          mission_id?: string
+          observations?: string | null
+          qr_token?: string | null
+          reference?: string
+          sig_autorite_le?: string | null
+          sig_demandeur_le?: string | null
+          sig_geometre_le?: string | null
+          statut?: Database["public"]["Enums"]["statut_pv_bornage"]
+          superficie_mesuree_m2?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pv_bornage_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "missions_geometre"
             referencedColumns: ["id"]
           },
         ]
@@ -3549,6 +3681,15 @@ export type Database = {
       finaliser_inscription: { Args: { p_code: string }; Returns: Json }
       generer_attestations_gratuites_manquantes: { Args: never; Returns: Json }
       generer_code_invitation: { Args: never; Returns: string }
+      generer_pv_bornage: {
+        Args: {
+          p_date_bornage: string
+          p_mission_id: string
+          p_observations: string
+          p_superficie_mesuree_m2: number
+        }
+        Returns: string
+      }
       get_public_stats: { Args: never; Returns: Json }
       lot_libelle: { Args: { p_lot_id: string }; Returns: Json }
       lots_verifiables: { Args: never; Returns: Json }
@@ -3576,6 +3717,7 @@ export type Database = {
       }
       mon_attributaire_id: { Args: never; Returns: string }
       mon_commissaire_id: { Args: never; Returns: string }
+      mon_geometre_id: { Args: never; Returns: string }
       mon_groupe: {
         Args: never
         Returns: Database["public"]["Enums"]["groupe_utilisateur"]
@@ -3708,6 +3850,11 @@ export type Database = {
         | "occupe"
         | "vendu"
         | "en_litige"
+      statut_mission_geometre:
+        | "en_preparation"
+        | "en_cours"
+        | "terminee"
+        | "annulee"
       statut_notification: "en_attente" | "envoye" | "echoue" | "ignore"
       statut_paiement:
         | "en_attente"
@@ -3716,6 +3863,7 @@ export type Database = {
         | "rembourse"
         | "initie"
         | "en_attente_validation"
+      statut_pv_bornage: "generee" | "delivree" | "revoquee"
       statut_pv_famille: "a_fournir" | "fourni" | "valide" | "rejete"
       statut_vente: "en_cours" | "soldee" | "annulee"
       type_attributaire:
@@ -3757,6 +3905,16 @@ export type Database = {
         | "adu"
         | "certificat_vente"
         | "pv_reunion_famille"
+        | "pv_bornage"
+      type_mission_geometre:
+        | "bornage"
+        | "morcellement"
+        | "implantation"
+        | "expertise_judiciaire"
+        | "leve_topographique"
+        | "immatriculation"
+        | "copropriete"
+        | "autre"
       type_paiement:
         | "attestation_cession"
         | "honoraires"
@@ -3985,6 +4143,12 @@ export const Constants = {
         "vendu",
         "en_litige",
       ],
+      statut_mission_geometre: [
+        "en_preparation",
+        "en_cours",
+        "terminee",
+        "annulee",
+      ],
       statut_notification: ["en_attente", "envoye", "echoue", "ignore"],
       statut_paiement: [
         "en_attente",
@@ -3994,6 +4158,7 @@ export const Constants = {
         "initie",
         "en_attente_validation",
       ],
+      statut_pv_bornage: ["generee", "delivree", "revoquee"],
       statut_pv_famille: ["a_fournir", "fourni", "valide", "rejete"],
       statut_vente: ["en_cours", "soldee", "annulee"],
       type_attributaire: [
@@ -4038,6 +4203,17 @@ export const Constants = {
         "adu",
         "certificat_vente",
         "pv_reunion_famille",
+        "pv_bornage",
+      ],
+      type_mission_geometre: [
+        "bornage",
+        "morcellement",
+        "implantation",
+        "expertise_judiciaire",
+        "leve_topographique",
+        "immatriculation",
+        "copropriete",
+        "autre",
       ],
       type_paiement: [
         "attestation_cession",

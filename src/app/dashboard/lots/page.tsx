@@ -318,7 +318,9 @@ function LotDetailModal({ lot, litiges, score, pvAlert, onClose }: {
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Historique de propriété</p>
             {historique.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                Aucune attribution enregistrée — lot libre.
+                {badge.status === "attribue"
+                  ? "Ce lot est attribué, mais le détail de l'attribution est réservé à certains rôles (admin, chefferie, opérateur, vérificateur, commissaire…)."
+                  : "Aucune attribution enregistrée — lot libre."}
               </div>
             ) : (
               <ol className="relative space-y-4 border-l-2 border-slate-200 pl-5">
@@ -1043,7 +1045,15 @@ export default function LotsPage() {
 
                       {/* Attributaire */}
                       <td className="px-5 py-4 text-sm text-slate-700">
-                        {attrActuel?.attributaires?.nom ?? <span className="text-slate-400">Non attribué</span>}
+                        {attrActuel?.attributaires?.nom ?? (
+                          badge.status === "attribue" ? (
+                            <span className="text-slate-400 italic" title="Le détail de l'attribution est réservé à certains rôles (admin, chefferie, opérateur, vérificateur, commissaire…).">
+                              Non visible pour votre rôle
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">Non attribué</span>
+                          )
+                        )}
                       </td>
 
                       {/* Statut */}

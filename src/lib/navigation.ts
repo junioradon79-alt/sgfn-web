@@ -1,5 +1,6 @@
 import {
   Boxes,
+  Briefcase,
   ClipboardCheck,
   ClipboardEdit,
   ClipboardList,
@@ -18,6 +19,7 @@ import {
   MapPinned,
   MessageSquare,
   QrCode,
+  Ruler,
   ShieldCheck,
   Sparkles,
   Store,
@@ -83,11 +85,13 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Attributaires", href: "/dashboard/attributaires", icon: Users, section: "registre", roles: ["operateur", "amenageur", "chefferie", "verificateur", "commissaire", "proprietaire_terrien"], keywords: "bénéficiaires" },
   { label: "Attributions", href: "/dashboard/attributions", icon: Link2, section: "registre", roles: ["operateur", "amenageur", "chefferie", "verificateur", "commissaire", "proprietaire_terrien"] },
   { label: "Familles", href: "/dashboard/familles", icon: Home, section: "registre", roles: [] },
-  { label: "Dossiers ADU", href: "/dashboard/dossiers-adu", icon: ClipboardList, section: "registre", roles: [], keywords: "acd instruction urbanisme" },
+  { label: "Dossiers ADU", href: "/dashboard/dossiers-adu", icon: ClipboardList, section: "registre", roles: ["geometre", "commissaire", "verificateur", "chefferie", "proprietaire_terrien"], keywords: "acd instruction urbanisme" },
+  { label: "Géomètres-experts", href: "/dashboard/geometres", icon: Ruler, section: "registre", roles: [], keywords: "bornage numéro d'ordre cabinet" },
 
   // ── Instruction ──
   { label: "Demandes d'acquisition", href: "/dashboard/demandes-acquisition", icon: ClipboardCheck, section: "instruction", roles: ["operateur"], badgeKey: "demandes", keywords: "ventes tunnel acquéreur" },
   { label: "Saisie foncière", href: "/dashboard/saisie", icon: ClipboardEdit, section: "instruction", roles: ["operateur_saisie"], badgeKey: "saisie", keywords: "import excel validation" },
+  { label: "Démarches", href: "/dashboard/demarches", icon: Ruler, section: "instruction", roles: ["geometre"], keywords: "bornage honoraires transmission mutation" },
   { label: "Litiges", href: "/dashboard/litiges", icon: FileWarning, section: "instruction", roles: ["commissaire", "verificateur", "chefferie", "proprietaire_terrien"], keywords: "conflits contentieux" },
   { label: "Concertation", href: "/dashboard/concertation", icon: Handshake, section: "instruction", roles: ["chefferie", "proprietaire", "operateur", "proprietaire_terrien"] },
   { label: "Invitations", href: "/dashboard/invitations", icon: MailOpen, section: "instruction", roles: ["operateur", "amenageur", "chefferie", "proprietaire_terrien"] },
@@ -101,21 +105,62 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Mon activité", href: "/dashboard/operateur", icon: HandCoins, section: "espaces", roles: ["operateur"], adminHide: true },
   { label: "Espace Chefferie", href: "/dashboard/chefferie", icon: Crown, section: "espaces", roles: ["chefferie"], adminHide: true },
   { label: "Propriétaire terrien", href: "/dashboard/proprietaire-terrien", icon: Home, section: "espaces", roles: ["proprietaire_terrien"], adminHide: true },
+  { label: "Espace Géomètre", href: "/dashboard/geometre", icon: Ruler, section: "espaces", roles: ["geometre"], adminHide: true },
+  { label: "Mes missions", href: "/dashboard/missions", icon: Briefcase, section: "espaces", roles: ["geometre"], adminHide: true },
 
   // ── Général ──
   { label: "Documents", href: "/dashboard/documents", icon: FileText, section: "general" },
   { label: "Messages", href: "/dashboard/messages", icon: MessageSquare, section: "general" },
 ];
 
+/**
+ * Ordre de sidebar personnalisé pour certains rôles, quand l'ordre naturel du
+ * tableau `NAV_ITEMS` (partagé entre tous les rôles) ne convient pas à un
+ * espace en particulier. Absent pour un rôle = ordre par défaut (position
+ * dans `NAV_ITEMS`) — donc aucun impact sur les rôles non listés ici.
+ */
+const ROLE_NAV_ORDER: Partial<Record<string, string[]>> = {
+  geometre: [
+    "/dashboard",
+    "/dashboard/geometre",
+    "/dashboard/missions",
+    "/dashboard/demarches",
+    "/dashboard/dossiers-adu",
+    "/dashboard/messages",
+    "/dashboard/carte",
+    "/lotissements",
+    "/dashboard/lots",
+    "/dashboard/documents",
+    "/dashboard/ia",
+  ],
+};
+
+/**
+ * Un rôle avec un ordre personnalisé veut une liste plate, lue dans cet ordre
+ * précis — pas un regroupement par section (`AppSidebar`) qui le shuffle.
+ */
+export function hasCustomNavOrder(groupe: string | null): boolean {
+  return !!groupe && !!ROLE_NAV_ORDER[groupe];
+}
+
 /** Filtre d'accès — règles reprises telles quelles de la barre latérale historique. */
 export function visibleNavItems(groupe: string | null, loading: boolean): NavItem[] {
-  return NAV_ITEMS.filter((item) => {
+  const filtered = NAV_ITEMS.filter((item) => {
     if (loading || !groupe) return true;
     if (groupe === "admin") return !item.adminHide;
     // Opérateur de saisie : accès strictement limité à son module.
     if (groupe === "operateur_saisie") return item.roles?.includes("operateur_saisie") ?? false;
     if (!item.roles) return true;
     return item.roles.includes(groupe);
+  });
+
+  const order = groupe ? ROLE_NAV_ORDER[groupe] : undefined;
+  if (!order) return filtered;
+
+  return [...filtered].sort((a, b) => {
+    const ia = order.indexOf(a.href);
+    const ib = order.indexOf(b.href);
+    return (ia === -1 ? order.length : ia) - (ib === -1 ? order.length : ib);
   });
 }
 

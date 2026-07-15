@@ -10,6 +10,7 @@ export type UserProfile = {
   telephone: string | null;
   attributaire_id: string | null;
   commissaire_id: string | null;
+  geometre_id: string | null;
   actif: boolean;
 };
 
@@ -19,22 +20,29 @@ export function useProfile() {
 
   useEffect(() => {
     const supabase = createClient();
+    let annule = false;
     (async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        setLoading(false);
+        if (!annule) setLoading(false);
         return;
       }
       const { data } = await supabase
         .from("profiles")
-        .select("id, nom_complet, groupe, telephone, attributaire_id, commissaire_id, actif")
+        .select("id, nom_complet, groupe, telephone, attributaire_id, commissaire_id, geometre_id, actif")
         .eq("id", user.id)
         .single();
+      // Un montage/démontage rapide (StrictMode en dev, changement de page) ne
+      // doit pas laisser une réponse tardive écraser un état plus récent.
+      if (annule) return;
       setProfile(data);
       setLoading(false);
     })();
+    return () => {
+      annule = true;
+    };
   }, []);
 
   return {
@@ -42,5 +50,6 @@ export function useProfile() {
     loading,
     isAdmin: profile?.groupe === "admin",
     isCommissaire: profile?.groupe === "commissaire",
+    isGeometre: profile?.groupe === "geometre",
   };
 }
