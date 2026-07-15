@@ -182,7 +182,7 @@ export default function ContactsMarketplacePage() {
     <div className="mx-auto max-w-5xl">
       <div className="mb-8">
         <h1 className="font-display text-2xl font-bold text-brand-primary">
-          Demandes de contact — Mon Terrain
+          Demandes de contact — TerraCI Market
         </h1>
         <p className="mt-1.5 text-sm text-slate-500">
           Mise en relation entre acheteurs (porteurs de pass) et propriétaires de lots.{" "}

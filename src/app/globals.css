@@ -10,6 +10,13 @@
   --color-brand-bg: #F7F9FC;
   --color-brand-text: #172033;
 
+  /* Palette TerraCI — marque grand public/commerciale, coexiste avec SGNF
+     ci-dessus sans la remplacer (arbitrage A1, document directeur §5) */
+  --color-terraci-navy: #0F2B52;
+  --color-terraci-green: #1E9E5A;
+  --color-terraci-green-light: #3FBE72;
+  --color-terraci-gold: #F0B429;
+
   /* Typographies SGNF */
   --font-sans: "Inter", sans-serif;
   --font-display: "Manrope", sans-serif;

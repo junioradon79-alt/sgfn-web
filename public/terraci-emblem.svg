@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 220" role="img" aria-label="TerraCI">
+  <path d="M16,22 L100,58 L184,22 L184,96 C184,150 140,188 100,210 C60,188 16,150 16,96 Z" fill="#0F2B52"/>
+  <g fill="#FFFFFF">
+    <rect x="72" y="66" width="56" height="16" rx="2"/>
+    <rect x="92" y="66" width="16" height="64" rx="2"/>
+  </g>
+  <g>
+    <path d="M35,150 L95,140 L95,185 L45,192 Z" fill="#0F6B3F"/>
+    <path d="M105,140 L165,150 L155,192 L105,185 Z" fill="#2CA866"/>
+  </g>
+  <path d="M100,101 C110,101 119,110 119,120 C119,133 100,152 100,152 C100,152 81,133 81,120 C81,110 90,101 100,101 Z" fill="#1E9E5A"/>
+  <circle cx="100" cy="119" r="7" fill="#FFFFFF"/>
+  <path d="M84,196 L96,206 L120,182" stroke="#F0B429" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

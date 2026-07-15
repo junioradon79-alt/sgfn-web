@@ -104,7 +104,7 @@ export default function PhotosAnnonce({ annonceId }: { annonceId: string }) {
   return (
     <div>
       <p className="mb-3 text-xs text-slate-500">
-        {photos.length} / {MAX_PHOTOS} photos — la première sert de photo de couverture sur Mon Terrain.
+        {photos.length} / {MAX_PHOTOS} photos — la première sert de photo de couverture sur TerraCI Market.
       </p>
 
       {loading ? (

@@ -183,7 +183,7 @@ export default function MettreEnVentePage() {
 
     setMessage({
       type: "ok",
-      text: statut === "active" ? "Annonce publiée sur Mon Terrain ✓" : "Brouillon enregistré ✓",
+      text: statut === "active" ? "Annonce publiée sur TerraCI Market ✓" : "Brouillon enregistré ✓",
     });
     setAnnonces((prev) => ({
       ...prev,
@@ -202,7 +202,7 @@ export default function MettreEnVentePage() {
           Mettre un terrain en vente
         </h1>
         <p className="mt-1.5 text-sm text-slate-500">
-          Seuls vos lots avec une attestation ou un certificat <strong>délivré</strong> sont éligibles à la marketplace Mon Terrain.
+          Seuls vos lots avec une attestation ou un certificat <strong>délivré</strong> sont éligibles à TerraCI Market.
         </p>
       </div>
 

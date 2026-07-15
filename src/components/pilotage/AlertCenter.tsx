@@ -145,7 +145,7 @@ export function AlertCenter({
         id: "marketplace",
         icon: Store,
         gravite: "info",
-        titre: "Site Mon Terrain à reconstruire",
+        titre: "Site TerraCI Market à reconstruire",
         detail: "Une annonce a été publiée depuis le dernier déploiement.",
         href: "/dashboard/contacts-marketplace",
         compte: 1,

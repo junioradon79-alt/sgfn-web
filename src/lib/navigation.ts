@@ -95,7 +95,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Litiges", href: "/dashboard/litiges", icon: FileWarning, section: "instruction", roles: ["commissaire", "verificateur", "chefferie", "proprietaire_terrien"], keywords: "conflits contentieux" },
   { label: "Concertation", href: "/dashboard/concertation", icon: Handshake, section: "instruction", roles: ["chefferie", "proprietaire", "operateur", "proprietaire_terrien"] },
   { label: "Invitations", href: "/dashboard/invitations", icon: MailOpen, section: "instruction", roles: ["operateur", "amenageur", "chefferie", "proprietaire_terrien"] },
-  { label: "Contacts Mon Terrain", href: "/dashboard/contacts-marketplace", icon: Store, section: "instruction", roles: ["admin"], badgeKey: "marketplace", keywords: "marketplace annonces" },
+  { label: "Contacts TerraCI Market", href: "/dashboard/contacts-marketplace", icon: Store, section: "instruction", roles: ["admin"], badgeKey: "marketplace", keywords: "marketplace annonces mon terrain" },
   { label: "Consultations QR", href: "/dashboard/consultations-qr", icon: QrCode, section: "instruction", roles: ["admin"], keywords: "vérification qr code" },
 
   // ── Espaces dédiés (masqués pour l'admin) ──
@@ -190,7 +190,7 @@ export async function fetchBadgeCounts(
       .eq("statut", "en_attente");
     next.saisie = count ?? 0;
 
-    // « Site Mon Terrain à reconstruire » : une annonce a été publiée depuis le
+    // « Site TerraCI Market à reconstruire » : une annonce a été publiée depuis le
     // dernier déploiement cPanel connu.
     const [{ data: etat }, { data: derniere }] = await Promise.all([
       supabase.from("marketplace_etat_site").select("derniere_reconstruction").maybeSingle(),

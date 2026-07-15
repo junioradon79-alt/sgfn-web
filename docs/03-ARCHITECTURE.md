@@ -13,7 +13,7 @@ Le projet se compose de **deux dépôts Git indépendants**, partageant le **mê
 | Dépôt | Rôle | Domaine cible (marque) | Domaine réellement actif |
 |---|---|---|---|
 | `sgfn-web` (`c:\Dev\sgfn-web`) | Plateforme institutionnelle SGNF — tableaux de bord par rôle, gestion foncière, documents, vérification QR | `https://sgnf.ci` | `https://sgfn.ci` |
-| `monterrain-web` (`c:\Dev\monterrain-web`) | Marketplace publique « Mon Terrain » — annonces de parcelles vérifiées | `https://monterrain.sgnf.ci` | `https://monterrain.sgfn.ci` |
+| `monterrain-web` (`c:\Dev\monterrain-web`) | Marketplace publique « TerraCI Market » (ex « Mon Terrain », renommée le 15/07/2026 — nom/logo/tokens seulement, domaine inchangé) — annonces de parcelles vérifiées | `https://monterrain.sgnf.ci` | `https://monterrain.sgfn.ci` |
 
 Le rebranding SGFN→SGNF (15/07/2026) a mis à jour toutes les références de marque dans le code (domaine, textes, emails, package Android) vers `sgnf.ci`, mais **ce domaine n'est pas activé en DNS** — seul `sgfn.ci` est enregistré et sert réellement le trafic. Tant que `sgnf.ci` n'est pas acheté et pointé (DNS + hébergement + Site URL/Redirect URLs Supabase Auth + retour CinetPay), les deux sites continuent de fonctionner sur `sgfn.ci` en pratique.
 

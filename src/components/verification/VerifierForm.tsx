@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import dynamic from "next/dynamic";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -540,6 +541,16 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
             <p className="mb-2 text-sm font-bold uppercase tracking-[0.22em] text-[#0F5E8C]">
               {mode === "passeport" ? "Passeport parcelle" : "Vérification"}
             </p>
+            {mode !== "passeport" && (
+              <div className="mb-3 flex items-center justify-center gap-1.5">
+                <Image src="/terraci-emblem.svg" alt="" width={14} height={14} className="h-3.5 w-3.5" />
+                <span className="text-[11px] font-bold tracking-tight">
+                  <span className="text-[#0F2B52]">Terra</span>
+                  <span className="text-[#1E9E5A]">CI</span>
+                  <span className="ml-1 text-[#8B98AA]">Verify</span>
+                </span>
+              </div>
+            )}
             <h1 className="font-display text-3xl font-extrabold tracking-tight text-[#0B2E4F] sm:text-4xl">
               {titrePage}
             </h1>

@@ -89,9 +89,19 @@ export function SiteFooter() {
           ))}
         </div>
 
-        <div className="mt-12 flex flex-col gap-3 border-t border-[#E3E8EF] pt-6 text-sm text-[#8B98AA] sm:flex-row sm:items-center sm:justify-between">
-          <p>© 2026 SGNF. Gestion numérique du foncier.</p>
-          <p>Fait pour la Côte d&apos;Ivoire, pensé pour l&apos;Afrique de l&apos;Ouest.</p>
+        <div className="mt-12 flex flex-col gap-4 border-t border-[#E3E8EF] pt-6 text-sm text-[#8B98AA] sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-1.5">
+            <p>© 2026 SGNF. Gestion numérique du foncier.</p>
+            <p>Fait pour la Côte d&apos;Ivoire, pensé pour l&apos;Afrique de l&apos;Ouest.</p>
+          </div>
+          <div className="flex items-center gap-1.5 text-[#8B98AA]">
+            <span className="text-xs">Prototype</span>
+            <Image src="/terraci-emblem.svg" alt="TerraCI" width={16} height={16} className="h-4 w-4" />
+            <span className="text-xs font-bold tracking-tight">
+              <span className="text-[#0F2B52]">Terra</span>
+              <span className="text-[#1E9E5A]">CI</span>
+            </span>
+          </div>
         </div>
       </div>
     </footer>
