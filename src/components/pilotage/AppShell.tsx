@@ -140,7 +140,7 @@ export function AppShell({
               </main>
 
               <footer className="px-6 pb-6 text-center text-[11px] text-muted-foreground print:hidden">
-                SGNF — Système de Gestion Numérique du Foncier · République de Côte d&apos;Ivoire
+                SGFN — Système de Gestion Numérique du Foncier · République de Côte d&apos;Ivoire
               </footer>
             </div>
           </div>

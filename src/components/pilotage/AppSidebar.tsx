@@ -114,7 +114,7 @@ export function AppSidebar({
           href="/"
           onClick={onNavigate}
           className="flex items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          aria-label="Accueil SGNF"
+          aria-label="Accueil SGFN"
         >
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary p-[3px]">
             <span className="flex size-full items-center justify-center overflow-hidden rounded-[5px] bg-white">
@@ -123,7 +123,7 @@ export function AppSidebar({
           </span>
           {!collapsed && (
             <span className="flex min-w-0 flex-col leading-none">
-              <span className="font-display text-[13px] font-extrabold tracking-tight text-foreground uppercase">SGNF</span>
+              <span className="font-display text-[13px] font-extrabold tracking-tight text-foreground uppercase">SGFN</span>
               <span className="mt-0.5 truncate text-[10px] font-medium text-muted-foreground">Centre de pilotage</span>
             </span>
           )}

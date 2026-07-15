@@ -497,7 +497,7 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
       }
       if (res.status === 503) {
         setMessagePaiement(
-          "Le paiement en ligne sera bientôt disponible. En attendant, réglez le montant auprès de SGNF en indiquant votre code de consultation, puis cliquez sur « J'ai payé — afficher le résultat ».",
+          "Le paiement en ligne sera bientôt disponible. En attendant, réglez le montant auprès de SGFN en indiquant votre code de consultation, puis cliquez sur « J'ai payé — afficher le résultat ».",
         );
       } else {
         setMessagePaiement(
@@ -520,32 +520,45 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
     ? (resultat.litiges_actifs as Record<string, unknown>[])
     : [];
   const estPasseport = mode === "passeport" && resultat?.type_document !== "apfc";
-  const titrePage = mode === "passeport" ? "Passeport parcelle SGNF" : "Vérifier un document SGNF";
+  const titrePage = mode === "passeport" ? "Passeport parcelle SGFN" : "Vérifier un document SGFN";
   const introPage = mode === "passeport"
     ? "Scannez le QR code d'un document ou saisissez sa référence pour ouvrir le passeport complet de la parcelle."
     : "Scannez le QR code d'un document ou saisissez sa référence pour vérifier son authenticité auprès du registre foncier numérique.";
 
   return (
-    <main className="min-h-screen bg-slate-50 px-6 py-20 text-slate-900 antialiased">
-      <div className="mx-auto flex max-w-3xl flex-col items-center">
+    <main className="min-h-dvh bg-[#F7F9FC] px-4 py-10 text-[#172033] antialiased sm:px-6 lg:px-8 lg:py-16">
+      <div className="mx-auto flex w-full max-w-5xl flex-col items-center">
         <Link
           href="/"
-          className="mb-8 text-sm font-semibold text-[#1E6091] transition hover:text-[#0D3B66]"
+          className="mb-8 text-sm font-semibold text-[#0F5E8C] transition hover:text-[#0B2E4F]"
         >
           ← Retour à l&apos;accueil
         </Link>
 
-        <div className="w-full rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_30px_80px_rgba(13,59,102,0.08)] sm:p-10">
+        <div className="w-full rounded-2xl border border-[#D5E0E9] bg-white p-6 shadow-[0_18px_48px_-36px_rgba(11,46,79,0.35)] sm:p-8 lg:p-10">
           <div className="text-center">
-            <p className="mb-2 text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
+            <p className="mb-2 text-sm font-bold uppercase tracking-[0.22em] text-[#0F5E8C]">
               {mode === "passeport" ? "Passeport parcelle" : "Vérification"}
             </p>
-            <h1 className="text-3xl font-bold tracking-tight text-[#0D3B66] sm:text-4xl">
+            <h1 className="font-display text-3xl font-extrabold tracking-tight text-[#0B2E4F] sm:text-4xl">
               {titrePage}
             </h1>
-            <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-slate-600">
+            <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-[#526176]">
               {introPage}
             </p>
+            <div className="mx-auto mt-6 grid max-w-2xl gap-3 text-left sm:grid-cols-3">
+              {[
+                { icon: ShieldCheck, label: "Authenticité", text: "Contrôle serveur" },
+                { icon: Lock, label: "Consultation", text: "Accès journalisé" },
+                { icon: Eye, label: "Traçabilité", text: "Référence vérifiable" },
+              ].map(({ icon: Icon, label, text }) => (
+                <div key={label} className="rounded-xl border border-[#E3E8EF] bg-[#F7F9FC] p-3">
+                  <Icon className="h-4 w-4 text-[#0F5E8C]" />
+                  <p className="mt-2 text-sm font-bold text-[#0B2E4F]">{label}</p>
+                  <p className="mt-0.5 text-xs font-medium text-[#526176]">{text}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
           <form
@@ -553,18 +566,18 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
               e.preventDefault();
               verifier(ref);
             }}
-            className="mx-auto mt-8 flex max-w-xl gap-3"
+            className="mx-auto mt-8 flex max-w-2xl flex-col gap-3 sm:flex-row"
           >
             <input
               value={ref}
               onChange={(e) => setRef(e.target.value)}
               placeholder="Référence ou code QR (ex : ATT-2026-0001)"
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-[#1E6091] focus:ring-2 focus:ring-[#1E6091]/20"
+              className="h-12 w-full rounded-xl border border-[#C9D5E0] bg-white px-4 text-sm outline-none transition placeholder:text-[#8B98AA] focus:border-[#0F5E8C] focus:ring-2 focus:ring-[#0F5E8C]/20"
             />
             <button
               type="submit"
               disabled={verdict === "loading" || !ref.trim()}
-              className="flex items-center gap-2 rounded-xl bg-[#0D3B66] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1E6091] disabled:opacity-50"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#0B2E4F] px-5 text-sm font-bold text-white transition hover:bg-[#0F5E8C] disabled:cursor-not-allowed disabled:opacity-55"
             >
               {verdict === "loading" ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -601,9 +614,9 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
               <div>
                 <p className="font-semibold text-red-800">Document introuvable</p>
                 <p className="mt-1 text-sm text-red-700">
-                  Aucun document du registre SGNF ne correspond à cette référence.
+                  Aucun document du registre SGFN ne correspond à cette référence.
                   Si ce code figure sur un document qui vous a été présenté, il peut
-                  s&apos;agir d&apos;un faux — rapprochez-vous de SGNF.
+                  s&apos;agir d&apos;un faux — rapprochez-vous de SGFN.
                 </p>
               </div>
             </div>
@@ -663,7 +676,7 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
                       {resultat.code_consultation}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
-                      Conservez ce code : il identifie votre demande auprès de SGNF.
+                      Conservez ce code : il identifie votre demande auprès de SGFN.
                     </p>
                   </div>
                 )}
@@ -733,8 +746,8 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
                     }`}
                   >
                     {litigeActif
-                      ? "Ce document est enregistré au registre SGNF, mais un litige est en cours sur ce bien."
-                      : "Ce document est enregistré au registre foncier numérique SGNF."}
+                      ? "Ce document est enregistré au registre SGFN, mais un litige est en cours sur ce bien."
+                      : "Ce document est enregistré au registre foncier numérique SGFN."}
                   </p>
                 </div>
                 {typeof resultat.score_confiance === "number" && (
@@ -810,7 +823,7 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
           )}
 
           <p className="mt-8 text-center text-xs text-slate-400">
-            Chaque vérification est validée côté serveur et journalisée par SGNF.
+            Chaque vérification est validée côté serveur et journalisée par SGFN.
           </p>
         </div>
       </div>

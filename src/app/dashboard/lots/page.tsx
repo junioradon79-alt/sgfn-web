@@ -919,20 +919,36 @@ export default function LotsPage() {
     .filter((l) => !statutFilter || (l.statut ?? "disponible") === statutFilter);
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto w-full max-w-7xl">
       {/* En-tête */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-[#E3E8EF] bg-white p-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)] sm:flex-row sm:items-start sm:justify-between sm:p-6">
         <div>
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-brand-primary">Gestion des Lots</h1>
-          <p className="mt-1.5 text-sm sm:text-base text-slate-500">Suivi, traçabilité et statut juridique des parcelles cadastrales enregistrées.</p>
+          <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#0F5E8C]">Registre foncier</p>
+          <h1 className="mt-2 font-display text-2xl font-extrabold tracking-tight text-[#0B2E4F] sm:text-3xl">Tableau des lots</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#526176] sm:text-base">Suivi, traçabilité et statut juridique des parcelles cadastrales enregistrées.</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <BoutonImprimer />
           <button type="button" onClick={() => { setIsModalOpen(true); setErrorMessage(null); setSuccessMessage(null); }}
-            className="print:hidden inline-flex items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:bg-[#1E6091] hover:shadow-md active:scale-[0.98]">
+            className="print:hidden inline-flex h-10 items-center gap-2 rounded-lg bg-[#0B2E4F] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#0F5E8C]">
             <Plus className="h-4 w-4" />
             Ajouter un lot
           </button>
+        </div>
+      </div>
+
+      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-[#E3E8EF] bg-white p-4 shadow-[0_1px_3px_rgba(16,24,40,0.04)]">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#526176]">Lots affichés</p>
+          <p className="mt-2 text-2xl font-extrabold tabular text-[#0B2E4F]">{displayedRows.length}</p>
+        </div>
+        <div className="rounded-xl border border-[#E3E8EF] bg-white p-4 shadow-[0_1px_3px_rgba(16,24,40,0.04)]">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#526176]">PV à régulariser</p>
+          <p className="mt-2 text-2xl font-extrabold tabular text-[#B45309]">{pvAlertCount}</p>
+        </div>
+        <div className="rounded-xl border border-[#E3E8EF] bg-white p-4 shadow-[0_1px_3px_rgba(16,24,40,0.04)]">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#526176]">Filtres</p>
+          <p className="mt-2 text-sm font-extrabold text-[#0B2E4F]">{statutFilter || pvFilter || search ? "Vue filtrée" : "Vue complète"}</p>
         </div>
       </div>
 
@@ -941,13 +957,13 @@ export default function LotsPage() {
       )}
 
       {/* Barre de recherche */}
-      <div className="print:hidden mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative w-full max-w-sm">
+      <div className="print:hidden mb-6 flex flex-col gap-3 rounded-2xl border border-[#E3E8EF] bg-white p-3 shadow-[0_1px_3px_rgba(16,24,40,0.04)] sm:flex-row sm:items-center">
+        <div className="relative w-full sm:max-w-md">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <Input
             type="search"
             placeholder="Rechercher un lot, un attributaire…"
-            className="pl-9"
+            className="h-10 border-[#C9D5E0] bg-white pl-9"
             aria-label="Rechercher un lot"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -958,7 +974,7 @@ export default function LotsPage() {
           <select
             value={statutFilter}
             onChange={(e) => setStatutFilter(e.target.value)}
-            className="appearance-none rounded-lg border border-slate-200/60 bg-white py-2 pl-9 pr-8 text-sm font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 focus:border-[#0D3B66] focus:outline-none"
+            className="h-10 appearance-none rounded-lg border border-[#C9D5E0] bg-white py-2 pl-9 pr-8 text-sm font-semibold text-[#526176] shadow-sm transition-colors hover:border-[#B8C7D6] focus:border-[#0F5E8C] focus:outline-none focus:ring-2 focus:ring-[#0F5E8C]/20"
             aria-label="Filtrer par statut"
           >
             <option value="">Tous les statuts</option>
@@ -996,19 +1012,19 @@ export default function LotsPage() {
       )}
 
       {/* Tableau */}
-      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white print:overflow-visible print:rounded-none print:border-none">
+      <div className="overflow-hidden rounded-2xl border border-[#E3E8EF] bg-white shadow-[0_1px_3px_rgba(16,24,40,0.06)] print:overflow-visible print:rounded-none print:border-none">
         <div className="overflow-x-auto print:overflow-visible">
           <table className="w-full min-w-[860px] border-collapse text-left">
             <thead>
-              <tr className="border-b border-slate-200/60 bg-slate-50/50">
+              <tr className="border-b border-[#E3E8EF] bg-[#F7F9FC]">
                 {TABLE_HEADERS.map((header) => (
-                  <th key={header} scope="col" className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-slate-500 last:text-right print:last:hidden">
+                  <th key={header} scope="col" className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.12em] text-[#526176] last:text-right print:last:hidden">
                     {header}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200/60">
+            <tbody className="divide-y divide-[#E3E8EF]">
               {isLoading ? (
                 <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">Chargement des lots…</td></tr>
               ) : displayedRows.length === 0 ? (
@@ -1022,10 +1038,10 @@ export default function LotsPage() {
                   const attrActuel = lot.attributions?.find((a) => a.actuel) ?? lot.attributions?.[0];
 
                   return (
-                    <tr key={lot.id} className="transition-colors hover:bg-slate-50/60">
+                    <tr key={lot.id} className="transition-colors hover:bg-[#F7F9FC]">
                       {/* Lot */}
                       <td className="px-5 py-4">
-                        <p className="text-sm font-semibold text-[#0D3B66]">Lot {lot.numero_lot}</p>
+                        <p className="text-sm font-extrabold text-[#0B2E4F]">Lot {lot.numero_lot}</p>
                         {lot.numero_parcelle && <p className="mt-0.5 text-xs text-slate-400">Parc. {lot.numero_parcelle}</p>}
                         {lot.verrouille && <span className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-amber-600"><Lock className="h-3 w-3" />Gelé</span>}
                       </td>
@@ -1035,7 +1051,7 @@ export default function LotsPage() {
                         <p className="text-sm font-medium text-slate-800">{lotissementNom ?? "—"}</p>
                         <div className="mt-0.5 flex items-center gap-2">
                           {ilotNum && (
-                            <span className="inline-flex items-center rounded-md bg-[#0D3B66]/8 px-1.5 py-0.5 text-xs font-semibold text-[#0D3B66]">
+                            <span className="inline-flex items-center rounded-md bg-[#0B2E4F]/[0.08] px-1.5 py-0.5 text-xs font-semibold text-[#0B2E4F]">
                               Îlot {ilotNum}
                             </span>
                           )}
@@ -1073,7 +1089,7 @@ export default function LotsPage() {
                             type="button"
                             onClick={() => { setLotLitiges([]); setDetailLot(lot); }}
                             title="Voir le dossier"
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#0D3B66]"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#0B2E4F]"
                           >
                             <Eye className="h-4 w-4" />
                           </button>
@@ -1082,7 +1098,7 @@ export default function LotsPage() {
                               type="button"
                               onClick={() => setTransfertLot(lot)}
                               title="Transférer / Attribuer"
-                              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#1E6091]"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#0F5E8C]"
                             >
                               <ArrowRightLeft className="h-4 w-4" />
                             </button>
