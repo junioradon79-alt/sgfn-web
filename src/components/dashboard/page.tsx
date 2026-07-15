@@ -8,7 +8,7 @@ import { getCurrentUser } from "@/services/auth";
 import { getProfile } from "@/services/profile";
 import type { Profile } from "@/types/database";
 
-import SGFNStatCard from "@/components/dashboard/SGFNStatCard";
+import SGNFStatCard from "@/components/dashboard/SGNFStatCard";
 
 import {
   Map,
@@ -59,28 +59,28 @@ export default function DashboardPage() {
 
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
 
-          <SGFNStatCard
+          <SGNFStatCard
             title="Lotissements"
             value={18}
             icon={Map}
             subtitle="Enregistrés"
           />
 
-          <SGFNStatCard
+          <SGNFStatCard
             title="Lots"
             value={8542}
             icon={Square}
             subtitle="Référencés"
           />
 
-          <SGFNStatCard
+          <SGNFStatCard
             title="Attributaires"
             value={3201}
             icon={Users}
             subtitle="Actifs"
           />
 
-          <SGFNStatCard
+          <SGNFStatCard
             title="Paiements"
             value={125}
             icon={CreditCard}

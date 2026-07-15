@@ -1,4 +1,4 @@
-// SGFN — Edge Function : VERIFICATION QR PUBLIQUE
+// SGNF — Edge Function : VERIFICATION QR PUBLIQUE
 // v16 : exception pour la 1re attestation de cession (rang 1, ayant-droit
 // d'origine) — gratuite y compris en consultation, signalée par
 // verifier_attestation() via `gratuite: true` (cession_id IS NULL). Toute

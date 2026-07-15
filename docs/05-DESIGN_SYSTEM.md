@@ -1,4 +1,4 @@
-# SGFN – Design System
+# SGNF – Design System
 
 **Version :** 1.0
 **Statut :** En évolution
@@ -7,7 +7,7 @@
 
 # 1. Objectif
 
-Le Design System de SGFN définit les règles graphiques et ergonomiques de la plateforme.
+Le Design System de SGNF définit les règles graphiques et ergonomiques de la plateforme.
 
 Il garantit une interface cohérente, moderne et homogène sur l'ensemble des écrans.
 
@@ -28,7 +28,7 @@ Chaque écran doit respecter les principes suivants :
 
 # 3. Identité visuelle
 
-Le logo SGFN constitue l'élément central de l'identité graphique.
+Le logo SGNF constitue l'élément central de l'identité graphique.
 
 Toutes les interfaces doivent respecter cette identité.
 
@@ -38,7 +38,7 @@ Toutes les interfaces doivent respecter cette identité.
 
 ## Couleur principale
 
-Bleu SGFN
+Bleu SGNF
 
 ```text
 #0B5FA5
@@ -54,7 +54,7 @@ Utilisation :
 
 ## Couleur secondaire
 
-Vert SGFN
+Vert SGNF
 
 ```text
 #1B8A5A
@@ -70,7 +70,7 @@ Utilisation :
 
 ## Couleur d'accent
 
-Orange SGFN
+Orange SGNF
 
 ```text
 #E88B16
@@ -120,17 +120,17 @@ Inter
 
 # 6. Composants
 
-Les composants officiels de SGFN sont :
+Les composants officiels de SGNF sont :
 
-* SGFNButton
-* SGFNCard
-* SGFNBadge
-* SGFNInput
-* SGFNTable
-* SGFNModal
-* SGFNAlert
-* SGFNStatCard
-* SGFNPageHeader
+* SGNFButton
+* SGNFCard
+* SGNFBadge
+* SGNFInput
+* SGNFTable
+* SGNFModal
+* SGNFAlert
+* SGNFStatCard
+* SGNFPageHeader
 
 Aucun composant ne doit être dupliqué.
 
@@ -184,7 +184,7 @@ Le mobile n'est jamais une option.
 
 # 11. Philosophie
 
-L'interface SGFN doit inspirer :
+L'interface SGNF doit inspirer :
 
 * la confiance ;
 * la simplicité ;

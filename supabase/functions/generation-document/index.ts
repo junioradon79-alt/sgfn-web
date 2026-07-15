@@ -1,5 +1,5 @@
 // =====================================================================
-//  SGFN — Edge Function : GENERATION-DOCUMENT  (v34 : ajout pv_bornage — PV de bornage genere pour les missions du portefeuille geometre, cf. missions_geometre/pv_bornage)
+//  SGNF — Edge Function : GENERATION-DOCUMENT  (v34 : ajout pv_bornage — PV de bornage genere pour les missions du portefeuille geometre, cf. missions_geometre/pv_bornage)
 // =====================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import QRCode from "npm:qrcode";
@@ -31,7 +31,7 @@ const TYPE_PAIEMENT_LABELS: Record<string, string> = {
   attestation_cession: "Attestation de cession",
   honoraires: "Honoraires geometre",
   vente_terrain: "Vente terrain",
-  autre: "Paiement SGFN",
+  autre: "Paiement SGNF",
 };
 const MOYEN_LABELS: Record<string, string> = {
   wave: "Wave", orange_money: "Orange Money", mtn_money: "MTN Money", moov_money: "Moov Money",

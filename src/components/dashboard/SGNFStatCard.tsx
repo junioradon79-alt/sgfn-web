@@ -10,7 +10,7 @@ type Props = {
   subtitle?: string;
 };
 
-export default function SGFNStatCard({
+export default function SGNFStatCard({
   title,
   value,
   icon: Icon,

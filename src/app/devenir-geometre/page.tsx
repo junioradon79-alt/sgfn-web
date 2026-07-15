@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/Input";
 import { createClient } from "@/utils/supabase/client";
 
 const trustItems = [
-  "Demande examinée par l'administration SGFN",
+  "Demande examinée par l'administration SGNF",
   "Fiche registre créée après validation",
   "Code d'activation transmis une fois approuvée",
 ];
@@ -66,10 +66,10 @@ export default function DevenirGeometrePage() {
       <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-[1180px] items-center">
         <div className="grid w-full gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
           <section className="hidden rounded-2xl border border-[#D5E0E9] bg-white p-8 shadow-[0_18px_48px_-36px_rgba(11,46,79,0.35)] lg:block">
-            <Link href="/" className="inline-flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F5E8C]/40" aria-label="Accueil SGFN">
+            <Link href="/" className="inline-flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F5E8C]/40" aria-label="Accueil SGNF">
               <Image src="/logo-embleme.png" alt="" width={44} height={44} className="h-11 w-11 object-contain" priority />
               <div>
-                <p className="font-display text-xl font-extrabold tracking-tight text-[#0B2E4F]">SGFN</p>
+                <p className="font-display text-xl font-extrabold tracking-tight text-[#0B2E4F]">SGNF</p>
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#0F5E8C]">Réseau partenaires</p>
               </div>
             </Link>
@@ -80,7 +80,7 @@ export default function DevenirGeometrePage() {
                 Géomètres-experts
               </p>
               <h1 className="mt-5 font-display text-4xl font-extrabold leading-tight tracking-tight text-[#0B2E4F]">
-                Pilotez votre activité de géomètre-expert depuis SGFN.
+                Pilotez votre activité de géomètre-expert depuis SGNF.
               </h1>
               <p className="mt-4 leading-7 text-[#526176]">
                 Registre officiel, portefeuille de missions, PV de bornage QR-vérifiables. Transmettez vos informations,
@@ -101,7 +101,7 @@ export default function DevenirGeometrePage() {
           <section className="mx-auto w-full max-w-[520px] rounded-2xl border border-[#D5E0E9] bg-white p-6 shadow-[0_18px_48px_-36px_rgba(11,46,79,0.35)] sm:p-8">
             <Link href="/" className="mb-8 flex items-center gap-3 lg:hidden">
               <Image src="/logo-embleme.png" alt="" width={40} height={40} className="h-10 w-10 object-contain" priority />
-              <span className="font-display text-xl font-extrabold tracking-tight text-[#0B2E4F]">SGFN</span>
+              <span className="font-display text-xl font-extrabold tracking-tight text-[#0B2E4F]">SGNF</span>
             </Link>
 
             {!envoyee ? (
@@ -196,7 +196,7 @@ export default function DevenirGeometrePage() {
                 <div>
                   <h2 className="font-display text-2xl font-extrabold tracking-tight text-[#0B2E4F]">Demande transmise</h2>
                   <p className="mt-3 text-sm leading-6 text-[#526176]">
-                    L&apos;administration SGFN va examiner votre demande. Une fois validée, un code d&apos;activation vous
+                    L&apos;administration SGNF va examiner votre demande. Une fois validée, un code d&apos;activation vous
                     sera transmis pour créer votre compte.
                   </p>
                 </div>

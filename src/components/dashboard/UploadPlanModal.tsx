@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { X, Upload, Loader2, Search, CheckCircle2, AlertTriangle } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { Input } from "@/components/ui/Input";
-import SGFNButton from "@/components/ui/SGFNButton";
+import SGNFButton from "@/components/ui/SGNFButton";
 
 type LotOption = {
   id: string;
@@ -149,9 +149,9 @@ export default function UploadPlanModal({
             <CheckCircle2 className="mb-3 h-10 w-10 text-emerald-500" />
             <p className="text-sm font-semibold text-slate-700">Plan téléversé</p>
             {message && <p className="mt-2 text-xs text-amber-600">{message}</p>}
-            <SGFNButton onClick={onClose} className="mt-5 rounded-xl px-5 py-2.5 text-sm">
+            <SGNFButton onClick={onClose} className="mt-5 rounded-xl px-5 py-2.5 text-sm">
               Fermer
-            </SGFNButton>
+            </SGNFButton>
           </div>
         ) : (
           <div className="space-y-4">
@@ -247,7 +247,7 @@ export default function UploadPlanModal({
               >
                 Annuler
               </button>
-              <SGFNButton
+              <SGNFButton
                 onClick={soumettre}
                 disabled={enCours || !lotId || !file}
                 className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm disabled:opacity-60"
@@ -263,7 +263,7 @@ export default function UploadPlanModal({
                     Téléverser
                   </>
                 )}
-              </SGFNButton>
+              </SGNFButton>
             </div>
           </div>
         )}

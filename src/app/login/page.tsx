@@ -51,14 +51,14 @@ export default function LoginPage() {
   return (
     <main className="grid min-h-screen bg-[#F7F9FC] lg:grid-cols-[minmax(0,1fr)_520px]">
       <section className="hidden border-r border-[#E3E8EF] bg-[#0B2E4F] p-12 lg:flex lg:flex-col lg:justify-between">
-        <Link href="/" className="flex items-center gap-3 text-white"><Image src="/logo-embleme.png" alt="Logo SGFN" width={48} height={48} className="h-12 w-12" priority /><span className="font-display text-2xl font-extrabold tracking-tight">SGFN</span></Link>
+        <Link href="/" className="flex items-center gap-3 text-white"><Image src="/logo-embleme.png" alt="Logo SGNF" width={48} height={48} className="h-12 w-12" priority /><span className="font-display text-2xl font-extrabold tracking-tight">SGNF</span></Link>
         <div className="max-w-md"><p className="text-sm font-bold uppercase tracking-[0.16em] text-[#9BC8E0]">Espace sécurisé</p><h1 className="mt-4 text-4xl font-extrabold leading-tight text-white">Vos opérations foncières, dans un environnement clair.</h1><p className="mt-5 leading-7 text-slate-300">Accédez à votre espace selon votre rôle, suivez les dossiers et retrouvez les actions qui vous concernent.</p></div>
         <p className="flex items-center gap-2 text-sm text-slate-300"><ShieldCheck className="h-4 w-4 text-[#8FD7BB]" /> Utilisez les accès fournis par votre organisation.</p>
       </section>
 
       <section className="flex items-center justify-center px-4 py-10 sm:px-8">
         <div className="w-full max-w-md rounded-2xl border border-[#E3E8EF] bg-white p-6 sm:p-8">
-          <Link href="/" className="mb-10 flex items-center gap-3 lg:hidden"><Image src="/logo-embleme.png" alt="Logo SGFN" width={42} height={42} className="h-10 w-10" priority /><span className="font-display text-xl font-extrabold tracking-tight text-[#0B2E4F]">SGFN</span></Link>
+          <Link href="/" className="mb-10 flex items-center gap-3 lg:hidden"><Image src="/logo-embleme.png" alt="Logo SGNF" width={42} height={42} className="h-10 w-10" priority /><span className="font-display text-xl font-extrabold tracking-tight text-[#0B2E4F]">SGNF</span></Link>
           <div><p className="text-sm font-bold uppercase tracking-[0.15em] text-[#0F5E8C]">{mode === "login" ? "Connexion" : "Réinitialisation"}</p><h2 className="mt-2 text-3xl font-extrabold tracking-tight text-[#0B2E4F]">{mode === "login" ? "Accéder à votre espace" : "Retrouver votre accès"}</h2><p className="mt-3 text-sm leading-6 text-[#526176]">{mode === "login" ? "Saisissez les identifiants associés à votre invitation." : "Indiquez votre adresse e-mail : nous vous enverrons les instructions si un compte existe."}</p></div>
 
           <form onSubmit={submit} className="mt-8 space-y-5">

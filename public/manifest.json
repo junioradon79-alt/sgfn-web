@@ -1,6 +1,6 @@
 {
-  "name": "SGFN — Gestion Foncière Numérique",
-  "short_name": "SGFN",
+  "name": "SGNF — Gestion Foncière Numérique",
+  "short_name": "SGNF",
   "description": "Plateforme numérique de gestion foncière en Côte d'Ivoire — Anyama, Ebimpé.",
   "start_url": "/",
   "scope": "/",
@@ -56,14 +56,14 @@
       "sizes": "1400x900",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Tableau de bord SGFN"
+      "label": "Tableau de bord SGNF"
     },
     {
       "src": "/screenshots/mobile.png",
       "sizes": "390x844",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "SGFN sur mobile"
+      "label": "SGNF sur mobile"
     }
   ]
 }

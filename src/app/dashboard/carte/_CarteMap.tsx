@@ -114,7 +114,7 @@ export default function CarteMap({
             icon={icon}
             eventHandlers={{ click: () => onLotissementClick(lot.id) }}
           >
-            <Popup className="sgfn-popup">
+            <Popup className="sgnf-popup">
               <div className="min-w-[180px]">
                 <p className="font-bold text-[#0D3B66]">{lot.nom}</p>
                 {lot.village && (

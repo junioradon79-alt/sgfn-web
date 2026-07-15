@@ -12,7 +12,7 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: Size;
 }
 
-export default function SGFNButton({
+export default function SGNFButton({
   children,
   className,
   variant = "primary",

@@ -45,7 +45,7 @@ const steps: { key: Step; label: string }[] = [
 const trustItems = [
   "Invitation vérifiée côté serveur",
   "Compte rattaché au rôle de votre organisation",
-  "Accès journalisé dans le registre SGFN",
+  "Accès journalisé dans le registre SGNF",
 ];
 
 function stepIndex(step: Step) {
@@ -146,10 +146,10 @@ export default function InscriptionPage() {
       <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-[1180px] items-center">
         <div className="grid w-full gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
           <section className="hidden rounded-2xl border border-[#D5E0E9] bg-white p-8 shadow-[0_18px_48px_-36px_rgba(11,46,79,0.35)] lg:block">
-            <Link href="/" className="inline-flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F5E8C]/40" aria-label="Accueil SGFN">
+            <Link href="/" className="inline-flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F5E8C]/40" aria-label="Accueil SGNF">
               <Image src="/logo-embleme.png" alt="" width={44} height={44} className="h-11 w-11 object-contain" priority />
               <div>
-                <p className="font-display text-xl font-extrabold tracking-tight text-[#0B2E4F]">SGFN</p>
+                <p className="font-display text-xl font-extrabold tracking-tight text-[#0B2E4F]">SGNF</p>
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#0F5E8C]">Activation sécurisée</p>
               </div>
             </Link>
@@ -180,7 +180,7 @@ export default function InscriptionPage() {
           <section className="mx-auto w-full max-w-[520px] rounded-2xl border border-[#D5E0E9] bg-white p-6 shadow-[0_18px_48px_-36px_rgba(11,46,79,0.35)] sm:p-8">
             <Link href="/" className="mb-8 flex items-center gap-3 lg:hidden">
               <Image src="/logo-embleme.png" alt="" width={40} height={40} className="h-10 w-10 object-contain" priority />
-              <span className="font-display text-xl font-extrabold tracking-tight text-[#0B2E4F]">SGFN</span>
+              <span className="font-display text-xl font-extrabold tracking-tight text-[#0B2E4F]">SGNF</span>
             </Link>
 
             <div className="mb-8">
@@ -235,7 +235,7 @@ export default function InscriptionPage() {
                     <Input
                       id="code"
                       type="text"
-                      placeholder="SGFN-XXXXXXXX"
+                      placeholder="SGNF-XXXXXXXX"
                       value={code}
                       onChange={(e) => setCode(e.target.value.toUpperCase())}
                       required

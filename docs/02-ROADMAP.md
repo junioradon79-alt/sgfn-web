@@ -9,7 +9,7 @@
 # 1. État des lieux — ce qui est en ligne
 
 - **`sgfn-web`** déployé et répond en HTTPS sur `https://sgfn.ci`.
-- **`monterrain-web`** déployé et répond en HTTPS sur `https://monterrain.sgfn.ci` (le domaine cible `sgnf.ci` n'a jamais été activé en DNS — à migrer plus tard si un jour acheté/délégué).
+- **`monterrain-web`** déployé et répond en HTTPS sur `https://monterrain.sgfn.ci` (le domaine cible du rebranding `sgnf.ci` n'a jamais été activé en DNS — à migrer plus tard si un jour acheté/pointé).
 - Les deux sites sont des exports statiques Next.js sur cPanel/Apache, backend Supabase commun. Voir [03-ARCHITECTURE.md](03-ARCHITECTURE.md).
 
 ---

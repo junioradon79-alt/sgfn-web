@@ -1,4 +1,4 @@
-// SGFN — Edge Function : PAYER UNE CONSULTATION QR (attestation de cession)
+// SGNF — Edge Function : PAYER UNE CONSULTATION QR (attestation de cession)
 // Initie le paiement CinetPay d'une consultation créée par verification-qr.
 // Appelée anonymement depuis /verifier (déployer avec --no-verify-jwt) : le
 // jeton de consultation fait office de secret porteur.

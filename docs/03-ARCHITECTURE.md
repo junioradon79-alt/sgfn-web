@@ -10,12 +10,12 @@
 
 Le projet se compose de **deux dépôts Git indépendants**, partageant le **même backend Supabase** :
 
-| Dépôt | Rôle | Domaine de production |
-|---|---|---|
-| `sgfn-web` (`c:\Dev\sgfn-web`) | Plateforme institutionnelle SGNF — tableaux de bord par rôle, gestion foncière, documents, vérification QR | `https://sgfn.ci` |
-| `monterrain-web` (`c:\Dev\monterrain-web`) | Marketplace publique « Mon Terrain » — annonces de parcelles vérifiées | `https://monterrain.sgfn.ci` |
+| Dépôt | Rôle | Domaine cible (marque) | Domaine réellement actif |
+|---|---|---|---|
+| `sgfn-web` (`c:\Dev\sgfn-web`) | Plateforme institutionnelle SGNF — tableaux de bord par rôle, gestion foncière, documents, vérification QR | `https://sgnf.ci` | `https://sgfn.ci` |
+| `monterrain-web` (`c:\Dev\monterrain-web`) | Marketplace publique « Mon Terrain » — annonces de parcelles vérifiées | `https://monterrain.sgnf.ci` | `https://monterrain.sgfn.ci` |
 
-Le domaine cible du renommage SGFN→SGNF (`sgnf.ci`) **n'a jamais été activé en DNS** (seul `sgfn.ci` est enregistré et actif). Les deux sites tournent donc sur des sous-domaines de `sgfn.ci` en attendant une éventuelle migration future.
+Le rebranding SGFN→SGNF (15/07/2026) a mis à jour toutes les références de marque dans le code (domaine, textes, emails, package Android) vers `sgnf.ci`, mais **ce domaine n'est pas activé en DNS** — seul `sgfn.ci` est enregistré et sert réellement le trafic. Tant que `sgnf.ci` n'est pas acheté et pointé (DNS + hébergement + Site URL/Redirect URLs Supabase Auth + retour CinetPay), les deux sites continuent de fonctionner sur `sgfn.ci` en pratique.
 
 ---
 
@@ -80,7 +80,7 @@ Le mapping `acquereur`/`amenageur` → acquisition et le fait que `admin`/`geome
 src/
   app/                  routes Next.js (App Router), voir liste complète ci-dessous
     dashboard/          espaces par rôle (proprietaire, operateur, commissaire, chefferie, acquisition, admin...)
-  components/           design system (SGFNButton, SGFNCard, KpiCard, RadialGauge...) + dashboard/ + ui/ + home/
+  components/           design system (SGNFButton, SGNFCard, KpiCard, RadialGauge...) + dashboard/ + ui/ + home/
   contexts/, hooks/      useProfile (résout profiles.groupe), providers/
   lib/                  paiements.ts (labels/formatage), metiers.ts, theme.ts, supabase.ts
   utils/supabase/       client Supabase (browser)
@@ -149,7 +149,7 @@ Le script `scripts/make-zip.ps1` (référencé par `npm run deploy` dans `packag
 
 # 8. Application mobile (Capacitor)
 
-`sgfn-web` uniquement. `capacitor.config.json` : `appId: "ci.sgfn.app"`, `webDir: "out"` (même export statique que le web). Générer l'APK :
+`sgfn-web` uniquement. `capacitor.config.json` : `appId: "ci.sgnf.app"`, `webDir: "out"` (même export statique que le web). Générer l'APK :
 
 ```bash
 pnpm build:mobile   # next build → out/ → cap sync android
@@ -158,7 +158,7 @@ pnpm cap:open       # ouvre Android Studio → Build → Generate Signed APK
 
 Prérequis non encore réunis : Android Studio installé, keystore généré (`keytool -genkey -alias sgfn -keystore android/sgfn-release.jks`), icônes 192×192/512×512 dans `public/icons/`. Chantier explicitement reporté par le porteur de projet, à ne relancer que sur demande.
 
-⚠️ Ne jamais renommer `appId`/keystore par cohérence avec le renommage SGFN→SGNF : cela publierait une **nouvelle** app Android, pas une mise à jour.
+⚠️ Le package Android a été renommé `ci.sgfn.app` → `ci.sgnf.app` le 15/07/2026, ce qui n'était possible sans risque que parce que l'app n'a **jamais été publiée** sur le Play Store (renommer l'`appId` d'une app déjà publiée créerait une nouvelle app, pas une mise à jour). Le keystore (`sgfn-release.jks`, alias `sgfn`) n'a volontairement **pas** été renommé : renommer le fichier ne renomme pas la clé de signature qu'il contient.
 
 ---
 

@@ -1,4 +1,4 @@
-# SGFN – Vision du Projet
+# SGNF – Vision du Projet
 
 **Version :** 1.0
 **Date de création :** 27 juin 2026
@@ -8,7 +8,7 @@
 
 # 1. Présentation
 
-SGFN (Système de Gestion du Foncier Numérique) est une plateforme logicielle professionnelle destinée à digitaliser, sécuriser et optimiser la gestion des opérations foncières.
+SGNF (Système de Gestion du Foncier Numérique) est une plateforme logicielle professionnelle destinée à digitaliser, sécuriser et optimiser la gestion des opérations foncières.
 
 Le projet est développé par une entreprise privée indépendante et n'est rattaché à aucune institution publique. Son architecture est conçue pour être adaptable à différents contextes d'utilisation : entreprises privées, collectivités territoriales, administrations, aménageurs fonciers, promoteurs immobiliers ou cabinets spécialisés.
 
@@ -22,15 +22,15 @@ Fournir une plateforme numérique moderne permettant de gérer l'ensemble du cyc
 
 # 3. Vision
 
-Faire de SGFN la plateforme africaine de référence pour la gestion numérique du foncier.
+Faire de SGNF la plateforme africaine de référence pour la gestion numérique du foncier.
 
-À long terme, SGFN devra être capable de gérer plusieurs millions de parcelles, de s'interfacer avec des systèmes tiers et de proposer des outils d'aide à la décision basés sur les données et l'intelligence artificielle.
+À long terme, SGNF devra être capable de gérer plusieurs millions de parcelles, de s'interfacer avec des systèmes tiers et de proposer des outils d'aide à la décision basés sur les données et l'intelligence artificielle.
 
 ---
 
 # 4. Valeurs
 
-Le développement de SGFN repose sur cinq valeurs fondamentales :
+Le développement de SGNF repose sur cinq valeurs fondamentales :
 
 * Transparence
 * Sécurité
@@ -44,7 +44,7 @@ Chaque évolution du logiciel devra respecter ces principes.
 
 # 5. Public cible
 
-SGFN est conçu pour répondre aux besoins de plusieurs catégories d'utilisateurs :
+SGNF est conçu pour répondre aux besoins de plusieurs catégories d'utilisateurs :
 
 * Promoteurs immobiliers
 * Aménageurs fonciers
@@ -60,7 +60,7 @@ SGFN est conçu pour répondre aux besoins de plusieurs catégories d'utilisateu
 
 # 6. Positionnement
 
-SGFN est une plateforme professionnelle de gestion foncière.
+SGNF est une plateforme professionnelle de gestion foncière.
 
 Elle ne se limite pas à un logiciel de suivi administratif : elle constitue un véritable système d'information foncier intégrant la gestion documentaire, les workflows, la cartographie, les tableaux de bord et l'analyse des données.
 
@@ -68,7 +68,7 @@ Elle ne se limite pas à un logiciel de suivi administratif : elle constitue un 
 
 # 7. Objectifs stratégiques
 
-À moyen terme, SGFN devra permettre :
+À moyen terme, SGNF devra permettre :
 
 * la centralisation des données foncières ;
 * la réduction des erreurs et des doublons ;
@@ -95,7 +95,7 @@ Toutes les fonctionnalités devront respecter les principes suivants :
 
 # 9. Signature
 
-**SGFN**
+**SGNF**
 
 **Sécuriser • Organiser • Valoriser**
 
@@ -109,7 +109,7 @@ Toutes les fonctionnalités devront respecter les principes suivants :
 
 # 11. Notre engagement
 
-Nous développons SGFN comme un produit logiciel durable.
+Nous développons SGNF comme un produit logiciel durable.
 
 Chaque choix technique doit privilégier :
 

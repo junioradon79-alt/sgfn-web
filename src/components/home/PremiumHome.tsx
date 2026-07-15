@@ -21,7 +21,7 @@ const benefits = [
 ];
 
 const faqs = [
-  ["À qui s’adresse SGFN ?", "Aux collectivités, opérateurs, propriétaires, acquéreurs et professionnels impliqués dans la gestion foncière."],
+  ["À qui s’adresse SGNF ?", "Aux collectivités, opérateurs, propriétaires, acquéreurs et professionnels impliqués dans la gestion foncière."],
   ["Comment vérifier un document ?", "Utilisez sa référence ou son code QR pour consulter les informations disponibles par le registre."],
   ["Comment obtenir un accès ?", "Votre organisation peut vous inviter ; vous activez ensuite votre compte avec le code reçu."],
 ];
@@ -45,7 +45,7 @@ export function PremiumHome() {
         <div className="lg:col-span-7">
           <p className="inline-flex items-center gap-2 rounded-full border border-[#0F5E8C]/20 bg-white px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-[#0F5E8C]"><ShieldCheck className="h-4 w-4" /> Gestion foncière numérique</p>
           <h1 className="mt-6 max-w-3xl text-4xl font-extrabold leading-[1.08] tracking-[-0.035em] text-[#0B2E4F] sm:text-5xl lg:text-6xl">Le foncier, piloté avec plus de clarté.</h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-[#526176]">SGFN réunit les dossiers, documents et décisions foncières dans un espace de travail conçu pour les organisations ivoiriennes.</p>
+          <p className="mt-6 max-w-2xl text-lg leading-8 text-[#526176]">SGNF réunit les dossiers, documents et décisions foncières dans un espace de travail conçu pour les organisations ivoiriennes.</p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row"><Link href="/contact" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#0B2E4F] px-5 text-sm font-bold text-white transition hover:bg-[#0F5E8C]">Demander une démonstration <ArrowRight className="h-4 w-4" /></Link><Link href="/verifier" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-[#C9D5E0] bg-white px-5 text-sm font-bold text-[#0B2E4F] transition hover:bg-slate-50"><FileSearch className="h-4 w-4" /> Vérifier un document</Link></div>
           <p className="mt-5 flex items-center gap-2 text-sm text-[#526176]"><LockKeyhole className="h-4 w-4 text-[#147A55]" /> Accès organisé par rôle et opérations journalisées.</p>
         </div>

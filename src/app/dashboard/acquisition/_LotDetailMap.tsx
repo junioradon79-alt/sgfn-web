@@ -50,7 +50,7 @@ export default function LotDetailMap({
       <SizeFix />
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
       <Marker position={[lat, lng]} icon={PIN}>
-        <Popup className="sgfn-popup">
+        <Popup className="sgnf-popup">
           <p className="font-bold text-[#0D3B66]">{label}</p>
           {approx && <p className="mt-0.5 text-xs text-slate-500">Localisation approximative (niveau lotissement)</p>}
         </Popup>

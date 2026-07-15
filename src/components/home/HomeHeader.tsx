@@ -20,13 +20,13 @@ export function HomeHeader() {
     <>
       <header className="sticky top-0 z-50 w-full border-b border-[#E3E8EF] bg-[#F7F9FC]/95 backdrop-blur-lg">
         <div className="mx-auto flex h-[72px] max-w-[1280px] items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex shrink-0 items-center gap-3" aria-label="Accueil SGFN">
+          <Link href="/" className="flex shrink-0 items-center gap-3" aria-label="Accueil SGNF">
             <Image src="/logo-embleme.png" alt="" width={44} height={44} className="h-11 w-11 object-contain" priority />
             <div className="hidden border-l border-[#E3E8EF] pl-3 xs:block">
-              <p className="font-display text-xl font-extrabold leading-none tracking-tight text-[#0B2E4F]">SGFN</p>
+              <p className="font-display text-xl font-extrabold leading-none tracking-tight text-[#0B2E4F]">SGNF</p>
               <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.14em] text-[#0F5E8C]">Gestion foncière</p>
             </div>
-            <span className="font-display text-xl font-extrabold leading-none tracking-tight text-[#0B2E4F] xs:hidden">SGFN</span>
+            <span className="font-display text-xl font-extrabold leading-none tracking-tight text-[#0B2E4F] xs:hidden">SGNF</span>
           </Link>
 
           <nav aria-label="Navigation principale" className="hidden flex-1 items-center justify-center gap-1 lg:flex">

@@ -82,7 +82,7 @@ export function AppHeader({
 
       <nav aria-label="Fil d'Ariane" className="min-w-0">
         <ol className="flex items-center gap-1.5 text-[13px]">
-          <li className="hidden font-bold tracking-wide text-accent uppercase sm:block">SGFN</li>
+          <li className="hidden font-bold tracking-wide text-accent uppercase sm:block">SGNF</li>
           <li className="hidden text-border-strong sm:block" aria-hidden>
             /
           </li>

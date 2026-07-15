@@ -8,7 +8,7 @@ type Props = {
   className?: string;
 };
 
-export default function SGFNCard({
+export default function SGNFCard({
   title,
   subtitle,
   children,

@@ -1,8 +1,8 @@
-// SGFN — Service Worker
+// SGNF — Service Worker
 // Stratégie : network-first pour tout (app dynamique Supabase).
 // Cache l'app shell pour un démarrage rapide et une page offline de secours.
 
-const CACHE = "sgfn-shell-v1";
+const CACHE = "sgnf-shell-v1";
 const OFFLINE_URL = "/offline.html";
 
 const SHELL_ASSETS = [

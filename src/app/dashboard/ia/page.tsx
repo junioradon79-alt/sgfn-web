@@ -12,7 +12,7 @@ import { createClient } from "@/utils/supabase/client";
 type Signatures = {
   chef_famille: boolean;
   chef_village: boolean;
-  sgfn: boolean;
+  sgnf: boolean;
   notaire: boolean;
 };
 
@@ -163,7 +163,7 @@ function ResultCard({ result }: { result: AnalysisResult }) {
         <div className="space-y-2">
           <SignatureRow label="Chef de famille" present={result.signatures.chef_famille} />
           <SignatureRow label="Chef de village / Chefferie" present={result.signatures.chef_village} />
-          <SignatureRow label="SGNF" present={result.signatures.sgfn} />
+          <SignatureRow label="SGNF" present={result.signatures.sgnf} />
           <SignatureRow label="Notaire / Officiel" present={result.signatures.notaire} />
         </div>
       </div>

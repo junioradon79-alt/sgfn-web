@@ -10,7 +10,7 @@ const TYPE_LABELS: Record<string, string> = {
   attestation_cession: "Attestation de cession",
   honoraires: "Honoraires géomètre",
   vente_terrain: "Vente terrain",
-  autre: "Paiement SGFN",
+  autre: "Paiement SGNF",
 };
 
 Deno.serve(async (req) => {
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
 
   // Montant multiple de 5 (exigence CinetPay XOF)
   const montant = Math.max(100, Math.round((paiement.montant_total ?? 0) / 5) * 5);
-  const description = TYPE_LABELS[paiement.type] ?? "Paiement SGFN";
+  const description = TYPE_LABELS[paiement.type] ?? "Paiement SGNF";
 
   // transaction_id unique : uuid sans tirets + timestamp base36
   const txId = `${paiement.id.replace(/-/g, "").slice(0, 20)}-${Date.now().toString(36)}`;
@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
       description,
       return_url: "https://sgfn.ci/dashboard/paiements/retour",
       notify_url: `${SUPABASE_URL}/functions/v1/confirmer-paiement`,
-      customer_name: paiement.beneficiaire ?? "Client SGFN",
+      customer_name: paiement.beneficiaire ?? "Client SGNF",
       channels: "ALL",
     }),
   });

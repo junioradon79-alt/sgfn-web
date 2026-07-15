@@ -598,7 +598,7 @@ function CessionModal({
           <div className="mt-5 rounded-2xl border border-[#0D3B66]/15 bg-[#0D3B66]/5 p-4 text-sm text-[#0D3B66]">
             <p className="font-semibold">{fcfa(montantTotal)} au total</p>
             <p className="mt-0.5 text-xs text-[#0D3B66]/70">
-              {fcfa(partChefferie)} chefferie + {fcfa(commission)} commission SGFN
+              {fcfa(partChefferie)} chefferie + {fcfa(commission)} commission SGNF
             </p>
           </div>
         ) : (
@@ -606,8 +606,8 @@ function CessionModal({
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
             <p className="text-xs text-amber-700">
               {isTier2
-                ? "Tarif de la 2e attestation non configuré — contactez l'équipe SGFN."
-                : "Tarif non défini pour la chefferie de ce lotissement (3e attestation et plus) — contactez l'équipe SGFN pour le fixer."}
+                ? "Tarif de la 2e attestation non configuré — contactez l'équipe SGNF."
+                : "Tarif non défini pour la chefferie de ce lotissement (3e attestation et plus) — contactez l'équipe SGNF pour le fixer."}
             </p>
           </div>
         )}

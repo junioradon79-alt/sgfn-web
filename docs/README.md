@@ -12,7 +12,7 @@ SGNF (anciennement SGFN) numérise la gestion foncière d'un lotissement ivoirie
 
 Deux dépôts Git, un seul backend Supabase :
 
-- `sgfn-web` → `https://sgfn.ci` (plateforme institutionnelle)
+- `sgfn-web` → `https://sgfn.ci` (plateforme institutionnelle ; domaine cible du rebranding `sgnf.ci` pas encore activé en DNS)
 - `monterrain-web` → `https://monterrain.sgfn.ci` (marketplace)
 
 ## 2. Par où commencer

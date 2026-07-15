@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useChargement } from "@/hooks/useChargement";
 import { createClient } from "@/utils/supabase/client";
 import type { Database } from "../../../../database.types";
-import SGFNButton from "@/components/ui/SGFNButton";
+import SGNFButton from "@/components/ui/SGNFButton";
 import { Input } from "@/components/ui/Input";
 import { UserPlus, Copy, Check, X } from "lucide-react";
 
@@ -218,13 +218,13 @@ export default function InvitationsPage() {
             Gérez les codes d&apos;accès pour les nouveaux utilisateurs.
           </p>
         </div>
-        <SGFNButton
+        <SGNFButton
           onClick={() => { setShowForm(!showForm); setError(""); }}
           className="flex items-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091]"
         >
           <UserPlus className="h-4 w-4" />
           Nouvelle invitation
-        </SGFNButton>
+        </SGNFButton>
       </div>
 
       {revokeError && (
@@ -392,7 +392,7 @@ export default function InvitationsPage() {
               >
                 Annuler
               </button>
-              <SGFNButton
+              <SGNFButton
                 type="submit"
                 disabled={
                   isPending ||
@@ -404,7 +404,7 @@ export default function InvitationsPage() {
                 className="rounded-xl bg-[#0D3B66] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091] disabled:opacity-60"
               >
                 {isPending ? "Génération…" : "Générer le code"}
-              </SGFNButton>
+              </SGNFButton>
             </div>
           </form>
         </div>

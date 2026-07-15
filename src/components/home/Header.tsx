@@ -1,5 +1,5 @@
 import Image from "next/image";
-import SGFNButton from "@/components/ui/SGFNButton";
+import SGNFButton from "@/components/ui/SGNFButton";
 
 export default function Header() {
   return (
@@ -43,9 +43,9 @@ export default function Header() {
           </a>
         </nav>
 
-        <SGFNButton>
+        <SGNFButton>
           Connexion
-        </SGFNButton>
+        </SGNFButton>
       </div>
     </header>
   );

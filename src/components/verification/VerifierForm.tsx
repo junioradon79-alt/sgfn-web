@@ -497,7 +497,7 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
       }
       if (res.status === 503) {
         setMessagePaiement(
-          "Le paiement en ligne sera bientôt disponible. En attendant, réglez le montant auprès de SGFN en indiquant votre code de consultation, puis cliquez sur « J'ai payé — afficher le résultat ».",
+          "Le paiement en ligne sera bientôt disponible. En attendant, réglez le montant auprès de SGNF en indiquant votre code de consultation, puis cliquez sur « J'ai payé — afficher le résultat ».",
         );
       } else {
         setMessagePaiement(
@@ -520,7 +520,7 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
     ? (resultat.litiges_actifs as Record<string, unknown>[])
     : [];
   const estPasseport = mode === "passeport" && resultat?.type_document !== "apfc";
-  const titrePage = mode === "passeport" ? "Passeport parcelle SGFN" : "Vérifier un document SGFN";
+  const titrePage = mode === "passeport" ? "Passeport parcelle SGNF" : "Vérifier un document SGNF";
   const introPage = mode === "passeport"
     ? "Scannez le QR code d'un document ou saisissez sa référence pour ouvrir le passeport complet de la parcelle."
     : "Scannez le QR code d'un document ou saisissez sa référence pour vérifier son authenticité auprès du registre foncier numérique.";
@@ -614,9 +614,9 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
               <div>
                 <p className="font-semibold text-red-800">Document introuvable</p>
                 <p className="mt-1 text-sm text-red-700">
-                  Aucun document du registre SGFN ne correspond à cette référence.
+                  Aucun document du registre SGNF ne correspond à cette référence.
                   Si ce code figure sur un document qui vous a été présenté, il peut
-                  s&apos;agir d&apos;un faux — rapprochez-vous de SGFN.
+                  s&apos;agir d&apos;un faux — rapprochez-vous de SGNF.
                 </p>
               </div>
             </div>
@@ -676,7 +676,7 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
                       {resultat.code_consultation}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
-                      Conservez ce code : il identifie votre demande auprès de SGFN.
+                      Conservez ce code : il identifie votre demande auprès de SGNF.
                     </p>
                   </div>
                 )}
@@ -746,8 +746,8 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
                     }`}
                   >
                     {litigeActif
-                      ? "Ce document est enregistré au registre SGFN, mais un litige est en cours sur ce bien."
-                      : "Ce document est enregistré au registre foncier numérique SGFN."}
+                      ? "Ce document est enregistré au registre SGNF, mais un litige est en cours sur ce bien."
+                      : "Ce document est enregistré au registre foncier numérique SGNF."}
                   </p>
                 </div>
                 {typeof resultat.score_confiance === "number" && (
@@ -823,7 +823,7 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
           )}
 
           <p className="mt-8 text-center text-xs text-slate-400">
-            Chaque vérification est validée côté serveur et journalisée par SGFN.
+            Chaque vérification est validée côté serveur et journalisée par SGNF.
           </p>
         </div>
       </div>

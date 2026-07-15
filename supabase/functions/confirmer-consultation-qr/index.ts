@@ -1,4 +1,4 @@
-// SGFN — Edge Function : WEBHOOK CINETPAY — CONSULTATION QR
+// SGNF — Edge Function : WEBHOOK CINETPAY — CONSULTATION QR
 // Pendant de confirmer-paiement pour les consultations QR payantes.
 // Pas de JWT (appelé par CinetPay directement, déployer avec --no-verify-jwt).
 // Sécurité : on revérifie le paiement via l'API CinetPay avant toute mise à jour.

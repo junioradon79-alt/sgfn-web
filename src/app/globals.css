@@ -17,12 +17,12 @@
 
 /* Base de style globale */
 :root {
-  --sgfn-navy: #0B2E4F;
-  --sgfn-action: #0F5E8C;
-  --sgfn-canvas: #F7F9FC;
-  --sgfn-ink: #172033;
-  --sgfn-muted: #526176;
-  --sgfn-border: #E3E8EF;
+  --sgnf-navy: #0B2E4F;
+  --sgnf-action: #0F5E8C;
+  --sgnf-canvas: #F7F9FC;
+  --sgnf-ink: #172033;
+  --sgnf-muted: #526176;
+  --sgnf-border: #E3E8EF;
 }
 
 body {

@@ -44,7 +44,7 @@ const columns: FooterColumn[] = [
       { label: "Sécurité & confiance", href: "/#securite" },
       { label: "Questions fréquentes", href: "/#faq" },
       { label: "Guide d'achat d'un terrain", href: "/guide-achat" },
-      { label: "À propos de SGFN", href: "/a-propos" },
+      { label: "À propos de SGNF", href: "/a-propos" },
     ],
   },
   {
@@ -63,9 +63,9 @@ export function SiteFooter() {
       <div className="mx-auto max-w-[1280px] px-4 py-14 sm:px-6 lg:px-8">
         <div className="grid gap-10 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr]">
           <div className="max-w-xs">
-            <Link href="/" className="flex items-center gap-3" aria-label="Accueil SGFN">
+            <Link href="/" className="flex items-center gap-3" aria-label="Accueil SGNF">
               <Image src="/logo-embleme.png" alt="" width={40} height={40} className="h-10 w-10 object-contain" />
-              <span className="font-display text-xl font-extrabold tracking-tight text-[#0B2E4F]">SGFN</span>
+              <span className="font-display text-xl font-extrabold tracking-tight text-[#0B2E4F]">SGNF</span>
             </Link>
             <p className="mt-4 text-sm leading-6 text-[#526176]">
               Plateforme numérique de confiance pour le foncier en Côte d&apos;Ivoire : identification, vérification et
@@ -90,7 +90,7 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-12 flex flex-col gap-3 border-t border-[#E3E8EF] pt-6 text-sm text-[#8B98AA] sm:flex-row sm:items-center sm:justify-between">
-          <p>© 2026 SGFN. Gestion numérique du foncier.</p>
+          <p>© 2026 SGNF. Gestion numérique du foncier.</p>
           <p>Fait pour la Côte d&apos;Ivoire, pensé pour l&apos;Afrique de l&apos;Ouest.</p>
         </div>
       </div>

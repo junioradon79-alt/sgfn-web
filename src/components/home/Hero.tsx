@@ -1,5 +1,5 @@
 import Image from "next/image";
-import SGFNButton from "@/components/ui/SGFNButton";
+import SGNFButton from "@/components/ui/SGNFButton";
 
 export default function Hero() {
   return (
@@ -28,13 +28,13 @@ export default function Hero() {
         </p>
 
         <div className="mt-12 flex flex-wrap justify-center gap-4">
-          <SGFNButton>
+          <SGNFButton>
             Acceder a la plateforme
-          </SGFNButton>
+          </SGNFButton>
 
-          <SGFNButton variant="secondary">
+          <SGNFButton variant="secondary">
             Decouvrir SGNF
-          </SGFNButton>
+          </SGNFButton>
         </div>
       </div>
     </section>
