@@ -3,9 +3,10 @@
 import { useState, useCallback } from "react";
 import { useChargement } from "@/hooks/useChargement";
 import { createClient } from "@/utils/supabase/client";
-import { Building2, FileText, ClipboardList, CheckCircle2, Clock, PenLine } from "lucide-react";
+import { Building2, ChevronRight, FileText, CheckCircle2, Clock, PenLine, FileWarning, Handshake } from "lucide-react";
 import type { Profile, AttestationCoutumiere, PvReunion } from "./types";
-import { PV_STATUT_LABELS, PV_STATUT_COLORS, SignaturesBadges, ProgressBar, LoadingScreen, MessagerieLink } from "./SharedUI";
+import { PV_STATUT_LABELS, PV_STATUT_COLORS, SignaturesBadges, ProgressBar, LoadingScreen, StatCard } from "./SharedUI";
+import { LotDetailModal, type LotRecord, type LitigeRow, type ScoreConfiance } from "@/components/dashboard/lots/LotDetailModal";
 
 // ─── Types privés à cette vue ─────────────────────────────────────────────────
 
@@ -47,13 +48,20 @@ export function ChefFamilleView({ profile }: { profile: Profile }) {
   const [lotsCollectifs, setLotsCollectifs] = useState<Attribution[]>([]);
   const [apfc, setApfc] = useState<AttestationCoutumiere[]>([]);
   const [pvs, setPvs] = useState<PvReunion[]>([]);
+  const [litigesActifsCount, setLitigesActifsCount] = useState(0);
+  const [concertationCount, setConcertationCount] = useState(0);
 
   const [signing, setSigning] = useState<string | null>(null);
   const [signError, setSignError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  // Dossier foncier d'un lot (lecture seule), ouvert au clic sur une ligne.
+  const [dossierLot, setDossierLot] = useState<LotRecord | null>(null);
+  const [dossierLitiges, setDossierLitiges] = useState<LitigeRow[]>([]);
+  const [dossierScore, setDossierScore] = useState<ScoreConfiance | null>(null);
+  const [dossierEnCours, setDossierEnCours] = useState<string | null>(null);
 
-    const [familleRes, mesLotsRes, apfcRes, pvRes] = await Promise.all([
+  const fetchData = useCallback(async () => {
+    const [familleRes, mesLotsRes, apfcRes, litigesRes, concertationRes] = await Promise.all([
       supabase
         .from("familles")
         .select("id, nom, chef_de_famille, lignee:lignee_id(nom), attributaire_id")
@@ -62,63 +70,67 @@ export function ChefFamilleView({ profile }: { profile: Profile }) {
       profile.attributaire_id
         ? supabase
             .from("attributions")
-            .select(
-              "rang, qualite, lot:lot_id(id, numero_lot, statut, ilots(numero, lotissements(nom)))"
-            )
+            .select("rang, qualite, lot:lot_id(id, numero_lot, statut, ilots(numero, lotissements(nom)))")
             .eq("attributaire_id", profile.attributaire_id)
         : Promise.resolve({ data: [] }),
       supabase
         .from("attestations_coutumieres")
-        .select(
-          "id, reference, numero, statut, date_delivrance, sig_chef_famille_le, sig_chef_village_le, sig_cvgfr_le, chef_de_famille"
-        )
+        .select("id, reference, numero, statut, date_delivrance, sig_chef_famille_le, sig_chef_village_le, sig_cvgfr_le, chef_de_famille")
         .eq("famille_id", profile.famille_id!),
-      supabase
-        .from("pv_reunions_famille")
-        .select(
-          "id, reference, objet, statut, date_reunion, collectif:collectif_attributaire_id(nom), pv_reunions_famille_lots(lot_id)"
-        ),
+      // Litiges actifs (RLS scopée à ses parcelles) + concertations où il participe.
+      supabase.from("litiges").select("id", { count: "exact", head: true }).neq("statut", "clos"),
+      supabase.from("conversation_participants").select("profile_id", { count: "exact", head: true }).eq("profile_id", profile.id),
     ]);
 
     const familleData = familleRes.data as Famille | null;
     setFamille(familleData);
     setMesLots((mesLotsRes.data ?? []) as unknown as Attribution[]);
+    setApfc((apfcRes.data ?? []) as AttestationCoutumiere[]);
+    setLitigesActifsCount(litigesRes.count ?? 0);
+    setConcertationCount(concertationRes.count ?? 0);
 
-    // Lots collectifs de la famille (via le collectif d'ayants-droit lié)
+    // Lots collectifs + PV de famille : scopés au collectif d'ayants-droit de la
+    // famille. Le filtre explicite corrige la fuite historique (la RLS scopée sur
+    // pv_reunions_famille n'existe que depuis 20260716160000).
     if (familleData?.attributaire_id) {
-      const { data: lotsCol } = await supabase
-        .from("attributions")
-        .select("rang, qualite, lot:lot_id(id, numero_lot, statut, ilots(numero, lotissements(nom)))")
-        .eq("attributaire_id", familleData.attributaire_id)
-        .eq("actuel", true);
-      setLotsCollectifs((lotsCol ?? []) as unknown as Attribution[]);
+      const [lotsColRes, pvRes] = await Promise.all([
+        supabase
+          .from("attributions")
+          .select("rang, qualite, lot:lot_id(id, numero_lot, statut, ilots(numero, lotissements(nom)))")
+          .eq("attributaire_id", familleData.attributaire_id)
+          .eq("actuel", true),
+        supabase
+          .from("pv_reunions_famille")
+          .select("id, reference, objet, statut, date_reunion, collectif:collectif_attributaire_id(nom), pv_reunions_famille_lots(lot_id)")
+          .eq("collectif_attributaire_id", familleData.attributaire_id),
+      ]);
+      setLotsCollectifs((lotsColRes.data ?? []) as unknown as Attribution[]);
+
+      const pvData = (pvRes.data ?? []) as unknown as {
+        id: string;
+        reference: string;
+        objet: string;
+        statut: string;
+        date_reunion: string | null;
+        collectif: { nom: string } | null;
+        pv_reunions_famille_lots: { lot_id: string }[];
+      }[];
+      setPvs(
+        pvData.map((pv) => ({
+          id: pv.id,
+          reference: pv.reference,
+          objet: pv.objet,
+          statut: pv.statut,
+          date_reunion: pv.date_reunion,
+          collectif_nom: pv.collectif?.nom ?? "—",
+          nb_lots: pv.pv_reunions_famille_lots?.length ?? 0,
+        }))
+      );
     } else {
       setLotsCollectifs([]);
+      setPvs([]);
     }
-    setApfc((apfcRes.data ?? []) as AttestationCoutumiere[]);
-
-    const pvData = (pvRes.data ?? []) as unknown as {
-      id: string;
-      reference: string;
-      objet: string;
-      statut: string;
-      date_reunion: string | null;
-      collectif: { nom: string } | null;
-      pv_reunions_famille_lots: { lot_id: string }[];
-    }[];
-    setPvs(
-      pvData.map((pv) => ({
-        id: pv.id,
-        reference: pv.reference,
-        objet: pv.objet,
-        statut: pv.statut,
-        date_reunion: pv.date_reunion,
-        collectif_nom: pv.collectif?.nom ?? "—",
-        nb_lots: pv.pv_reunions_famille_lots?.length ?? 0,
-      }))
-    );
-
-  }, [profile.famille_id, profile.attributaire_id]);
+  }, [profile.famille_id, profile.attributaire_id, profile.id]);
 
   const { isLoading: loading } = useChargement(fetchData, [fetchData]);
 
@@ -134,140 +146,174 @@ export function ChefFamilleView({ profile }: { profile: Profile }) {
     void fetchData();
   };
 
+  // Charge le dossier complet d'un lot à la demande, puis affiche le modal partagé.
+  const ouvrirDossier = async (lotId: string) => {
+    setDossierEnCours(lotId);
+    const [{ data: lotData }, { data: litigesData }, { data: scoreData }] = await Promise.all([
+      supabase
+        .from("lots")
+        .select(
+          "id, numero_lot, numero_parcelle, ilot_id, statut, verrouille, superficie_m2, est_equipement, nature_droit, observation, guide_page, ilots(id, numero, lotissements(nom, commune, village, autorite_coutumiere_id)), attributions(rang, qualite, actuel, depuis, observation, attributaires(id, nom, type)), attestations_cession(reference, statut, cession_id)"
+        )
+        .eq("id", lotId)
+        .single(),
+      supabase.from("litiges").select("id, objet, statut, ouvert_le").eq("lot_id", lotId),
+      supabase.rpc("calculer_score_confiance", { p_lot_id: lotId }),
+    ]);
+    setDossierLitiges((litigesData ?? []) as LitigeRow[]);
+    setDossierScore((scoreData ?? null) as ScoreConfiance | null);
+    setDossierLot((lotData ?? null) as unknown as LotRecord | null);
+    setDossierEnCours(null);
+  };
+
   if (loading) return <LoadingScreen />;
 
   const pvAFournir = pvs.filter((p) => p.statut === "a_fournir").length;
   const apfcNonSignees = apfc.filter((a) => !a.sig_chef_famille_le).length;
+  const lotsTotal = mesLots.length + lotsCollectifs.length;
+
+  const renderLotRow = (a: Attribution, i: number, withRang: boolean) => (
+    <button
+      key={i}
+      type="button"
+      onClick={() => a.lot?.id && ouvrirDossier(a.lot.id)}
+      title="Voir le dossier foncier du lot"
+      className={`group flex w-full items-center justify-between px-5 py-3.5 text-left transition-colors hover:bg-slate-50 ${
+        dossierEnCours === a.lot?.id ? "opacity-60" : ""
+      }`}
+    >
+      <div>
+        <p className="text-sm font-semibold text-[#0D3B66] underline-offset-2 group-hover:underline">
+          Lot {a.lot?.numero_lot ?? "—"}
+          {a.lot?.ilots?.numero ? ` · Îlot ${a.lot.ilots.numero}` : ""}
+        </p>
+        <p className="text-xs text-slate-400">
+          {a.lot?.ilots?.lotissements?.nom ?? "—"}
+          {a.qualite ? ` · ${a.qualite}` : ""}
+          {withRang && a.rang != null ? ` · Rang ${a.rang}` : ""}
+        </p>
+      </div>
+      <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${LOT_STATUT_COLORS[a.lot?.statut ?? ""] ?? "border-slate-200 bg-slate-100 text-slate-500"}`}>
+        {a.lot?.statut ?? "—"}
+      </span>
+    </button>
+  );
 
   return (
     <div className="space-y-6">
-      {/* En-tête */}
+      {/* En-tête — le dashboard est celui du chef de famille (la personne), pas de
+          la lignée : Ako Djebe est la lignée, le chef en poste est l'utilisateur
+          connecté (successeur compris, quand il reprend). */}
       <div className="flex flex-col gap-1">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
-          Propriétaire terrien
+          Chef de famille
         </p>
         <h1 className="text-2xl font-bold text-[#0D3B66]">
-          {famille?.nom ?? "Ma famille"}
+          {profile.nom_complet}
         </h1>
-        {famille?.lignee && (
-          <p className="text-sm text-slate-500">Lignée : {famille.lignee.nom}</p>
-        )}
+        <p className="text-sm text-slate-500">
+          Lignée {famille?.lignee?.nom ?? famille?.nom ?? "—"}
+        </p>
       </div>
 
       {signError && (
         <div className="rounded-2xl border border-red-200/70 bg-red-50 px-4 py-3 text-sm text-red-700">{signError}</div>
       )}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          {
-            label: "Lots famille",
-            value: mesLots.length + lotsCollectifs.length,
-            icon: Building2,
-            color: "text-[#0D3B66]",
-            bg: "bg-[#0D3B66]/5",
-          },
-          {
-            label: "PV à régulariser",
-            value: pvAFournir,
-            icon: ClipboardList,
-            color: pvAFournir > 0 ? "text-amber-600" : "text-emerald-600",
-            bg: pvAFournir > 0 ? "bg-amber-50" : "bg-emerald-50",
-          },
-          {
-            label: "APFC à valider",
-            value: apfcNonSignees,
-            icon: PenLine,
-            color: apfcNonSignees > 0 ? "text-amber-600" : "text-emerald-600",
-            bg: apfcNonSignees > 0 ? "bg-amber-50" : "bg-emerald-50",
-          },
-          {
-            label: "PV de famille",
-            value: pvs.length,
-            icon: FileText,
-            color: "text-[#1E6091]",
-            bg: "bg-[#1E6091]/5",
-          },
-        ].map((kpi) => (
-          <div
-            key={kpi.label}
-            className="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm"
-          >
-            <div className={`mb-2 inline-flex rounded-xl ${kpi.bg} p-2`}>
-              <kpi.icon className={`h-4 w-4 ${kpi.color}`} />
-            </div>
-            <p className="text-2xl font-bold text-slate-800">{kpi.value}</p>
-            <p className="mt-0.5 text-xs text-slate-400">{kpi.label}</p>
+      {/* Carte principale — Lots de la famille */}
+      <a
+        href="#lots"
+        className="group flex items-center justify-between gap-4 rounded-3xl border border-[#0D3B66]/15 bg-gradient-to-br from-[#0D3B66] to-[#1E6091] p-6 text-white shadow-sm transition hover:shadow-md sm:p-8"
+      >
+        <div>
+          <div className="flex items-center gap-2 text-white/70">
+            <Building2 className="h-5 w-5" />
+            <span className="text-xs font-semibold uppercase tracking-[0.2em]">Lots de la famille</span>
           </div>
-        ))}
+          <p className="mt-3 text-5xl font-bold leading-none">{lotsTotal}</p>
+          <p className="mt-2 max-w-md text-sm text-white/70">
+            Parcelles personnelles et collectives — cliquez un lot pour ouvrir son dossier.
+          </p>
+        </div>
+        <ChevronRight className="h-6 w-6 shrink-0 text-white/60 transition group-hover:translate-x-1" />
+      </a>
+
+      {/* Autres rubriques */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard
+          href="#apfc"
+          icon={PenLine}
+          label="APFC à signer"
+          value={apfcNonSignees}
+          subtitle={apfcNonSignees > 0 ? "En attente de votre signature" : "À jour"}
+          alerte={apfcNonSignees}
+        />
+        <StatCard
+          href="#pv"
+          icon={FileText}
+          label="PV de famille"
+          value={pvs.length}
+          subtitle={pvAFournir > 0 ? `${pvAFournir} à régulariser` : "À jour"}
+          alerte={pvAFournir}
+        />
+        <StatCard
+          href="/dashboard/litiges"
+          icon={FileWarning}
+          label="Litiges"
+          value={litigesActifsCount}
+          subtitle={litigesActifsCount > 0 ? "Sur vos parcelles" : "Aucun litige actif"}
+          alerte={litigesActifsCount}
+        />
+        <StatCard
+          href="/dashboard/concertation"
+          icon={Handshake}
+          label="Concertation"
+          value={concertationCount}
+          subtitle="Échanges en cours"
+        />
       </div>
 
-      {/* Lots collectifs de la famille */}
-      {lotsCollectifs.length > 0 && (
-        <section className="overflow-hidden rounded-2xl border border-blue-200/60 bg-white shadow-sm">
-          <div className="border-b border-blue-100 bg-blue-50/40 px-5 py-4">
-            <h2 className="text-sm font-semibold text-[#0D3B66]">Lots collectifs de la famille</h2>
-            <p className="mt-0.5 text-xs text-slate-400">
-              Parcelles attribuées au collectif d&apos;ayants-droit — {famille?.nom}
-            </p>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {lotsCollectifs.map((a, i) => (
-              <div key={i} className="flex items-center justify-between px-5 py-3.5">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">
-                    Lot {a.lot?.numero_lot ?? "—"}
-                    {a.lot?.ilots?.numero ? ` · Îlot ${a.lot.ilots.numero}` : ""}
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    {a.lot?.ilots?.lotissements?.nom ?? "—"}
-                    {a.qualite ? ` · ${a.qualite}` : ""}
+      {/* Lots (personnels + collectifs) — cible de l'ancre #lots */}
+      <div id="lots" className="scroll-mt-6 space-y-6">
+        {lotsTotal === 0 ? (
+          <section className="rounded-2xl border border-slate-200/60 bg-white px-5 py-6 text-sm text-slate-400 shadow-sm">
+            Aucun lot rattaché à votre famille pour le moment.
+          </section>
+        ) : (
+          <>
+            {lotsCollectifs.length > 0 && (
+              <section className="overflow-hidden rounded-2xl border border-blue-200/60 bg-white shadow-sm">
+                <div className="border-b border-blue-100 bg-blue-50/40 px-5 py-4">
+                  <h2 className="text-sm font-semibold text-[#0D3B66]">Lots collectifs de la famille</h2>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    Parcelles attribuées au collectif d&apos;ayants-droit — {famille?.nom}
                   </p>
                 </div>
-                <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${LOT_STATUT_COLORS[a.lot?.statut ?? ""] ?? "border-slate-200 bg-slate-100 text-slate-500"}`}>
-                  {a.lot?.statut ?? "—"}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+                <div className="divide-y divide-slate-100">
+                  {lotsCollectifs.map((a, i) => renderLotRow(a, i, false))}
+                </div>
+              </section>
+            )}
 
-      {/* Mes lots personnels */}
-      {mesLots.length > 0 && (
-        <section className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="text-sm font-semibold text-[#0D3B66]">Mes lots personnels</h2>
-            <p className="mt-0.5 text-xs text-slate-400">
-              Parcelles attribuées à votre nom propre
-            </p>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {mesLots.map((a, i) => (
-              <div key={i} className="flex items-center justify-between px-5 py-3.5">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">
-                    Lot {a.lot?.numero_lot ?? "—"}
-                    {a.lot?.ilots?.numero ? ` · Îlot ${a.lot.ilots.numero}` : ""}
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    {a.lot?.ilots?.lotissements?.nom ?? "—"}
-                    {a.qualite ? ` · ${a.qualite}` : ""}
-                    {a.rang != null ? ` · Rang ${a.rang}` : ""}
+            {mesLots.length > 0 && (
+              <section className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
+                <div className="border-b border-slate-100 px-5 py-4">
+                  <h2 className="text-sm font-semibold text-[#0D3B66]">Mes lots personnels</h2>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    Parcelles attribuées à votre nom propre
                   </p>
                 </div>
-                <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${LOT_STATUT_COLORS[a.lot?.statut ?? ""] ?? "border-slate-200 bg-slate-100 text-slate-500"}`}>
-                  {a.lot?.statut ?? "—"}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+                <div className="divide-y divide-slate-100">
+                  {mesLots.map((a, i) => renderLotRow(a, i, true))}
+                </div>
+              </section>
+            )}
+          </>
+        )}
+      </div>
 
       {/* APFC */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
+      <section id="apfc" className="scroll-mt-6 overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-5 py-4">
           <h2 className="text-sm font-semibold text-[#0D3B66]">
             Attestation de Propriété Foncière Coutumière (APFC)
@@ -330,7 +376,7 @@ export function ChefFamilleView({ profile }: { profile: Profile }) {
       </section>
 
       {/* PV de réunion de famille */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
+      <section id="pv" className="scroll-mt-6 overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-5 py-4">
           <h2 className="text-sm font-semibold text-[#0D3B66]">
             PV de réunion de famille
@@ -374,7 +420,15 @@ export function ChefFamilleView({ profile }: { profile: Profile }) {
         )}
       </section>
 
-      <MessagerieLink subtitle="Contacter l'équipe SGNF" />
+      {dossierLot && (
+        <LotDetailModal
+          lot={dossierLot}
+          litiges={dossierLitiges}
+          score={dossierScore}
+          pvAlert={null}
+          onClose={() => setDossierLot(null)}
+        />
+      )}
     </div>
   );
 }

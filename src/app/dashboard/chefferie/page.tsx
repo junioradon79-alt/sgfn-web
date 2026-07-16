@@ -6,10 +6,9 @@ import { createClient } from "@/utils/supabase/client";
 import Link from "next/link";
 import {
   Banknote, ChevronRight, ClipboardList, Crown, FileWarning, Handshake, Map, MessageSquare, ShieldCheck,
-  type LucideIcon,
 } from "lucide-react";
 import type { Profile } from "@/components/dashboard/chefferie/types";
-import { LoadingScreen } from "@/components/dashboard/chefferie/SharedUI";
+import { LoadingScreen, StatCard } from "@/components/dashboard/chefferie/SharedUI";
 import { ChefFamilleView } from "@/components/dashboard/chefferie/ChefFamilleView";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -21,38 +20,6 @@ type AutoriteCoutumiere = {
   village: string | null;
   chef: string | null;
 };
-
-// ─── Carte de synthèse cliquable ───────────────────────────────────────────────
-
-function StatCard({
-  href, icon: Icon, label, value, subtitle, alerte = 0,
-}: {
-  href: string;
-  icon: LucideIcon;
-  label: string;
-  value: number;
-  subtitle: string;
-  alerte?: number;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group relative rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm transition hover:border-[#0D3B66]/30 hover:shadow-md"
-    >
-      {alerte > 0 && (
-        <span className="absolute right-3 top-3 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
-          {alerte}
-        </span>
-      )}
-      <div className="flex items-center gap-2 text-slate-400">
-        <Icon className="h-4 w-4" />
-        <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
-      </div>
-      <p className="mt-2 text-2xl font-bold text-[#0D3B66]">{value}</p>
-      <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>
-    </Link>
-  );
-}
 
 // ─── Vue Chef de Village ──────────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2, Clock, Loader2, MessageSquare, ChevronRight } from "lucide-react";
+import { CheckCircle2, Clock, Loader2, MessageSquare, ChevronRight, type LucideIcon } from "lucide-react";
 
 // ─── Helpers partagés entre ChefFamilleView et ChefVillageView ───────────────
 
@@ -93,5 +93,42 @@ export function MessagerieLink({ subtitle, href = "/dashboard/messages" }: { sub
       </div>
       <ChevronRight className="h-4 w-4 text-slate-400" />
     </Link>
+  );
+}
+
+// ─── Carte de synthèse cliquable ───────────────────────────────────────────────
+// `href` commençant par "#" → ancre sur la même page (scroll) ; sinon navigation.
+
+export function StatCard({
+  href, icon: Icon, label, value, subtitle, alerte = 0,
+}: {
+  href: string;
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  subtitle: string;
+  alerte?: number;
+}) {
+  const className =
+    "group relative rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm transition hover:border-[#0D3B66]/30 hover:shadow-md";
+  const inner = (
+    <>
+      {alerte > 0 && (
+        <span className="absolute right-3 top-3 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
+          {alerte}
+        </span>
+      )}
+      <div className="flex items-center gap-2 text-slate-400">
+        <Icon className="h-4 w-4" />
+        <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
+      </div>
+      <p className="mt-2 text-2xl font-bold text-[#0D3B66]">{value}</p>
+      <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>
+    </>
+  );
+  return href.startsWith("#") ? (
+    <a href={href} className={className}>{inner}</a>
+  ) : (
+    <Link href={href} className={className}>{inner}</Link>
   );
 }

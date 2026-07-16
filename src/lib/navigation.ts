@@ -38,7 +38,7 @@ import { actionAgenceRequise, type AgenceDemande } from "./agence-actions";
  * règles d'accès. Une permission ne doit exister qu'à un seul endroit.
  */
 
-export type BadgeKey = "demandes" | "saisie" | "marketplace" | "chefferieValidations" | "chefferieLitiges";
+export type BadgeKey = "demandes" | "saisie" | "marketplace" | "chefferieValidations" | "litigesActifs" | "ptAValider";
 
 /** Regroupement affiché en sections dans la barre latérale. */
 export type NavSection = "pilotage" | "registre" | "instruction" | "espaces" | "general";
@@ -92,7 +92,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Demandes d'acquisition", href: "/dashboard/demandes-acquisition", icon: ClipboardCheck, section: "instruction", roles: ["operateur"], badgeKey: "demandes", keywords: "ventes tunnel acquéreur" },
   { label: "Saisie foncière", href: "/dashboard/saisie", icon: ClipboardEdit, section: "instruction", roles: ["operateur_saisie"], badgeKey: "saisie", keywords: "import excel validation" },
   { label: "Démarches", href: "/dashboard/demarches", icon: Ruler, section: "instruction", roles: ["geometre"], keywords: "bornage honoraires transmission mutation" },
-  { label: "Litiges", href: "/dashboard/litiges", icon: FileWarning, section: "instruction", roles: ["commissaire", "verificateur", "chefferie", "proprietaire_terrien"], badgeKey: "chefferieLitiges", keywords: "conflits contentieux" },
+  { label: "Litiges", href: "/dashboard/litiges", icon: FileWarning, section: "instruction", roles: ["commissaire", "verificateur", "chefferie", "proprietaire_terrien"], badgeKey: "litigesActifs", keywords: "conflits contentieux" },
   { label: "Concertation", href: "/dashboard/concertation", icon: Handshake, section: "instruction", roles: ["chefferie", "proprietaire", "operateur", "proprietaire_terrien"] },
   { label: "Invitations", href: "/dashboard/invitations", icon: MailOpen, section: "instruction", roles: ["operateur", "amenageur", "proprietaire_terrien"] },
   { label: "Contacts TerraCI Market", href: "/dashboard/contacts-marketplace", icon: Store, section: "instruction", roles: ["admin"], badgeKey: "marketplace", keywords: "marketplace annonces mon terrain" },
@@ -104,7 +104,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Mon espace", href: "/dashboard/proprietaire", icon: Landmark, section: "espaces", roles: ["proprietaire", "acquereur"], adminHide: true },
   { label: "Mon activité", href: "/dashboard/operateur", icon: HandCoins, section: "espaces", roles: ["operateur"], adminHide: true },
   { label: "Espace Chefferie", href: "/dashboard/chefferie", icon: Crown, section: "espaces", roles: ["chefferie"], adminHide: true, badgeKey: "chefferieValidations" },
-  { label: "Propriétaire terrien", href: "/dashboard/proprietaire-terrien", icon: Home, section: "espaces", roles: ["proprietaire_terrien"], adminHide: true },
+  { label: "Propriétaire terrien", href: "/dashboard/proprietaire-terrien", icon: Home, section: "espaces", roles: ["proprietaire_terrien"], adminHide: true, badgeKey: "ptAValider" },
   { label: "Espace Géomètre", href: "/dashboard/geometre", icon: Ruler, section: "espaces", roles: ["geometre"], adminHide: true },
   { label: "Mes missions", href: "/dashboard/missions", icon: Briefcase, section: "espaces", roles: ["geometre"], adminHide: true },
 
@@ -145,6 +145,13 @@ const ROLE_NAV_ORDER: Partial<Record<string, string[]>> = {
     "/dashboard/dossiers-adu",
     "/dashboard/documents",
     "/dashboard/concertation",
+  ],
+  // Propriétaire terrien (chef de famille) : périmètre resserré à sa famille.
+  proprietaire_terrien: [
+    "/dashboard/proprietaire-terrien",
+    "/dashboard/litiges",
+    "/dashboard/concertation",
+    "/dashboard/documents",
   ],
 };
 
@@ -202,7 +209,22 @@ export async function fetchBadgeCounts(
       supabase.from("litiges").select("id", { count: "exact", head: true }).neq("statut", "clos"),
     ]);
     next.chefferieValidations = (cessions ?? 0) + (apfcs ?? 0);
-    next.chefferieLitiges = litiges ?? 0;
+    next.litigesActifs = litiges ?? 0;
+    return next;
+  }
+
+  // Propriétaire terrien (chef de famille) : « à valider » = APFC en attente de sa
+  // signature + PV à régulariser ; litiges actifs sur ses parcelles. RLS déjà
+  // scopée à sa famille (cf. 20260716160000_proprietaire_terrien_scope_rls.sql),
+  // aucun filtre manuel nécessaire côté client.
+  if (groupe === "proprietaire_terrien") {
+    const [{ count: apfcs }, { count: pvs }, { count: litiges }] = await Promise.all([
+      supabase.from("attestations_coutumieres").select("id", { count: "exact", head: true }).is("sig_chef_famille_le", null),
+      supabase.from("pv_reunions_famille").select("id", { count: "exact", head: true }).eq("statut", "a_fournir"),
+      supabase.from("litiges").select("id", { count: "exact", head: true }).neq("statut", "clos"),
+    ]);
+    next.ptAValider = (apfcs ?? 0) + (pvs ?? 0);
+    next.litigesActifs = litiges ?? 0;
     return next;
   }
 
