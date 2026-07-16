@@ -1899,6 +1899,54 @@ export type Database = {
           },
         ]
       }
+      litiges_suivi: {
+        Row: {
+          auteur_id: string | null
+          corps: string | null
+          cree_le: string
+          id: string
+          litige_id: string
+          statut_apres: string | null
+          statut_avant: string | null
+          type: string
+        }
+        Insert: {
+          auteur_id?: string | null
+          corps?: string | null
+          cree_le?: string
+          id?: string
+          litige_id: string
+          statut_apres?: string | null
+          statut_avant?: string | null
+          type?: string
+        }
+        Update: {
+          auteur_id?: string | null
+          corps?: string | null
+          cree_le?: string
+          id?: string
+          litige_id?: string
+          statut_apres?: string | null
+          statut_avant?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "litiges_suivi_auteur_id_fkey"
+            columns: ["auteur_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "litiges_suivi_litige_id_fkey"
+            columns: ["litige_id"]
+            isOneToOne: false
+            referencedRelation: "litiges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lotissements: {
         Row: {
           autorite_coutumiere_id: string | null
@@ -3661,7 +3709,13 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: Json
       }
+      _appliquer_creation_lotissement: { Args: { p_payload: Json }; Returns: Json }
       _appliquer_maj_attributions: { Args: { p_payload: Json }; Returns: Json }
+      _appliquer_modification_lotissement: { Args: { p_payload: Json }; Returns: Json }
+      ajouter_note_litige: {
+        Args: { p_corps: string; p_litige_id: string }
+        Returns: string
+      }
       approuver_demande_geometre: { Args: { p_id: string }; Returns: Json }
       approuver_soumission: {
         Args: { p_commentaire?: string; p_id: string }
@@ -3835,7 +3889,7 @@ export type Database = {
       }
       soumettre_saisie: {
         Args: {
-          p_lotissement_id: string
+          p_lotissement_id: string | null
           p_payload: Json
           p_resume?: Json
           p_titre: string

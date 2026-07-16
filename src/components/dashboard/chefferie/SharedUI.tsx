@@ -76,10 +76,10 @@ export function LoadingScreen() {
 
 // ─── Lien messagerie ──────────────────────────────────────────────────────────
 
-export function MessagerieLink({ subtitle }: { subtitle: string }) {
+export function MessagerieLink({ subtitle, href = "/dashboard/messages" }: { subtitle: string; href?: string }) {
   return (
     <Link
-      href="/dashboard/messages"
+      href={href}
       className="flex items-center justify-between rounded-2xl border border-slate-200/60 bg-white px-5 py-4 shadow-sm transition hover:border-[#0D3B66]/30 hover:bg-slate-50"
     >
       <div className="flex items-center gap-3">

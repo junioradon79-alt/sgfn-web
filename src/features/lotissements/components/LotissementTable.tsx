@@ -1,4 +1,5 @@
-import { Edit2, MapPin, MoreHorizontal, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Edit2, Eye, MapPin, MoreHorizontal, Trash2 } from "lucide-react";
 import type { Lotissement } from "../types";
 
 type Props = {
@@ -60,6 +61,13 @@ export default function LotissementTable({ lotissements, onEdit, onDelete }: Pro
                   </td>
                   <td className="px-5 py-4 text-right">
                     <div className="inline-flex items-center gap-0.5">
+                      <Link
+                        href={`/lotissements/${l.id}`}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#0D3B66]"
+                        aria-label={`Voir le détail de ${l.nom}`}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Link>
                       <button
                         type="button"
                         onClick={() => onEdit?.(l)}

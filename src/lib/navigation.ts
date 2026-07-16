@@ -38,7 +38,7 @@ import { actionAgenceRequise, type AgenceDemande } from "./agence-actions";
  * règles d'accès. Une permission ne doit exister qu'à un seul endroit.
  */
 
-export type BadgeKey = "demandes" | "saisie" | "marketplace";
+export type BadgeKey = "demandes" | "saisie" | "marketplace" | "chefferieValidations" | "chefferieLitiges";
 
 /** Regroupement affiché en sections dans la barre latérale. */
 export type NavSection = "pilotage" | "registre" | "instruction" | "espaces" | "general";
@@ -81,9 +81,9 @@ export const NAV_ITEMS: NavItem[] = [
 
   // ── Registre foncier ──
   { label: "Lotissements", href: "/lotissements", icon: Map, section: "registre", roles: ["operateur", "amenageur", "geometre", "chefferie", "verificateur", "proprietaire_terrien"] },
-  { label: "Lots", href: "/dashboard/lots", icon: Boxes, section: "registre", roles: ["operateur", "amenageur", "geometre", "chefferie", "verificateur", "commissaire", "proprietaire_terrien"], keywords: "parcelles terrains" },
-  { label: "Attributaires", href: "/dashboard/attributaires", icon: Users, section: "registre", roles: ["operateur", "amenageur", "chefferie", "verificateur", "commissaire", "proprietaire_terrien"], keywords: "bénéficiaires" },
-  { label: "Attributions", href: "/dashboard/attributions", icon: Link2, section: "registre", roles: ["operateur", "amenageur", "chefferie", "verificateur", "commissaire", "proprietaire_terrien"] },
+  { label: "Lots", href: "/dashboard/lots", icon: Boxes, section: "registre", roles: ["operateur", "amenageur", "geometre", "verificateur", "commissaire", "proprietaire_terrien"], keywords: "parcelles terrains" },
+  { label: "Attributaires", href: "/dashboard/attributaires", icon: Users, section: "registre", roles: ["operateur", "amenageur", "verificateur", "commissaire", "proprietaire_terrien"], keywords: "bénéficiaires" },
+  { label: "Attributions", href: "/dashboard/attributions", icon: Link2, section: "registre", roles: ["operateur", "amenageur", "verificateur", "commissaire", "proprietaire_terrien"] },
   { label: "Familles", href: "/dashboard/familles", icon: Home, section: "registre", roles: [] },
   { label: "Dossiers ADU", href: "/dashboard/dossiers-adu", icon: ClipboardList, section: "registre", roles: ["geometre", "commissaire", "verificateur", "chefferie", "proprietaire_terrien"], keywords: "acd instruction urbanisme" },
   { label: "Géomètres-experts", href: "/dashboard/geometres", icon: Ruler, section: "registre", roles: [], keywords: "bornage numéro d'ordre cabinet" },
@@ -92,9 +92,9 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Demandes d'acquisition", href: "/dashboard/demandes-acquisition", icon: ClipboardCheck, section: "instruction", roles: ["operateur"], badgeKey: "demandes", keywords: "ventes tunnel acquéreur" },
   { label: "Saisie foncière", href: "/dashboard/saisie", icon: ClipboardEdit, section: "instruction", roles: ["operateur_saisie"], badgeKey: "saisie", keywords: "import excel validation" },
   { label: "Démarches", href: "/dashboard/demarches", icon: Ruler, section: "instruction", roles: ["geometre"], keywords: "bornage honoraires transmission mutation" },
-  { label: "Litiges", href: "/dashboard/litiges", icon: FileWarning, section: "instruction", roles: ["commissaire", "verificateur", "chefferie", "proprietaire_terrien"], keywords: "conflits contentieux" },
+  { label: "Litiges", href: "/dashboard/litiges", icon: FileWarning, section: "instruction", roles: ["commissaire", "verificateur", "chefferie", "proprietaire_terrien"], badgeKey: "chefferieLitiges", keywords: "conflits contentieux" },
   { label: "Concertation", href: "/dashboard/concertation", icon: Handshake, section: "instruction", roles: ["chefferie", "proprietaire", "operateur", "proprietaire_terrien"] },
-  { label: "Invitations", href: "/dashboard/invitations", icon: MailOpen, section: "instruction", roles: ["operateur", "amenageur", "chefferie", "proprietaire_terrien"] },
+  { label: "Invitations", href: "/dashboard/invitations", icon: MailOpen, section: "instruction", roles: ["operateur", "amenageur", "proprietaire_terrien"] },
   { label: "Contacts TerraCI Market", href: "/dashboard/contacts-marketplace", icon: Store, section: "instruction", roles: ["admin"], badgeKey: "marketplace", keywords: "marketplace annonces mon terrain" },
   { label: "Consultations QR", href: "/dashboard/consultations-qr", icon: QrCode, section: "instruction", roles: ["admin"], keywords: "vérification qr code" },
 
@@ -103,7 +103,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Trouver un terrain", href: "/dashboard/acquisition", icon: Compass, section: "espaces", roles: ["acquereur", "amenageur"], adminHide: true },
   { label: "Mon espace", href: "/dashboard/proprietaire", icon: Landmark, section: "espaces", roles: ["proprietaire", "acquereur"], adminHide: true },
   { label: "Mon activité", href: "/dashboard/operateur", icon: HandCoins, section: "espaces", roles: ["operateur"], adminHide: true },
-  { label: "Espace Chefferie", href: "/dashboard/chefferie", icon: Crown, section: "espaces", roles: ["chefferie"], adminHide: true },
+  { label: "Espace Chefferie", href: "/dashboard/chefferie", icon: Crown, section: "espaces", roles: ["chefferie"], adminHide: true, badgeKey: "chefferieValidations" },
   { label: "Propriétaire terrien", href: "/dashboard/proprietaire-terrien", icon: Home, section: "espaces", roles: ["proprietaire_terrien"], adminHide: true },
   { label: "Espace Géomètre", href: "/dashboard/geometre", icon: Ruler, section: "espaces", roles: ["geometre"], adminHide: true },
   { label: "Mes missions", href: "/dashboard/missions", icon: Briefcase, section: "espaces", roles: ["geometre"], adminHide: true },
@@ -114,10 +114,13 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 /**
- * Ordre de sidebar personnalisé pour certains rôles, quand l'ordre naturel du
- * tableau `NAV_ITEMS` (partagé entre tous les rôles) ne convient pas à un
- * espace en particulier. Absent pour un rôle = ordre par défaut (position
- * dans `NAV_ITEMS`) — donc aucun impact sur les rôles non listés ici.
+ * Ordre de sidebar personnalisé pour certains rôles — ET liste fermée : quand
+ * un rôle a une entrée ici, ce sont les SEULS items affichés (dans cet ordre),
+ * `roles`/`adminHide` sur `NAV_ITEMS` ne s'appliquent plus pour ce rôle. Ça
+ * évite qu'un item par ailleurs global (Centre de pilotage, Messages, sans
+ * `roles`) ne fuite dans un menu volontairement resserré. Absent pour un rôle
+ * = comportement par défaut (filtre par `roles`, ordre = position dans
+ * `NAV_ITEMS`) — donc aucun impact sur les rôles non listés ici.
  */
 const ROLE_NAV_ORDER: Partial<Record<string, string[]>> = {
   geometre: [
@@ -133,6 +136,16 @@ const ROLE_NAV_ORDER: Partial<Record<string, string[]>> = {
     "/dashboard/documents",
     "/dashboard/ia",
   ],
+  // Chefferie (chef de village) : périmètre resserré à la juridiction territoriale.
+  chefferie: [
+    "/dashboard/chefferie",
+    "/lotissements",
+    "/dashboard/lots",
+    "/dashboard/litiges",
+    "/dashboard/dossiers-adu",
+    "/dashboard/documents",
+    "/dashboard/concertation",
+  ],
 };
 
 /**
@@ -145,8 +158,15 @@ export function hasCustomNavOrder(groupe: string | null): boolean {
 
 /** Filtre d'accès — règles reprises telles quelles de la barre latérale historique. */
 export function visibleNavItems(groupe: string | null, loading: boolean): NavItem[] {
+  const order = groupe ? ROLE_NAV_ORDER[groupe] : undefined;
+
   const filtered = NAV_ITEMS.filter((item) => {
     if (loading || !groupe) return true;
+    // Un rôle avec un ordre personnalisé (chefferie, geometre) veut une liste
+    // fermée : seuls les items listés apparaissent, roles/adminHide/hideForRoles
+    // ne s'appliquent plus (sinon un item par ailleurs global comme "Centre de
+    // pilotage" ou "Messages" continue de fuir dans le menu).
+    if (order) return order.includes(item.href);
     if (groupe === "admin") return !item.adminHide;
     // Opérateur de saisie : accès strictement limité à son module.
     if (groupe === "operateur_saisie") return item.roles?.includes("operateur_saisie") ?? false;
@@ -154,7 +174,6 @@ export function visibleNavItems(groupe: string | null, loading: boolean): NavIte
     return item.roles.includes(groupe);
   });
 
-  const order = groupe ? ROLE_NAV_ORDER[groupe] : undefined;
   if (!order) return filtered;
 
   return [...filtered].sort((a, b) => {
@@ -172,10 +191,23 @@ export async function fetchBadgeCounts(
   supabase: SupabaseClient,
   groupe: string | null,
 ): Promise<Partial<Record<BadgeKey, number>>> {
-  const estAgence = groupe === "admin" || groupe === "operateur";
-  if (!estAgence) return {};
-
   const next: Partial<Record<BadgeKey, number>> = {};
+
+  // Chefferie (chef de village) : signaux "à valider" — RLS déjà scopée par juridiction
+  // (ma_chefferie_id()), aucun filtre manuel nécessaire côté client.
+  if (groupe === "chefferie") {
+    const [{ count: cessions }, { count: apfcs }, { count: litiges }] = await Promise.all([
+      supabase.from("attestations_cession").select("id", { count: "exact", head: true }).is("sig_chefferie_le", null),
+      supabase.from("attestations_coutumieres").select("id", { count: "exact", head: true }).is("sig_chef_village_le", null),
+      supabase.from("litiges").select("id", { count: "exact", head: true }).neq("statut", "clos"),
+    ]);
+    next.chefferieValidations = (cessions ?? 0) + (apfcs ?? 0);
+    next.chefferieLitiges = litiges ?? 0;
+    return next;
+  }
+
+  const estAgence = groupe === "admin" || groupe === "operateur";
+  if (!estAgence) return next;
 
   const { data } = await supabase
     .from("demandes_acquisition_agence")

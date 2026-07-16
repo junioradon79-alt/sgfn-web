@@ -11,6 +11,7 @@ export type UserProfile = {
   attributaire_id: string | null;
   commissaire_id: string | null;
   geometre_id: string | null;
+  autorite_coutumiere_id: string | null;
   actif: boolean;
 };
 
@@ -31,7 +32,7 @@ export function useProfile() {
       }
       const { data } = await supabase
         .from("profiles")
-        .select("id, nom_complet, groupe, telephone, attributaire_id, commissaire_id, geometre_id, actif")
+        .select("id, nom_complet, groupe, telephone, attributaire_id, commissaire_id, geometre_id, autorite_coutumiere_id, actif")
         .eq("id", user.id)
         .single();
       // Un montage/démontage rapide (StrictMode en dev, changement de page) ne
@@ -51,5 +52,6 @@ export function useProfile() {
     isAdmin: profile?.groupe === "admin",
     isCommissaire: profile?.groupe === "commissaire",
     isGeometre: profile?.groupe === "geometre",
+    isChefferie: profile?.groupe === "chefferie",
   };
 }

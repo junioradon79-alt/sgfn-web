@@ -1,18 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Map, Plus, Search } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { useProfile } from "@/hooks/useProfile";
 import { useLotissements } from "../hooks/useLotissements";
 import LotissementTable from "../components/LotissementTable";
 import LotissementForm from "../components/LotissementForm";
+import {
+  proposerLotissement,
+  getMesSoumissionsLotissement,
+  type SoumissionLotissement,
+} from "../services/lotissements.service";
 import type { Lotissement, NewLotissement } from "../types";
 
 const PAGE_SIZE = 8;
 
+const STATUT_SOUMISSION_LABELS: Record<string, string> = {
+  en_attente: "En attente d'approbation",
+  approuvee: "Approuvée",
+  rejetee: "Rejetée",
+};
+
+const STATUT_SOUMISSION_COLORS: Record<string, string> = {
+  en_attente: "border-amber-200 bg-amber-50 text-amber-700",
+  approuvee: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  rejetee: "border-red-200 bg-red-50 text-red-700",
+};
+
 export default function LotissementsPage() {
-  const { isAdmin } = useProfile();
+  const { profile, isAdmin, isChefferie } = useProfile();
   const { lotissements, loading, error, create, update, remove } = useLotissements();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -20,11 +37,17 @@ export default function LotissementsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [mesSoumissions, setMesSoumissions] = useState<SoumissionLotissement[]>([]);
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
   };
+
+  useEffect(() => {
+    if (!isChefferie) return;
+    void getMesSoumissionsLotissement().then(({ data }) => setMesSoumissions(data ?? []));
+  }, [isChefferie]);
 
   const openCreate = () => {
     setSelected(null);
@@ -37,6 +60,21 @@ export default function LotissementsPage() {
   };
 
   const handleSubmit = async (values: NewLotissement) => {
+    if (isChefferie && !isAdmin) {
+      const { error: submitError } = selected
+        ? await proposerLotissement("modification_lotissement", selected.id, { ...values, lotissement_id: selected.id }, `Correction — ${values.nom}`)
+        : await proposerLotissement("creation_lotissement", null, values, `Création — ${values.nom}`);
+      if (submitError) {
+        showToast(`Échec de l'envoi : ${submitError.message}`, "error");
+      } else {
+        showToast("Proposition envoyée — en attente d'approbation du Super Admin.");
+        void getMesSoumissionsLotissement().then(({ data }) => setMesSoumissions(data ?? []));
+      }
+      setSelected(null);
+      setIsModalOpen(false);
+      return;
+    }
+
     if (selected) {
       await update(selected.id, values);
       showToast("Lotissement modifié avec succès.");
@@ -54,16 +92,18 @@ export default function LotissementsPage() {
     showToast("Lotissement supprimé.");
   };
 
-  const filtered = lotissements.filter((l) => {
-    const q = search.toLowerCase();
-    return (
-      !q ||
-      l.nom.toLowerCase().includes(q) ||
-      (l.commune ?? "").toLowerCase().includes(q) ||
-      (l.district ?? "").toLowerCase().includes(q) ||
-      (l.village ?? "").toLowerCase().includes(q)
-    );
-  });
+  const filtered = lotissements
+    .filter((l) => !isChefferie || l.autorite_coutumiere_id === profile?.autorite_coutumiere_id)
+    .filter((l) => {
+      const q = search.toLowerCase();
+      return (
+        !q ||
+        l.nom.toLowerCase().includes(q) ||
+        (l.commune ?? "").toLowerCase().includes(q) ||
+        (l.district ?? "").toLowerCase().includes(q) ||
+        (l.village ?? "").toLowerCase().includes(q)
+      );
+    });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -77,10 +117,12 @@ export default function LotissementsPage() {
             Gestion des Lotissements
           </h1>
           <p className="mt-1.5 text-sm text-slate-500">
-            Périmètres fonciers enregistrés, coordonnés et validés dans le système.
+            {isChefferie
+              ? "Lotissements sous votre juridiction — créations et corrections soumises à l'approbation du Super Admin."
+              : "Périmètres fonciers enregistrés, coordonnés et validés dans le système."}
           </p>
         </div>
-        {isAdmin && (
+        {(isAdmin || isChefferie) && (
           <button
             type="button"
             onClick={openCreate}
@@ -91,6 +133,34 @@ export default function LotissementsPage() {
           </button>
         )}
       </div>
+
+      {/* Mes propositions (chefferie) */}
+      {isChefferie && mesSoumissions.length > 0 && (
+        <div className="mb-6 overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-5 py-3">
+            <h2 className="text-sm font-semibold text-[#0D3B66]">Mes propositions</h2>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {mesSoumissions.map((s) => (
+              <div key={s.id} className="flex items-center justify-between gap-4 px-5 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-700">{s.titre ?? s.payload?.nom ?? "Proposition"}</p>
+                  {s.statut === "rejetee" && s.commentaire_admin && (
+                    <p className="mt-0.5 text-xs text-red-600">Motif : {s.commentaire_admin}</p>
+                  )}
+                </div>
+                <span
+                  className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${
+                    STATUT_SOUMISSION_COLORS[s.statut] ?? "border-slate-200 bg-slate-50 text-slate-500"
+                  }`}
+                >
+                  {STATUT_SOUMISSION_LABELS[s.statut] ?? s.statut}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Métriques rapides */}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -146,7 +216,7 @@ export default function LotissementsPage() {
         <>
           <LotissementTable
             lotissements={paginated}
-            onEdit={isAdmin ? openEdit : undefined}
+            onEdit={isAdmin || isChefferie ? openEdit : undefined}
             onDelete={isAdmin ? handleDelete : undefined}
           />
 

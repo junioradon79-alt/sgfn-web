@@ -29,6 +29,16 @@ type LitigeRecord = {
 
 type LotOption = { id: string; numero_lot: string | null };
 
+type SuiviRow = {
+  id: string;
+  type: "note" | "statut";
+  statut_avant: string | null;
+  statut_apres: string | null;
+  corps: string | null;
+  cree_le: string;
+  profiles: { nom_complet: string | null } | null;
+};
+
 const STATUT_CONFIG: Record<string, { badge: "disponible" | "attribue" | "en_validation" | "litige"; label: string }> = {
   ouvert: { badge: "litige", label: "Ouvert" },
   en_mediation: { badge: "en_validation", label: "En médiation" },
@@ -40,7 +50,7 @@ const TABLE_HEADERS = ["Réf.", "Lot concerné", "Objet", "Statut", "Date d'ouve
 
 export default function LitigesPage() {
   const supabase = createClient();
-  const { isAdmin } = useProfile();
+  const { isAdmin, isChefferie } = useProfile();
 
   const [litiges, setLitiges] = useState<LitigeRecord[]>([]);
   const [lotsOptions, setLotsOptions] = useState<LotOption[]>([]);
@@ -49,6 +59,48 @@ export default function LitigesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const [detailLitige, setDetailLitige] = useState<LitigeRecord | null>(null);
+  const [suivi, setSuivi] = useState<SuiviRow[]>([]);
+  const [suiviLoading, setSuiviLoading] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [noteSubmitting, setNoteSubmitting] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
+
+  const loadSuivi = async (litigeId: string) => {
+    setSuiviLoading(true);
+    const { data } = await supabase
+      .from("litiges_suivi")
+      .select("id, type, statut_avant, statut_apres, corps, cree_le, profiles:auteur_id(nom_complet)")
+      .eq("litige_id", litigeId)
+      .order("cree_le", { ascending: true });
+    setSuivi((data ?? []) as unknown as SuiviRow[]);
+    setSuiviLoading(false);
+  };
+
+  const openDetail = (litige: LitigeRecord) => {
+    setDetailLitige(litige);
+    setNoteText("");
+    setNoteError(null);
+    void loadSuivi(litige.id);
+  };
+
+  const ajouterNote = async () => {
+    if (!detailLitige || !noteText.trim()) return;
+    setNoteSubmitting(true);
+    setNoteError(null);
+    const { error } = await supabase.rpc("ajouter_note_litige", {
+      p_litige_id: detailLitige.id,
+      p_corps: noteText.trim(),
+    });
+    if (error) {
+      setNoteError(error.message);
+    } else {
+      setNoteText("");
+      await loadSuivi(detailLitige.id);
+    }
+    setNoteSubmitting(false);
+  };
 
   const loadLitiges = async () => {
     const { data } = await supabase
@@ -235,6 +287,7 @@ export default function LitigesPage() {
                       <td className="px-5 py-4 text-right print:hidden">
                         <button
                           type="button"
+                          onClick={() => openDetail(litige)}
                           className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#0D3B66]"
                         >
                           <FileText className="h-3.5 w-3.5" />
@@ -355,6 +408,87 @@ export default function LitigesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Détail d'un dossier de litige — historique + notes de suivi */}
+      {detailLitige && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm"
+          onClick={() => setDetailLitige(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-2xl sm:p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
+                  {detailLitige.lots?.numero_lot ? `Lot ${detailLitige.lots.numero_lot}` : "Dossier"}
+                </p>
+                <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">
+                  {detailLitige.objet || "Litige"}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailLitige(null)}
+                className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                aria-label="Fermer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 max-h-80 space-y-3 overflow-y-auto pr-1">
+              {suiviLoading ? (
+                <p className="text-sm text-slate-400">Chargement…</p>
+              ) : suivi.length === 0 ? (
+                <p className="text-sm text-slate-400">Aucun suivi enregistré pour ce dossier.</p>
+              ) : (
+                suivi.map((s) => (
+                  <div key={s.id} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3.5 py-2.5">
+                    {s.type === "statut" ? (
+                      <p className="text-xs text-slate-500">
+                        Statut : <span className="font-medium text-slate-700">{STATUT_CONFIG[s.statut_avant ?? ""]?.label ?? s.statut_avant ?? "—"}</span>
+                        {" → "}
+                        <span className="font-medium text-slate-700">{STATUT_CONFIG[s.statut_apres ?? ""]?.label ?? s.statut_apres ?? "—"}</span>
+                      </p>
+                    ) : (
+                      <p className="text-sm text-slate-700">{s.corps}</p>
+                    )}
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      {s.profiles?.nom_complet ?? "Équipe SGNF"} ·{" "}
+                      {new Date(s.cree_le).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {(isAdmin || isChefferie) && (
+              <div className="mt-4 space-y-2">
+                <textarea
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  placeholder="Ajouter une note de suivi…"
+                  rows={2}
+                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
+                />
+                {noteError && <p className="text-xs text-red-600">{noteError}</p>}
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={ajouterNote}
+                    disabled={noteSubmitting || !noteText.trim()}
+                    className="rounded-full bg-[#0D3B66] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#1E6091] disabled:opacity-60"
+                  >
+                    {noteSubmitting ? "…" : "Ajouter la note"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

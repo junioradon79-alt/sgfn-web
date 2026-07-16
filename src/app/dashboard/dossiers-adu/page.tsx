@@ -92,7 +92,7 @@ function lotLabel(d: DossierAdu): string {
 
 export default function DossiersAduPage() {
   const supabase = createClient();
-  const { isAdmin } = useProfile();
+  const { isAdmin, isChefferie } = useProfile();
 
   const [dossiers, setDossiers] = useState<DossierAdu[]>([]);
 
@@ -270,14 +270,16 @@ export default function DossiersAduPage() {
             Suivi des autorisations de droits urbains et arrêtés de concession définitive
           </p>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#1E6091]"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Nouveau dossier
-        </button>
+        {!isChefferie && (
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#1E6091]"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Nouveau dossier
+          </button>
+        )}
       </div>
 
       {/* KPIs */}

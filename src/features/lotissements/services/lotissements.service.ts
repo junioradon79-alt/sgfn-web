@@ -68,3 +68,47 @@ export async function deleteLotissement(id: string) {
 
   return { data, error };
 }
+
+/**
+ * 📝 PROPOSER (chefferie) — création ou correction soumise à l'approbation du
+ * Super Admin, rien n'est appliqué sur `lotissements` avant `approuver_soumission`.
+ */
+export async function proposerLotissement(
+  type: "creation_lotissement" | "modification_lotissement",
+  lotissementId: string | null,
+  payload: (NewLotissement | UpdateLotissement) & { lotissement_id?: string },
+  titre: string
+) {
+  const { data, error } = await supabase.rpc("soumettre_saisie", {
+    p_type: type,
+    p_lotissement_id: lotissementId,
+    p_titre: titre,
+    p_payload: payload,
+  });
+
+  return { data, error };
+}
+
+export type SoumissionLotissement = {
+  id: string;
+  type: string;
+  titre: string | null;
+  statut: string;
+  commentaire_admin: string | null;
+  cree_le: string;
+  payload: { nom?: string } | null;
+};
+
+/**
+ * 📥 GET MES SOUMISSIONS (chefferie) — visibilité sur ses propres propositions
+ * en attente/traitées, la RLS ss_read limite déjà à l'auteur.
+ */
+export async function getMesSoumissionsLotissement() {
+  const { data, error } = await supabase
+    .from("soumissions_saisie")
+    .select("id, type, titre, statut, commentaire_admin, cree_le, payload")
+    .in("type", ["creation_lotissement", "modification_lotissement"])
+    .order("cree_le", { ascending: false });
+
+  return { data: data as SoumissionLotissement[] | null, error };
+}
