@@ -16,10 +16,10 @@ const GOTENBERG_PASS = Deno.env.get("GOTENBERG_PASS");
 const PUBLIC_VERIFY_BASE = Deno.env.get("PUBLIC_VERIFY_BASE");
 const HOOK_SECRET    = Deno.env.get("HOOK_SECRET");
 
-const CONFIG: Record<string, { titre: string; type_doc: string; template: string; pdfmonkeyEnv: string; pdfmonkeyTemplateIdDefault?: string; flipStatutDelivree: boolean }> = {
-  attestations_cession:     { titre: "ATTESTATION DE CESSION",                       type_doc: "attestation_cession",            template: "attestation_cession.html", pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_ATTESTATION_CESSION", flipStatutDelivree: false },
-  certificats_vente:        { titre: "CERTIFICAT DE VENTE",                          type_doc: "certificat_vente",               template: "certificat_vente.html",     pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_CERTIFICAT_VENTE", flipStatutDelivree: true },
-  attestations_coutumieres: { titre: "ATTESTATION DE PROPRIETE FONCIERE COUTUMIERE", type_doc: "certificat_propriete_coutumiere", template: "apfc.html",               pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_APFC", flipStatutDelivree: true },
+const CONFIG: Record<string, { titre: string; type_doc: string; template: string; pdfmonkeyEnv: string; pdfmonkeyTemplateIdDefault?: string; flipStatutDelivree: boolean; brandColor?: string }> = {
+  attestations_cession:     { titre: "ATTESTATION DE CESSION",                       type_doc: "attestation_cession",            template: "attestation_cession.html", pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_ATTESTATION_CESSION", flipStatutDelivree: false, brandColor: "#20406B" },
+  certificats_vente:        { titre: "CERTIFICAT DE VENTE",                          type_doc: "certificat_vente",               template: "certificat_vente.html",     pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_CERTIFICAT_VENTE", flipStatutDelivree: true, brandColor: "#0E6B57" },
+  attestations_coutumieres: { titre: "ATTESTATION DE PROPRIETE FONCIERE COUTUMIERE", type_doc: "certificat_propriete_coutumiere", template: "apfc.html",               pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_APFC", flipStatutDelivree: true, brandColor: "#9C362A" },
   // pdfmonkeyTemplateIdDefault : template "QUITTANCE" créé via l'API PDFMonkey le 03/07/2026 (pas de secret
   // PDFMONKEY_TEMPLATE_ID_QUITTANCE posé) — un secret du même nom, s'il est ajouté plus tard, prend le dessus.
   paiements:                { titre: "QUITTANCE DE PAIEMENT",                       type_doc: "quittance",                      template: "quittance.html",           pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_QUITTANCE", pdfmonkeyTemplateIdDefault: "ea7baf50-0341-4ccb-be53-4e2701b7e87d", flipStatutDelivree: false },
@@ -555,6 +555,26 @@ function gabaritInterne(cfg: { titre: string; type_doc: string }): string {
   return `<!DOCTYPE html><html><body><h1>${cfg.titre}</h1><p>{{reference}} — document genere sans gabarit specifique (repli minimal)</p></body></html>`;
 }
 
+// Incruste le blason SGNF (bouclier + coche, meme trace que dans QUITTANCE_GABARIT/PV_BORNAGE_GABARIT)
+// au centre d'un QR genere en errorCorrectionLevel "H" (tolere ~30% de recouvrement -- le badge
+// n'en occupe qu'environ 7%, large marge de securite pour la lecture).
+function incrusterLogoQr(svg: string, brandColor: string): string {
+  const vb = svg.match(/viewBox="0 0 (\d+) (\d+)"/);
+  if (!vb) return svg;
+  const w = Number(vb[1]), h = Number(vb[2]);
+  const badge = Math.max(6, Math.round(Math.min(w, h) * 0.26));
+  const cx = w / 2, cy = h / 2;
+  const r = badge / 2;
+  const scale = badge / 24;
+  const overlay = `<circle cx="${cx}" cy="${cy}" r="${r * 1.12}" fill="#ffffff"/>` +
+    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${brandColor}"/>` +
+    `<g transform="translate(${cx - badge / 2} ${cy - badge / 2}) scale(${scale})">` +
+    `<path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `<path d="M9 12l2 2 4-4" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `</g>`;
+  return svg.replace("</svg>", overlay + "</svg>");
+}
+
 async function renderViaPdfMonkey(templateId: string, payload: Record<string, string>, filename: string): Promise<Uint8Array> {
   const res = await fetch("https://api.pdfmonkey.io/api/v1/documents/sync", {
     method: "POST",
@@ -657,7 +677,10 @@ Deno.serve(async (req) => {
     : `${fnBase}/verification-qr?ref=${refForQr}`;
 
   let qrSvg = "", qrDataUri = "";
-  try { qrSvg = await QRCode.toString(verifyUrl, { type: "svg", margin: 0 }); } catch (e) { console.error("QR svg", e); }
+  try {
+    qrSvg = await QRCode.toString(verifyUrl, { type: "svg", margin: 0, errorCorrectionLevel: "H" });
+    if (cfg.brandColor) qrSvg = incrusterLogoQr(qrSvg, cfg.brandColor);
+  } catch (e) { console.error("QR svg", e); }
   try { qrDataUri = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 240 }); } catch (e) { console.error("QR dataurl", e); }
 
   const baseVars: Record<string, string> = {

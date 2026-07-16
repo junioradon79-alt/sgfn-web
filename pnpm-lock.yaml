@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@capacitor-mlkit/barcode-scanning':
+        specifier: ^8.1.0
+        version: 8.1.0(@capacitor/core@8.4.1)
       '@capacitor/android':
         specifier: ^8.4.1
         version: 8.4.1(@capacitor/core@8.4.1)
@@ -276,6 +279,11 @@ packages:
 
   '@borewit/text-codec@0.2.2':
     resolution: {integrity: sha512-DDaRehssg1aNrH4+2hnj1B7vnUGEjU6OIlyRdkMd0aUdIUvKXrJfXsy8LVtXAy7DRvYVluWbMspsRhz2lcW0mQ==}
+
+  '@capacitor-mlkit/barcode-scanning@8.1.0':
+    resolution: {integrity: sha512-lhOYHZINLOCT0i5YSbSMkouik3zh0BncJouumNTgXCT0/533Z4733jAX9zv+nEd++bE8QHeUl2g0NrewreumnQ==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@capacitor/android@8.4.1':
     resolution: {integrity: sha512-igtDCJ7QQn0P2qHFD9p4KXaa6V1b2PRNt+MxjVwtjTm/BJvqmiazOJq6rPjwFSZnfHm6iFoZk8TfzHd44pyBGw==}
@@ -4017,6 +4025,10 @@ snapshots:
 
   '@borewit/text-codec@0.2.2':
     optional: true
+
+  '@capacitor-mlkit/barcode-scanning@8.1.0(@capacitor/core@8.4.1)':
+    dependencies:
+      '@capacitor/core': 8.4.1
 
   '@capacitor/android@8.4.1(@capacitor/core@8.4.1)':
     dependencies:

@@ -119,7 +119,82 @@ function extraireReference(texteScanne: string): string {
   }
 }
 
-function ScannerCamera({
+// Sur l'app mobile (Capacitor), on préfère le scanner natif Google ML Kit
+// (fiable, gère lui-même la permission caméra) à la caméra web via getUserMedia
+// dans la WebView — voir [[lecteur_qr_natif_mobile]] pour le contexte du blocage.
+function useEstNatif(): boolean {
+  const [natif, setNatif] = useState(false);
+  useEffect(() => {
+    let annule = false;
+    import("@capacitor/core").then(({ Capacitor }) => {
+      if (!annule) setNatif(Capacitor.isNativePlatform());
+    });
+    return () => {
+      annule = true;
+    };
+  }, []);
+  return natif;
+}
+
+function ScannerCameraNatif({
+  onResultat,
+  onFermer,
+}: {
+  onResultat: (reference: string) => void;
+  onFermer: () => void;
+}) {
+  const [erreur, setErreur] = useState<string | null>(null);
+  const lanceRef = useRef(false);
+
+  useEffect(() => {
+    if (lanceRef.current) return;
+    lanceRef.current = true;
+
+    const scanner = async () => {
+      const { BarcodeScanner } = await import("@capacitor-mlkit/barcode-scanning");
+
+      const { available } = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
+      if (!available) {
+        await BarcodeScanner.installGoogleBarcodeScannerModule();
+      }
+
+      const { camera } = await BarcodeScanner.requestPermissions();
+      if (camera !== "granted" && camera !== "limited") {
+        setErreur(
+          "Autorisation caméra refusée. Activez-la dans les paramètres de l'application.",
+        );
+        return;
+      }
+
+      try {
+        const { barcodes } = await BarcodeScanner.scan();
+        if (barcodes.length > 0 && barcodes[0].rawValue) {
+          onResultat(extraireReference(barcodes[0].rawValue));
+        } else {
+          onFermer();
+        }
+      } catch {
+        setErreur("Impossible d'ouvrir le scanner. Réessayez.");
+      }
+    };
+
+    void scanner();
+  }, [onResultat, onFermer]);
+
+  return erreur ? (
+    <div className="flex items-start gap-3 rounded-2xl bg-amber-50 p-6">
+      <ShieldAlert className="mt-0.5 h-6 w-6 shrink-0 text-amber-600" />
+      <p className="text-sm text-amber-700">{erreur}</p>
+    </div>
+  ) : (
+    <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+      <Loader2 className="h-4 w-4 animate-spin" />
+      Ouverture du scanner…
+    </div>
+  );
+}
+
+function ScannerCameraWeb({
   onResultat,
   onFermer,
 }: {
@@ -177,6 +252,28 @@ function ScannerCamera({
     };
   }, [onResultat]);
 
+  return erreur ? (
+    <div className="flex items-start gap-3 rounded-2xl bg-amber-50 p-6">
+      <ShieldAlert className="mt-0.5 h-6 w-6 shrink-0 text-amber-600" />
+      <p className="text-sm text-amber-700">{erreur}</p>
+    </div>
+  ) : (
+    <div
+      id={QR_READER_ID}
+      className="overflow-hidden rounded-2xl border border-slate-200 bg-black"
+    />
+  );
+}
+
+function ScannerCamera({
+  onResultat,
+  onFermer,
+}: {
+  onResultat: (reference: string) => void;
+  onFermer: () => void;
+}) {
+  const natif = useEstNatif();
+
   return (
     <div className="mx-auto mt-6 max-w-xl">
       <div className="mb-3 flex items-center justify-between">
@@ -190,16 +287,10 @@ function ScannerCamera({
           Fermer
         </button>
       </div>
-      {erreur ? (
-        <div className="flex items-start gap-3 rounded-2xl bg-amber-50 p-6">
-          <ShieldAlert className="mt-0.5 h-6 w-6 shrink-0 text-amber-600" />
-          <p className="text-sm text-amber-700">{erreur}</p>
-        </div>
+      {natif ? (
+        <ScannerCameraNatif onResultat={onResultat} onFermer={onFermer} />
       ) : (
-        <div
-          id={QR_READER_ID}
-          className="overflow-hidden rounded-2xl border border-slate-200 bg-black"
-        />
+        <ScannerCameraWeb onResultat={onResultat} onFermer={onFermer} />
       )}
     </div>
   );

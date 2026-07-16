@@ -28,7 +28,7 @@ Le rebranding SGFN→SGNF (15/07/2026) a mis à jour toutes les références de 
 - **Email transactionnel** : Resend (domaine `sgfn.ci` vérifié).
 - **Paiement en ligne** : CinetPay (code prêt côté edge functions, **secrets pas encore posés en prod** → inerte).
 - **Cartographie** : Leaflet 1.9 / react-leaflet 5 (tuiles OpenStreetMap publiques).
-- **QR codes** : `qrcode.react` (génération), `html5-qrcode` (scan caméra).
+- **QR codes** : `qrcode.react` (génération) ; scan par `html5-qrcode` dans le navigateur, `@capacitor-mlkit/barcode-scanning` (scanner natif Google ML Kit) dans l'app mobile — bascule automatique via `Capacitor.isNativePlatform()` dans `ScannerCamera` (`VerifierForm.tsx`).
 - **Mobile** : Capacitor 8 (Android) dans `sgfn-web` uniquement — enveloppe le même export statique (`webDir: "out"`).
 - **Gestionnaire de paquets** : **pnpm exclusivement**. `npm install` échoue avec une erreur arborist à cause de la structure `node_modules` pnpm déjà en place.
 
@@ -106,7 +106,7 @@ public/.htaccess         routing Apache (mappe /route → route.html, sert les f
 
 | Fonction | JWT requis | Rôle |
 |---|---|---|
-| `generation-document` (v27) | oui | Génère les PDF (attestation, certificat, APFC, quittance) via PDFMonkey + repli HTML, appelée par trigger DB (`sgfn_call_edge`) |
+| `generation-document` (v43 au 15/07) | oui | Génère les PDF (attestation, certificat, APFC, quittance, PV bornage) via PDFMonkey + repli HTML, appelée par trigger DB (`sgfn_call_edge`). QR généré en `errorCorrectionLevel: "H"` avec blason SGNF incrusté + légende anti-phishing sous le QR sur les 3 gabarits légaux (attestation cession/certificat vente/APFC) |
 | `telecharger-document` | oui | Sert une URL signée service_role pour un document généré/délivré, après vérif du jeton appelant |
 | `verification-qr` (v15) | non | Vérifie une attestation/certificat/APFC par référence ou jeton QR, journalise le scan dans `scans_qr`. Depuis le 07/07 : verdict des **attestations de cession** bloqué derrière la consultation payante (60 000 FCFA, table `consultations_qr`) — certificats et APFC restent gratuits |
 | `payer-consultation-qr` | non | Initie le paiement CinetPay d'une consultation QR (503 tant que les secrets CinetPay ne sont pas posés — validation manuelle admin via `/dashboard/consultations-qr` en attendant) |
@@ -156,7 +156,9 @@ pnpm build:mobile   # next build → out/ → cap sync android
 pnpm cap:open       # ouvre Android Studio → Build → Generate Signed APK
 ```
 
-Prérequis non encore réunis : Android Studio installé, keystore généré (`keytool -genkey -alias sgfn -keystore android/sgfn-release.jks`), icônes 192×192/512×512 dans `public/icons/`. Chantier explicitement reporté par le porteur de projet, à ne relancer que sur demande.
+Android Studio et le SDK Android sont **déjà installés sur la machine de développement** (juste hors PATH du shell par défaut) — un build debug réel (`./gradlew assembleDebug`, avec `JAVA_HOME`/`ANDROID_HOME` exportés manuellement vers le JBR d'Android Studio et le SDK) a été validé avec succès le 15/07/2026. Reste non réuni pour un **build signé release** : keystore généré (`keytool -genkey -alias sgfn -keystore android/sgfn-release.jks`), icônes 192×192/512×512 dans `public/icons/` (les fichiers actuels `icon-96/192/512.png` sont en fait tous la même image source 2000×2000, jamais redimensionnée). Chantier release explicitement reporté par le porteur de projet, à ne relancer que sur demande.
+
+Scanner QR natif : `@capacitor-mlkit/barcode-scanning` (scanner modal Google ML Kit) utilisé en app mobile, bascule automatique avec `html5-qrcode` (web) via `Capacitor.isNativePlatform()` — voir §2 et `src/components/verification/VerifierForm.tsx`. Permission `android.permission.CAMERA` ajoutée au manifest le 15/07/2026 (absente jusque-là, cause probable du blocage du scan observé sur téléphone réel le 10/07).
 
 ⚠️ Le package Android a été renommé `ci.sgfn.app` → `ci.sgnf.app` le 15/07/2026, ce qui n'était possible sans risque que parce que l'app n'a **jamais été publiée** sur le Play Store (renommer l'`appId` d'une app déjà publiée créerait une nouvelle app, pas une mise à jour). Le keystore (`sgfn-release.jks`, alias `sgfn`) n'a volontairement **pas** été renommé : renommer le fichier ne renomme pas la clé de signature qu'il contient.
 
