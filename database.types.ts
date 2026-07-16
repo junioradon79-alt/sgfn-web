@@ -1924,6 +1924,9 @@ export type Database = {
           operateur_id: string | null
           pdfmonkey_template_attestation_cession: string | null
           pv_commissaire_justice_id: string | null
+          pv_identification_physique_date: string | null
+          pv_identification_physique_numero: string | null
+          pv_identification_physique_scan_url: string | null
           pv_numero_enregistrement: string | null
           reference_plan: string | null
           superficie_m2: number | null
@@ -1955,6 +1958,9 @@ export type Database = {
           operateur_id?: string | null
           pdfmonkey_template_attestation_cession?: string | null
           pv_commissaire_justice_id?: string | null
+          pv_identification_physique_date?: string | null
+          pv_identification_physique_numero?: string | null
+          pv_identification_physique_scan_url?: string | null
           pv_numero_enregistrement?: string | null
           reference_plan?: string | null
           superficie_m2?: number | null
@@ -1986,6 +1992,9 @@ export type Database = {
           operateur_id?: string | null
           pdfmonkey_template_attestation_cession?: string | null
           pv_commissaire_justice_id?: string | null
+          pv_identification_physique_date?: string | null
+          pv_identification_physique_numero?: string | null
+          pv_identification_physique_scan_url?: string | null
           pv_numero_enregistrement?: string | null
           reference_plan?: string | null
           superficie_m2?: number | null

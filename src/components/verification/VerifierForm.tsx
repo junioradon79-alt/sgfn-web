@@ -91,6 +91,8 @@ const CHAMP_LABEL: Record<string, string> = {
   pv_numero_enregistrement: "N° enregistrement PV",
   pv_commissaire_nom: "Commissaire de justice",
   pv_commissaire_etude: "Étude",
+  pv_identification_physique_numero: "N° PV d'identification physique",
+  pv_identification_physique_date: "Date du PV d'identification physique",
   guide_reference: "Guide de référence",
   geometre: "Géomètre-expert",
   geometre_cabinet: "Cabinet",

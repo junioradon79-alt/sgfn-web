@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { X } from "lucide-react";
+import { X, Loader2, FileText } from "lucide-react";
 import { Input } from "@/components/ui/Input";
+import { createClient } from "@/utils/supabase/client";
 import type { Lotissement, NewLotissement } from "../types";
 
 type Props = {
@@ -13,6 +14,7 @@ type Props = {
 
 export default function LotissementForm({ initialData, onClose, onSubmit }: Props) {
   const isEdit = Boolean(initialData);
+  const supabase = createClient();
 
   const [form, setForm] = useState({
     nom: initialData?.nom ?? "",
@@ -23,13 +25,54 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
     nb_lots: initialData?.nb_lots?.toString() ?? "",
     nb_ilots: initialData?.nb_ilots?.toString() ?? "",
     guide_reference: initialData?.guide_reference ?? "",
+    pv_identification_physique_numero: initialData?.pv_identification_physique_numero ?? "",
+    pv_identification_physique_date: initialData?.pv_identification_physique_date ?? "",
   });
+  const [scanFile, setScanFile] = useState<File | null>(null);
+  const scanUrl = initialData?.pv_identification_physique_scan_url ?? "";
+  const [envoiEnCours, setEnvoiEnCours] = useState(false);
+  const [erreurScan, setErreurScan] = useState<string | null>(null);
 
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleScanFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setScanFile(e.target.files?.[0] ?? null);
+    setErreurScan(null);
+  };
+
+  const voirScanActuel = async () => {
+    if (!scanUrl) return;
+    const { data, error } = await supabase.storage.from("documents").createSignedUrl(scanUrl, 3600);
+    if (error || !data) return;
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    let finalScanUrl = scanUrl || null;
+
+    if (scanFile) {
+      setEnvoiEnCours(true);
+      setErreurScan(null);
+      try {
+        const id = initialData?.id ?? crypto.randomUUID();
+        const extension = scanFile.name.split(".").pop() ?? "pdf";
+        const chemin = `pv-identification-physique/${id}/scan.${extension}`;
+        const { error: uploadErr } = await supabase.storage
+          .from("documents")
+          .upload(chemin, scanFile, { upsert: true });
+        if (uploadErr) throw uploadErr;
+        finalScanUrl = chemin;
+      } catch (err) {
+        setErreurScan(err instanceof Error ? err.message : "Le téléversement du scan a échoué.");
+        setEnvoiEnCours(false);
+        return;
+      }
+      setEnvoiEnCours(false);
+    }
+
     onSubmit({
       nom: form.nom.trim(),
       village: form.village.trim() || null,
@@ -39,6 +82,9 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
       nb_lots: form.nb_lots === "" ? null : Number(form.nb_lots),
       nb_ilots: form.nb_ilots === "" ? null : Number(form.nb_ilots),
       guide_reference: form.guide_reference.trim() || null,
+      pv_identification_physique_numero: form.pv_identification_physique_numero.trim() || null,
+      pv_identification_physique_date: form.pv_identification_physique_date || null,
+      pv_identification_physique_scan_url: finalScanUrl,
     });
   };
 
@@ -181,19 +227,76 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
             />
           </div>
 
+          {/* PV d'identification physique */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label htmlFor="lot-pv-idphys-numero" className="text-sm font-medium text-slate-700">
+                N° PV d&apos;identification physique
+              </label>
+              <Input
+                id="lot-pv-idphys-numero"
+                type="text"
+                value={form.pv_identification_physique_numero}
+                onChange={set("pv_identification_physique_numero")}
+                placeholder="Ex. PV-IDPHYS-2024-001"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="lot-pv-idphys-date" className="text-sm font-medium text-slate-700">
+                Date du PV
+              </label>
+              <Input
+                id="lot-pv-idphys-date"
+                type="date"
+                value={form.pv_identification_physique_date ?? ""}
+                onChange={set("pv_identification_physique_date")}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="lot-pv-idphys-scan" className="text-sm font-medium text-slate-700">
+              Scan du PV (optionnel)
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                id="lot-pv-idphys-scan"
+                type="file"
+                accept="application/pdf,image/*"
+                onChange={handleScanFile}
+                disabled={envoiEnCours}
+                className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-[#0D3B66]/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-[#0D3B66] hover:file:bg-[#0D3B66]/20"
+              />
+              {scanUrl && !scanFile && (
+                <button
+                  type="button"
+                  onClick={voirScanActuel}
+                  className="flex shrink-0 items-center gap-1 text-xs font-semibold text-[#0D3B66] hover:underline"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Voir le scan
+                </button>
+              )}
+            </div>
+            {erreurScan && <p className="text-xs font-medium text-red-600">{erreurScan}</p>}
+          </div>
+
           {/* Actions */}
           <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+              disabled={envoiEnCours}
+              className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white transition-all hover:bg-[#1E6091]"
+              disabled={envoiEnCours}
+              className="flex items-center justify-center gap-2 rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white transition-all hover:bg-[#1E6091] disabled:opacity-60"
             >
+              {envoiEnCours && <Loader2 className="h-4 w-4 animate-spin" />}
               {isEdit ? "Enregistrer les modifications" : "Créer le lotissement"}
             </button>
           </div>

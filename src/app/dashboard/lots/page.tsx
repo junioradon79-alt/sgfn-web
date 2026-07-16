@@ -70,11 +70,10 @@ type TarifChefferie = { montant_chefferie: number | null; commission_sgfn: numbe
 
 type ScoreConfiance = {
   total: number;
-  geometrie: number;
-  attribution: number;
-  litige: number;
-  documents: number;
-  dossier: number;
+  apfc: number;
+  guide_repartition: number;
+  pv_guide_repartition: number;
+  pv_identification_physique: number;
 };
 
 type LitigeRow = {
@@ -178,11 +177,17 @@ function SelectField({ id, label, value, onChange, children, required }: {
 // ─── Lot Detail Modal ─────────────────────────────────────────────────────────
 
 const SCORE_LABELS: Record<keyof Omit<ScoreConfiance, "total">, string> = {
-  geometrie: "Géométrie",
-  attribution: "Attribution",
-  litige: "Litige",
-  documents: "Documents",
-  dossier: "Dossier",
+  apfc: "APFC",
+  guide_repartition: "Guide de répartition",
+  pv_guide_repartition: "PV du guide de répartition",
+  pv_identification_physique: "PV d'identification physique",
+};
+
+const SCORE_MAX: Record<keyof Omit<ScoreConfiance, "total">, number> = {
+  apfc: 40,
+  guide_repartition: 20,
+  pv_guide_repartition: 20,
+  pv_identification_physique: 20,
 };
 
 function LotDetailModal({ lot, litiges, score, pvAlert, onClose }: {
@@ -305,7 +310,7 @@ function LotDetailModal({ lot, litiges, score, pvAlert, onClose }: {
                   {(Object.keys(SCORE_LABELS) as (keyof typeof SCORE_LABELS)[]).map((key) => (
                     <div key={key} className="rounded-lg bg-white p-2 text-center shadow-sm">
                       <p className="text-[10px] uppercase tracking-wide text-slate-400">{SCORE_LABELS[key]}</p>
-                      <p className="text-sm font-semibold text-slate-700">{score[key]}/20</p>
+                      <p className="text-sm font-semibold text-slate-700">{score[key]}/{SCORE_MAX[key]}</p>
                     </div>
                   ))}
                 </div>

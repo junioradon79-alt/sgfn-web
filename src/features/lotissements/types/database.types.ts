@@ -29,6 +29,9 @@ export type Database = {
           cabinet_geometre: string | null;
           date_leve_topographique: string | null;
           nb_bornes: number | null;
+          pv_identification_physique_numero: string | null;
+          pv_identification_physique_date: string | null;
+          pv_identification_physique_scan_url: string | null;
         };
         Insert: {
           id?: string;
@@ -52,6 +55,9 @@ export type Database = {
           cabinet_geometre?: string | null;
           date_leve_topographique?: string | null;
           nb_bornes?: number | null;
+          pv_identification_physique_numero?: string | null;
+          pv_identification_physique_date?: string | null;
+          pv_identification_physique_scan_url?: string | null;
         };
         Update: {
           id?: string;
@@ -74,6 +80,9 @@ export type Database = {
           cabinet_geometre?: string | null;
           date_leve_topographique?: string | null;
           nb_bornes?: number | null;
+          pv_identification_physique_numero?: string | null;
+          pv_identification_physique_date?: string | null;
+          pv_identification_physique_scan_url?: string | null;
         };
       };
     };
