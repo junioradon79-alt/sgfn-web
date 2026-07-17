@@ -3972,6 +3972,13 @@ export type Database = {
         Args: { p_conversation_id: string }
         Returns: boolean
       }
+      suiveurs_de_mes_lots: {
+        Args: never
+        Returns: {
+          lot_id: string
+          nb_suiveurs: number
+        }[]
+      }
       suivre_parcelle: { Args: { p_reference: string }; Returns: Json }
       transferer_attribution: {
         Args: {

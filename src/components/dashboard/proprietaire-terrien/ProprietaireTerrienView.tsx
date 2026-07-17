@@ -6,7 +6,7 @@ import { useChargement } from "@/hooks/useChargement";
 import { createClient } from "@/utils/supabase/client";
 import {
   Building2, ChevronDown, ChevronRight, FileText, CheckCircle2, Clock, PenLine,
-  FileWarning, Handshake, Store,
+  FileWarning, Handshake, Store, Eye,
 } from "lucide-react";
 import type { Profile, AttestationCoutumiere, PvReunion } from "@/components/dashboard/chefferie/types";
 import {
@@ -102,6 +102,8 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
   // `publier-annonce`, qui refuse tout le reste en 403.
   const [lotsAvecDocDelivre, setLotsAvecDocDelivre] = useState<Set<string>>(new Set());
   const [annonces, setAnnonces] = useState<Record<string, Annonce>>({});
+  // Demande latente : nombre d'acquéreurs qui suivent chaque lot (captage QR).
+  const [suiveurs, setSuiveurs] = useState<Record<string, number>>({});
 
   const [signing, setSigning] = useState<string | null>(null);
   const [signError, setSignError] = useState<string | null>(null);
@@ -119,7 +121,7 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
   const fetchData = useCallback(async () => {
     const attributaireId = profile.attributaire_id;
 
-    const [familleRes, mesLotsRes, apfcRes, litigesRes, concertationRes, attRes, certRes, annRes] =
+    const [familleRes, mesLotsRes, apfcRes, litigesRes, concertationRes, attRes, certRes, annRes, suiveursRes] =
       await Promise.all([
         profile.famille_id
           ? supabase
@@ -166,6 +168,9 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
           .from("annonces_marketplace")
           .select("id, lot_id, statut")
           .eq("proprietaire_profile_id", profile.id),
+        // Demande latente : nb d'acquéreurs qui suivent chacun de mes lots
+        // (RPC scopée à mes_lot_ids(), compte agrégé sans identités).
+        supabase.rpc("suiveurs_de_mes_lots"),
       ]);
 
     const familleData = familleRes.data as Famille | null;
@@ -183,6 +188,12 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
     const annMap: Record<string, Annonce> = {};
     ((annRes.data ?? []) as Annonce[]).forEach((a) => { annMap[a.lot_id] = a; });
     setAnnonces(annMap);
+
+    const suiveursMap: Record<string, number> = {};
+    ((suiveursRes.data ?? []) as { lot_id: string; nb_suiveurs: number }[]).forEach(
+      (r) => { suiveursMap[r.lot_id] = r.nb_suiveurs; }
+    );
+    setSuiveurs(suiveursMap);
 
     // Lots collectifs + PV de famille : scopés au collectif d'ayants-droit de la
     // famille. Le filtre explicite corrige la fuite historique (la RLS scopée sur
@@ -311,6 +322,10 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
   const vendables = groupes
     .flatMap((g) => g.lots)
     .filter((l) => estVendable(l, lotsAvecDocDelivre, annonces)).length;
+  // Demande latente : total d'acquéreurs en attente sur les lots pas encore en vente.
+  const enAttenteTotal = Object.entries(suiveurs)
+    .filter(([lotId]) => annonces[lotId]?.statut !== "active")
+    .reduce((s, [, n]) => s + n, 0);
 
   // Un seul lotissement : replier n'apporte rien, on l'ouvre d'emblée.
   const estOuvert = (nom: string) => ouverts[nom] ?? groupes.length === 1;
@@ -322,7 +337,7 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
           { href: "#pv", icon: FileText, label: "PV de famille", value: pvs.length, subtitle: pvAFournir > 0 ? `${pvAFournir} à régulariser` : "À jour", alerte: pvAFournir },
         ]
       : []),
-    { href: "#lots", icon: Store, label: "TerraCI Market", value: annoncesActives, subtitle: vendables > 0 ? `${vendables} lot${vendables > 1 ? "s" : ""} vendable${vendables > 1 ? "s" : ""}` : "Aucun lot vendable", alerte: 0 },
+    { href: "#lots", icon: Store, label: "TerraCI Market", value: annoncesActives, subtitle: enAttenteTotal > 0 ? `${enAttenteTotal} acquéreur${enAttenteTotal > 1 ? "s" : ""} en attente` : vendables > 0 ? `${vendables} lot${vendables > 1 ? "s" : ""} vendable${vendables > 1 ? "s" : ""}` : "Aucun lot vendable", alerte: enAttenteTotal },
     { href: "/dashboard/litiges", icon: FileWarning, label: "Litiges", value: litigesActifsCount, subtitle: litigesActifsCount > 0 ? "Sur vos parcelles" : "Aucun litige actif", alerte: litigesActifsCount },
     { href: "/dashboard/concertation", icon: Handshake, label: "Concertation", value: concertationCount, subtitle: "Échanges en cours", alerte: 0 },
   ];
@@ -418,6 +433,7 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
                         lot={l}
                         annonce={annonces[l.lotId] ?? null}
                         docDelivre={lotsAvecDocDelivre.has(l.lotId)}
+                        nbSuiveurs={suiveurs[l.lotId] ?? 0}
                         chargement={dossierEnCours === l.lotId}
                         onOuvrirDossier={() => ouvrirDossier(l.lotId)}
                       />
@@ -577,11 +593,12 @@ function blocageVente(lot: LotLigne, docDelivre: boolean): string | null {
 // ─── Ligne de lot ─────────────────────────────────────────────────────────────
 
 function LotRow({
-  lot, annonce, docDelivre, chargement, onOuvrirDossier,
+  lot, annonce, docDelivre, nbSuiveurs, chargement, onOuvrirDossier,
 }: {
   lot: LotLigne;
   annonce: Annonce | null;
   docDelivre: boolean;
+  nbSuiveurs: number;
   chargement: boolean;
   onOuvrirDossier: () => void;
 }) {
@@ -609,6 +626,19 @@ function LotRow({
       <span className={`hidden shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium sm:inline ${LOT_STATUT_COLORS[lot.statut] ?? "border-slate-200 bg-slate-100 text-slate-500"}`}>
         {lot.statut}
       </span>
+
+      {/* Signal de demande latente : des acquéreurs suivent ce lot (captage QR)
+          et seront prévenus dès sa mise en vente — incite à cliquer le bouton. */}
+      {nbSuiveurs > 0 && (
+        <span
+          title={`${nbSuiveurs} acquéreur${nbSuiveurs > 1 ? "s" : ""} attend${nbSuiveurs > 1 ? "ent" : ""} que ce terrain soit mis en vente`}
+          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700"
+        >
+          <Eye className="h-3.5 w-3.5" />
+          {nbSuiveurs}
+          <span className="hidden sm:inline">en attente</span>
+        </span>
+      )}
 
       {annonce ? (
         <Link
