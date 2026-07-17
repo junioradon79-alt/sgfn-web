@@ -9,15 +9,15 @@ import { Input } from "@/components/ui/Input";
 import { UserPlus, Copy, Check, X } from "lucide-react";
 
 const GROUPES = [
-  { value: "proprietaire", label: "Propriétaire" },
+  // Rôle legacy « Propriétaire » (par achat) déprécié → fondu dans « Propriétaire terrien ».
   { value: "proprietaire_terrien", label: "Propriétaire terrien" },
   { value: "acquereur", label: "Acquéreur" },
   { value: "commissaire", label: "Commissaire" },
-  { value: "amenageur", label: "Aménageur" },
   { value: "chefferie", label: "Chefferie" },
   { value: "geometre", label: "Géomètre" },
   { value: "verificateur", label: "Vérificateur" },
-  { value: "operateur", label: "Opérateur" },
+  // « Aménageur » fusionné dans « Opérateur » (même métier côté foncier).
+  { value: "operateur", label: "Opérateur / Aménageur" },
 ];
 
 const STATUT_STYLES: Record<string, string> = {

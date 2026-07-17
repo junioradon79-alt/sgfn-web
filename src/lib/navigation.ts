@@ -165,6 +165,20 @@ const ROLE_NAV_ORDER: Partial<Record<string, string[]>> = {
     "/dashboard/messages",
     "/dashboard/documents",
   ],
+  // Commissaire de justice : périmètre resserré à SA supervision — uniquement les
+  // lotissements dont il a légalisé les PV. La RLS scope déjà ses données
+  // (registre, litiges, dossiers ADU, carte) ; on retire du menu les pages
+  // « registre » génériques (Lots, Attributaires, Attributions) redondantes avec
+  // son dashboard de supervision. Le VÉRIFICATEUR, lui, garde une vue nationale
+  // (pas d'ordre personnalisé pour ce rôle).
+  commissaire: [
+    "/dashboard/commissaire",
+    "/dashboard/litiges",
+    "/dashboard/dossiers-adu",
+    "/dashboard/carte",
+    "/dashboard/documents",
+    "/dashboard/messages",
+  ],
 };
 
 /**

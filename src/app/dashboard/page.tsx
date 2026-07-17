@@ -26,9 +26,13 @@ import { AduDialog } from "@/components/pilotage/AduDialog";
  * restent sur le Centre de pilotage ci-dessous.
  */
 const ROLE_HOME: Record<string, string> = {
-  proprietaire: "/dashboard/proprietaire",
+  // « Propriétaire » (par achat) déprécié → fondu dans proprietaire_terrien ;
+  // filet de sécurité si un compte legacy subsiste.
+  proprietaire: "/dashboard/proprietaire-terrien",
   acquereur: "/dashboard/mon-achat",
-  amenageur: "/dashboard/acquisition",
+  // « Aménageur » fusionné dans « opérateur » : filet de sécurité si un compte
+  // legacy `amenageur` subsiste — il atterrit sur l'espace opérateur.
+  amenageur: "/dashboard/operateur",
   operateur: "/dashboard/operateur",
   commissaire: "/dashboard/commissaire",
   verificateur: "/dashboard/commissaire",

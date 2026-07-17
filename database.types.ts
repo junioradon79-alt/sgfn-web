@@ -3945,6 +3945,24 @@ export type Database = {
         Args: { p_id: string; p_table: string }
         Returns: undefined
       }
+      registre_supervision: {
+        Args: never
+        Returns: {
+          lot_id: string
+          numero_lot: string | null
+          ilot_numero: string | null
+          lotissement_nom: string | null
+          statut: string | null
+          verrouille: boolean | null
+          attributaire_nom: string | null
+          qualite: string | null
+          attestation_reference: string | null
+          attestation_statut: string | null
+          attestation_delivree: boolean | null
+          attestation_gratuite: boolean | null
+          pv_alerte_statut: string | null
+        }[]
+      }
       rejeter_demande_geometre: {
         Args: { p_id: string; p_motif?: string }
         Returns: undefined
