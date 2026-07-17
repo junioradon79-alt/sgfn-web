@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, Loader2, Menu, Search, UserRound, X } from "lucide-react";
 import { Sidebar } from "@/components/ui/Sidebar";
+import { InactivityLogout } from "@/components/dashboard/InactivityLogout";
 import { createClient } from "@/utils/supabase/client";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -65,7 +66,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   // en-têtes superposés.
   const ECRANS_DS = ["/dashboard", "/dashboard/geometre", "/dashboard/missions", "/dashboard/demarches"];
   if (ECRANS_DS.includes(pathname.replace(/\/+$/, ""))) {
-    return <div className="print:h-auto">{children}</div>;
+    return (
+      <div className="print:h-auto">
+        <InactivityLogout />
+        {children}
+      </div>
+    );
   }
 
   const pageTitles: Record<string, string> = {
@@ -80,6 +86,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden print:h-auto print:overflow-visible">
+      {/* Déconnexion automatique après inactivité (tous rôles). */}
+      <InactivityLogout />
+
       {/* Backdrop sombre (mobile uniquement) */}
       {mobileOpen && (
         <div
