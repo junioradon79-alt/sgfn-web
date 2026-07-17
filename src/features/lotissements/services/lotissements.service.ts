@@ -81,7 +81,9 @@ export async function proposerLotissement(
 ) {
   const { data, error } = await supabase.rpc("soumettre_saisie", {
     p_type: type,
-    p_lotissement_id: lotissementId,
+    // La fonction SQL accepte null (cas création de lotissement) ; le générateur
+    // de types Supabase type ce paramètre sans DEFAULT comme non-null → cast.
+    p_lotissement_id: lotissementId as string,
     p_titre: titre,
     p_payload: payload,
   });

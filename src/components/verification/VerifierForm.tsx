@@ -11,6 +11,7 @@ import {
 import { QRCodeSVG } from "qrcode.react";
 import { CONSULTATION_QR, fmtMontantFCFA } from "@/lib/consultation-qr";
 import RadialGauge from "@/components/ui/RadialGauge";
+import { InviteCompteAcquereur } from "./InviteCompteAcquereur";
 
 const PasseportMap = dynamic(() => import("./PasseportMap"), {
   ssr: false,
@@ -925,6 +926,15 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
               )}
             </div>
           )}
+
+          {/* Captage de leads : après l'aperçu d'un document rattaché à un lot,
+              on invite un visiteur non connecté à créer un compte acquéreur pour
+              suivre la parcelle (le composant se masque de lui-même si connecté). */}
+          {(verdict === "trouve" || verdict === "paiement_requis") &&
+            resultat &&
+            ["attestation_cession", "certificat_vente"].includes(String(resultat.type_document)) && (
+              <InviteCompteAcquereur reference={String(resultat.reference ?? ref)} />
+            )}
 
           <p className="mt-8 text-center text-xs text-slate-400">
             Chaque vérification est validée côté serveur et journalisée par SGNF.

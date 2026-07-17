@@ -2,10 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import {
   ArrowLeft,
+  Bell,
   Check,
   CheckCircle2,
   Eye,
@@ -36,33 +37,49 @@ const GROUPES_LABELS: Record<string, string> = {
 
 type Step = "code" | "form" | "success";
 
-const steps: { key: Step; label: string }[] = [
+// Le flux par invitation a 3 étapes ; le flux grand public (acquéreur) en a 2
+// (pas de code à saisir).
+const stepsInvitation: { key: Step; label: string }[] = [
   { key: "code", label: "Invitation" },
   { key: "form", label: "Identité" },
   { key: "success", label: "Confirmation" },
 ];
+const stepsPublic: { key: Step; label: string }[] = [
+  { key: "form", label: "Identité" },
+  { key: "success", label: "Confirmation" },
+];
 
-const trustItems = [
+const trustItemsInvitation = [
   "Invitation vérifiée côté serveur",
   "Compte rattaché au rôle de votre organisation",
   "Accès journalisé dans le registre SGNF",
 ];
+const trustItemsPublic = [
+  "Compte gratuit, créé en une minute",
+  "Soyez prévenu si un terrain suivi est mis en vente",
+  "Aucun paiement ni document demandé pour créer le compte",
+];
 
-function stepIndex(step: Step) {
-  return steps.findIndex((item) => item.key === step);
-}
-
-export default function InscriptionPage() {
+function InscriptionInner() {
   const router = useRouter();
   const supabase = createClient();
+  const searchParams = useSearchParams();
 
-  const [step, setStep] = useState<Step>("code");
+  // Mode grand public (acquéreur) : ?public=1, éventuellement ?suivi=<référence>
+  // pour suivre la parcelle scannée juste après la création du compte.
+  const estPublic = searchParams.get("public") === "1";
+  const suivi = searchParams.get("suivi");
+
+  const steps = estPublic ? stepsPublic : stepsInvitation;
+
+  const [step, setStep] = useState<Step>(estPublic ? "form" : "code");
   const [code, setCode] = useState("");
-  const [groupe, setGroupe] = useState("");
+  const [groupe, setGroupe] = useState(estPublic ? "acquereur" : "");
   const [nomComplet, setNomComplet] = useState("");
   const [telephone, setTelephone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [accepteComm, setAccepteComm] = useState(false); // consentement, non pré-coché
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -110,17 +127,29 @@ export default function InscriptionPage() {
       return;
     }
 
+    // Le groupe n'est JAMAIS de confiance côté client : handle_new_user() ignore
+    // ce champ sans invitation et retombe sur `acquereur`. On ne l'envoie ici que
+    // pour cohérence, la sécurité tient côté base (cf. correctif 15/07).
+    const metadata: Record<string, unknown> = {
+      nom_complet: nomComplet.trim(),
+      telephone: telephone.trim() || null,
+    };
+    if (estPublic) {
+      metadata.accepte_communications = accepteComm;
+      // La parcelle à suivre est enregistrée dès la création du compte par
+      // handle_new_user() — ainsi le suivi survit même si la confirmation d'email
+      // diffère l'accès au dashboard (le paramètre ?suivi ne serait alors pas
+      // rejoué). Le mécanisme ?suivi= côté dashboard reste, idempotent.
+      if (suivi) metadata.suivi_reference = suivi;
+    } else {
+      metadata.groupe = groupe;
+      metadata.code_invitation = code.trim().toUpperCase();
+    }
+
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: {
-          nom_complet: nomComplet.trim(),
-          telephone: telephone.trim() || null,
-          groupe,
-          code_invitation: code.trim().toUpperCase(),
-        },
-      },
+      options: { data: metadata },
     });
 
     if (signUpError) {
@@ -130,7 +159,14 @@ export default function InscriptionPage() {
     }
 
     if (data.session) {
-      router.push("/dashboard");
+      // Session immédiate (pas de confirmation bloquante) : on file au dashboard.
+      // En mode public avec une parcelle à suivre, on propage la référence — le
+      // dashboard acquéreur appelle suivre_parcelle() au chargement.
+      const cible =
+        estPublic && suivi
+          ? `/dashboard/mon-achat?suivi=${encodeURIComponent(suivi)}`
+          : "/dashboard";
+      router.push(cible);
       router.refresh();
       return;
     }
@@ -139,7 +175,7 @@ export default function InscriptionPage() {
     setIsLoading(false);
   };
 
-  const currentStepIndex = stepIndex(step);
+  const currentStepIndex = steps.findIndex((item) => item.key === step);
 
   return (
     <main className="min-h-dvh bg-[#F7F9FC] px-4 py-6 text-[#172033] antialiased sm:px-6 lg:px-8">
@@ -150,25 +186,31 @@ export default function InscriptionPage() {
               <Image src="/logo-embleme.png" alt="" width={44} height={44} className="h-11 w-11 object-contain" priority />
               <div>
                 <p className="font-display text-xl font-extrabold tracking-tight text-[#0B2E4F]">SGNF</p>
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#0F5E8C]">Activation sécurisée</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#0F5E8C]">
+                  {estPublic ? "Compte acquéreur" : "Activation sécurisée"}
+                </p>
               </div>
             </Link>
 
             <div className="mt-16 max-w-md">
               <p className="inline-flex items-center gap-2 rounded-full border border-[#0F5E8C]/20 bg-[#F7F9FC] px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-[#0F5E8C]">
-                <ShieldCheck className="h-4 w-4" />
-                Accès par invitation
+                {estPublic ? <Bell className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+                {estPublic ? "Suivi & alertes" : "Accès par invitation"}
               </p>
               <h1 className="mt-5 font-display text-4xl font-extrabold leading-tight tracking-tight text-[#0B2E4F]">
-                Activez votre espace sans exposer vos dossiers.
+                {estPublic
+                  ? "Suivez un terrain et soyez prévenu s'il est mis en vente."
+                  : "Activez votre espace sans exposer vos dossiers."}
               </h1>
               <p className="mt-4 leading-7 text-[#526176]">
-                Le code reçu confirme votre organisation, votre rôle et les droits associés avant la création du compte.
+                {estPublic
+                  ? "Créez votre compte acquéreur pour suivre les parcelles qui vous intéressent et recevoir une alerte dès qu'elles arrivent sur TerraCI Market."
+                  : "Le code reçu confirme votre organisation, votre rôle et les droits associés avant la création du compte."}
               </p>
             </div>
 
             <div className="mt-10 space-y-3">
-              {trustItems.map((item) => (
+              {(estPublic ? trustItemsPublic : trustItemsInvitation).map((item) => (
                 <div key={item} className="flex items-center gap-3 rounded-xl border border-[#E3E8EF] bg-[#F7F9FC] px-4 py-3 text-sm font-semibold text-[#172033]">
                   <CheckCircle2 className="h-4 w-4 text-[#147A55]" />
                   {item}
@@ -185,21 +227,24 @@ export default function InscriptionPage() {
 
             <div className="mb-8">
               <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#0F5E8C]">
-                {step === "code" ? "Invitation" : step === "form" ? "Identité" : "Confirmation"}
+                {step === "success" ? "Confirmation" : step === "form" ? "Identité" : "Invitation"}
               </p>
               <h2 className="mt-2 font-display text-3xl font-extrabold tracking-tight text-[#0B2E4F]">
                 {step === "code" && "Créer votre compte"}
-                {step === "form" && "Compléter votre profil"}
+                {step === "form" && (estPublic ? "Créer mon compte acquéreur" : "Compléter votre profil")}
                 {step === "success" && "Compte créé"}
               </h2>
               <p className="mt-3 text-sm leading-6 text-[#526176]">
                 {step === "code" && "Saisissez le code d'invitation transmis par votre organisation."}
-                {step === "form" && (
-                  <>
-                    Votre accès sera rattaché à l&apos;espace{" "}
-                    <span className="font-bold text-[#0B2E4F]">{GROUPES_LABELS[groupe] ?? groupe}</span>.
-                  </>
-                )}
+                {step === "form" &&
+                  (estPublic ? (
+                    "Email et mot de passe suffisent. Aucun paiement ni document ne vous sera demandé."
+                  ) : (
+                    <>
+                      Votre accès sera rattaché à l&apos;espace{" "}
+                      <span className="font-bold text-[#0B2E4F]">{GROUPES_LABELS[groupe] ?? groupe}</span>.
+                    </>
+                  ))}
                 {step === "success" && (
                   <>
                     Un lien de confirmation a été envoyé à <span className="font-bold text-[#172033]">{email}</span>.
@@ -208,7 +253,7 @@ export default function InscriptionPage() {
               </p>
             </div>
 
-            <ol className="mb-8 grid grid-cols-3 gap-2" aria-label="Progression de l'inscription">
+            <ol className={`mb-8 grid gap-2 ${estPublic ? "grid-cols-2" : "grid-cols-3"}`} aria-label="Progression de l'inscription">
               {steps.map((item, index) => {
                 const active = index === currentStepIndex;
                 const done = index < currentStepIndex;
@@ -278,7 +323,9 @@ export default function InscriptionPage() {
                 </div>
 
                 <div>
-                  <label htmlFor="telephone" className="mb-2 block text-sm font-semibold text-[#172033]">Téléphone</label>
+                  <label htmlFor="telephone" className="mb-2 block text-sm font-semibold text-[#172033]">
+                    Téléphone {estPublic && <span className="font-normal text-[#8B98AA]">(facultatif)</span>}
+                  </label>
                   <div className="relative">
                     <Phone className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#8B98AA]" />
                     <Input id="telephone" type="tel" placeholder="+225 07 00 00 00 00" value={telephone} onChange={(e) => setTelephone(e.target.value)} className="h-12 border-[#C9D5E0] pl-10" />
@@ -289,7 +336,7 @@ export default function InscriptionPage() {
                   <label htmlFor="email" className="mb-2 block text-sm font-semibold text-[#172033]">Adresse e-mail</label>
                   <div className="relative">
                     <Mail className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#8B98AA]" />
-                    <Input id="email" type="email" placeholder="vous@organisation.ci" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 border-[#C9D5E0] pl-10" required />
+                    <Input id="email" type="email" placeholder={estPublic ? "vous@email.com" : "vous@organisation.ci"} value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 border-[#C9D5E0] pl-10" required />
                   </div>
                 </div>
 
@@ -304,17 +351,48 @@ export default function InscriptionPage() {
                   </div>
                 </div>
 
+                {/* Consentement communications — non pré-coché, séparé de la création
+                    du compte (loi 2013-450 / ARTCI). Grand public uniquement. */}
+                {estPublic && (
+                  <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-[#E3E8EF] bg-[#F7F9FC] px-4 py-3 text-sm text-[#526176]">
+                    <input
+                      type="checkbox"
+                      checked={accepteComm}
+                      onChange={(e) => setAccepteComm(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#C9D5E0] text-[#0B2E4F] focus:ring-[#0F5E8C]"
+                    />
+                    <span>
+                      J&apos;accepte de recevoir des informations de SGNF (nouvelles annonces,
+                      terrains suivis). Vous pourrez vous désinscrire à tout moment.
+                    </span>
+                  </label>
+                )}
+
                 {error && <p role="alert" className="rounded-xl border border-[#B42318]/25 bg-[#B42318]/[0.06] px-3 py-3 text-sm text-[#8E1D16]">{error}</p>}
 
+                {estPublic && (
+                  <p className="flex items-start gap-2 rounded-xl bg-[#0F5E8C]/[0.05] px-3 py-2.5 text-xs leading-relaxed text-[#526176]">
+                    <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#147A55]" />
+                    SGNF ne vous demandera jamais d&apos;argent ni vos papiers pour créer ce compte —
+                    seulement un email et un mot de passe.
+                  </p>
+                )}
+
                 <div className="grid gap-3 pt-1 sm:grid-cols-[auto_1fr]">
-                  <button
-                    type="button"
-                    onClick={() => { setStep("code"); setError(""); }}
+                  <Link
+                    href={estPublic ? "/" : "#"}
+                    onClick={(e) => {
+                      if (!estPublic) {
+                        e.preventDefault();
+                        setStep("code");
+                        setError("");
+                      }
+                    }}
                     className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-[#C9D5E0] bg-white px-4 text-sm font-bold text-[#0B2E4F] transition hover:bg-[#F7F9FC]"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     Retour
-                  </button>
+                  </Link>
                   <button
                     type="submit"
                     disabled={isLoading}
@@ -349,5 +427,14 @@ export default function InscriptionPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+// useSearchParams impose une borne Suspense sur un export statique (output: export).
+export default function InscriptionPage() {
+  return (
+    <Suspense fallback={null}>
+      <InscriptionInner />
+    </Suspense>
   );
 }

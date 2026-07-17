@@ -3157,6 +3157,51 @@ export type Database = {
           },
         ]
       }
+      suivis_parcelle: {
+        Row: {
+          cree_le: string
+          id: string
+          lot_id: string
+          notifie_le: string | null
+          profile_id: string
+          reference_document: string | null
+          source: string
+        }
+        Insert: {
+          cree_le?: string
+          id?: string
+          lot_id: string
+          notifie_le?: string | null
+          profile_id: string
+          reference_document?: string | null
+          source?: string
+        }
+        Update: {
+          cree_le?: string
+          id?: string
+          lot_id?: string
+          notifie_le?: string | null
+          profile_id?: string
+          reference_document?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suivis_parcelle_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "lots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suivis_parcelle_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tarifs: {
         Row: {
           actif: boolean
@@ -3705,16 +3750,26 @@ export type Database = {
       }
     }
     Functions: {
+      _appliquer_creation_lotissement: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       _appliquer_creation_structure: {
         Args: { p_payload: Json }
         Returns: Json
       }
-      _appliquer_creation_lotissement: { Args: { p_payload: Json }; Returns: Json }
       _appliquer_maj_attributions: { Args: { p_payload: Json }; Returns: Json }
-      _appliquer_modification_lotissement: { Args: { p_payload: Json }; Returns: Json }
+      _appliquer_modification_lotissement: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       ajouter_note_litige: {
         Args: { p_corps: string; p_litige_id: string }
         Returns: string
+      }
+      annonce_active_pour_reference: {
+        Args: { p_reference: string }
+        Returns: Json
       }
       approuver_demande_geometre: { Args: { p_id: string }; Returns: Json }
       approuver_soumission: {
@@ -3837,8 +3892,11 @@ export type Database = {
       }
       get_public_stats: { Args: never; Returns: Json }
       lot_libelle: { Args: { p_lot_id: string }; Returns: Json }
+      lot_pour_reference: { Args: { p_reference: string }; Returns: string }
       lots_verifiables: { Args: never; Returns: Json }
       ma_chefferie_id: { Args: never; Returns: string }
+      ma_famille_attributaire_id: { Args: never; Returns: string }
+      ma_famille_id: { Args: never; Returns: string }
       maj_statut_demande_acquisition: {
         Args: {
           p_demande_id: string
@@ -3859,6 +3917,19 @@ export type Database = {
       marquer_paiement_recu: {
         Args: { p_paiement_id: string; p_reference_externe?: string }
         Returns: undefined
+      }
+      mes_lot_ids: { Args: never; Returns: string[] }
+      mes_suivis: {
+        Args: never
+        Returns: {
+          annonce_id: string
+          cree_le: string
+          en_vente: boolean
+          ilot_numero: string
+          lot_id: string
+          lotissement: string
+          numero_lot: string
+        }[]
       }
       mon_attributaire_id: { Args: never; Returns: string }
       mon_commissaire_id: { Args: never; Returns: string }
@@ -3889,7 +3960,7 @@ export type Database = {
       }
       soumettre_saisie: {
         Args: {
-          p_lotissement_id: string | null
+          p_lotissement_id: string
           p_payload: Json
           p_resume?: Json
           p_titre: string
@@ -3901,6 +3972,7 @@ export type Database = {
         Args: { p_conversation_id: string }
         Returns: boolean
       }
+      suivre_parcelle: { Args: { p_reference: string }; Returns: Json }
       transferer_attribution: {
         Args: {
           p_actuel?: boolean

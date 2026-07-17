@@ -99,7 +99,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Consultations QR", href: "/dashboard/consultations-qr", icon: QrCode, section: "instruction", roles: ["admin"], keywords: "vérification qr code" },
 
   // ── Espaces dédiés (masqués pour l'admin) ──
-  { label: "Mon achat", href: "/dashboard/mon-achat", icon: ClipboardCheck, section: "espaces", roles: ["acquereur"], adminHide: true },
+  { label: "Mon espace", href: "/dashboard/mon-achat", icon: ClipboardCheck, section: "espaces", roles: ["acquereur"], adminHide: true, keywords: "acquéreur suivi terrains achat" },
   { label: "Trouver un terrain", href: "/dashboard/acquisition", icon: Compass, section: "espaces", roles: ["acquereur", "amenageur"], adminHide: true },
   { label: "Mon espace", href: "/dashboard/proprietaire", icon: Landmark, section: "espaces", roles: ["proprietaire", "acquereur"], adminHide: true },
   { label: "Mettre en vente", href: "/dashboard/mettre-en-vente", icon: Store, section: "espaces", roles: ["proprietaire", "proprietaire_terrien"], adminHide: true, keywords: "marketplace annonce terraci market vendre terrain" },
@@ -154,6 +154,15 @@ const ROLE_NAV_ORDER: Partial<Record<string, string[]>> = {
     "/dashboard/mettre-en-vente",
     "/dashboard/litiges",
     "/dashboard/concertation",
+    "/dashboard/documents",
+  ],
+  // Acquéreur : espace resserré au suivi + achats. La découverte des terrains vit
+  // sur TerraCI Market (site public monterrain-web), liée depuis « Mon espace ».
+  // L'ancien tunnel /dashboard/acquisition et le partage /dashboard/proprietaire
+  // sont volontairement retirés du menu.
+  acquereur: [
+    "/dashboard/mon-achat",
+    "/dashboard/messages",
     "/dashboard/documents",
   ],
 };

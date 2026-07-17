@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   BadgeCheck,
   CheckCircle2,
-  Compass,
   CreditCard,
   FileCheck2,
   HelpCircle,
@@ -18,6 +17,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import ParcellesSuivies from "./_ParcellesSuivies";
 
 /**
  * « Mon achat » — page d'accueil de l'acquéreur, pensée pour un public peu à
@@ -49,7 +49,7 @@ type LotLabel = { lotissement: string | null; ilot: string | null; lot: string |
 type Paie = { id: string; statut: string; montant_total: number | null };
 type Doc = { reference: string; qr_token: string | null };
 
-export default function MonAchatPage() {
+function MonAchatContenu() {
   const supabase = useMemo(() => createClient(), []);
 
   const [demandes, setDemandes] = useState<DemandeRow[]>([]);
@@ -171,9 +171,9 @@ export default function MonAchatPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-6">
-        <h1 className="font-display text-2xl font-bold text-brand-primary sm:text-3xl">Mon achat de terrain</h1>
+        <h1 className="font-display text-2xl font-bold text-brand-primary sm:text-3xl">Mon espace acquéreur</h1>
         <p className="mt-1.5 text-sm text-slate-500 sm:text-base">
-          Suivez votre achat étape par étape. À chaque moment, une seule chose à faire.
+          Suivez les terrains qui vous intéressent et l&apos;avancement de vos achats.
         </p>
         <Link
           href="/guide-achat"
@@ -191,14 +191,19 @@ export default function MonAchatPage() {
         </div>
       )}
 
+      {/* Cœur du dashboard : les parcelles suivies + les alertes de mise en vente
+          (gère aussi l'enregistrement du suivi à l'arrivée depuis /verifier). */}
+      <ParcellesSuivies />
+
+      {/* Achats en cours : l'ancien tunnel agence, conservé, mais secondaire —
+          affiché seulement s'il existe une demande/vente réelle. */}
       {loading ? (
         <div className="rounded-2xl border border-slate-200/60 bg-white px-5 py-12 text-center text-sm text-slate-500">
           Chargement…
         </div>
-      ) : demandes.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <div className="flex flex-col gap-5">
+      ) : demandes.length > 0 ? (
+        <div className="flex flex-col gap-4">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Mes achats en cours</h2>
           {demandes.map((d) => (
             <AchatCard
               key={d.id}
@@ -214,48 +219,19 @@ export default function MonAchatPage() {
               onPayerEcheance={payerEcheanceSuivante}
             />
           ))}
-
-          <Link
-            href="/dashboard/acquisition"
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-[#0D3B66] transition-colors hover:bg-slate-50"
-          >
-            <Compass className="h-4 w-4" />
-            Trouver un autre terrain
-          </Link>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
 
-function EmptyState() {
+// useSearchParams (dans ParcellesSuivies) impose une borne Suspense sur un export
+// statique (output: export).
+export default function MonAchatPage() {
   return (
-    <div className="rounded-2xl border border-slate-200/60 bg-white px-6 py-12 text-center shadow-sm">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#0D3B66]/5">
-        <Compass className="h-8 w-8 text-[#0D3B66]" />
-      </div>
-      <h2 className="mt-4 text-lg font-bold text-slate-800">Vous n&apos;avez pas encore de terrain en cours</h2>
-      <p className="mx-auto mt-1.5 max-w-sm text-sm text-slate-500">
-        Parcourez les terrains disponibles, vérifiez-les, puis lancez votre demande. L&apos;agence SGNF
-        vous accompagne jusqu&apos;au certificat de propriété.
-      </p>
-      <Link
-        href="/dashboard/acquisition"
-        className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-[#0D3B66] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#0a2f52]"
-      >
-        <Compass className="h-4 w-4" />
-        Trouver un terrain
-      </Link>
-      <div className="mt-3">
-        <Link
-          href="/guide-achat"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0D3B66] underline decoration-dotted underline-offset-2 hover:no-underline"
-        >
-          <HelpCircle className="h-4 w-4" />
-          Comment ça marche ?
-        </Link>
-      </div>
-    </div>
+    <Suspense fallback={null}>
+      <MonAchatContenu />
+    </Suspense>
   );
 }
 
