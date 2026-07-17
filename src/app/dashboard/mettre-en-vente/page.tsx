@@ -1,7 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Loader2, MapPin, Eye, Tag, CheckCircle2, AlertTriangle, Store, Info,
 } from "lucide-react";
@@ -53,9 +54,38 @@ type AnnonceExistante = {
 // Arrondi ~110 m, identique à la vue publique annonces_publiques
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
-export default function MettreEnVentePage() {
+/**
+ * Valeurs du formulaire pour un lot : reprise de l'annonce existante, sinon
+ * proposition à partir du lot. Partagée par la sélection manuelle et par
+ * l'arrivée depuis un bouton « Mettre en vente » (?lot=…).
+ */
+function valeursPour(lot: LotEligible | undefined, existante: AnnonceExistante | undefined) {
+  if (existante) {
+    return {
+      titre: existante.titre ?? "",
+      usage: existante.usage ?? "habitation",
+      zone: existante.zone ?? lot?.commune ?? "",
+      prix: existante.prix != null ? String(existante.prix) : "",
+      description: existante.description ?? "",
+      statut: (existante.statut === "brouillon" ? "brouillon" : "active") as "active" | "brouillon",
+    };
+  }
+  return {
+    titre: lot ? `Parcelle vérifiée ${lot.numero_lot ?? ""}`.trim() : "",
+    usage: "habitation",
+    zone: lot?.commune ?? lot?.village ?? "",
+    prix: "",
+    description: "",
+    statut: "active" as const,
+  };
+}
+
+function MettreEnVenteForm() {
   const supabase = useMemo(() => createClient(), []);
   const { profile } = useProfile();
+  // Lot ciblé par le bouton « Mettre en vente » d'un espace propriétaire.
+  const lotDemande = useSearchParams().get("lot");
+  const lotDemandeApplique = useRef(false);
 
   const [lots, setLots] = useState<LotEligible[]>([]);
   const [annonces, setAnnonces] = useState<Record<string, AnnonceExistante>>({});
@@ -73,6 +103,22 @@ export default function MettreEnVentePage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  /** Pose le lot et son préremplissage dans le formulaire. */
+  const appliquer = useCallback(
+    (lot: LotEligible | undefined, existante: AnnonceExistante | undefined) => {
+      const v = valeursPour(lot, existante);
+      setLotId(lot?.id ?? "");
+      setTitre(v.titre);
+      setUsage(v.usage);
+      setZone(v.zone);
+      setPrix(v.prix);
+      setDescription(v.description);
+      setStatut(v.statut);
+      setPoint(lot?.latitude != null && lot?.longitude != null ? [lot.latitude, lot.longitude] : null);
+    },
+    []
+  );
 
   // Chargement des lots éligibles + annonces existantes
   useEffect(() => {
@@ -127,31 +173,22 @@ export default function MettreEnVentePage() {
       setLots(mapped);
       setAnnonces(annMap);
       setLoading(false);
+
+      // Le lot passé en ?lot= n'est retenu que s'il est réellement éligible :
+      // une URL forgée ne doit pas ouvrir le formulaire sur le lot d'autrui
+      // (`publier-annonce` refuserait de toute façon en 403).
+      if (lotDemande && !lotDemandeApplique.current) {
+        lotDemandeApplique.current = true;
+        const lot = mapped.find((l) => l.id === lotDemande);
+        if (lot) appliquer(lot, annMap[lotDemande]);
+      }
     })();
-  }, [supabase]);
+  }, [supabase, lotDemande, appliquer]);
 
   // Sélection d'un lot → préremplissage
   const selectLot = (id: string) => {
-    setLotId(id);
     setMessage(null);
-    const lot = lots.find((l) => l.id === id);
-    const existante = annonces[id];
-    if (existante) {
-      setTitre(existante.titre ?? "");
-      setUsage(existante.usage ?? "habitation");
-      setZone(existante.zone ?? lot?.commune ?? "");
-      setPrix(existante.prix != null ? String(existante.prix) : "");
-      setDescription(existante.description ?? "");
-      setStatut(existante.statut === "brouillon" ? "brouillon" : "active");
-    } else {
-      setTitre(lot ? `Parcelle vérifiée ${lot.numero_lot ?? ""}`.trim() : "");
-      setUsage("habitation");
-      setZone(lot?.commune ?? lot?.village ?? "");
-      setPrix("");
-      setDescription("");
-      setStatut("active");
-    }
-    setPoint(lot?.latitude != null && lot?.longitude != null ? [lot.latitude, lot.longitude] : null);
+    appliquer(lots.find((l) => l.id === id), annonces[id]);
   };
 
   const previewPoint: [number, number] | null = point ? [round3(point[0]), round3(point[1])] : null;
@@ -368,6 +405,22 @@ export default function MettreEnVentePage() {
         </div>
       )}
     </div>
+  );
+}
+
+// `useSearchParams` impose une borne Suspense sur un export statique (output:
+// "export") — sans elle, le build échoue.
+export default function MettreEnVentePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-16">
+          <Loader2 className="h-6 w-6 animate-spin text-[#0D3B66]" />
+        </div>
+      }
+    >
+      <MettreEnVenteForm />
+    </Suspense>
   );
 }
 

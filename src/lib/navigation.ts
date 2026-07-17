@@ -102,6 +102,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Mon achat", href: "/dashboard/mon-achat", icon: ClipboardCheck, section: "espaces", roles: ["acquereur"], adminHide: true },
   { label: "Trouver un terrain", href: "/dashboard/acquisition", icon: Compass, section: "espaces", roles: ["acquereur", "amenageur"], adminHide: true },
   { label: "Mon espace", href: "/dashboard/proprietaire", icon: Landmark, section: "espaces", roles: ["proprietaire", "acquereur"], adminHide: true },
+  { label: "Mettre en vente", href: "/dashboard/mettre-en-vente", icon: Store, section: "espaces", roles: ["proprietaire", "proprietaire_terrien"], adminHide: true, keywords: "marketplace annonce terraci market vendre terrain" },
   { label: "Mon activité", href: "/dashboard/operateur", icon: HandCoins, section: "espaces", roles: ["operateur"], adminHide: true },
   { label: "Espace Chefferie", href: "/dashboard/chefferie", icon: Crown, section: "espaces", roles: ["chefferie"], adminHide: true, badgeKey: "chefferieValidations" },
   { label: "Propriétaire terrien", href: "/dashboard/proprietaire-terrien", icon: Home, section: "espaces", roles: ["proprietaire_terrien"], adminHide: true, badgeKey: "ptAValider" },
@@ -146,9 +147,11 @@ const ROLE_NAV_ORDER: Partial<Record<string, string[]>> = {
     "/dashboard/documents",
     "/dashboard/concertation",
   ],
-  // Propriétaire terrien (chef de famille) : périmètre resserré à sa famille.
+  // Propriétaire terrien (détenteur de premier niveau, chef de famille ou non) :
+  // périmètre resserré à son patrimoine.
   proprietaire_terrien: [
     "/dashboard/proprietaire-terrien",
+    "/dashboard/mettre-en-vente",
     "/dashboard/litiges",
     "/dashboard/concertation",
     "/dashboard/documents",

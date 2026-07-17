@@ -5,14 +5,17 @@ import { createClient } from "@/utils/supabase/client";
 import { Home } from "lucide-react";
 import type { Profile } from "@/components/dashboard/chefferie/types";
 import { LoadingScreen } from "@/components/dashboard/chefferie/SharedUI";
-import { ChefFamilleView } from "@/components/dashboard/chefferie/ChefFamilleView";
+import { ProprietaireTerrienView } from "@/components/dashboard/proprietaire-terrien/ProprietaireTerrienView";
 
 // ─── Espace Propriétaire terrien ──────────────────────────────────────────────
-// Nouveau rôle formel (groupe_utilisateur.proprietaire_terrien) qui remplace,
-// pour les nouvelles familles/lotissements, le sous-rôle "chef de famille"
-// jusqu'ici confondu avec la Chefferie. Réutilise ChefFamilleView, partagée
-// avec /dashboard/chefferie (comptes legacy, ex. Koelea-Accor Revu) — un seul
-// implémentation, deux points d'entrée qui cohabitent indéfiniment.
+// Espace de TOUT détenteur de premier niveau — celui qui tient son droit de la
+// chaîne coutumière (guide de répartition), qu'il soit chef de famille ou non.
+// Le propriétaire par achat relève de /dashboard/proprietaire (rôle `proprietaire`).
+//
+// Deux rattachements ouvrent l'espace, et un compte peut avoir les deux :
+//   • `attributaire_id` → ses lots en nom propre (le cas majoritaire) ;
+//   • `famille_id`      → l'APFC, les PV et les lots du collectif de la lignée.
+// Exiger une famille, comme avant, fermait la porte à la majorité des détenteurs.
 
 export default function ProprietaireTerrienPage() {
   const supabase = createClient();
@@ -42,7 +45,7 @@ export default function ProprietaireTerrienPage() {
 
   if (loading) return <LoadingScreen />;
 
-  if (!profile?.famille_id) {
+  if (!profile?.famille_id && !profile?.attributaire_id) {
     return (
       <div className="flex min-h-[300px] items-center justify-center px-4">
         <div className="max-w-sm text-center">
@@ -53,13 +56,13 @@ export default function ProprietaireTerrienPage() {
             Compte en cours de provisionnement
           </p>
           <p className="mt-2 text-sm leading-relaxed text-slate-400">
-            Votre compte n&apos;est pas encore rattaché à une famille. Contactez
-            l&apos;administration SGNF pour finaliser le provisionnement.
+            Votre compte n&apos;est encore rattaché à aucun patrimoine foncier.
+            Contactez l&apos;administration SGNF pour finaliser le provisionnement.
           </p>
         </div>
       </div>
     );
   }
 
-  return <ChefFamilleView profile={profile} />;
+  return <ProprietaireTerrienView profile={profile} />;
 }

@@ -1,5 +1,6 @@
-// Types partagés entre ChefFamilleView (rôles chefferie legacy + proprietaire_terrien)
-// et ChefVillageView (rôle chefferie / autorité coutumière).
+// Types partagés entre ProprietaireTerrienView (rôles proprietaire_terrien +
+// chefferie legacy avec famille) et ChefVillageView (rôle chefferie / autorité
+// coutumière).
 
 export type Profile = {
   id: string;

@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import type { Profile } from "@/components/dashboard/chefferie/types";
 import { LoadingScreen, StatCard } from "@/components/dashboard/chefferie/SharedUI";
-import { ChefFamilleView } from "@/components/dashboard/chefferie/ChefFamilleView";
+import { ProprietaireTerrienView } from "@/components/dashboard/proprietaire-terrien/ProprietaireTerrienView";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -187,7 +187,7 @@ export default function ChefferiePage() {
     );
   }
 
-  if (profile.famille_id) return <ChefFamilleView profile={profile} />;
+  if (profile.famille_id) return <ProprietaireTerrienView profile={profile} />;
   if (profile.autorite_coutumiere_id)
     return <ChefVillageView profile={profile} />;
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CheckCircle2, Clock, Loader2, MessageSquare, ChevronRight, type LucideIcon } from "lucide-react";
 
-// ─── Helpers partagés entre ChefFamilleView et ChefVillageView ───────────────
+// ─── Helpers partagés entre ProprietaireTerrienView et ChefVillageView ───────
 
 export const PV_STATUT_LABELS: Record<string, string> = {
   a_fournir: "À régulariser",
