@@ -28,6 +28,33 @@ AddType font/woff2 .woff2
   Header always set Permissions-Policy "camera=(self), geolocation=(self), microphone=(), payment=()"
 </IfModule>
 
+# Politique de cache (ajoutée le 17/07/2026)
+# Symptôme observé : après un déploiement, un navigateur continue de servir
+# l'ANCIENNE application pendant des heures. Cause : le HTML n'avait aucun
+# en-tête de cache → Chrome applique un cache heuristique (~10 % de l'âge du
+# fichier) et ressert un HTML périmé, qui référence d'anciens noms de chunks
+# toujours présents sur le serveur (l'extraction d'un tar.gz n'efface rien).
+#
+# Approche volontairement compatible Apache 2.2 ET 2.4 : SetEnvIf + FilesMatch,
+# pas de <If> (2.4 seulement — un serveur 2.2 renverrait 500 sur tout le site).
+# Le cache immutable est scopé au CHEMIN /_next/static/ (pas à l'extension .js),
+# sinon on figerait aussi /sw.js (service worker, non versionné par hash).
+<IfModule mod_setenvif.c>
+  SetEnvIf Request_URI "^/_next/static/" CACHE_IMMUTABLE
+</IfModule>
+<IfModule mod_headers.c>
+  # Assets versionnés par hash de contenu : le nom change dès que le contenu
+  # change (vérifié : 73 chunks communs entre deux builds, contenu identique).
+  # Cache long + immutable, aucune revalidation.
+  Header set Cache-Control "public, max-age=31536000, immutable" env=CACHE_IMMUTABLE
+  # HTML : « garder mais toujours revalider » — le navigateur repasse par le
+  # serveur (304 via Last-Modified si inchangé, quasi aucun coût réseau) et ne
+  # peut plus servir une page périmée après un déploiement.
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
 RewriteEngine On
 RewriteBase /
 
