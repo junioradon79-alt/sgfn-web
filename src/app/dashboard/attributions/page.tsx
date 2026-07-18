@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
+import { fetchAllPages } from "@/lib/supabase-pagination";
 import { Link2, Plus, X } from "lucide-react";
 
 type AttributionRecord = {
@@ -55,11 +56,18 @@ export default function AttributionsPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadAttributions = async () => {
-    const { data } = await supabase
-      .from("attributions")
-      .select("id, lot_id, attributaire_id, qualite, actuel, depuis, observation, lots(numero_lot), attributaires(nom)")
-      .order("depuis", { ascending: false });
-    setAttributions((data ?? []) as AttributionRecord[]);
+    // Pagination : PostgREST plafonne à 1000 lignes/réponse. Sur la vue nationale
+    // (admin / vérificateur = 1352 attributions), 352 lignes étaient perdues
+    // silencieusement. On pagine avec un ordre déterministe (depuis + id).
+    const data = await fetchAllPages<AttributionRecord>((from, to) =>
+      supabase
+        .from("attributions")
+        .select("id, lot_id, attributaire_id, qualite, actuel, depuis, observation, lots(numero_lot), attributaires(nom)")
+        .order("depuis", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, to) as unknown as PromiseLike<{ data: AttributionRecord[] | null }>
+    );
+    setAttributions(data);
   };
 
   const { isLoading: dataLoading, recharger } = useChargement(async () => {

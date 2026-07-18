@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
+import { fetchAllPages } from "@/lib/supabase-pagination";
 import { FileValidation } from "@/components/dashboard/saisie/FileValidation";
 import { ImportExcel } from "@/components/dashboard/saisie/ImportExcel";
 import { CreationStructure } from "@/components/dashboard/saisie/CreationStructure";
@@ -58,20 +59,6 @@ type Soumission = {
   commentaire_admin: string | null;
   cree_le: string | null;
   traite_le: string | null;
-};
-
-// Ligne brute renvoyée par la requête lots + attributions imbriquées.
-type LotRow = {
-  id: string;
-  numero_lot: string | null;
-  statut: string | null;
-  ilots: { numero: string | null } | null;
-  attributions: {
-    attributaire_id: string | null;
-    qualite: string | null;
-    actuel: boolean | null;
-    attributaires: { nom: string | null } | null;
-  }[];
 };
 
 const STATUT_BADGE: Record<StatutSoumission, { label: string; status: "attribue" | "en_validation" | "litige" | "disponible" }> = {
@@ -181,35 +168,54 @@ export default function SaisiePage() {
     setModeSaisie("manuel");
   };
 
-  // Chargement de l'état du lotissement sélectionné
+  // Chargement de l'état du lotissement sélectionné.
+  // L'embed imbriqué lots→attributions→attributaires timeoutait (8 s → HTTP 500 →
+  // liste vide) sur un gros lotissement (Brignan = 846 lots). On charge à plat :
+  // les lots du lotissement + les attributions ACTUELLES (les seules affichées),
+  // fusion par lot_id, avec pagination. Cf. audit dashboards 18/07.
   useEffect(() => {
     if (!lotissementId) return;
     let active = true;
-    supabase
-      .from("lots")
-      .select(
-        "id, numero_lot, statut, ilots!inner(numero, lotissement_id), attributions(attributaire_id, qualite, actuel, attributaires(nom))",
-      )
-      .eq("ilots.lotissement_id", lotissementId)
-      .order("numero_lot")
-      .then(({ data }) => {
-        if (!active) return;
-        const rows = (data ?? []) as unknown as LotRow[];
-        const list: LotEtat[] = rows.map((r) => {
-          const act = r.attributions?.find((a) => a.actuel);
-          return {
-            lot_id: r.id,
-            ilot: r.ilots?.numero ?? "—",
-            numero_lot: r.numero_lot ?? "—",
-            statut: r.statut ?? "—",
-            attributaire_id: act?.attributaire_id ?? null,
-            attributaire_nom: act?.attributaires?.nom ?? null,
-            qualite: (act?.qualite as Qualite) ?? null,
-          };
-        });
-        setEtats(list);
-        setEtatsLoading(false);
+    void (async () => {
+      type LotFlat = { id: string; numero_lot: string | null; statut: string | null; ilots: { numero: string | null } | null };
+      type AttrFlat = { lot_id: string | null; attributaire_id: string | null; qualite: string | null; attributaires: { nom: string | null } | null };
+      const [lotsData, attrsData] = await Promise.all([
+        fetchAllPages<LotFlat>((from, to) =>
+          supabase
+            .from("lots")
+            .select("id, numero_lot, statut, ilots!inner(numero, lotissement_id)")
+            .eq("ilots.lotissement_id", lotissementId)
+            .order("numero_lot", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to) as unknown as PromiseLike<{ data: LotFlat[] | null }>
+        ),
+        fetchAllPages<AttrFlat>((from, to) =>
+          supabase
+            .from("attributions")
+            .select("lot_id, attributaire_id, qualite, attributaires(nom)")
+            .eq("actuel", true)
+            .order("id", { ascending: true })
+            .range(from, to) as unknown as PromiseLike<{ data: AttrFlat[] | null }>
+        ),
+      ]);
+      if (!active) return;
+      const attrByLot = new Map<string, AttrFlat>();
+      for (const a of attrsData) if (a.lot_id) attrByLot.set(a.lot_id, a);
+      const list: LotEtat[] = lotsData.map((r) => {
+        const act = attrByLot.get(r.id);
+        return {
+          lot_id: r.id,
+          ilot: r.ilots?.numero ?? "—",
+          numero_lot: r.numero_lot ?? "—",
+          statut: r.statut ?? "—",
+          attributaire_id: act?.attributaire_id ?? null,
+          attributaire_nom: act?.attributaires?.nom ?? null,
+          qualite: (act?.qualite as Qualite) ?? null,
+        };
       });
+      setEtats(list);
+      setEtatsLoading(false);
+    })();
     return () => {
       active = false;
     };

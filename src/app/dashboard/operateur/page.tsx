@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/Badge";
 import KpiCard from "@/components/dashboard/KpiCard";
 import { createClient } from "@/utils/supabase/client";
+import { fetchAllPages } from "@/lib/supabase-pagination";
 
 /**
  * Espace Opérateur — vue cantonnée à SON périmètre (RLS lots_read_scope).
@@ -77,16 +78,44 @@ export default function OperateurPage() {
         : Promise.resolve({ data: [] });
 
       // Les lots sont déjà cantonnés à l'opérateur par le RLS (lots_read_scope).
-      const lotsPromise = supabase
-        .from("lots")
-        .select(
-          "id, numero_lot, statut, ilots(numero, lotissement_id, lotissements(nom, operateur_id)), attributions(qualite, actuel, attributaires(nom))"
-        )
-        .order("numero_lot", { ascending: true });
+      // L'embed imbriqué lots→attributions→attributaires timeoutait (8 s → HTTP
+      // 500 → 0 lot) sur un gros périmètre (KONE MORIFERE = 849 lots) : PostgREST
+      // le résout en LATERAL par lot avec RLS ré-évaluée ligne à ligne. On charge
+      // donc les attributions À PLAT et on fusionne par lot_id, avec pagination
+      // (> 1000 lignes possibles). Cf. audit dashboards 18/07.
+      type LotBase = Omit<LotRow, "attributions">;
+      type AttrRow = { lot_id: string | null } & NonNullable<LotRow["attributions"]>[number];
+      const lotsPromise = fetchAllPages<LotBase>((from, to) =>
+        supabase
+          .from("lots")
+          .select("id, numero_lot, statut, ilots(numero, lotissement_id, lotissements(nom, operateur_id))")
+          .order("numero_lot", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: LotBase[] | null }>
+      );
+      const attrsPromise = fetchAllPages<AttrRow>((from, to) =>
+        supabase
+          .from("attributions")
+          .select("lot_id, qualite, actuel, attributaires(nom)")
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: AttrRow[] | null }>
+      );
 
-      const [lotiss, lotsRes] = await Promise.all([lotissPromise, lotsPromise]);
+      const [lotiss, lotsData, attrsData] = await Promise.all([lotissPromise, lotsPromise, attrsPromise]);
+
+      const attrsByLot = new Map<string, NonNullable<LotRow["attributions"]>>();
+      for (const a of attrsData) {
+        if (!a.lot_id) continue;
+        const { lot_id, ...rest } = a;
+        const arr = attrsByLot.get(lot_id);
+        if (arr) arr.push(rest);
+        else attrsByLot.set(lot_id, [rest]);
+      }
+
       setLotissements((lotiss.data ?? []) as unknown as LotissementRow[]);
-      setLots((lotsRes.data ?? []) as unknown as LotRow[]);
+      setLots(
+        lotsData.map((l) => ({ ...l, attributions: attrsByLot.get(l.id) ?? [] })) as unknown as LotRow[]
+      );
       setLoading(false);
     })();
   }, [supabase]);

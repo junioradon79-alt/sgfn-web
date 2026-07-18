@@ -15,6 +15,7 @@ import { createClient } from "@/utils/supabase/client";
 import { useChargement } from "@/hooks/useChargement";
 import { useProfile } from "@/hooks/useProfile";
 import { MOYEN_OPTIONS, fcfa, type MoyenPaiement } from "@/lib/paiements";
+import { fetchAllPages } from "@/lib/supabase-pagination";
 import type { Database } from "../../../../database.types";
 
 // ─── Types (spécifiques à la page) ─────────────────────────────────────────────
@@ -380,13 +381,70 @@ export default function LotsPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadLots = async () => {
-    const { data } = await supabase
-      .from("lots")
-      .select(
-        "id, numero_lot, numero_parcelle, ilot_id, statut, verrouille, superficie_m2, est_equipement, nature_droit, observation, guide_page, ilots(id, numero, lotissements(nom, commune, village, autorite_coutumiere_id)), attributions(rang, qualite, actuel, depuis, observation, attributaires(id, nom, type)), attestations_cession(reference, statut, cession_id)"
-      )
-      .order("numero_lot", { ascending: true });
-    setLotRows((data ?? []) as unknown as LotRecord[]);
+    // Le registre était chargé en UN seul embed imbriqué à 2 niveaux depuis `lots`
+    // (lots→attributions→attributaires et lots→attestations_cession). Depuis le
+    // resserrage RLS du 17/07, PostgREST exécute ces embeds en LATERAL par lot en
+    // ré-évaluant la RLS ligne à ligne : sur ~900 lots (périmètre chefferie), la
+    // requête dépasse le statement_timeout de 8 s → HTTP 500 → « 0 lot enregistré ».
+    // On charge donc chaque relation À PLAT (embed ≤ 1 niveau, chacune < 2 s) et on
+    // fusionne par lot_id côté client. La forme LotRecord est reconstituée à
+    // l'identique — modales, badges et alertes PV inchangés.
+    type AttrRow = { lot_id: string | null } & NonNullable<LotRecord["attributions"]>[number];
+    type AttestRow = { lot_id: string | null } & NonNullable<LotRecord["attestations_cession"]>[number];
+
+    // Ordre déterministe (numero_lot pour l'affichage, id/uuid comme départage
+    // stable) requis par la pagination .range().
+    const [lotsData, attrsData, attestData] = await Promise.all([
+      fetchAllPages<LotRecord>((from, to) =>
+        supabase
+          .from("lots")
+          .select(
+            "id, numero_lot, numero_parcelle, ilot_id, statut, verrouille, superficie_m2, est_equipement, nature_droit, observation, guide_page, ilots(id, numero, lotissements(nom, commune, village, autorite_coutumiere_id))"
+          )
+          .order("numero_lot", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: LotRecord[] | null }>
+      ),
+      fetchAllPages<AttrRow>((from, to) =>
+        supabase
+          .from("attributions")
+          .select("lot_id, rang, qualite, actuel, depuis, observation, attributaires(id, nom, type)")
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: AttrRow[] | null }>
+      ),
+      fetchAllPages<AttestRow>((from, to) =>
+        supabase
+          .from("attestations_cession")
+          .select("lot_id, reference, statut, cession_id")
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: AttestRow[] | null }>
+      ),
+    ]);
+
+    const attrsByLot = new Map<string, NonNullable<LotRecord["attributions"]>>();
+    for (const a of attrsData) {
+      if (!a.lot_id) continue;
+      const { lot_id, ...rest } = a;
+      const arr = attrsByLot.get(lot_id);
+      if (arr) arr.push(rest);
+      else attrsByLot.set(lot_id, [rest]);
+    }
+
+    const attestByLot = new Map<string, NonNullable<LotRecord["attestations_cession"]>>();
+    for (const at of attestData) {
+      if (!at.lot_id) continue;
+      const { lot_id, ...rest } = at;
+      const arr = attestByLot.get(lot_id);
+      if (arr) arr.push(rest);
+      else attestByLot.set(lot_id, [rest]);
+    }
+
+    const merged = lotsData.map((l) => ({
+      ...l,
+      attributions: attrsByLot.get(l.id) ?? [],
+      attestations_cession: attestByLot.get(l.id) ?? [],
+    }));
+    setLotRows(merged);
   };
 
   const { isLoading, recharger } = useChargement(loadLots);
@@ -590,12 +648,11 @@ export default function LotsPage() {
     return acc;
   }, {});
 
-  // La chefferie (chef de village) ne voit que les lots de sa juridiction.
-  // Le scoping se fait côté client (les policies SELECT de `lots` sont blanket) —
-  // même logique que la liste /lotissements.
-  const scopedRows = lotRows.filter(
-    (l) => !isChefferie || l.ilots?.lotissements?.autorite_coutumiere_id === profile?.autorite_coutumiere_id
-  );
+  // Périmètre garanti CÔTÉ SERVEUR par la RLS (`lots_read_scope`, scopée par
+  // juridiction / opérateur / famille depuis le 17/07) : la session ne reçoit déjà
+  // que les lots qu'elle a le droit de voir. Plus de filtre client de sécurité —
+  // l'ancien reposait sur des policies « blanket » qui n'existent plus.
+  const scopedRows = lotRows;
   const pvAlertCount = scopedRows.filter((l) => lotPvAlert(l, pvByCollectif)).length;
   const displayedRows = scopedRows
     .filter((l) => !pvFilter || lotPvAlert(l, pvByCollectif))

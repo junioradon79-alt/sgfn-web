@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Map as MapIcon, Boxes, Users } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { useChargement } from "@/hooks/useChargement";
+import { fetchAllPages } from "@/lib/supabase-pagination";
 import { LotDetailModal, type LotRecord, type LitigeRow, type ScoreConfiance } from "@/components/dashboard/lots/LotDetailModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -103,36 +104,49 @@ export default function LotissementDetailClient() {
     const ilotsList = (ilotsData ?? []) as IlotRow[];
     setIlots(ilotsList);
 
-    const ilotIds = ilotsList.map((i) => i.id);
-    if (ilotIds.length === 0) {
+    if (ilotsList.length === 0) {
       setLots([]);
       setAttributaires([]);
       return;
     }
 
-    const { data: lotsData } = await supabase
-      .from("lots")
-      .select("id, numero_lot, statut, superficie_m2, ilot_id")
-      .in("ilot_id", ilotIds)
-      .order("numero_lot");
-    const lotsList = (lotsData ?? []) as LotRow[];
-    setLots(lotsList);
+    // Lots du lotissement via jointure ilots!inner (au lieu d'un .in("ilot_id",
+    // […]) puis .in("lot_id", […]) : sur un gros lotissement comme Brignan
+    // (846 lots), la liste d'UUID fait exploser la longueur d'URL → HTTP 400 →
+    // attributaires manquants. Attributions ACTUELLES chargées à plat (paginées)
+    // et fusionnées par lot_id. Cf. audit dashboards 18/07.
+    type LotFlat = LotRow & { ilots?: unknown };
+    const lotsList = await fetchAllPages<LotFlat>((from, to) =>
+      supabase
+        .from("lots")
+        .select("id, numero_lot, statut, superficie_m2, ilot_id, ilots!inner(lotissement_id)")
+        .eq("ilots.lotissement_id", params.id)
+        .order("numero_lot", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to) as unknown as PromiseLike<{ data: LotFlat[] | null }>
+    );
+    setLots(lotsList as LotRow[]);
 
-    const lotIds = lotsList.map((l) => l.id);
-    if (lotIds.length > 0) {
-      const { data: attribData } = await supabase
+    if (lotsList.length === 0) {
+      setAttributaires([]);
+      return;
+    }
+
+    type AttrFlat = { lot_id: string; qualite: string | null; attributaires: { nom: string } | null };
+    const attribData = await fetchAllPages<AttrFlat>((from, to) =>
+      supabase
         .from("attributions")
         .select("lot_id, qualite, attributaires(nom)")
-        .in("lot_id", lotIds)
-        .eq("actuel", true);
-      setAttributaires(
-        ((attribData ?? []) as unknown as { lot_id: string; qualite: string | null; attributaires: { nom: string } | null }[]).map(
-          (a) => ({ lot_id: a.lot_id, qualite: a.qualite, nom: a.attributaires?.nom ?? "—" })
-        )
-      );
-    } else {
-      setAttributaires([]);
-    }
+        .eq("actuel", true)
+        .order("id", { ascending: true })
+        .range(from, to) as unknown as PromiseLike<{ data: AttrFlat[] | null }>
+    );
+    const lotIdSet = new Set(lotsList.map((l) => l.id));
+    setAttributaires(
+      attribData
+        .filter((a) => lotIdSet.has(a.lot_id))
+        .map((a) => ({ lot_id: a.lot_id, qualite: a.qualite, nom: a.attributaires?.nom ?? "—" }))
+    );
   }, [params.id, supabase]);
 
   const { isLoading: loading } = useChargement(fetchData, [fetchData]);
