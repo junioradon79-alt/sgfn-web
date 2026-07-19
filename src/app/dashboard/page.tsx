@@ -16,6 +16,7 @@ import { TerritoryMap } from "@/components/pilotage/TerritoryMap";
 import { AlertCenter } from "@/components/pilotage/AlertCenter";
 import { ActivityCenter } from "@/components/pilotage/ActivityCenter";
 import { WorkQueues } from "@/components/pilotage/WorkQueues";
+import { QuickActions } from "@/components/pilotage/QuickActions";
 import { AduDialog } from "@/components/pilotage/AduDialog";
 
 /**
@@ -47,8 +48,10 @@ const ROLE_HOME: Record<string, string> = {
  *
  *   1. Où en est le patrimoine ?      → KpiRow
  *   2. Où est-il, physiquement ?      → TerritoryMap (composant principal)
- *   3. Qu'est-ce qui m'attend ?       → AlertCenter · ActivityCenter
- *   4. Que dois-je arbitrer ?         → WorkQueues
+ *   3. Qu'est-ce qui brûle ?          → AlertCenter, en regard de la carte
+ *   4. Que s'est-il passé ?           → ActivityCenter
+ *   5. Que puis-je créer ?            → QuickActions
+ *   6. Que dois-je arbitrer ?         → WorkQueues
  *
  * Toutes les données viennent d'un seul hook (`useAdminOverview`) : deux
  * chiffres de cet écran ne peuvent pas se contredire.
@@ -120,18 +123,19 @@ export default function CentrePilotagePage() {
           couverture={overview.couverture}
           actes={overview.actes}
           recettes={overview.recettes}
+          files={overview.files}
           loading={overview.loading}
         />
 
         <motion.div variants={stagger(0.08, 0.06)} initial="hidden" animate="show" className="flex flex-col gap-5">
-          {/* Composant principal : la seule vue qui répond à « où ? ». */}
-          <TerritoryMap
-            couverture={overview.couverture}
-            totalLots={overview.patrimoine.lots}
-            loading={overview.loading}
-          />
-
-          <div className="grid gap-5 xl:grid-cols-[1fr_1.25fr]">
+          {/* Composant principal : la seule vue qui répond à « où ? ». Le centre
+              d'alertes l'accompagne — ce qui brûle se lit à côté de la carte. */}
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)] xl:items-start">
+            <TerritoryMap
+              couverture={overview.couverture}
+              totalLots={overview.patrimoine.lots}
+              loading={overview.loading}
+            />
             <AlertCenter
               files={overview.files}
               recettes={overview.recettes}
@@ -140,7 +144,11 @@ export default function CentrePilotagePage() {
               onGenererAttestations={genererAttestations}
               genererAttestationsEnCours={genererEnCours}
             />
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)] xl:items-start">
             <ActivityCenter activite={overview.activite} loading={overview.loading} />
+            <QuickActions onNouveauDossier={() => setAduOuvert(true)} />
           </div>
 
           <WorkQueues

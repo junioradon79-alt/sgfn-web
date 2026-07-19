@@ -26,7 +26,10 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-header"
       className={cn(
-        "flex items-start justify-between gap-4 px-5 pt-5 pb-4 has-data-[slot=card-action]:items-center",
+        // `flex-wrap` : sur mobile, titre et actions (onglets, boutons) ne tiennent
+        // pas côte à côte — sans lui, le titre se comprime jusqu'à s'écrire à la
+        // verticale. Les actions passent sous le titre plutôt que de l'écraser.
+        "flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-5 pt-5 pb-4 has-data-[slot=card-action]:items-center",
         className,
       )}
       {...props}

@@ -73,3 +73,5 @@ next-env.d.ts
 .env.local
 
 certificates
+# Captures de contrôle visuel (scripts/e2e-shot.mjs)
+.shots/
