@@ -5,11 +5,19 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { ChevronDown, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
+import { ChevronDown, PanelLeftClose, PanelLeftOpen, Search, Star } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { spring } from "@/lib/motion";
-import { SECTION_LABELS, SECTION_ORDER, type BadgeKey, type NavItem } from "@/lib/navigation";
+import {
+  SECTION_ICONS,
+  SECTION_LABELS,
+  SECTION_LABELS_ROLE,
+  SECTION_ORDER,
+  type BadgeKey,
+  type NavItem,
+} from "@/lib/navigation";
+import { useNavFavoris } from "@/hooks/useNavFavoris";
 import { Button } from "@/components/ds/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ds/tooltip";
 
@@ -41,6 +49,7 @@ export function AppSidebar({
   counts,
   collapsed,
   grouped = true,
+  pilotage = false,
   onToggleCollapsed,
   onNavigate,
 }: {
@@ -50,10 +59,14 @@ export function AppSidebar({
   /** false = liste plate dans l'ordre donné (rôles avec un ordre personnalisé,
    *  cf. `hasCustomNavOrder`) — le regroupement par section le shufflerait. */
   grouped?: boolean;
+  /** true = vocabulaire national (« Cadastre », « Dossiers ») ; false = vocabulaire
+   *  métier (« Registre foncier », « Instruction »). Cf. SECTION_LABELS_ROLE. */
+  pilotage?: boolean;
   onToggleCollapsed?: () => void;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const { favoris, basculer, estFavori } = useNavFavoris();
   const [filtre, setFiltre] = React.useState("");
   /** Sections que l'utilisateur a repliées à la main — tout est ouvert par défaut. */
   const [repliees, setRepliees] = React.useState<Record<string, boolean>>({});
@@ -67,17 +80,33 @@ export function AppSidebar({
     [items, filtreActif, requete],
   );
 
+  const libelleSection = (section: NavItem["section"]) =>
+    (pilotage ? undefined : SECTION_LABELS_ROLE[section]) ?? SECTION_LABELS[section];
+
+  // Ordre d'épinglage, pas ordre du menu : l'utilisateur reconnaît sa liste.
+  // Un favori pointant vers une entrée que son rôle ne voit plus est ignoré.
+  const itemsFavoris = React.useMemo(
+    () => favoris.map((href) => items.find((i) => i.href === href)).filter((i): i is NavItem => Boolean(i)),
+    [favoris, items],
+  );
+
   // `trailingSlash: true` fait que usePathname() renvoie « /dashboard/geometre/ ».
   // On normalise avant de comparer, sinon l'égalité stricte échoue toujours.
   const normalized = pathname.replace(/\/+$/, "");
 
-  const renderItem = (item: NavItem) => {
+  // L'épinglage n'a de sens que sur une navigation longue et dépliée : sur un
+  // menu de six liens, il n'y a rien à raccourcir.
+  const avecFavoris = !collapsed && grouped && items.length > SEUIL_FILTRE;
+
+  const renderItem = (item: NavItem, enFavori = false) => {
     // La racine « /dashboard » est préfixe de tous les sous-écrans : sans
     // l'exclure du match par préfixe, elle resterait surlignée partout.
     const active =
       normalized === item.href || (item.href !== "/dashboard" && normalized.startsWith(item.href + "/"));
     const badge = item.badgeKey ? counts[item.badgeKey] ?? 0 : 0;
-    const Icon = item.icon;
+    // Dans la rubrique Favoris, l'étoile ambre remplace l'icône métier (handoff).
+    const Icon = enFavori ? Star : item.icon;
+    const favori = estFavori(item.href);
 
     const link = (
       <Link
@@ -91,6 +120,8 @@ export function AppSidebar({
             ? "bg-accent-subtle font-semibold text-primary"
             : "font-medium text-muted-foreground hover:bg-inset hover:text-foreground",
           collapsed && "justify-center px-0",
+          // Gouttière réservée à l'étoile : elle ne recouvre jamais la pastille.
+          avecFavoris && "pr-8",
         )}
       >
         {/* Repère d'onglet actif — un trait primary, pas un fond criard. */}
@@ -103,7 +134,7 @@ export function AppSidebar({
           />
         )}
         <span className="relative shrink-0">
-          <Icon className="size-[17px]" aria-hidden />
+          <Icon className={cn("size-[17px]", enFavori && "fill-amber-500 text-amber-500")} aria-hidden />
           {badge > 0 && collapsed && (
             <span className="absolute -top-1 -right-1 size-2 rounded-full bg-danger ring-2 ring-card" aria-hidden />
           )}
@@ -122,7 +153,7 @@ export function AppSidebar({
     );
 
     return (
-      <li key={item.href}>
+      <li key={`${enFavori ? "fav-" : ""}${item.href}`} className="group/item relative">
         {collapsed ? (
           <Tooltip>
             <TooltipTrigger asChild>{link}</TooltipTrigger>
@@ -133,6 +164,23 @@ export function AppSidebar({
           </Tooltip>
         ) : (
           link
+        )}
+
+        {avecFavoris && (
+          <button
+            type="button"
+            onClick={() => basculer(item.href)}
+            aria-pressed={favori}
+            aria-label={favori ? `Retirer « ${item.label} » des favoris` : `Épingler « ${item.label} » aux favoris`}
+            className={cn(
+              "absolute top-1/2 right-1.5 -translate-y-1/2 rounded-md p-1 outline-none transition focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50",
+              favori
+                ? "text-amber-500 opacity-100"
+                : "text-muted-2 opacity-0 group-hover/item:opacity-100 hover:text-amber-500",
+            )}
+          >
+            <Star className={cn("size-3.5", favori && "fill-current")} aria-hidden />
+          </button>
         )}
       </li>
     );
@@ -184,6 +232,15 @@ export function AppSidebar({
       <nav className="flex-1 overflow-x-hidden overflow-y-auto px-3 pt-1.5 pb-3.5" aria-label="Navigation principale">
         {grouped ? (
           <>
+            {/* Favoris — épinglés par l'utilisateur. Rubrique absente tant que
+                rien n'est épinglé : un intitulé vide n'apprend rien. */}
+            {avecFavoris && itemsFavoris.length > 0 && !filtreActif && (
+              <div className="mb-3">
+                <p className="mb-1 px-2 py-1 text-[10px] font-bold tracking-wider text-muted-2 uppercase">Favoris</p>
+                <ul className="flex flex-col gap-0.5">{itemsFavoris.map((item) => renderItem(item, true))}</ul>
+              </div>
+            )}
+
             {SECTION_ORDER.map((section) => {
               const sectionItems = retenus.filter((i) => i.section === section);
               // Une section vidée par le filtre disparaît — un intitulé seul,
@@ -203,19 +260,25 @@ export function AppSidebar({
               // filtre remonterait des liens enfermés dans un pli.
               const ouverte = filtreActif || !repliees[section];
 
+              const IconeSection = SECTION_ICONS[section];
+
               return (
-                <div key={section} className="mb-3 last:mb-0">
+                <div key={section} className="mb-1.5 last:mb-0">
                   <button
                     type="button"
                     onClick={() => setRepliees((r) => ({ ...r, [section]: !r[section] }))}
                     aria-expanded={ouverte}
-                    className="mb-1 flex w-full items-center gap-1.5 rounded-[7px] px-2 py-1 text-[10px] font-bold tracking-wider text-muted-2 uppercase outline-none transition-colors hover:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                    className="mb-1 flex w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-[12px] font-bold tracking-wide text-foreground uppercase outline-none transition-colors hover:bg-inset focus-visible:ring-2 focus-visible:ring-ring/50"
                   >
+                    <IconeSection className="size-[17px] shrink-0 text-primary" aria-hidden />
+                    <span className="truncate">{libelleSection(section)}</span>
                     <ChevronDown
-                      className={cn("size-3 shrink-0 transition-transform", !ouverte && "-rotate-90")}
+                      className={cn(
+                        "ml-auto size-3.5 shrink-0 text-muted-2 transition-transform",
+                        !ouverte && "-rotate-90",
+                      )}
                       aria-hidden
                     />
-                    {SECTION_LABELS[section]}
                   </button>
                   {ouverte && (
                     <ul className="flex flex-col gap-0.5">{sectionItems.map((item) => renderItem(item))}</ul>

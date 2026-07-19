@@ -45,7 +45,13 @@ const env = Object.fromEntries(
 mkdirSync(OUT, { recursive: true });
 const chemin = (suffixe) => new URL(`${nom}-${suffixe}.png`, OUT).pathname.replace(/^\//, "");
 
-const browser = await chromium.launch();
+// Chromium résout Supabase via DNS-over-HTTPS et échoue ici (« Failed to fetch »)
+// alors que Node, qui passe par le résolveur de l'OS, joint le même hôte. Ce
+// n'est pas un défaut de l'application — sans ces drapeaux, l'écran se
+// photographie vide. Cf. mémoire projet « connectivite_dns_securise_chrome ».
+const browser = await chromium.launch({
+  args: ["--dns-over-https-mode=off", "--disable-features=DnsOverHttps"],
+});
 const page = await browser.newPage({ viewport: { width: 1600, height: 1100 } });
 
 const erreurs = [];

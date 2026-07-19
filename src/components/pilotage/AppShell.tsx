@@ -50,7 +50,11 @@ export function AppShell({
    *  Omise sur les autres écrans : la palette masque alors l'entrée. */
   onNouveauDossier?: () => void;
   /** Contenu large (1480 px) pour le Centre de pilotage et sa carte ; sinon
-   *  1200 px, la largeur des dashboards persona du handoff. */
+   *  1200 px, la largeur des dashboards persona du handoff.
+   *  Sert aussi à choisir le vocabulaire des rubriques de la barre latérale :
+   *  seul le Centre de pilotage passe `wide`, et c'est lui qui parle national
+   *  (« Cadastre », « Dossiers ») là où les dashboards métier disent
+   *  « Registre foncier » et « Instruction ». */
   wide?: boolean;
 }) {
   const { profile, loading: profileLoading } = useProfile();
@@ -104,6 +108,7 @@ export function AppShell({
                   counts={counts}
                   collapsed={collapsed}
                   grouped={grouped}
+                  pilotage={wide}
                   onToggleCollapsed={toggleCollapsed}
                 />
               </div>
@@ -118,6 +123,7 @@ export function AppShell({
                   counts={counts}
                   collapsed={false}
                   grouped={grouped}
+                  pilotage={wide}
                   onNavigate={() => setMobileOpen(false)}
                 />
               </SheetContent>

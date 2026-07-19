@@ -64,7 +64,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   // (next.config.ts) fait que `usePathname()` renvoie « /dashboard/geometre/ ».
   // Comparer sans la normaliser affichait deux barres latérales et deux
   // en-têtes superposés.
-  const ECRANS_DS = ["/dashboard", "/dashboard/geometre", "/dashboard/missions", "/dashboard/demarches"];
+  const ECRANS_DS = [
+    "/dashboard",
+    "/dashboard/geometre",
+    "/dashboard/missions",
+    "/dashboard/demarches",
+    // Nés directement sur le DS (rubriques Statistiques et Administration du
+    // handoff) : ils n'ont jamais eu de version « chrome historique ».
+    "/dashboard/statistiques",
+    "/dashboard/administration",
+  ];
   if (ECRANS_DS.includes(pathname.replace(/\/+$/, ""))) {
     return (
       <div className="print:h-auto">
