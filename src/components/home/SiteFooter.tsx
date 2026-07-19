@@ -1,49 +1,33 @@
 import Image from "next/image";
 import Link from "next/link";
 
-type FooterLink = {
-  label: string;
-  href: string;
-};
-
-type FooterColumn = {
-  title: string;
-  links: FooterLink[];
-};
+type FooterColumn = { title: string; links: { label: string; href: string }[] };
 
 const columns: FooterColumn[] = [
   {
-    title: "Plateforme",
+    title: "Produit",
     links: [
-      { label: "Vérifier un document", href: "/verifier" },
-      { label: "Passeport parcelle", href: "/passeport" },
-      { label: "Gestion des lotissements", href: "/services#lotissements" },
-      { label: "Gestion des parcelles", href: "/services#parcelles" },
-      { label: "Coffre-fort documentaire", href: "/services#documentaire" },
-      { label: "Suivi des paiements", href: "/services#paiements" },
-      { label: "Dossiers ADU & ACD", href: "/services#adu" },
-      { label: "Arbitrage des litiges", href: "/services#litiges" },
-    ],
-  },
-  {
-    title: "Partenaires",
-    links: [
-      { label: "Réseau partenaires", href: "/metiers-partenaires" },
-      { label: "Devenir géomètre-expert", href: "/devenir-geometre" },
-      { label: "Collectivités & chefferies", href: "/contact?profil=collectivite" },
-      { label: "Aménageurs & promoteurs", href: "/contact?profil=amenageur" },
-      { label: "Notaires & cabinets juridiques", href: "/contact?profil=notaire" },
-      { label: "Banques & investisseurs", href: "/contact?profil=banque" },
-      { label: "Agences immobilières", href: "/contact?profil=agence-immobiliere" },
+      { label: "Modules", href: "/#modules" },
+      { label: "Cartographie", href: "/#cartographie" },
+      { label: "Marketplace", href: "/#marketplace" },
+      { label: "Sécurité", href: "/#securite" },
     ],
   },
   {
     title: "Ressources",
     links: [
-      { label: "Comment ça marche", href: "/#produit" },
-      { label: "Sécurité & confiance", href: "/#securite" },
       { label: "Questions fréquentes", href: "/#faq" },
+      { label: "Vérifier un document", href: "/verifier" },
+      { label: "Passeport parcelle", href: "/passeport" },
       { label: "Guide d'achat d'un terrain", href: "/guide-achat" },
+      { label: "Mode d'emploi saisie", href: "/mode-emploi-saisie" },
+    ],
+  },
+  {
+    title: "Partenaires",
+    links: [
+      { label: "Métiers & partenaires", href: "/metiers-partenaires" },
+      { label: "Devenir géomètre-expert", href: "/devenir-geometre" },
       { label: "À propos de SGNF", href: "/a-propos" },
     ],
   },
@@ -59,28 +43,32 @@ const columns: FooterColumn[] = [
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-[#E3E8EF] bg-white">
-      <div className="mx-auto max-w-[1280px] px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid gap-10 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr]">
-          <div className="max-w-xs">
-            <Link href="/" className="flex items-center gap-3" aria-label="Accueil SGNF">
-              <Image src="/logo-embleme.png" alt="" width={40} height={40} className="h-10 w-10 object-contain" />
-              <span className="font-display text-xl font-extrabold tracking-tight text-[#0B2E4F]">SGNF</span>
+    <footer className="border-t border-border bg-background px-5 pb-8 pt-16 sm:px-7">
+      <div className="mx-auto max-w-[1280px]">
+        <div className="grid gap-9 md:grid-cols-2 lg:grid-cols-[1.4fr_repeat(4,1fr)]">
+          <div>
+            <Link href="/" className="flex items-center gap-2.5" aria-label="Accueil SGNF">
+              <span className="flex size-8 items-center justify-center rounded-[9px] bg-primary p-[3px]">
+                <span className="flex size-full items-center justify-center overflow-hidden rounded-[6px] bg-white">
+                  <Image src="/logo-embleme.png" alt="" width={22} height={22} className="object-contain" />
+                </span>
+              </span>
+              <span className="font-display text-[16px] font-extrabold text-foreground">SGNF</span>
             </Link>
-            <p className="mt-4 text-sm leading-6 text-[#526176]">
-              Plateforme numérique de confiance pour le foncier en Côte d&apos;Ivoire : identification, vérification et
-              sécurisation des parcelles.
+            <p className="mt-3.5 max-w-[260px] text-[13px] leading-[1.6] text-muted-foreground">
+              Système de Gestion Numérique du Foncier — plateforme nationale de gouvernance foncière de la République de
+              Côte d&apos;Ivoire.
             </p>
           </div>
 
-          {columns.map((column) => (
-            <nav key={column.title} aria-label={column.title}>
-              <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-[#0F5E8C]">{column.title}</h3>
-              <ul className="mt-4 space-y-3">
-                {column.links.map((link) => (
-                  <li key={link.href + link.label}>
-                    <Link href={link.href} className="text-sm text-[#526176] transition-colors hover:text-[#0B2E4F]">
-                      {link.label}
+          {columns.map((col) => (
+            <nav key={col.title} aria-label={col.title}>
+              <div className="text-[11.5px] font-bold uppercase tracking-[0.06em] text-muted-2">{col.title}</div>
+              <ul className="mt-3.5 flex flex-col gap-2.5">
+                {col.links.map((l) => (
+                  <li key={l.href + l.label}>
+                    <Link href={l.href} className="text-[13.5px] text-muted-foreground transition-colors hover:text-foreground">
+                      {l.label}
                     </Link>
                   </li>
                 ))}
@@ -89,19 +77,9 @@ export function SiteFooter() {
           ))}
         </div>
 
-        <div className="mt-12 flex flex-col gap-4 border-t border-[#E3E8EF] pt-6 text-sm text-[#8B98AA] sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col gap-1.5">
-            <p>© 2026 SGNF. Gestion numérique du foncier.</p>
-            <p>Fait pour la Côte d&apos;Ivoire, pensé pour l&apos;Afrique de l&apos;Ouest.</p>
-          </div>
-          <div className="flex items-center gap-1.5 text-[#8B98AA]">
-            <span className="text-xs">Prototype</span>
-            <Image src="/terraci-emblem.svg" alt="TerraCI" width={16} height={16} className="h-4 w-4" />
-            <span className="text-xs font-bold tracking-tight">
-              <span className="text-[#0F2B52]">Terra</span>
-              <span className="text-[#1E9E5A]">CI</span>
-            </span>
-          </div>
+        <div className="mt-12 flex flex-wrap justify-between gap-3 border-t border-border pt-6">
+          <span className="text-[12.5px] text-muted-2">© 2026 SGNF — République de Côte d&apos;Ivoire</span>
+          <span className="text-[12.5px] text-muted-2">Tous droits réservés</span>
         </div>
       </div>
     </footer>

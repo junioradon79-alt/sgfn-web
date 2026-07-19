@@ -73,16 +73,32 @@ sont strictement inchangées. Les composants du DS peignent leur propre surface.
 
 ```
 Surfaces   --background --card --elevated --inset
-Texte      --foreground --muted-foreground
+Texte      --foreground --muted-foreground --muted-2
 Lignes     --border --border-strong --ring
-Marque     --primary --accent --accent-subtle
+Marque     --primary --primary-700 --accent --accent-subtle
 Sémantique --success --warning --danger  (+ variantes -subtle)
 Data-viz   --chart-1 … --chart-5
 ```
 
+> **Refonte 18/07 — alignement sur le handoff design.** Toutes ces valeurs ont
+> été remappées sur le paquet de handoff (`primary #0B4D88`, `accent #1E88E5`,
+> neutres/sémantiques associés), en clair **et** en sombre. Deux tokens ajoutés :
+> `--muted-2` (texte tertiaire) et `--primary-700` (hover/active du primary).
+> L'architecture (custom properties + `@theme inline` + `.dark` scopé) est
+> **inchangée** — seules les valeurs bougent, donc les ~25 pages en hex fixe ne
+> sont pas affectées tant qu'elles n'ont pas migré.
+
 Exposés à Tailwind via `@theme inline` — donc `bg-card`, `text-muted-foreground`,
 `border-border` résolvent la variable **au point d'usage**, ce qui rend le mode
 sombre gratuit.
+
+### Typographie
+
+Handoff : **Geist** en police principale (graisses 300–900), **Inter** en
+secours. `--font-sans` **et** `--font-display` pointent sur le même stack
+`"Geist", "Inter", system-ui, sans-serif` — Geist a remplacé Manrope le 18/07.
+Chargées via Google Fonts. Les chiffres comparés utilisent `.tabular`
+(`tabular-nums`).
 
 ### Mode sombre : scopé, pas global
 
@@ -94,9 +110,14 @@ Vérifié au navigateur — aucune fuite de thème sur `/dashboard/lots`.
 
 Quand les autres pages auront migré, il suffira de remonter la classe d'un cran.
 
-Le navy de marque (`#0B2E4F`) est illisible sur fond sombre : en `.dark`,
-`--primary` bascule sur sa teinte claire (`#5AA9D6`). L'identité survit, le
-contraste passe **WCAG AA** (texte secondaire à 6,4:1 sur les cartes sombres).
+**Comportement de la marque en sombre (refonte 18/07).** Par fidélité au
+handoff, `--primary` (`#0B4D88`), `--accent` (`#1E88E5`) et les sémantiques
+restent **identiques en clair et en sombre** ; seuls neutres et surfaces
+basculent. `--primary-foreground` repasse en **blanc** en sombre — le primary
+reste un bleu foncé, sur lequel le blanc passe AA. *(Décision antérieure
+supersédée : le primary ne bascule plus sur `#5AA9D6` en sombre.)* Seules les
+couleurs de data-viz (`--chart-*`) sont éclaircies en sombre pour rester
+lisibles : le handoff ne les spécifie pas, donc la fidélité n'y contraint rien.
 
 ---
 

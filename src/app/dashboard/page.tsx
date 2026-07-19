@@ -108,6 +108,7 @@ export default function CentrePilotagePage() {
   return (
     <>
       <AppShell
+        wide
         loading={overview.loading}
         majLe={overview.majLe}
         counts={counts}

@@ -44,8 +44,15 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
 
+  // `trailingSlash: true` fait que usePathname() renvoie « /dashboard/geometre/ ».
+  // On normalise avant de comparer, sinon l'égalité stricte échoue toujours.
+  const normalized = pathname.replace(/\/+$/, "");
+
   const renderItem = (item: NavItem) => {
-    const active = pathname === item.href || pathname.startsWith(item.href + "/");
+    // La racine « /dashboard » est préfixe de tous les sous-écrans : sans
+    // l'exclure du match par préfixe, elle resterait surlignée partout.
+    const active =
+      normalized === item.href || (item.href !== "/dashboard" && normalized.startsWith(item.href + "/"));
     const badge = item.badgeKey ? counts[item.badgeKey] ?? 0 : 0;
     const Icon = item.icon;
 
@@ -55,23 +62,25 @@ export function AppSidebar({
         onClick={onNavigate}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "group relative flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] font-medium outline-none transition-colors",
+          "group relative flex items-center gap-2.5 rounded-[9px] px-2.5 py-[9px] text-[13px] outline-none transition-colors",
           "focus-visible:ring-2 focus-visible:ring-ring/50",
-          active ? "bg-accent-subtle text-accent" : "text-muted-foreground hover:bg-inset hover:text-foreground",
+          active
+            ? "bg-accent-subtle font-semibold text-primary"
+            : "font-medium text-muted-foreground hover:bg-inset hover:text-foreground",
           collapsed && "justify-center px-0",
         )}
       >
-        {/* Repère d'onglet actif — un trait, pas un fond criard. */}
+        {/* Repère d'onglet actif — un trait primary, pas un fond criard. */}
         {active && (
           <motion.span
             layoutId="nav-active"
             transition={spring}
-            className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-accent"
+            className="absolute inset-y-[7px] left-0 w-[3px] rounded-full bg-primary"
             aria-hidden
           />
         )}
         <span className="relative shrink-0">
-          <Icon className="size-4" aria-hidden />
+          <Icon className="size-[17px]" aria-hidden />
           {badge > 0 && collapsed && (
             <span className="absolute -top-1 -right-1 size-2 rounded-full bg-danger ring-2 ring-card" aria-hidden />
           )}
@@ -108,23 +117,24 @@ export function AppSidebar({
 
   return (
     <div className="flex h-full flex-col bg-card">
-      {/* Marque */}
-      <div className={cn("flex h-14 shrink-0 items-center border-b border-border", collapsed ? "justify-center px-2" : "gap-2.5 px-4")}>
+      {/* Marque — hauteur alignée sur l'en-tête (72 px) pour que les bordures
+          basses des deux se rejoignent. */}
+      <div className={cn("flex h-[72px] shrink-0 items-center border-b border-border", collapsed ? "justify-center px-2" : "gap-[11px] px-[18px]")}>
         <Link
           href="/"
           onClick={onNavigate}
-          className="flex items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="flex items-center gap-[11px] rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           aria-label="Accueil SGNF"
         >
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary p-[3px]">
-            <span className="flex size-full items-center justify-center overflow-hidden rounded-[5px] bg-white">
-              <Image src="/logo-embleme.png" alt="" width={24} height={24} className="object-contain" priority />
+          <span className="flex size-[38px] shrink-0 items-center justify-center rounded-[11px] bg-primary p-[3px] shadow-[0_4px_10px_rgba(11,77,136,.28)]">
+            <span className="flex size-full items-center justify-center overflow-hidden rounded-[8px] bg-white">
+              <Image src="/logo-embleme.png" alt="" width={28} height={28} className="object-contain" priority />
             </span>
           </span>
           {!collapsed && (
-            <span className="flex min-w-0 flex-col leading-none">
-              <span className="font-display text-[13px] font-extrabold tracking-tight text-foreground uppercase">SGNF</span>
-              <span className="mt-0.5 truncate text-[10px] font-medium text-muted-foreground">Centre de pilotage</span>
+            <span className="flex min-w-0 flex-col leading-tight">
+              <span className="font-display text-[16px] font-extrabold tracking-tight text-foreground uppercase">SGNF</span>
+              <span className="mt-0.5 truncate text-[10.5px] font-medium text-muted-foreground">Centre de pilotage</span>
             </span>
           )}
         </Link>

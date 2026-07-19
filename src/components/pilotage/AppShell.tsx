@@ -29,15 +29,16 @@ const CLE_REPLI = "sgnf:nav-collapsed";
  */
 export function AppShell({
   children,
-  title,
   loading,
   majLe = null,
   counts,
   onRefresh,
   onNouveauDossier,
+  wide = false,
 }: {
   children: React.ReactNode;
-  /** Libellé du fil d'Ariane, dans l'en-tête et le rail mobile. */
+  /** Accepté pour compat (des pages le passent encore) mais non affiché :
+   *  l'en-tête handoff montre la salutation, plus le fil d'Ariane. */
   title?: string;
   loading: boolean;
   majLe?: Date | null;
@@ -48,6 +49,9 @@ export function AppShell({
   /** Action « Nouveau dossier ADU » — propre au Centre de pilotage admin.
    *  Omise sur les autres écrans : la palette masque alors l'entrée. */
   onNouveauDossier?: () => void;
+  /** Contenu large (1480 px) pour le Centre de pilotage et sa carte ; sinon
+   *  1200 px, la largeur des dashboards persona du handoff. */
+  wide?: boolean;
 }) {
   const { profile, loading: profileLoading } = useProfile();
   const { choice, isDark, setTheme } = useTheme();
@@ -91,7 +95,7 @@ export function AppShell({
             <aside
               className={cn(
                 "hidden shrink-0 border-r border-border transition-[width] duration-200 ease-out lg:block print:hidden",
-                collapsed ? "w-[3.75rem]" : "w-[15.5rem]",
+                collapsed ? "w-[4.75rem]" : "w-[250px]",
               )}
             >
               <div className="sticky top-0 h-screen">
@@ -121,7 +125,6 @@ export function AppShell({
 
             <div className="flex min-w-0 flex-1 flex-col">
               <AppHeader
-                title={title}
                 nom={nom}
                 role={role}
                 majLe={majLe}
@@ -135,7 +138,12 @@ export function AppShell({
 
               {/* Le rythme vertical (gap-5) et la respiration latérale sont posés
                   ici, une seule fois : aucun panneau ne gère sa propre marge. */}
-              <main className="mx-auto flex w-full max-w-[1480px] flex-1 flex-col gap-5 p-4 sm:p-6 lg:px-8 lg:py-7 print:p-0">
+              <main
+                className={cn(
+                  "mx-auto flex w-full flex-1 flex-col gap-5 p-4 sm:p-6 lg:px-8 lg:py-7 print:p-0",
+                  wide ? "max-w-[1480px]" : "max-w-[1200px]",
+                )}
+              >
                 {children}
               </main>
 
