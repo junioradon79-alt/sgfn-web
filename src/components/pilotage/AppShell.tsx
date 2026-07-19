@@ -95,7 +95,7 @@ export function AppShell({
             <aside
               className={cn(
                 "hidden shrink-0 border-r border-border transition-[width] duration-200 ease-out lg:block print:hidden",
-                collapsed ? "w-[4.75rem]" : "w-[250px]",
+                collapsed ? "w-[4.75rem]" : "w-[264px]",
               )}
             >
               <div className="sticky top-0 h-screen">

@@ -5,13 +5,24 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronDown, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { spring } from "@/lib/motion";
 import { SECTION_LABELS, SECTION_ORDER, type BadgeKey, type NavItem } from "@/lib/navigation";
 import { Button } from "@/components/ds/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ds/tooltip";
+
+/** Comparaison indifférente aux accents et à la casse : « geometre » doit trouver « Géomètres-experts ». */
+const pliable = (s: string) =>
+  s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+
+/**
+ * Au-delà de ce nombre d'entrées, une liste ne se parcourt plus du regard et le
+ * filtre devient utile. En deçà (dashboards par rôle, 6 à 8 liens), il n'ajoute
+ * que du bruit — le handoff ne le montre d'ailleurs que sur le Pilotage.
+ */
+const SEUIL_FILTRE = 12;
 
 /**
  * Barre latérale du Centre de pilotage.
@@ -43,6 +54,18 @@ export function AppSidebar({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const [filtre, setFiltre] = React.useState("");
+  /** Sections que l'utilisateur a repliées à la main — tout est ouvert par défaut. */
+  const [repliees, setRepliees] = React.useState<Record<string, boolean>>({});
+
+  const filtrable = !collapsed && items.length > SEUIL_FILTRE;
+  const requete = pliable(filtre.trim());
+  const filtreActif = filtrable && requete.length > 0;
+
+  const retenus = React.useMemo(
+    () => (filtreActif ? items.filter((i) => pliable(i.label).includes(requete)) : items),
+    [items, filtreActif, requete],
+  );
 
   // `trailingSlash: true` fait que usePathname() renvoie « /dashboard/geometre/ ».
   // On normalise avant de comparer, sinon l'égalité stricte échoue toujours.
@@ -139,48 +162,92 @@ export function AppSidebar({
           )}
         </Link>
 
-        {!collapsed && onToggleCollapsed && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onToggleCollapsed}
-            className="ml-auto hidden lg:inline-flex"
-            aria-label="Replier la navigation"
-          >
-            <PanelLeftClose />
-          </Button>
-        )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-3" aria-label="Navigation principale">
-        {grouped ? (
-          SECTION_ORDER.map((section) => {
-            const sectionItems = items.filter((i) => i.section === section);
-            if (sectionItems.length === 0) return null;
+      {/* Filtre du menu — réservé aux navigations longues (cf. SEUIL_FILTRE). */}
+      {filtrable && (
+        <div className="px-3.5 pt-3.5 pb-2">
+          <div className="flex h-[38px] items-center gap-2 rounded-[10px] border border-border bg-inset px-[11px] focus-within:border-primary/50">
+            <Search className="size-[15px] shrink-0 text-muted-2" aria-hidden />
+            <input
+              value={filtre}
+              onChange={(e) => setFiltre(e.target.value)}
+              placeholder="Filtrer le menu…"
+              aria-label="Filtrer le menu"
+              className="w-full bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-2"
+            />
+          </div>
+        </div>
+      )}
 
-            return (
-              <div key={section} className="mb-4 last:mb-0">
-                {collapsed ? (
-                  <div className="mx-2 mb-2 h-px bg-border" aria-hidden />
-                ) : (
-                  <p className="mb-1 px-2 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+      {/* Navigation */}
+      <nav className="flex-1 overflow-x-hidden overflow-y-auto px-3 pt-1.5 pb-3.5" aria-label="Navigation principale">
+        {grouped ? (
+          <>
+            {SECTION_ORDER.map((section) => {
+              const sectionItems = retenus.filter((i) => i.section === section);
+              // Une section vidée par le filtre disparaît — un intitulé seul,
+              // sans lien dessous, ne renseigne sur rien.
+              if (sectionItems.length === 0) return null;
+
+              if (collapsed) {
+                return (
+                  <div key={section} className="mb-4 last:mb-0">
+                    <div className="mx-2 mb-2 h-px bg-border" aria-hidden />
+                    <ul className="flex flex-col gap-0.5">{sectionItems.map((item) => renderItem(item))}</ul>
+                  </div>
+                );
+              }
+
+              // Pendant une recherche les sections s'ouvrent d'office : sinon le
+              // filtre remonterait des liens enfermés dans un pli.
+              const ouverte = filtreActif || !repliees[section];
+
+              return (
+                <div key={section} className="mb-3 last:mb-0">
+                  <button
+                    type="button"
+                    onClick={() => setRepliees((r) => ({ ...r, [section]: !r[section] }))}
+                    aria-expanded={ouverte}
+                    className="mb-1 flex w-full items-center gap-1.5 rounded-[7px] px-2 py-1 text-[10px] font-bold tracking-wider text-muted-2 uppercase outline-none transition-colors hover:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                  >
+                    <ChevronDown
+                      className={cn("size-3 shrink-0 transition-transform", !ouverte && "-rotate-90")}
+                      aria-hidden
+                    />
                     {SECTION_LABELS[section]}
-                  </p>
-                )}
-                <ul className="flex flex-col gap-0.5">{sectionItems.map((item) => renderItem(item))}</ul>
-              </div>
-            );
-          })
+                  </button>
+                  {ouverte && (
+                    <ul className="flex flex-col gap-0.5">{sectionItems.map((item) => renderItem(item))}</ul>
+                  )}
+                </div>
+              );
+            })}
+
+            {filtreActif && retenus.length === 0 && (
+              <p className="px-2 py-6 text-center text-[12.5px] text-muted-2">Aucune entrée de menu</p>
+            )}
+          </>
         ) : (
-          <ul className="flex flex-col gap-0.5">{items.map((item) => renderItem(item))}</ul>
+          <ul className="flex flex-col gap-0.5">{retenus.map((item) => renderItem(item))}</ul>
         )}
       </nav>
 
-      {collapsed && onToggleCollapsed && (
-        <div className="hidden border-t border-border p-2 lg:block">
-          <Button variant="ghost" size="icon-sm" onClick={onToggleCollapsed} className="w-full" aria-label="Déplier la navigation">
-            <PanelLeftOpen />
+      {/* Repli — bouton nommé en pied, comme le handoff, plutôt qu'une icône
+          muette perdue dans l'en-tête. */}
+      {onToggleCollapsed && (
+        <div className="hidden shrink-0 border-t border-border px-3.5 py-3 lg:block">
+          <Button
+            variant="ghost"
+            onClick={onToggleCollapsed}
+            className={cn(
+              "h-auto w-full gap-2.5 rounded-[9px] px-2.5 py-2.5 text-[13px] font-medium text-muted-foreground hover:bg-inset hover:text-foreground",
+              collapsed ? "justify-center px-0" : "justify-start",
+            )}
+            aria-label={collapsed ? "Déplier la navigation" : "Replier la navigation"}
+          >
+            {collapsed ? <PanelLeftOpen className="size-[17px]" /> : <PanelLeftClose className="size-[17px]" />}
+            {!collapsed && "Réduire le menu"}
           </Button>
         </div>
       )}
