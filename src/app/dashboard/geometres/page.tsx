@@ -1,11 +1,23 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
-import { Building2, Check, Copy, IdCard, Link2, Phone, Pencil, Plus, Ruler, Search, ThumbsDown, ThumbsUp, UserPlus, X } from "lucide-react";
+import { motion } from "framer-motion";
+import { Building2, Check, Copy, IdCard, Link2, Phone, Pencil, Plus, Ruler, Search, ThumbsDown, ThumbsUp, UserPlus } from "lucide-react";
+
+import { AppShell } from "@/components/pilotage/AppShell";
 import { Badge } from "@/components/ui/Badge";
-import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Input } from "@/components/ds/input";
+import { Kpi } from "@/components/ds/kpi";
+import { Field } from "@/components/ds/label";
+import { SelectItem } from "@/components/ds/select";
+import { ChampSelect, ModaleFormulaire } from "@/components/dashboard/ModaleFormulaire";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
 import { createClient } from "@/utils/supabase/client";
+import { fadeUp, stagger } from "@/lib/motion";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -40,9 +52,10 @@ function CopyButton({ text }: { text: string }) {
       type="button"
       onClick={handleCopy}
       title="Copier le code"
-      className="ml-1 rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+      aria-label="Copier le code"
+      className="ml-1 rounded p-1 text-muted-foreground transition hover:bg-inset hover:text-foreground"
     >
-      {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+      {copied ? <Check className="text-success size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
     </button>
   );
 }
@@ -73,6 +86,7 @@ const EMPTY_FORM: FormState = {
 
 export default function GeometresExpertsPage() {
   const supabase = createClient();
+  const { counts } = useBadgeCounts();
 
   const [geometres, setGeometres] = useState<GeometreRecord[]>([]);
   const [profiles, setProfiles] = useState<ProfileOption[]>([]);
@@ -229,39 +243,69 @@ export default function GeometresExpertsPage() {
   // Comptes géomètre disponibles pour la liaison : non liés + celui déjà lié à la fiche en cours d'édition.
   const comptesDisponibles = profiles.filter((p) => !p.geometre_id || p.id === form.profile_id);
 
+  const lies = geometres.filter((g) => comptePourGeometre(g.id)).length;
+
   return (
-    <div className="mx-auto max-w-6xl p-6 sm:p-8">
+    <AppShell loading={loading} counts={counts} onRefresh={() => void recharger()}>
       {/* En-tête */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Réseau partenaires</p>
-          <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-[#0D3B66]">Géomètres-experts</h1>
-          <p className="mt-1.5 text-sm sm:text-base text-slate-500">
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Réseau partenaires</p>
+          <h1 className="mt-1 font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+            Géomètres-experts
+          </h1>
+          <p className="mt-1 text-[13.5px] text-muted-foreground">
             Registre des géomètres-experts partenaires : numéro d&apos;ordre, cabinet et compte SGNF associé.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:bg-[#1E6091] hover:shadow-md active:scale-[0.98]"
-        >
-          <Plus className="h-4 w-4" />
+        <Button variant="primary" onClick={openCreate} className="shrink-0">
+          <Plus className="size-4" aria-hidden />
           Nouveau géomètre-expert
-        </button>
+        </Button>
       </div>
+
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+      >
+        <Kpi
+          icon={Ruler}
+          label="Géomètres inscrits"
+          loading={loading}
+          value={geometres.length}
+          legende={<>Au registre partenaires</>}
+        />
+        <Kpi
+          icon={Link2}
+          label="Comptes rattachés"
+          loading={loading}
+          value={lies}
+          legende={<>Fiches liées à un compte SGNF</>}
+        />
+        <Kpi
+          icon={UserPlus}
+          label="Demandes en attente"
+          loading={loading}
+          value={demandes.length}
+          tone={demandes.length > 0 ? "warning" : "neutral"}
+          legende={<>À approuver ou rejeter</>}
+        />
+      </motion.section>
 
       {/* Demandes d'inscription en attente */}
       {demandes.length > 0 && (
-        <div className="mb-8 space-y-3">
+        <section className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
-            <UserPlus className="h-4 w-4 text-[#1E6091]" />
-            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-[#1E6091]">
+            <UserPlus className="text-accent size-4" aria-hidden />
+            <h2 className="text-[11px] font-bold tracking-[0.18em] text-muted-foreground uppercase">
               Demandes en attente ({demandes.length})
             </h2>
           </div>
 
           {demandeErreur && (
-            <div className="rounded-2xl border border-red-200/70 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="border-danger/30 bg-danger-subtle text-danger rounded-xl border px-4 py-3 text-sm">
               {demandeErreur}
             </div>
           )}
@@ -269,281 +313,224 @@ export default function GeometresExpertsPage() {
           {demandes.map((d) => {
             const code = codesGeneres[d.id];
             return (
-              <div
-                key={d.id}
-                className="rounded-2xl border border-amber-200/70 bg-amber-50/40 px-5 py-4"
-              >
+              <Card key={d.id} className="border-warning/30 bg-warning-subtle px-5 py-4">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-800">{d.nom}</p>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                    <p className="text-sm font-semibold text-foreground">{d.nom}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                       {d.numero_ordre && (
                         <span className="inline-flex items-center gap-1">
-                          <IdCard className="h-3 w-3" /> {d.numero_ordre}
+                          <IdCard className="size-3" aria-hidden /> {d.numero_ordre}
                         </span>
                       )}
                       {d.cabinet && (
                         <span className="inline-flex items-center gap-1">
-                          <Building2 className="h-3 w-3" /> {d.cabinet}
+                          <Building2 className="size-3" aria-hidden /> {d.cabinet}
                         </span>
                       )}
                       <span className="inline-flex items-center gap-1">
-                        <Phone className="h-3 w-3" /> {d.telephone}
+                        <Phone className="size-3" aria-hidden /> {d.telephone}
                       </span>
                       {d.email && <span>{d.email}</span>}
                     </div>
-                    {d.message && <p className="mt-2 text-xs text-slate-500">« {d.message} »</p>}
+                    {d.message && <p className="mt-2 text-xs text-muted-foreground">« {d.message} »</p>}
                   </div>
 
                   {code ? (
-                    <div className="flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-mono font-semibold text-emerald-700">
+                    <div className="border-success/30 bg-success-subtle text-success flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 font-mono text-xs font-semibold">
                       {code}
                       <CopyButton text={code} />
                     </div>
                   ) : (
                     <div className="flex shrink-0 items-center gap-2">
-                      <button
-                        type="button"
+                      <Button
+                        size="sm"
+                        variant="outline"
                         onClick={() => handleRejeter(d.id)}
                         disabled={demandeEnCours === d.id}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
                       >
-                        <ThumbsDown className="h-3.5 w-3.5" />
+                        <ThumbsDown className="size-3.5" aria-hidden />
                         Rejeter
-                      </button>
-                      <button
-                        type="button"
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        loading={demandeEnCours === d.id}
                         onClick={() => handleApprouver(d.id)}
-                        disabled={demandeEnCours === d.id}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-[#0D3B66] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[#1E6091] disabled:opacity-50"
                       >
-                        <ThumbsUp className="h-3.5 w-3.5" />
-                        {demandeEnCours === d.id ? "..." : "Approuver"}
-                      </button>
+                        {demandeEnCours !== d.id && <ThumbsUp className="size-3.5" aria-hidden />}
+                        Approuver
+                      </Button>
                     </div>
                   )}
                 </div>
                 {code && (
-                  <p className="mt-2 text-xs text-emerald-700">
+                  <p className="text-success mt-2 text-xs">
                     Fiche créée — transmettez ce code au géomètre pour qu&apos;il finalise son inscription sur /inscription.
                   </p>
                 )}
-              </div>
+              </Card>
             );
           })}
-        </div>
+        </section>
       )}
 
       {/* Recherche */}
-      <div className="mb-6">
-        <div className="relative w-full max-w-sm">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <Input
-            type="search"
-            placeholder="Rechercher un nom, un numéro d'ordre, un cabinet…"
-            className="pl-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+      <div className="relative w-full max-w-sm">
+        <Search
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+          aria-hidden
+        />
+        <Input
+          type="search"
+          placeholder="Rechercher un nom, un numéro d'ordre, un cabinet…"
+          className="pl-9"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
       {/* Liste */}
-      {loading ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-10 text-center text-sm text-slate-400">
-          Chargement…
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-10 text-center text-sm text-slate-500">
-          {geometres.length === 0
-            ? "Aucun géomètre-expert enregistré. Cliquez sur « Nouveau géomètre-expert » pour commencer."
-            : "Aucun résultat pour cette recherche."}
-        </div>
+      {loading ? null : filtered.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={Ruler}
+            tone={geometres.length === 0 ? "pending" : "neutral"}
+            title={geometres.length === 0 ? "Aucun géomètre-expert enregistré" : "Aucun résultat"}
+            description={
+              geometres.length === 0
+                ? "Cliquez sur « Nouveau géomètre-expert » pour créer la première fiche du registre."
+                : "Aucune fiche ne correspond à cette recherche."
+            }
+          />
+        </Card>
       ) : (
-        <div className="space-y-2">
+        <motion.div variants={stagger(0, 0.04)} initial="hidden" animate="show" className="flex flex-col gap-2">
           {filtered.map((g) => {
             const compte = comptePourGeometre(g.id);
             return (
-              <div
-                key={g.id}
-                className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200/60 bg-white px-5 py-4 shadow-sm"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#0D3B66]/10">
-                    <Ruler className="h-4.5 w-4.5 text-[#0D3B66]" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-800">{g.nom}</p>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
-                      {g.numero_ordre && (
-                        <span className="inline-flex items-center gap-1">
-                          <IdCard className="h-3 w-3" /> {g.numero_ordre}
-                        </span>
-                      )}
-                      {g.cabinet && (
-                        <span className="inline-flex items-center gap-1">
-                          <Building2 className="h-3 w-3" /> {g.cabinet}
-                        </span>
-                      )}
-                      {g.contact && (
-                        <span className="inline-flex items-center gap-1">
-                          <Phone className="h-3 w-3" /> {g.contact}
-                        </span>
-                      )}
+              <motion.div key={g.id} variants={fadeUp}>
+                <Card className="flex-row items-center justify-between gap-4 px-5 py-4">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="bg-accent-subtle flex size-10 shrink-0 items-center justify-center rounded-xl">
+                      <Ruler className="text-accent size-4.5" aria-hidden />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-foreground">{g.nom}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        {g.numero_ordre && (
+                          <span className="inline-flex items-center gap-1">
+                            <IdCard className="size-3" aria-hidden /> {g.numero_ordre}
+                          </span>
+                        )}
+                        {g.cabinet && (
+                          <span className="inline-flex items-center gap-1">
+                            <Building2 className="size-3" aria-hidden /> {g.cabinet}
+                          </span>
+                        )}
+                        {g.contact && (
+                          <span className="inline-flex items-center gap-1">
+                            <Phone className="size-3" aria-hidden /> {g.contact}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  {compte ? (
-                    <Badge status="disponible">
-                      <Link2 className="h-3 w-3" /> {compte.nom_complet}
-                    </Badge>
-                  ) : (
-                    <Badge status="en_validation">Aucun compte lié</Badge>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => openEdit(g)}
-                    title="Modifier"
-                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Modifier
-                  </button>
-                </div>
-              </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    {compte ? (
+                      <Badge status="disponible">
+                        <Link2 className="size-3" aria-hidden /> {compte.nom_complet}
+                      </Badge>
+                    ) : (
+                      <Badge status="en_validation">Aucun compte lié</Badge>
+                    )}
+                    <Button size="sm" variant="outline" onClick={() => openEdit(g)} title="Modifier">
+                      <Pencil className="size-3.5" aria-hidden />
+                      Modifier
+                    </Button>
+                  </div>
+                </Card>
+              </motion.div>
             );
           })}
-        </div>
+        </motion.div>
       )}
 
       {/* Modal création / édition */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-2xl sm:p-8">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
-                  {editingId ? "Modifier la fiche" : "Nouveau géomètre-expert"}
-                </p>
-                <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">
-                  {editingId ? "Mettre à jour le géomètre-expert" : "Enregistrer un géomètre-expert"}
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                aria-label="Fermer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+        <ModaleFormulaire
+          surTitre={editingId ? "Modifier la fiche" : "Nouveau géomètre-expert"}
+          titre={editingId ? "Mettre à jour le géomètre-expert" : "Enregistrer un géomètre-expert"}
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handleSubmit}
+          error={errorMessage}
+          isSubmitting={isSubmitting}
+          libelleAction={editingId ? "Mettre à jour" : "Enregistrer"}
+          libelleEnCours="Enregistrement…"
+        >
+          <Field label="Nom complet" htmlFor="geo-nom" required>
+            <Input
+              id="geo-nom"
+              type="text"
+              value={form.nom}
+              onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))}
+              placeholder="Ex. Kouamé N'Guessan, Géomètre-Expert"
+              required
+            />
+          </Field>
 
-            <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-              <div className="space-y-1.5">
-                <label htmlFor="geo-nom" className="text-sm font-medium text-slate-700">
-                  Nom complet <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  id="geo-nom"
-                  type="text"
-                  value={form.nom}
-                  onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))}
-                  placeholder="Ex. Kouamé N'Guessan, Géomètre-Expert"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label htmlFor="geo-numero-ordre" className="text-sm font-medium text-slate-700">
-                    Numéro d&apos;ordre
-                  </label>
-                  <Input
-                    id="geo-numero-ordre"
-                    type="text"
-                    value={form.numero_ordre}
-                    onChange={(e) => setForm((f) => ({ ...f, numero_ordre: e.target.value }))}
-                    placeholder="Ex. OGEF-CI-0042"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label htmlFor="geo-contact" className="text-sm font-medium text-slate-700">
-                    Contact
-                  </label>
-                  <Input
-                    id="geo-contact"
-                    type="text"
-                    value={form.contact}
-                    onChange={(e) => setForm((f) => ({ ...f, contact: e.target.value }))}
-                    placeholder="+225 07 00 00 00 00"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label htmlFor="geo-cabinet" className="text-sm font-medium text-slate-700">
-                  Cabinet
-                </label>
-                <Input
-                  id="geo-cabinet"
-                  type="text"
-                  value={form.cabinet}
-                  onChange={(e) => setForm((f) => ({ ...f, cabinet: e.target.value }))}
-                  placeholder="Ex. Cabinet Kouamé & Associés"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label htmlFor="geo-compte" className="text-sm font-medium text-slate-700">
-                  Compte SGNF lié
-                </label>
-                <select
-                  id="geo-compte"
-                  value={form.profile_id}
-                  onChange={(e) => setForm((f) => ({ ...f, profile_id: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-                >
-                  <option value="">Aucun compte lié</option>
-                  {comptesDisponibles.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nom_complet}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-400">
-                  Rattache cette fiche à un compte « géomètre » existant — il verra alors son propre nom, cabinet et
-                  numéro d&apos;ordre dans son espace dédié.
-                </p>
-              </div>
-
-              {errorMessage && (
-                <div className="rounded-2xl border border-red-200/70 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {errorMessage}
-                </div>
-              )}
-
-              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E6091] disabled:opacity-70"
-                >
-                  {isSubmitting ? "Enregistrement…" : editingId ? "Mettre à jour" : "Enregistrer"}
-                </button>
-              </div>
-            </form>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Numéro d'ordre" htmlFor="geo-numero-ordre">
+              <Input
+                id="geo-numero-ordre"
+                type="text"
+                value={form.numero_ordre}
+                onChange={(e) => setForm((f) => ({ ...f, numero_ordre: e.target.value }))}
+                placeholder="Ex. OGEF-CI-0042"
+              />
+            </Field>
+            <Field label="Contact" htmlFor="geo-contact">
+              <Input
+                id="geo-contact"
+                type="text"
+                value={form.contact}
+                onChange={(e) => setForm((f) => ({ ...f, contact: e.target.value }))}
+                placeholder="+225 07 00 00 00 00"
+              />
+            </Field>
           </div>
-        </div>
+
+          <Field label="Cabinet" htmlFor="geo-cabinet">
+            <Input
+              id="geo-cabinet"
+              type="text"
+              value={form.cabinet}
+              onChange={(e) => setForm((f) => ({ ...f, cabinet: e.target.value }))}
+              placeholder="Ex. Cabinet Kouamé & Associés"
+            />
+          </Field>
+
+          <div>
+            <ChampSelect
+              id="geo-compte"
+              label="Compte SGNF lié"
+              value={form.profile_id}
+              onChange={(v) => setForm((f) => ({ ...f, profile_id: v }))}
+              placeholder="Aucun compte lié"
+            >
+              {comptesDisponibles.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.nom_complet}
+                </SelectItem>
+              ))}
+            </ChampSelect>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Rattache cette fiche à un compte « géomètre » existant — il verra alors son propre nom, cabinet et
+              numéro d&apos;ordre dans son espace dédié.
+            </p>
+          </div>
+        </ModaleFormulaire>
       )}
-    </div>
+    </AppShell>
   );
 }
