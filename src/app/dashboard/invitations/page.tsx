@@ -1,12 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useChargement } from "@/hooks/useChargement";
+import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { Check, Clock, Copy, UserPlus, X } from "lucide-react";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
+import { Card, CardHeader, CardTitle } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Input } from "@/components/ds/input";
+import { Kpi } from "@/components/ds/kpi";
+import { Field } from "@/components/ds/label";
+import { SelectItem } from "@/components/ds/select";
+import { ChampSelect } from "@/components/dashboard/ModaleFormulaire";
 import { createClient } from "@/utils/supabase/client";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { useChargement } from "@/hooks/useChargement";
+import { fadeUp, stagger } from "@/lib/motion";
 import type { Database } from "../../../../database.types";
-import SGNFButton from "@/components/ui/SGNFButton";
-import { Input } from "@/components/ui/Input";
-import { UserPlus, Copy, Check, X } from "lucide-react";
 
 const GROUPES = [
   // Rôle legacy « Propriétaire » (par achat) déprécié → fondu dans « Propriétaire terrien ».
@@ -20,11 +32,11 @@ const GROUPES = [
   { value: "operateur", label: "Opérateur / Aménageur" },
 ];
 
-const STATUT_STYLES: Record<string, string> = {
-  en_attente: "bg-amber-50 text-amber-700 border border-amber-200",
-  utilisee: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  revoquee: "bg-red-50 text-red-600 border border-red-200",
-  expiree: "bg-slate-100 text-slate-500 border border-slate-200",
+const STATUT_TONE: Record<string, "warning" | "success" | "danger" | "neutral"> = {
+  en_attente: "warning",
+  utilisee: "success",
+  revoquee: "danger",
+  expiree: "neutral",
 };
 
 const STATUT_LABELS: Record<string, string> = {
@@ -38,20 +50,7 @@ const GROUPES_ATTRIBUTAIRE_REQUIS = ["proprietaire", "acquereur"];
 const GROUPES_AUTORITE_REQUIS = ["chefferie"];
 const GROUPES_FAMILLE_REQUIS = ["proprietaire_terrien"];
 
-type Attributaire = {
-  id: string;
-  nom: string;
-};
-
-type Autorite = {
-  id: string;
-  nom: string;
-};
-
-type Famille = {
-  id: string;
-  nom: string;
-};
+type Option = { id: string; nom: string };
 
 type Invitation = {
   id: string;
@@ -81,22 +80,26 @@ function CopyButton({ text }: { text: string }) {
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-    <button
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      className="ml-1"
       onClick={handleCopy}
       title="Copier le code"
-      className="ml-1 rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+      aria-label={`Copier le code ${text}`}
     >
-      {copied ? (
-        <Check className="h-3.5 w-3.5 text-emerald-500" />
-      ) : (
-        <Copy className="h-3.5 w-3.5" />
-      )}
-    </button>
+      {copied ? <Check className="text-success" /> : <Copy />}
+    </Button>
   );
 }
 
+/** Statut effectif : une invitation en attente dont la date est passée est expirée. */
+const statutEffectif = (inv: Invitation) =>
+  inv.statut === "en_attente" && new Date(inv.expire_le) < new Date() ? "expiree" : inv.statut;
+
 export default function InvitationsPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+  const { counts } = useBadgeCounts();
 
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -110,42 +113,29 @@ export default function InvitationsPage() {
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
   const [attributaireId, setAttributaireId] = useState("");
-  const [attributaires, setAttributaires] = useState<Attributaire[]>([]);
+  const [attributaires, setAttributaires] = useState<Option[]>([]);
   const [autoriteCoutumiereId, setAutoriteCoutumiereId] = useState("");
-  const [autorites, setAutorites] = useState<Autorite[]>([]);
+  const [autorites, setAutorites] = useState<Option[]>([]);
   const [familleId, setFamilleId] = useState("");
-  const [familles, setFamilles] = useState<Famille[]>([]);
+  const [familles, setFamilles] = useState<Option[]>([]);
 
   const attributaireRequis = GROUPES_ATTRIBUTAIRE_REQUIS.includes(groupe);
   const autoriteRequise = GROUPES_AUTORITE_REQUIS.includes(groupe);
   const familleRequise = GROUPES_FAMILLE_REQUIS.includes(groupe);
 
   useEffect(() => {
-    supabase
-      .from("attributaires")
-      .select("id, nom")
-      .order("nom")
-      .then(({ data }) => setAttributaires((data as Attributaire[]) ?? []));
-
-    supabase
-      .from("autorites_coutumieres")
-      .select("id, nom")
-      .order("nom")
-      .then(({ data }) => setAutorites((data as Autorite[]) ?? []));
-
-    supabase
-      .from("familles")
-      .select("id, nom")
-      .order("nom")
-      .then(({ data }) => setFamilles((data as Famille[]) ?? []));
-  }, []);
+    supabase.from("attributaires").select("id, nom").order("nom")
+      .then(({ data }) => setAttributaires((data as Option[]) ?? []));
+    supabase.from("autorites_coutumieres").select("id, nom").order("nom")
+      .then(({ data }) => setAutorites((data as Option[]) ?? []));
+    supabase.from("familles").select("id, nom").order("nom")
+      .then(({ data }) => setFamilles((data as Option[]) ?? []));
+  }, [supabase]);
 
   const fetchInvitations = async () => {
     const { data } = await supabase
       .from("invitations")
-      .select(
-        "id, code, groupe, nom_complet, email, statut, cree_le, expire_le, utilisee_le"
-      )
+      .select("id, code, groupe, nom_complet, email, statut, cree_le, expire_le, utilisee_le")
       .order("cree_le", { ascending: false });
     setInvitations((data as Invitation[]) ?? []);
   };
@@ -157,9 +147,7 @@ export default function InvitationsPage() {
     setIsPending(true);
     setError("");
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
       setError("Non authentifié.");
@@ -208,291 +196,255 @@ export default function InvitationsPage() {
     setRevoking(null);
   };
 
+  const enAttente = invitations.filter((i) => statutEffectif(i) === "en_attente").length;
+  const utilisees = invitations.filter((i) => i.statut === "utilisee").length;
+
   return (
-    <div className="space-y-6">
-      {/* En-tête */}
-      <div className="flex items-center justify-between">
+    <AppShell loading={loading} counts={counts} onRefresh={recharger}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Invitations</h1>
-          <p className="mt-0.5 text-sm text-slate-500">
-            Gérez les codes d&apos;accès pour les nouveaux utilisateurs.
+          <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+            Invitations
+          </h1>
+          <p className="mt-1 text-[13.5px] text-muted-foreground">
+            Codes d&apos;accès à usage unique pour les nouveaux comptes de la plateforme.
           </p>
         </div>
-        <SGNFButton
+        <Button
+          type="button"
+          variant="primary"
+          className="shrink-0"
           onClick={() => { setShowForm(!showForm); setError(""); }}
-          className="flex items-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091]"
         >
-          <UserPlus className="h-4 w-4" />
+          <UserPlus />
           Nouvelle invitation
-        </SGNFButton>
+        </Button>
       </div>
+
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-3"
+        aria-label="Indicateurs des invitations"
+      >
+        <Kpi
+          icon={UserPlus}
+          label="Invitations émises"
+          loading={loading}
+          value={invitations.length}
+          legende={<>tous statuts confondus</>}
+        />
+        <Kpi
+          icon={Clock}
+          label="Codes actifs"
+          loading={loading}
+          value={enAttente}
+          tone={enAttente > 0 ? "warning" : "neutral"}
+          legende={<>en attente d&apos;activation</>}
+        />
+        <Kpi
+          icon={Check}
+          label="Comptes créés"
+          loading={loading}
+          value={utilisees}
+          legende={<>invitations converties en compte</>}
+        />
+      </motion.section>
 
       {revokeError && (
-        <div className="rounded-2xl border border-red-200/70 bg-red-50 px-4 py-3 text-sm text-red-700">{revokeError}</div>
+        <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
+          {revokeError}
+        </p>
       )}
 
-      {/* Formulaire de création */}
-      {showForm && (
-        <div className="rounded-2xl border border-slate-200/60 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-base font-semibold text-slate-700">
-            Créer une invitation
-          </h2>
-          <form onSubmit={handleCreer} className="grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Espace / Rôle <span className="text-red-500">*</span>
-              </label>
-              <select
-                required
-                value={groupe}
-                onChange={(e) => {
-                  setGroupe(e.target.value);
-                  setAttributaireId("");
-                  setAutoriteCoutumiereId("");
-                  setFamilleId("");
-                }}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/20"
-              >
-                <option value="" disabled>
-                  Sélectionner un rôle…
-                </option>
-                {GROUPES.map((g) => (
-                  <option key={g.value} value={g.value}>
-                    {g.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {attributaireRequis && (
-              <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Attributaire concerné <span className="text-red-500">*</span>
-                </label>
-                <select
+      <motion.div variants={stagger(0.05, 0.06)} initial="hidden" animate="show" className="flex flex-col gap-5">
+        {/* Formulaire de création */}
+        {showForm && (
+          <motion.div variants={fadeUp}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Créer une invitation</CardTitle>
+              </CardHeader>
+              <form onSubmit={handleCreer} className="grid gap-4 px-5 pb-5 sm:grid-cols-2">
+                <ChampSelect
+                  id="inv-groupe"
+                  label="Espace / rôle"
                   required
-                  value={attributaireId}
-                  onChange={(e) => setAttributaireId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/20"
+                  placeholder="Sélectionner un rôle…"
+                  value={groupe}
+                  onChange={(v) => {
+                    setGroupe(v);
+                    setAttributaireId("");
+                    setAutoriteCoutumiereId("");
+                    setFamilleId("");
+                  }}
                 >
-                  <option value="" disabled>
-                    Sélectionner un attributaire…
-                  </option>
-                  {attributaires.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.nom}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-slate-400">
-                  Un compte propriétaire ou acquéreur doit être rattaché à un attributaire existant.
-                </p>
-              </div>
-            )}
+                  {GROUPES.map((g) => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
+                </ChampSelect>
+                <div className="hidden sm:block" aria-hidden />
 
-            {autoriteRequise && (
-              <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Chefferie / autorité coutumière <span className="text-red-500">*</span>
-                </label>
-                <select
-                  required
-                  value={autoriteCoutumiereId}
-                  onChange={(e) => setAutoriteCoutumiereId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/20"
-                >
-                  <option value="" disabled>
-                    Sélectionner une chefferie…
-                  </option>
-                  {autorites.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.nom}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-slate-400">
-                  Un compte Chefferie doit être rattaché à son autorité coutumière dès l&apos;invitation.
-                </p>
-              </div>
-            )}
-
-            {familleRequise && (
-              <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Famille concernée <span className="text-red-500">*</span>
-                </label>
-                <select
-                  required
-                  value={familleId}
-                  onChange={(e) => setFamilleId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/20"
-                >
-                  <option value="" disabled>
-                    Sélectionner une famille…
-                  </option>
-                  {familles.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.nom}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-slate-400">
-                  Un compte Propriétaire terrien doit être rattaché à sa famille dès l&apos;invitation.
-                </p>
-              </div>
-            )}
-
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Nom complet (optionnel)
-              </label>
-              <Input
-                type="text"
-                placeholder="Prénom NOM"
-                value={nomComplet}
-                onChange={(e) => setNomComplet(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                E-mail (optionnel)
-              </label>
-              <Input
-                type="email"
-                placeholder="destinataire@exemple.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Téléphone (optionnel)
-              </label>
-              <Input
-                type="tel"
-                placeholder="+225 07 00 00 00 00"
-                value={telephone}
-                onChange={(e) => setTelephone(e.target.value)}
-              />
-            </div>
-
-            {error && (
-              <p className="sm:col-span-2 text-sm font-medium text-red-600">
-                {error}
-              </p>
-            )}
-
-            <div className="sm:col-span-2 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => { setShowForm(false); setError(""); }}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-              >
-                Annuler
-              </button>
-              <SGNFButton
-                type="submit"
-                disabled={
-                  isPending ||
-                  !groupe ||
-                  (attributaireRequis && !attributaireId) ||
-                  (autoriteRequise && !autoriteCoutumiereId) ||
-                  (familleRequise && !familleId)
-                }
-                className="rounded-xl bg-[#0D3B66] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091] disabled:opacity-60"
-              >
-                {isPending ? "Génération…" : "Générer le code"}
-              </SGNFButton>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Tableau */}
-      <div className="rounded-2xl border border-slate-200/60 bg-white shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-16 text-sm text-slate-400">
-            Chargement…
-          </div>
-        ) : invitations.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-sm text-slate-400">
-            <UserPlus className="mb-3 h-8 w-8 text-slate-300" />
-            Aucune invitation créée pour l&apos;instant.
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                <th className="px-5 py-3">Code</th>
-                <th className="px-5 py-3">Rôle</th>
-                <th className="px-5 py-3">Destinataire</th>
-                <th className="px-5 py-3">Statut</th>
-                <th className="px-5 py-3">Expire le</th>
-                <th className="px-5 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {invitations.map((inv) => {
-                const estExpire =
-                  inv.statut === "en_attente" &&
-                  new Date(inv.expire_le) < new Date();
-                const statut = estExpire ? "expiree" : inv.statut;
-
-                return (
-                  <tr
-                    key={inv.id}
-                    className="transition hover:bg-slate-50/50"
+                {attributaireRequis && (
+                  <ChampSelect
+                    id="inv-attributaire"
+                    label="Attributaire concerné"
+                    required
+                    placeholder="Sélectionner un attributaire…"
+                    value={attributaireId}
+                    onChange={setAttributaireId}
                   >
-                    <td className="px-5 py-3.5">
-                      <span className="inline-flex items-center font-mono text-xs tracking-widest text-slate-700">
-                        {inv.code}
-                        {statut === "en_attente" && (
-                          <CopyButton text={inv.code} />
-                        )}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-slate-600">
-                      {GROUPES.find((g) => g.value === inv.groupe)?.label ??
-                        inv.groupe}
-                    </td>
-                    <td className="px-5 py-3.5 text-slate-500">
-                      {inv.nom_complet ?? inv.email ?? (
-                        <span className="text-slate-300">—</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          STATUT_STYLES[statut] ?? ""
-                        }`}
-                      >
-                        {STATUT_LABELS[statut] ?? statut}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-slate-500">
-                      {formatDate(inv.expire_le)}
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      {statut === "en_attente" && (
-                        <button
-                          onClick={() => handleRevoquer(inv.id)}
-                          disabled={revoking === inv.id}
-                          title="Révoquer"
-                          className="rounded-lg p-1.5 text-slate-300 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    {attributaires.map((a) => <SelectItem key={a.id} value={a.id}>{a.nom}</SelectItem>)}
+                  </ChampSelect>
+                )}
+
+                {autoriteRequise && (
+                  <ChampSelect
+                    id="inv-autorite"
+                    label="Chefferie / autorité coutumière"
+                    required
+                    placeholder="Sélectionner une chefferie…"
+                    value={autoriteCoutumiereId}
+                    onChange={setAutoriteCoutumiereId}
+                  >
+                    {autorites.map((a) => <SelectItem key={a.id} value={a.id}>{a.nom}</SelectItem>)}
+                  </ChampSelect>
+                )}
+
+                {familleRequise && (
+                  <ChampSelect
+                    id="inv-famille"
+                    label="Famille concernée"
+                    required
+                    placeholder="Sélectionner une famille…"
+                    value={familleId}
+                    onChange={setFamilleId}
+                  >
+                    {familles.map((f) => <SelectItem key={f.id} value={f.id}>{f.nom}</SelectItem>)}
+                  </ChampSelect>
+                )}
+
+                {(attributaireRequis || autoriteRequise || familleRequise) && (
+                  <p className="text-xs text-muted-foreground sm:col-span-2">
+                    {attributaireRequis && "Un compte propriétaire ou acquéreur doit être rattaché à un attributaire existant."}
+                    {autoriteRequise && "Un compte Chefferie doit être rattaché à son autorité coutumière dès l'invitation."}
+                    {familleRequise && "Un compte Propriétaire terrien doit être rattaché à sa famille dès l'invitation."}
+                  </p>
+                )}
+
+                <Field label="Nom complet (optionnel)" htmlFor="inv-nom">
+                  <Input id="inv-nom" type="text" placeholder="Prénom NOM" value={nomComplet}
+                    onChange={(e) => setNomComplet(e.target.value)} />
+                </Field>
+
+                <Field label="E-mail (optionnel)" htmlFor="inv-email">
+                  <Input id="inv-email" type="email" placeholder="destinataire@exemple.com" value={email}
+                    onChange={(e) => setEmail(e.target.value)} />
+                </Field>
+
+                <Field label="Téléphone (optionnel)" htmlFor="inv-tel" className="sm:col-span-2">
+                  <Input id="inv-tel" type="tel" placeholder="+225 07 00 00 00 00" value={telephone}
+                    onChange={(e) => setTelephone(e.target.value)} />
+                </Field>
+
+                {error && (
+                  <p role="alert" className="text-sm font-medium text-danger sm:col-span-2">{error}</p>
+                )}
+
+                <div className="flex justify-end gap-3 sm:col-span-2">
+                  <Button type="button" variant="outline" onClick={() => { setShowForm(false); setError(""); }}>
+                    Annuler
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    loading={isPending}
+                    disabled={
+                      !groupe ||
+                      (attributaireRequis && !attributaireId) ||
+                      (autoriteRequise && !autoriteCoutumiereId) ||
+                      (familleRequise && !familleId)
+                    }
+                  >
+                    {isPending ? "Génération…" : "Générer le code"}
+                  </Button>
+                </div>
+              </form>
+            </Card>
+          </motion.div>
         )}
-      </div>
-    </div>
+
+        {/* Tableau */}
+        <motion.div variants={fadeUp}>
+          <Card className="overflow-hidden">
+            {loading ? (
+              <p className="px-5 py-10 text-center text-sm text-muted-foreground">Chargement…</p>
+            ) : invitations.length === 0 ? (
+              <EmptyState
+                icon={UserPlus}
+                title="Aucune invitation"
+                description="Aucun code d'accès n'a encore été émis."
+              />
+            ) : (
+              <div className="max-h-[62vh] overflow-auto">
+                <table className="w-full min-w-[680px] text-sm">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="border-b border-border bg-inset text-left text-[10.5px] font-bold tracking-wider text-muted-foreground uppercase">
+                      <th className="bg-inset px-5 py-3">Code</th>
+                      <th className="bg-inset px-5 py-3">Rôle</th>
+                      <th className="bg-inset px-5 py-3">Destinataire</th>
+                      <th className="bg-inset px-5 py-3">Statut</th>
+                      <th className="bg-inset px-5 py-3">Expire le</th>
+                      <th className="bg-inset px-5 py-3"><span className="sr-only">Actions</span></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {invitations.map((inv) => {
+                      const statut = statutEffectif(inv);
+                      return (
+                        <tr key={inv.id} className="transition-colors hover:bg-inset/70">
+                          <td className="px-5 py-3">
+                            <span className="inline-flex items-center font-mono text-xs tracking-widest text-foreground">
+                              {inv.code}
+                              {statut === "en_attente" && <CopyButton text={inv.code} />}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-[13px] text-muted-foreground">
+                            {GROUPES.find((g) => g.value === inv.groupe)?.label ?? inv.groupe}
+                          </td>
+                          <td className="px-5 py-3 text-[13px] text-muted-foreground">
+                            {inv.nom_complet ?? inv.email ?? <span className="text-muted-2">—</span>}
+                          </td>
+                          <td className="px-5 py-3">
+                            <Badge tone={STATUT_TONE[statut] ?? "neutral"}>
+                              {STATUT_LABELS[statut] ?? statut}
+                            </Badge>
+                          </td>
+                          <td className="px-5 py-3 text-[13px] text-muted-2">{formatDate(inv.expire_le)}</td>
+                          <td className="px-5 py-3 text-right">
+                            {statut === "en_attente" && (
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="hover:bg-danger-subtle hover:text-danger"
+                                loading={revoking === inv.id}
+                                onClick={() => handleRevoquer(inv.id)}
+                                title="Révoquer"
+                                aria-label={`Révoquer le code ${inv.code}`}
+                              >
+                                <X />
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </motion.div>
+      </motion.div>
+    </AppShell>
   );
 }
