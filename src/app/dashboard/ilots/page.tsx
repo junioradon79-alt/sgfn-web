@@ -1,10 +1,22 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
-import { Plus, Search, X } from "lucide-react";
-import { Input } from "@/components/ui/Input";
+import { type FormEvent, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { Grid2x2, Map, Plus, Search } from "lucide-react";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Input } from "@/components/ds/input";
+import { Kpi } from "@/components/ds/kpi";
+import { Field } from "@/components/ds/label";
+import { SelectItem } from "@/components/ds/select";
+import { ChampSelect, ModaleFormulaire } from "@/components/dashboard/ModaleFormulaire";
 import { createClient } from "@/utils/supabase/client";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
+import { fadeUp, stagger } from "@/lib/motion";
 
 type IlotRecord = {
   id: string;
@@ -17,11 +29,12 @@ type LotissementOption = {
   nom: string | null;
 };
 
-const TABLE_HEADERS = ["Numéro", "Lotissement", "Actions"] as const;
+const TABLE_HEADERS = ["Numéro", "Lotissement"] as const;
 const EMPTY_FORM = { numero: "", lotissement_id: "" };
 
 export default function IlotsPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+  const { counts } = useBadgeCounts();
 
   const [ilots, setIlots] = useState<IlotRecord[]>([]);
   const [lotissements, setLotissements] = useState<LotissementOption[]>([]);
@@ -56,11 +69,11 @@ export default function IlotsPage() {
     );
   });
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     if (!form.numero.trim()) {
-      setErrorMessage("Le numéro d’îlot est obligatoire.");
+      setErrorMessage("Le numéro d'îlot est obligatoire.");
       return;
     }
 
@@ -94,153 +107,158 @@ export default function IlotsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <AppShell loading={loading} counts={counts} onRefresh={recharger}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-brand-primary">Gestion des Îlots</h1>
-          <p className="mt-1.5 text-sm text-slate-500">
-            Vue synthétique des îlots cadastraux et de leur lotissement de rattachement.
+          <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+            Îlots cadastraux
+          </h1>
+          <p className="mt-1 text-[13.5px] text-muted-foreground">
+            Vue synthétique des îlots et de leur lotissement de rattachement.
           </p>
         </div>
-        <button
+        <Button
           type="button"
+          variant="primary"
+          className="shrink-0"
           onClick={() => {
             setIsModalOpen(true);
             setErrorMessage(null);
             setSuccessMessage(null);
           }}
-          className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:bg-[#1E6091] hover:shadow-md active:scale-[0.98]"
         >
-          <Plus className="h-4 w-4" />
+          <Plus />
           Ajouter un îlot
-        </button>
+        </Button>
       </div>
+
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-2"
+        aria-label="Indicateurs des îlots"
+      >
+        <Kpi
+          icon={Grid2x2}
+          label="Îlots enregistrés"
+          loading={loading}
+          value={ilots.length}
+          legende={<>toutes juridictions de votre périmètre</>}
+        />
+        <Kpi
+          icon={Map}
+          label="Lotissements couverts"
+          loading={loading}
+          value={lotissements.length}
+          legende={<>périmètres de rattachement possibles</>}
+        />
+      </motion.section>
 
       {successMessage && (
-        <div className="mb-4 rounded-2xl border border-emerald-200/80 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+        <p role="status" className="rounded-xl border border-success/25 bg-success-subtle px-4 py-3 text-sm font-medium text-success">
           {successMessage}
-        </div>
+        </p>
       )}
 
-      <div className="mb-6">
-        <div className="relative w-full max-w-sm">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <Input
-            type="search"
-            placeholder="Rechercher un îlot ou un lotissement"
-            className="pl-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            aria-label="Rechercher un îlot"
-          />
-        </div>
-      </div>
+      <motion.div variants={stagger(0.05, 0.06)} initial="hidden" animate="show" className="flex flex-col gap-5">
+        <motion.div variants={fadeUp}>
+          <Card className="p-3">
+            <div className="relative w-full sm:max-w-sm">
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input
+                type="search"
+                placeholder="Rechercher un îlot ou un lotissement"
+                className="pl-9"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                aria-label="Rechercher un îlot"
+              />
+            </div>
+          </Card>
+        </motion.div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] border-collapse text-left">
-            <thead>
-              <tr className="border-b border-slate-200/60 bg-slate-50/50">
-                {TABLE_HEADERS.map((header) => (
-                  <th key={header} scope="col" className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-slate-500 last:text-right">
-                    {header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200/60">
-              {loading ? (
-                <tr>
-                  <td colSpan={3} className="px-5 py-10 text-center text-sm text-slate-500">
-                    Chargement des îlots…
-                  </td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="px-5 py-10 text-center text-sm text-slate-500">
-                    Aucun îlot enregistré.
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((ilot) => (
-                  <tr key={ilot.id} className="transition-colors hover:bg-slate-50/60">
-                    <td className="px-5 py-4 text-sm font-medium text-slate-800">{ilot.numero ?? "—"}</td>
-                    <td className="px-5 py-4 text-sm text-slate-600">{lotName(ilot.lotissement_id)}</td>
-                    <td className="px-5 py-4 text-right text-sm text-slate-400">—</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        <motion.div variants={fadeUp}>
+          <Card className="overflow-hidden">
+            {loading ? (
+              <p className="px-5 py-10 text-center text-sm text-muted-foreground">Chargement des îlots…</p>
+            ) : filtered.length === 0 ? (
+              <EmptyState
+                icon={Grid2x2}
+                title={search ? "Aucun résultat" : "Aucun îlot enregistré"}
+                description={
+                  search
+                    ? `Aucun îlot ne correspond à « ${search} ».`
+                    : "Créez un premier îlot pour commencer à découper un lotissement."
+                }
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[480px] border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-border bg-inset">
+                      {TABLE_HEADERS.map((header) => (
+                        <th
+                          key={header}
+                          scope="col"
+                          className="px-5 py-3 text-[10.5px] font-bold tracking-wider text-muted-foreground uppercase"
+                        >
+                          {header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {filtered.map((ilot) => (
+                      <tr key={ilot.id} className="transition-colors hover:bg-inset/70">
+                        <td className="px-5 py-3.5 text-[13px] font-semibold text-foreground">{ilot.numero ?? "—"}</td>
+                        <td className="px-5 py-3.5 text-[13px] text-muted-foreground">{lotName(ilot.lotissement_id)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </motion.div>
+      </motion.div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-y-auto rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-[0_30px_80px_-20px_rgba(2,8,23,0.35)] sm:p-8" style={{ maxHeight: "92vh" }}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Nouvel îlot</p>
-                <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">Créer un îlot cadastral</h2>
-              </div>
-              <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600" aria-label="Fermer">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+        <ModaleFormulaire
+          surTitre="Nouvel îlot"
+          titre="Créer un îlot cadastral"
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handleSubmit}
+          error={errorMessage}
+          isSubmitting={isSubmitting}
+          libelleAction="Enregistrer l'îlot"
+          libelleEnCours="Enregistrement…"
+        >
+          <Field label="Numéro d'îlot" htmlFor="ilot-numero" required>
+            <Input
+              id="ilot-numero"
+              type="text"
+              value={form.numero}
+              onChange={(e) => setForm((f) => ({ ...f, numero: e.target.value }))}
+              placeholder="Ex. 01"
+              required
+            />
+          </Field>
 
-            <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-              <div className="space-y-1.5">
-                <label htmlFor="ilot-numero" className="text-sm font-medium text-slate-700">
-                  Numéro d’îlot <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  id="ilot-numero"
-                  type="text"
-                  value={form.numero}
-                  onChange={(e) => setForm((f) => ({ ...f, numero: e.target.value }))}
-                  placeholder="Ex. 01"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label htmlFor="ilot-lotissement" className="text-sm font-medium text-slate-700">
-                  Lotissement de rattachement <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="ilot-lotissement"
-                  value={form.lotissement_id}
-                  onChange={(e) => setForm((f) => ({ ...f, lotissement_id: e.target.value }))}
-                  required
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-[#1E6091] focus:ring-2 focus:ring-[#1E6091]/20"
-                >
-                  <option value="">Sélectionner un lotissement…</option>
-                  {lotissements.map((lot) => (
-                    <option key={lot.id} value={lot.id}>
-                      {lot.nom ?? lot.id}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {errorMessage && (
-                <div className="rounded-2xl border border-red-200/70 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {errorMessage}
-                </div>
-              )}
-
-              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50">
-                  Annuler
-                </button>
-                <button type="submit" disabled={isSubmitting} className="rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#1E6091] disabled:opacity-70">
-                  {isSubmitting ? "Enregistrement…" : "Enregistrer l’îlot"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+          <ChampSelect
+            id="ilot-lotissement"
+            label="Lotissement de rattachement"
+            required
+            placeholder="Sélectionner un lotissement…"
+            value={form.lotissement_id}
+            onChange={(v) => setForm((f) => ({ ...f, lotissement_id: v }))}
+          >
+            {lotissements.map((lot) => (
+              <SelectItem key={lot.id} value={lot.id}>{lot.nom ?? lot.id}</SelectItem>
+            ))}
+          </ChampSelect>
+        </ModaleFormulaire>
       )}
-    </div>
+    </AppShell>
   );
 }

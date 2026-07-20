@@ -1,12 +1,21 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { BadgeCheck, Clock, QrCode, ShieldAlert, Wallet, XCircle } from "lucide-react";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Kpi } from "@/components/ds/kpi";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
-import { Badge } from "@/components/ui/Badge";
-import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
+import { createClient } from "@/utils/supabase/client";
+import { fadeUp, stagger } from "@/lib/motion";
 import { fmtMontantFCFA } from "@/lib/consultation-qr";
-import { BadgeCheck, QrCode, ShieldAlert, XCircle } from "lucide-react";
 
 type ConsultationRecord = {
   id: string;
@@ -22,12 +31,12 @@ type ConsultationRecord = {
   cree_le: string;
 };
 
-const STATUT_CONFIG: Record<string, { badge: "en_validation" | "attribue" | "disponible" | "litige" | "neutre"; label: string }> = {
-  en_attente: { badge: "en_validation", label: "En attente" },
-  initie: { badge: "en_validation", label: "Paiement initié" },
-  payee: { badge: "disponible", label: "Payée" },
-  echoue: { badge: "litige", label: "Échouée" },
-  annulee: { badge: "neutre", label: "Annulée" },
+const STATUT_CONFIG: Record<string, { tone: "warning" | "success" | "danger" | "neutral"; label: string }> = {
+  en_attente: { tone: "warning", label: "En attente" },
+  initie: { tone: "warning", label: "Paiement initié" },
+  payee: { tone: "success", label: "Payée" },
+  echoue: { tone: "danger", label: "Échouée" },
+  annulee: { tone: "neutral", label: "Annulée" },
 };
 
 function fmtDate(v: string): string {
@@ -41,11 +50,11 @@ function fmtDate(v: string): string {
 }
 
 export default function ConsultationsQrPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const { loading: profilLoading, isAdmin } = useProfile();
+  const { counts } = useBadgeCounts();
 
   const [consultations, setConsultations] = useState<ConsultationRecord[]>([]);
-
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -65,7 +74,7 @@ export default function ConsultationsQrPage() {
     }
   }, [supabase]);
 
-  const { isLoading: dataLoading } = useChargement(loadConsultations, [loadConsultations], isAdmin);
+  const { isLoading: dataLoading, recharger } = useChargement(loadConsultations, [loadConsultations], isAdmin);
 
   const changerStatut = async (c: ConsultationRecord, statut: "payee" | "annulee") => {
     setUpdatingId(c.id);
@@ -88,100 +97,140 @@ export default function ConsultationsQrPage() {
   };
 
   const enAttente = consultations.filter((c) => c.statut === "en_attente" || c.statut === "initie").length;
+  const payees = consultations.filter((c) => c.statut === "payee");
+  const recettes = payees.reduce((s, c) => s + (c.montant_total ?? 0), 0);
+  const chargement = profilLoading || (dataLoading && isAdmin);
 
-  if (profilLoading || (dataLoading && isAdmin)) {
-    return <div className="py-20 text-center text-sm text-slate-500">Chargement…</div>;
-  }
-
-  if (!isAdmin) {
+  // La page n'est plus responsable de sa propre coquille : même le refus
+  // d'accès se rend dans `AppShell`, sinon l'utilisateur perd la navigation.
+  if (!profilLoading && !isAdmin) {
     return (
-      <div className="mx-auto max-w-lg py-20 text-center">
-        <ShieldAlert className="mx-auto h-10 w-10 text-amber-500" />
-        <p className="mt-4 text-sm text-slate-600">
-          Cette page est réservée aux administrateurs SGNF.
-        </p>
-      </div>
+      <AppShell loading={false} counts={counts} onRefresh={recharger}>
+        <EmptyState
+          icon={ShieldAlert}
+          tone="pending"
+          title="Accès réservé"
+          description="Cette page est réservée aux administrateurs SGNF."
+        />
+      </AppShell>
     );
   }
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <div className="mb-8">
-        <h1 className="font-display text-2xl font-bold text-brand-primary">
+    <AppShell loading={chargement} counts={counts} onRefresh={recharger}>
+      <div>
+        <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
           Consultations QR payantes
         </h1>
-        <p className="mt-1.5 text-sm text-slate-500">
-          Vérifications payantes d&apos;attestations de cession ({fmtMontantFCFA(60000)} — dont{" "}
-          {fmtMontantFCFA(50000)} pour la chefferie et {fmtMontantFCFA(10000)} de commission SGNF).{" "}
-          <span className={enAttente > 0 ? "font-medium text-[#F39C12]" : "font-medium text-[#2D8F5A]"}>
-            {enAttente} en attente de paiement.
-          </span>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
+          Vérifications payantes d&apos;attestations de cession — {fmtMontantFCFA(60000)}, dont{" "}
+          {fmtMontantFCFA(50000)} pour la chefferie et {fmtMontantFCFA(10000)} de commission SGNF.
         </p>
       </div>
 
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-3"
+        aria-label="Indicateurs des consultations payantes"
+      >
+        <Kpi
+          icon={QrCode}
+          label="Consultations"
+          loading={chargement}
+          value={consultations.length}
+          legende={<>200 dernières demandes</>}
+        />
+        <Kpi
+          icon={Clock}
+          label="En attente de paiement"
+          loading={chargement}
+          value={enAttente}
+          tone={enAttente > 0 ? "warning" : "neutral"}
+          legende={<>à valider au guichet</>}
+        />
+        <Kpi
+          icon={Wallet}
+          label="Recettes encaissées"
+          loading={chargement}
+          value={recettes}
+          format={fmtMontantFCFA}
+          legende={<>sur {payees.length} consultation{payees.length > 1 ? "s" : ""} payée{payees.length > 1 ? "s" : ""}</>}
+        />
+      </motion.section>
+
       {errorMessage && (
-        <div className="mb-4 rounded-2xl border border-red-200/70 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
           {errorMessage}
-        </div>
+        </p>
       )}
 
       {consultations.length === 0 ? (
-        <div className="rounded-xl border border-slate-200/60 bg-white px-5 py-16 text-center text-sm text-slate-500">
-          Aucune consultation payante pour le moment.
-        </div>
+        <Card>
+          <EmptyState
+            icon={QrCode}
+            tone="positive"
+            title="Aucune consultation payante"
+            description="Aucune vérification payante d'attestation n'a encore été demandée."
+          />
+        </Card>
       ) : (
-        <div className="space-y-4">
+        <motion.div variants={stagger(0.05, 0.04)} initial="hidden" animate="show" className="flex flex-col gap-3">
           {consultations.map((c) => {
             const cfg = STATUT_CONFIG[c.statut] ?? STATUT_CONFIG.en_attente;
             const actionable = c.statut === "en_attente" || c.statut === "initie" || c.statut === "echoue";
             return (
-              <div key={c.id} className="rounded-xl border border-slate-200/60 bg-white p-5 shadow-sm">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="flex items-center gap-2 font-semibold text-[#0D3B66]">
-                      <QrCode className="h-4 w-4 shrink-0 text-slate-400" />
-                      <span className="font-mono tracking-wider">{c.code}</span>
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {c.reference_document} · {fmtMontantFCFA(c.montant_total)} · demandée le{" "}
-                      {fmtDate(c.cree_le)}
-                      {c.payee_le && <> · payée le {fmtDate(c.payee_le)}</>}
-                    </p>
-                    {c.reference_externe && (
-                      <p className="mt-0.5 text-xs text-slate-400">{c.reference_externe}</p>
-                    )}
+              <motion.div key={c.id} variants={fadeUp}>
+                <Card className="p-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 text-[13.5px] font-semibold text-foreground">
+                        <QrCode className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        <span className="font-mono tracking-wider">{c.code}</span>
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {c.reference_document} · {fmtMontantFCFA(c.montant_total)} · demandée le{" "}
+                        {fmtDate(c.cree_le)}
+                        {c.payee_le && <> · payée le {fmtDate(c.payee_le)}</>}
+                      </p>
+                      {c.reference_externe && (
+                        <p className="mt-0.5 text-xs text-muted-2">{c.reference_externe}</p>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={cfg.tone}>{cfg.label}</Badge>
+                      {actionable && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-success hover:bg-success-subtle hover:text-success"
+                            loading={updatingId === c.id}
+                            onClick={() => changerStatut(c, "payee")}
+                          >
+                            <BadgeCheck />
+                            Marquer payée
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={updatingId === c.id}
+                            onClick={() => changerStatut(c, "annulee")}
+                          >
+                            <XCircle />
+                            Annuler
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge status={cfg.badge}>{cfg.label}</Badge>
-                    {actionable && (
-                      <>
-                        <button
-                          type="button"
-                          disabled={updatingId === c.id}
-                          onClick={() => changerStatut(c, "payee")}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#2D8F5A]/10 px-3 py-1.5 text-xs font-semibold text-[#2D8F5A] transition hover:bg-[#2D8F5A]/20 disabled:opacity-50"
-                        >
-                          <BadgeCheck className="h-3.5 w-3.5" />
-                          Marquer payée
-                        </button>
-                        <button
-                          type="button"
-                          disabled={updatingId === c.id}
-                          onClick={() => changerStatut(c, "annulee")}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-200 disabled:opacity-50"
-                        >
-                          <XCircle className="h-3.5 w-3.5" />
-                          Annuler
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
+                </Card>
+              </motion.div>
             );
           })}
-        </div>
+        </motion.div>
       )}
-    </div>
+    </AppShell>
   );
 }

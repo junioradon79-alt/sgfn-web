@@ -2,6 +2,10 @@ import Link from "next/link";
 import { CheckCircle2, Clock, Loader2, MessageSquare, ChevronRight, type LucideIcon } from "lucide-react";
 
 // ─── Helpers partagés entre ProprietaireTerrienView et ChefVillageView ───────
+//
+// Ce fichier est consommé par des écrans DÉJÀ migrés sur le Design System
+// (Propriétaire terrien, Validations) : il doit donc parler en jetons, sinon
+// ses blocs restent blancs sur une page en mode sombre.
 
 export const PV_STATUT_LABELS: Record<string, string> = {
   a_fournir: "À régulariser",
@@ -11,10 +15,10 @@ export const PV_STATUT_LABELS: Record<string, string> = {
 };
 
 export const PV_STATUT_COLORS: Record<string, string> = {
-  a_fournir: "bg-amber-50 text-amber-700 border-amber-200",
-  en_cours: "bg-blue-50 text-blue-700 border-blue-200",
-  valide: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  rejete: "bg-red-50 text-red-700 border-red-200",
+  a_fournir: "bg-warning-subtle text-warning border-warning/25",
+  en_cours: "bg-accent-subtle text-accent border-accent/25",
+  valide: "bg-success-subtle text-success border-success/25",
+  rejete: "bg-danger-subtle text-danger border-danger/25",
 };
 
 export function SignaturesBadges({
@@ -29,14 +33,14 @@ export function SignaturesBadges({
           key={s.label}
           className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
             s.done
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-amber-200 bg-amber-50 text-amber-700"
+              ? "border-success/25 bg-success-subtle text-success"
+              : "border-warning/25 bg-warning-subtle text-warning"
           }`}
         >
           {s.done ? (
-            <CheckCircle2 className="h-3 w-3" />
+            <CheckCircle2 className="size-3" aria-hidden />
           ) : (
-            <Clock className="h-3 w-3" />
+            <Clock className="size-3" aria-hidden />
           )}
           {s.label}
         </span>
@@ -48,13 +52,13 @@ export function SignaturesBadges({
 export function ProgressBar({ value, max }: { value: number; max: number }) {
   return (
     <div className="mt-2 flex items-center gap-2">
-      <div className="h-1.5 w-24 rounded-full bg-slate-100">
+      <div className="h-1.5 w-24 rounded-full bg-inset">
         <div
-          className="h-1.5 rounded-full bg-[#2D8F5A] transition-all"
+          className="h-1.5 rounded-full bg-success transition-all"
           style={{ width: `${(value / max) * 100}%` }}
         />
       </div>
-      <span className="text-xs text-slate-400">
+      <span className="text-xs text-muted-2">
         {value}/{max} signatures
       </span>
     </div>
@@ -66,8 +70,8 @@ export function ProgressBar({ value, max }: { value: number; max: number }) {
 export function LoadingScreen() {
   return (
     <div className="flex min-h-[300px] items-center justify-center">
-      <div className="flex flex-col items-center gap-3 text-slate-400">
-        <Loader2 className="h-6 w-6 animate-spin" />
+      <div className="flex flex-col items-center gap-3 text-muted-foreground">
+        <Loader2 className="size-6 animate-spin" aria-hidden />
         <span className="text-sm font-medium">Chargement de votre espace…</span>
       </div>
     </div>
@@ -80,18 +84,18 @@ export function MessagerieLink({ subtitle, href = "/dashboard/messages" }: { sub
   return (
     <Link
       href={href}
-      className="flex items-center justify-between rounded-2xl border border-slate-200/60 bg-white px-5 py-4 shadow-sm transition hover:border-[#0D3B66]/30 hover:bg-slate-50"
+      className="flex items-center justify-between rounded-xl border border-border bg-card px-5 py-4 shadow-panel transition-colors hover:border-primary/30 hover:bg-inset"
     >
       <div className="flex items-center gap-3">
-        <div className="rounded-xl bg-[#0D3B66]/5 p-2">
-          <MessageSquare className="h-4 w-4 text-[#0D3B66]" />
+        <div className="rounded-xl bg-inset p-2">
+          <MessageSquare className="size-4 text-primary" aria-hidden />
         </div>
         <div>
-          <p className="text-sm font-semibold text-slate-800">Messagerie</p>
-          <p className="text-xs text-slate-400">{subtitle}</p>
+          <p className="text-sm font-semibold text-foreground">Messagerie</p>
+          <p className="text-xs text-muted-2">{subtitle}</p>
         </div>
       </div>
-      <ChevronRight className="h-4 w-4 text-slate-400" />
+      <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
     </Link>
   );
 }
@@ -110,20 +114,20 @@ export function StatCard({
   alerte?: number;
 }) {
   const className =
-    "group relative rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm transition hover:border-[#0D3B66]/30 hover:shadow-md";
+    "group relative rounded-xl border border-border bg-card p-4 shadow-panel transition-colors hover:border-primary/30";
   const inner = (
     <>
       {alerte > 0 && (
-        <span className="absolute right-3 top-3 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
+        <span className="absolute top-3 right-3 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
           {alerte}
         </span>
       )}
-      <div className="flex items-center gap-2 text-slate-400">
-        <Icon className="h-4 w-4" />
-        <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <Icon className="size-4" aria-hidden />
+        <span className="text-xs font-medium tracking-wide uppercase">{label}</span>
       </div>
-      <p className="mt-2 text-2xl font-bold text-[#0D3B66]">{value}</p>
-      <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>
+      <p className="tabular mt-2 text-2xl font-bold text-foreground">{value}</p>
+      <p className="mt-0.5 text-xs text-muted-2">{subtitle}</p>
     </>
   );
   return href.startsWith("#") ? (

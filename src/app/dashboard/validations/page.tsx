@@ -1,13 +1,22 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2 } from "lucide-react";
+import { motion } from "framer-motion";
+import { ArrowLeft, CheckCircle2, FileSignature, ScrollText, ShieldAlert } from "lucide-react";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Button } from "@/components/ds/button";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
+import { ScrollArea } from "@/components/ds/scroll-area";
 import { createClient } from "@/utils/supabase/client";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
 import { useProfile } from "@/hooks/useProfile";
+import { fadeUp, stagger } from "@/lib/motion";
 import type { AttestationCoutumiere } from "@/components/dashboard/chefferie/types";
-import { SignaturesBadges, ProgressBar, LoadingScreen } from "@/components/dashboard/chefferie/SharedUI";
+import { SignaturesBadges, ProgressBar } from "@/components/dashboard/chefferie/SharedUI";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,8 +40,9 @@ type AttestationCession = {
 // que des cartes). Atteinte via les cartes APFC / Cessions de l'Espace Chefferie.
 
 export default function ValidationsPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const { profile, loading: profileLoading, isChefferie } = useProfile();
+  const { counts } = useBadgeCounts();
 
   const [attestations, setAttestations] = useState<AttestationCession[]>([]);
   const [apfc, setApfc] = useState<AttestationCoutumiere[]>([]);
@@ -62,7 +72,7 @@ export default function ValidationsPage() {
     ]);
     setAttestations((attestationsRes.data ?? []) as unknown as AttestationCession[]);
     setApfc((apfcRes.data ?? []) as AttestationCoutumiere[]);
-  }, [autoriteId]);
+  }, [autoriteId, supabase]);
 
   const { isLoading, recharger } = useChargement(fetchData, [autoriteId], !!autoriteId);
 
@@ -90,131 +100,164 @@ export default function ValidationsPage() {
     void recharger();
   };
 
-  if (profileLoading || (isChefferie && isLoading)) return <LoadingScreen />;
+  const chargement = profileLoading || (isChefferie && isLoading);
 
-  if (!isChefferie || !profile?.autorite_coutumiere_id) {
+  if (!profileLoading && (!isChefferie || !profile?.autorite_coutumiere_id)) {
     return (
-      <div className="flex min-h-[300px] items-center justify-center px-4">
-        <p className="text-sm text-slate-400">Espace réservé au chef de village.</p>
-      </div>
+      <AppShell loading={false} counts={counts} onRefresh={recharger}>
+        <EmptyState
+          icon={ShieldAlert}
+          tone="pending"
+          title="Accès réservé"
+          description="Cet espace est réservé au chef de village."
+        />
+      </AppShell>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-1">
-        <Link
-          href="/dashboard/chefferie"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#0D3B66] hover:underline"
-        >
-          <ArrowLeft className="h-4 w-4" /> Retour à l&apos;Espace Chefferie
-        </Link>
-        <h1 className="mt-2 text-2xl font-bold text-[#0D3B66]">Validations</h1>
-        <p className="text-sm text-slate-500">
+    <AppShell loading={chargement} counts={counts} onRefresh={recharger}>
+      <div>
+        <Button asChild variant="ghost" size="sm" className="-ml-2">
+          <Link href="/dashboard/chefferie">
+            <ArrowLeft />
+            Retour à l&apos;Espace Chefferie
+          </Link>
+        </Button>
+        <h1 className="mt-2 font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+          Validations
+        </h1>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
           Attestations de cession à valider et APFC à co-signer, sur votre juridiction.
         </p>
       </div>
 
       {signError && (
-        <div className="rounded-2xl border border-red-200/70 bg-red-50 px-4 py-3 text-sm text-red-700">{signError}</div>
+        <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
+          {signError}
+        </p>
       )}
 
-      {/* Attestations de cession à valider */}
-      <section id="cessions" className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm scroll-mt-6">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-[#0D3B66]">
-            Attestations de cession — En attente de votre validation
-          </h2>
-          <p className="mt-0.5 text-xs text-slate-400">
-            Validez après vérification de la cession hors-système
-          </p>
-        </div>
-        {attestations.length === 0 ? (
-          <div className="flex items-center gap-2 px-5 py-6 text-sm text-emerald-600">
-            <CheckCircle2 className="h-4 w-4 shrink-0" /> Aucune attestation en attente de validation.
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {attestations.map((a) => (
-              <div key={a.id} className="flex items-center justify-between gap-4 px-5 py-4">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-800">{a.reference}</p>
-                  <p className="mt-0.5 text-xs text-slate-400">
-                    Lot {a.lot?.numero_lot ?? "—"}
-                    {a.lot?.ilots?.lotissements?.nom ? ` — ${a.lot.ilots.lotissements.nom}` : ""}
-                  </p>
-                  <SignaturesBadges
-                    sigs={[
-                      { label: "Propriétaire", done: !!a.sig_proprietaire_le },
-                      { label: "Opérateur", done: !!a.sig_operateur_le },
-                    ]}
-                  />
-                </div>
-                <button
-                  onClick={() => signerAttestation(a.id)}
-                  disabled={signing === a.id}
-                  className="shrink-0 rounded-xl bg-[#0D3B66] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#1E6091] disabled:opacity-60"
-                >
-                  {signing === a.id ? "…" : "Valider"}
-                </button>
+      <motion.div variants={stagger(0.05, 0.06)} initial="hidden" animate="show" className="flex flex-col gap-5">
+        {/* Attestations de cession à valider */}
+        <motion.div variants={fadeUp}>
+          <Card id="cessions" className="scroll-mt-6 overflow-hidden">
+            <CardHeader>
+              <div>
+                <CardTitle>Attestations de cession — en attente de votre validation</CardTitle>
+                <CardDescription>
+                  Validez après vérification de la cession hors-système
+                  {!chargement && attestations.length > 0 && ` · ${attestations.length} en attente`}
+                </CardDescription>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* APFC à co-signer */}
-      <section id="apfc" className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm scroll-mt-6">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-[#0D3B66]">
-            APFC — Attestations de Propriété Foncière Coutumière
-          </h2>
-          <p className="mt-0.5 text-xs text-slate-400">
-            Documents entérinés par la Chefferie du village
-          </p>
-        </div>
-        {apfc.length === 0 ? (
-          <div className="px-5 py-6 text-sm text-slate-400">Aucune APFC sur votre territoire.</div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {apfc.map((a) => {
-              const sig1 = !!a.sig_chef_famille_le;
-              const sig2 = !!a.sig_chef_village_le;
-              const sig3 = !!a.sig_cvgfr_le;
-              const pct = [sig1, sig2, sig3].filter(Boolean).length;
-              return (
-                <div key={a.id} className="flex items-start justify-between gap-4 px-5 py-4">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-800">{a.numero ?? a.reference ?? "APFC"}</p>
-                    <p className="mt-0.5 text-xs text-slate-400">Chef de famille : {a.chef_de_famille ?? "—"}</p>
-                    <SignaturesBadges
-                      sigs={[
-                        { label: "Chef de famille", done: sig1 },
-                        { label: "Chefferie village", done: sig2 },
-                        { label: "CVGFR", done: sig3 },
-                      ]}
-                    />
-                    <ProgressBar value={pct} max={3} />
-                  </div>
-                  {sig2 ? (
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Validé
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => signerApfc(a.id)}
-                      disabled={signingApfc === a.id}
-                      className="shrink-0 rounded-xl bg-[#0D3B66] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#1E6091] disabled:opacity-60"
+            </CardHeader>
+            {attestations.length === 0 ? (
+              <EmptyState
+                icon={CheckCircle2}
+                tone="positive"
+                title="Rien en attente"
+                description="Aucune attestation de cession n'attend votre validation."
+              />
+            ) : (
+              // Sur une juridiction qui porte tous les lotissements, la file
+              // dépasse les 400 entrées : sans hauteur bornée la page s'étirait
+              // sur plus de 40 000 px et la section APFC, juste dessous,
+              // devenait inatteignable.
+              <ScrollArea className="max-h-[520px] border-t border-border">
+              <ul className="divide-y divide-border">
+                {attestations.map((a) => (
+                  <li key={a.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13.5px] font-semibold text-foreground">{a.reference}</p>
+                      <p className="mt-0.5 text-xs text-muted-2">
+                        Lot {a.lot?.numero_lot ?? "—"}
+                        {a.lot?.ilots?.lotissements?.nom ? ` — ${a.lot.ilots.lotissements.nom}` : ""}
+                      </p>
+                      <SignaturesBadges
+                        sigs={[
+                          { label: "Propriétaire", done: !!a.sig_proprietaire_le },
+                          { label: "Opérateur", done: !!a.sig_operateur_le },
+                        ]}
+                      />
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      loading={signing === a.id}
+                      onClick={() => signerAttestation(a.id)}
                     >
-                      {signingApfc === a.id ? "…" : "Valider"}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-    </div>
+                      <FileSignature />
+                      Valider
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+              </ScrollArea>
+            )}
+          </Card>
+        </motion.div>
+
+        {/* APFC à co-signer */}
+        <motion.div variants={fadeUp}>
+          <Card id="apfc" className="scroll-mt-6 overflow-hidden">
+            <CardHeader>
+              <div>
+                <CardTitle>APFC — Attestations de Propriété Foncière Coutumière</CardTitle>
+                <CardDescription>Documents entérinés par la Chefferie du village</CardDescription>
+              </div>
+            </CardHeader>
+            {apfc.length === 0 ? (
+              <EmptyState
+                icon={ScrollText}
+                title="Aucune APFC"
+                description="Aucune attestation de propriété foncière coutumière sur votre territoire."
+              />
+            ) : (
+              <ScrollArea className="max-h-[520px] border-t border-border">
+              <ul className="divide-y divide-border">
+                {apfc.map((a) => {
+                  const sig1 = !!a.sig_chef_famille_le;
+                  const sig2 = !!a.sig_chef_village_le;
+                  const sig3 = !!a.sig_cvgfr_le;
+                  const pct = [sig1, sig2, sig3].filter(Boolean).length;
+                  return (
+                    <li key={a.id} className="flex flex-wrap items-start justify-between gap-4 px-5 py-4">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13.5px] font-semibold text-foreground">{a.numero ?? a.reference ?? "APFC"}</p>
+                        <p className="mt-0.5 text-xs text-muted-2">Chef de famille : {a.chef_de_famille ?? "—"}</p>
+                        <SignaturesBadges
+                          sigs={[
+                            { label: "Chef de famille", done: sig1 },
+                            { label: "Chefferie village", done: sig2 },
+                            { label: "CVGFR", done: sig3 },
+                          ]}
+                        />
+                        <ProgressBar value={pct} max={3} />
+                      </div>
+                      {sig2 ? (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-success/25 bg-success-subtle px-3 py-2 text-xs font-semibold text-success">
+                          <CheckCircle2 className="size-3.5" aria-hidden /> Validé
+                        </span>
+                      ) : (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          loading={signingApfc === a.id}
+                          onClick={() => signerApfc(a.id)}
+                        >
+                          <FileSignature />
+                          Valider
+                        </Button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              </ScrollArea>
+            )}
+          </Card>
+        </motion.div>
+      </motion.div>
+    </AppShell>
   );
 }

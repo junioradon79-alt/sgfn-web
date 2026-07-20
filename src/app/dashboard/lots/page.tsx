@@ -10,15 +10,15 @@ import { AppShell } from "@/components/pilotage/AppShell";
 import { Badge } from "@/components/ds/badge";
 import { Button } from "@/components/ds/button";
 import { Card } from "@/components/ds/card";
-import {
-  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ds/dialog";
 import { EmptyState } from "@/components/ds/empty-state";
 import { Input, Textarea } from "@/components/ds/input";
 import { Kpi } from "@/components/ds/kpi";
 import { Field } from "@/components/ds/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ds/select";
 import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
+import {
+  Avertissement, CaseACocher, ChampSelect, ModaleFormulaire,
+} from "@/components/dashboard/ModaleFormulaire";
 import {
   LOT_STATUS_TONE, LotDetailModal, getBadgeConfig, lotPvAlert,
   type LitigeRow, type LotRecord, type PvInfo, type ScoreConfiance,
@@ -69,24 +69,6 @@ const STATUT_OPTIONS = [
 // Radix Select refuse la chaîne vide comme valeur d'option : il lui faut un
 // jeton explicite pour « pas de filtre ».
 const TOUS = "tous";
-
-// ─── Champ « liste déroulante » du Design System ──────────────────────────────
-
-function ChampSelect({ id, label, value, onChange, required, children }: {
-  id: string; label: string; value: string;
-  onChange: (v: string) => void; required?: boolean; children: React.ReactNode;
-}) {
-  return (
-    <Field label={label} htmlFor={id} required={required}>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={id}>
-          <SelectValue placeholder="— Sélectionner —" />
-        </SelectTrigger>
-        <SelectContent>{children}</SelectContent>
-      </Select>
-    </Field>
-  );
-}
 
 // ─── Attribution Modal ────────────────────────────────────────────────────────
 
@@ -140,9 +122,9 @@ function AttributionModal({ lot, attributaires, onClose, onSubmit, isSubmitting 
           onChange={(e) => setForm((f) => ({ ...f, depuis: e.target.value }))} />
       </Field>
 
-      <Caseacocher checked={form.actuel} onChange={(v) => setForm((f) => ({ ...f, actuel: v }))}>
+      <CaseACocher checked={form.actuel} onChange={(v) => setForm((f) => ({ ...f, actuel: v }))}>
         Attribution actuelle (met le lot en statut « Attribué »)
-      </Caseacocher>
+      </CaseACocher>
 
       <Field label="Observation" htmlFor="attr-obs">
         <Textarea id="attr-obs" value={form.observation} rows={2}
@@ -305,102 +287,6 @@ function CessionModal({
           placeholder="Remarques, conditions…" />
       </Field>
     </ModaleFormulaire>
-  );
-}
-
-// ─── Briques communes aux modales ─────────────────────────────────────────────
-
-/**
- * Coquille des quatre formulaires de l'écran. Les modales étaient quatre copies
- * de la même structure ; les factoriser garantit qu'un correctif d'ergonomie
- * (fermeture au clavier, ordre des boutons) profite aux quatre d'un coup.
- */
-function ModaleFormulaire({
-  surTitre, surTitreTon = "accent", titre, description, entete, children,
-  onClose, onSubmit, error, isSubmitting, actionDesactivee, variante = "primary",
-  libelleAction, libelleEnCours,
-}: {
-  surTitre: string;
-  surTitreTon?: "accent" | "danger";
-  titre: string;
-  description?: string;
-  entete?: React.ReactNode;
-  children: React.ReactNode;
-  onClose: () => void;
-  onSubmit: (e: FormEvent) => void;
-  error: string | null;
-  isSubmitting: boolean;
-  actionDesactivee?: boolean;
-  variante?: "primary" | "danger";
-  libelleAction: string;
-  libelleEnCours: string;
-}) {
-  return (
-    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
-      <DialogContent>
-        <DialogHeader>
-          <p className={`text-[11px] font-bold tracking-[0.18em] uppercase ${
-            surTitreTon === "danger" ? "text-danger" : "text-accent"
-          }`}>
-            {surTitre}
-          </p>
-          <DialogTitle>{titre}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
-        </DialogHeader>
-
-        <form onSubmit={onSubmit}>
-          <DialogBody className="space-y-4">
-            {entete}
-            {children}
-            {error && (
-              <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-3 py-2 text-sm font-medium text-danger">
-                {error}
-              </p>
-            )}
-          </DialogBody>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
-            <Button
-              type="submit"
-              variant={variante}
-              loading={isSubmitting}
-              disabled={actionDesactivee}
-            >
-              {isSubmitting ? libelleEnCours : libelleAction}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function Caseacocher({ checked, onChange, children }: {
-  checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode;
-}) {
-  return (
-    <label className="flex items-center gap-3 rounded-xl border border-border bg-inset px-4 py-3 text-sm text-foreground transition-colors hover:border-border-strong">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="size-4 rounded border-border"
-        // `accent-color` en jeton : la case native suit le thème sans qu'on ait
-        // à la reconstruire en div.
-        style={{ accentColor: "var(--primary)" }}
-      />
-      {children}
-    </label>
-  );
-}
-
-function Avertissement({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-start gap-2.5 rounded-xl border border-warning/25 bg-warning-subtle p-3">
-      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
-      <p className="text-xs text-warning">{children}</p>
-    </div>
   );
 }
 
@@ -1035,12 +921,12 @@ export default function LotsPage() {
             ))}
           </ChampSelect>
 
-          <Caseacocher
+          <CaseACocher
             checked={formState.est_equipement}
             onChange={(v) => setFormState((f) => ({ ...f, est_equipement: v }))}
           >
             Réservé à un équipement public
-          </Caseacocher>
+          </CaseACocher>
         </ModaleFormulaire>
       )}
 
