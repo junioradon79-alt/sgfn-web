@@ -92,6 +92,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     "/dashboard/invitations",
     "/dashboard/mettre-en-vente",
     "/dashboard/proprietaire",
+    "/dashboard/mon-achat",
   ];
   if (ECRANS_DS.includes(pathname.replace(/\/+$/, ""))) {
     return (

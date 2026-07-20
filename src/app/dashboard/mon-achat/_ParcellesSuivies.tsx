@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Bell, Store, Loader2, MapPin, X, Compass, ChevronRight } from "lucide-react";
+
+import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
 import { createClient } from "@/utils/supabase/client";
 
 // Marketplace public (TerraCI Market) — la découverte des annonces y vit.
@@ -61,88 +65,93 @@ export default function ParcellesSuivies() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center rounded-2xl border border-slate-200/60 bg-white px-5 py-10 text-slate-400">
-        <Loader2 className="h-5 w-5 animate-spin" />
-      </div>
+      <Card className="flex items-center justify-center px-5 py-10 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" aria-hidden />
+      </Card>
     );
   }
 
   return (
-    <section className="mb-6">
-      <div className="mb-3 flex items-center gap-2">
-        <Bell className="h-4 w-4 text-[#0D3B66]" />
-        <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Mes terrains suivis</h2>
+    <section className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <Bell className="text-accent size-4" aria-hidden />
+        <h2 className="text-[11px] font-bold tracking-[0.18em] text-muted-foreground uppercase">
+          Mes terrains suivis
+        </h2>
         {suivis.length > 0 && (
-          <span className="rounded-full bg-[#0D3B66]/10 px-2 py-0.5 text-xs font-bold text-[#0D3B66]">
+          <span className="bg-accent-subtle text-accent rounded-full px-2 py-0.5 text-xs font-bold">
             {suivis.length}
           </span>
         )}
       </div>
 
       {suivis.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200/60 bg-white px-6 py-8 text-center shadow-sm">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#0D3B66]/5">
-            <Compass className="h-6 w-6 text-[#0D3B66]" />
-          </div>
-          <p className="mt-3 text-sm font-semibold text-slate-800">Aucun terrain suivi pour le moment</p>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
-            Parcourez les terrains en vente sur TerraCI Market, ou scannez le QR d&apos;un document
-            pour suivre une parcelle et être prévenu si elle est mise en vente.
-          </p>
-          <a
-            href={`${MARKETPLACE_BASE}/annonces/`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-[#0D3B66] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0a2f52]"
-          >
-            <Store className="h-4 w-4" />
-            Découvrir des terrains
-          </a>
-        </div>
+        <Card className="pb-8">
+          <EmptyState
+            icon={Compass}
+            title="Aucun terrain suivi pour le moment"
+            description="Parcourez les terrains en vente sur TerraCI Market, ou scannez le QR d'un document pour suivre une parcelle et être prévenu si elle est mise en vente."
+            className="pb-0"
+          />
+          {/* CTA rendu ici plutôt que via `action` d'EmptyState : c'est l'action
+              principale de l'écran (bouton plein, pas `outline`) et elle sort du
+              domaine — elle a besoin de target/rel. */}
+          <Button asChild variant="primary" className="mt-4 self-center">
+            <a href={`${MARKETPLACE_BASE}/annonces/`} target="_blank" rel="noopener noreferrer">
+              <Store className="size-4" aria-hidden />
+              Découvrir des terrains
+            </a>
+          </Button>
+        </Card>
       ) : (
         <div className="flex flex-col gap-3">
           {suivis.map((s) => (
-            <div
-              key={s.lot_id}
-              className="flex items-center gap-3 rounded-2xl border border-slate-200/60 bg-white px-4 py-3.5 shadow-sm"
-            >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#0D3B66]/5">
-                <MapPin className="h-5 w-5 text-[#0D3B66]" />
+            <Card key={s.lot_id} className="flex-row items-center gap-3 px-4 py-3.5">
+              <div className="bg-accent-subtle flex size-10 shrink-0 items-center justify-center rounded-xl">
+                <MapPin className="text-accent size-5" aria-hidden />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-slate-800">
+                <p className="truncate text-sm font-bold text-foreground">
                   Lot {s.numero_lot ?? "—"}
                   {s.ilot_numero ? ` · Îlot ${s.ilot_numero}` : ""}
                 </p>
-                <p className="truncate text-xs text-slate-500">{s.lotissement ?? "—"}</p>
+                <p className="truncate text-xs text-muted-foreground">{s.lotissement ?? "—"}</p>
               </div>
 
               {s.en_vente ? (
-                <a
-                  href={s.annonce_id ? `${MARKETPLACE_BASE}/annonces/${s.annonce_id}/` : `${MARKETPLACE_BASE}/annonces/`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#2D8F5A] px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-[#24794c]"
+                <Button
+                  asChild
+                  size="sm"
+                  variant="primary"
+                  className="bg-success hover:bg-success/90 shrink-0 rounded-xl text-white"
                 >
-                  <Store className="h-3.5 w-3.5" />
-                  En vente
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </a>
+                  <a
+                    href={s.annonce_id ? `${MARKETPLACE_BASE}/annonces/${s.annonce_id}/` : `${MARKETPLACE_BASE}/annonces/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Store className="size-3.5" aria-hidden />
+                    En vente
+                    <ChevronRight className="size-3.5" aria-hidden />
+                  </a>
+                </Button>
               ) : (
-                <span className="hidden shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-500 sm:inline">
+                <span className="hidden shrink-0 rounded-full border border-border bg-inset px-2.5 py-1 text-xs font-medium text-muted-foreground sm:inline">
                   Pas encore en vente
                 </span>
               )}
 
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon-sm"
                 onClick={() => void nePlusSuivre(s.lot_id)}
                 title="Ne plus suivre"
-                className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                aria-label={`Ne plus suivre le lot ${s.numero_lot ?? ""}`.trim()}
+                className="shrink-0"
               >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+                <X className="size-4" aria-hidden />
+              </Button>
+            </Card>
           ))}
         </div>
       )}

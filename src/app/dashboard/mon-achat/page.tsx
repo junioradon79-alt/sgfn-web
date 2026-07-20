@@ -1,7 +1,8 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import {
   BadgeCheck,
   CheckCircle2,
@@ -16,7 +17,15 @@ import {
   Send,
   ShieldCheck,
 } from "lucide-react";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { useChargement } from "@/hooks/useChargement";
 import { createClient } from "@/utils/supabase/client";
+import { fadeUp, stagger } from "@/lib/motion";
+
 import ParcellesSuivies from "./_ParcellesSuivies";
 
 /**
@@ -51,6 +60,7 @@ type Doc = { reference: string; qr_token: string | null };
 
 function MonAchatContenu() {
   const supabase = useMemo(() => createClient(), []);
+  const { counts } = useBadgeCounts();
 
   const [demandes, setDemandes] = useState<DemandeRow[]>([]);
   const [lots, setLots] = useState<Record<string, LotLabel>>({});
@@ -59,7 +69,6 @@ function MonAchatContenu() {
   const [ventePaies, setVentePaies] = useState<Record<string, Paie>>({});
   const [attestations, setAttestations] = useState<Record<string, Doc>>({});
   const [attPaies, setAttPaies] = useState<Record<string, Paie>>({});
-  const [loading, setLoading] = useState(true);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
 
@@ -123,14 +132,9 @@ function MonAchatContenu() {
       setAttestations({});
       setAttPaies({});
     }
-    setLoading(false);
   }, [supabase]);
 
-  useEffect(() => {
-    void (async () => {
-      await load();
-    })();
-  }, [load]);
+  const { isLoading: loading, recharger } = useChargement(load);
 
   // Paiement en ligne (CinetPay). Réutilisé pour le terrain et l'attestation.
   const payerEnLigne = async (paiementId: string) => {
@@ -169,24 +173,26 @@ function MonAchatContenu() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <div className="mb-6">
-        <h1 className="font-display text-2xl font-bold text-brand-primary sm:text-3xl">Mon espace acquéreur</h1>
-        <p className="mt-1.5 text-sm text-slate-500 sm:text-base">
+    <AppShell loading={loading} counts={counts} onRefresh={() => void recharger()}>
+      <div>
+        <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Mon achat</p>
+        <h1 className="mt-1 font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+          Mon espace acquéreur
+        </h1>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
           Suivez les terrains qui vous intéressent et l&apos;avancement de vos achats.
         </p>
-        <Link
-          href="/guide-achat"
-          className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[#0D3B66] underline decoration-dotted underline-offset-2 hover:no-underline"
-        >
-          <HelpCircle className="h-4 w-4" />
-          Comment ça marche ?
-        </Link>
+        <Button asChild variant="link" size="sm" className="mt-2 h-auto px-0">
+          <Link href="/guide-achat">
+            <HelpCircle className="size-4" aria-hidden />
+            Comment ça marche ?
+          </Link>
+        </Button>
       </div>
 
       {payError && (
-        <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <Landmark className="mt-0.5 h-4 w-4 shrink-0 text-[#F39C12]" />
+        <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning-subtle px-4 py-3 text-sm text-foreground">
+          <Landmark className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
           <span>{payError}</span>
         </div>
       )}
@@ -197,31 +203,35 @@ function MonAchatContenu() {
 
       {/* Achats en cours : l'ancien tunnel agence, conservé, mais secondaire —
           affiché seulement s'il existe une demande/vente réelle. */}
-      {loading ? (
-        <div className="rounded-2xl border border-slate-200/60 bg-white px-5 py-12 text-center text-sm text-slate-500">
-          Chargement…
-        </div>
-      ) : demandes.length > 0 ? (
-        <div className="flex flex-col gap-4">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Mes achats en cours</h2>
+      {loading ? null : demandes.length > 0 ? (
+        <motion.section
+          variants={stagger(0, 0.05)}
+          initial="hidden"
+          animate="show"
+          className="flex flex-col gap-4"
+        >
+          <h2 className="text-[11px] font-bold tracking-[0.18em] text-muted-foreground uppercase">
+            Mes achats en cours
+          </h2>
           {demandes.map((d) => (
-            <AchatCard
-              key={d.id}
-              d={d}
-              lot={lots[d.lot_id]}
-              vente={d.vente_id ? ventes[d.vente_id] : undefined}
-              certificat={d.vente_id ? certificats[d.vente_id] : undefined}
-              ventePaie={d.vente_id ? ventePaies[d.vente_id] : undefined}
-              attestation={d.cession_id ? attestations[d.cession_id] : undefined}
-              attPaie={d.cession_id ? attPaies[d.cession_id] : undefined}
-              payingId={payingId}
-              onPayer={payerEnLigne}
-              onPayerEcheance={payerEcheanceSuivante}
-            />
+            <motion.div key={d.id} variants={fadeUp}>
+              <AchatCard
+                d={d}
+                lot={lots[d.lot_id]}
+                vente={d.vente_id ? ventes[d.vente_id] : undefined}
+                certificat={d.vente_id ? certificats[d.vente_id] : undefined}
+                ventePaie={d.vente_id ? ventePaies[d.vente_id] : undefined}
+                attestation={d.cession_id ? attestations[d.cession_id] : undefined}
+                attPaie={d.cession_id ? attPaies[d.cession_id] : undefined}
+                payingId={payingId}
+                onPayer={payerEnLigne}
+                onPayerEcheance={payerEcheanceSuivante}
+              />
+            </motion.div>
           ))}
-        </div>
+        </motion.section>
       ) : null}
-    </div>
+    </AppShell>
   );
 }
 
@@ -229,7 +239,13 @@ function MonAchatContenu() {
 // statique (output: export).
 export default function MonAchatPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-16">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden />
+        </div>
+      }
+    >
       <MonAchatContenu />
     </Suspense>
   );
@@ -285,15 +301,15 @@ function AchatCard({
   const lieu = lot ? [lot.lotissement, lot.village, lot.commune].filter(Boolean).join(" · ") : "";
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
+    <Card className="overflow-hidden">
       {/* En-tête terrain */}
-      <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#0D3B66]/5">
-          <MapPin className="h-5 w-5 text-[#0D3B66]" />
+      <div className="flex items-start gap-3 border-b border-border px-5 py-4">
+        <div className="bg-accent-subtle flex size-11 shrink-0 items-center justify-center rounded-xl">
+          <MapPin className="text-accent size-5" aria-hidden />
         </div>
         <div className="min-w-0">
-          <p className="text-base font-bold text-slate-800">{titreLot}</p>
-          {lieu && <p className="truncate text-xs text-slate-500">{lieu}</p>}
+          <p className="text-base font-bold text-foreground">{titreLot}</p>
+          {lieu && <p className="truncate text-xs text-muted-foreground">{lieu}</p>}
         </div>
       </div>
 
@@ -304,7 +320,9 @@ function AchatCard({
             <div key={s.key} className="flex flex-1 items-center">
               <StepBubble state={states[i]} icon={s.icon} label={s.label} />
               {i < STEPS.length - 1 && (
-                <div className={`mx-1 h-0.5 flex-1 rounded ${states[i] === "done" ? "bg-[#2D8F5A]" : "bg-slate-200"}`} />
+                <div
+                  className={`mx-1 h-0.5 flex-1 rounded ${states[i] === "done" ? "bg-success" : "bg-border"}`}
+                />
               )}
             </div>
           ))}
@@ -317,9 +335,12 @@ function AchatCard({
           <Info tone="neutral">Cette demande n&apos;a pas abouti. Vous pouvez chercher un autre terrain.</Info>
         ) : !hasVente ? (
           <Info tone="wait" icon={MessageSquare}>
-            <span className="font-semibold text-slate-700">Demande envoyée.</span> L&apos;agence SGNF étudie
+            <span className="font-semibold text-foreground">Demande envoyée.</span> L&apos;agence SGNF étudie
             votre demande et vous contactera pour convenir du prix.
-            <Link href="/dashboard/messages" className="ml-1 font-semibold text-[#0D3B66] underline decoration-dotted hover:no-underline">
+            <Link
+              href="/dashboard/messages"
+              className="text-accent ml-1 font-semibold underline decoration-dotted hover:no-underline"
+            >
               Voir mes messages
             </Link>
           </Info>
@@ -336,7 +357,7 @@ function AchatCard({
           />
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -363,31 +384,33 @@ function PayerTerrain({
 
   return (
     <div>
-      <p className="mb-3 text-sm text-slate-600">
-        Prix du terrain : <span className="font-bold text-slate-800">{fcfa(vente?.prix_total)}</span>
+      <p className="mb-3 text-sm text-muted-foreground">
+        Prix du terrain : <span className="font-bold text-foreground">{fcfa(vente?.prix_total)}</span>
         {vente?.montant_paye ? ` — déjà payé ${fcfa(vente.montant_paye)}` : ""}
         {reste != null && reste > 0 && vente?.montant_paye ? ` · reste ${fcfa(reste)}` : ""}
-        {vente?.type_vente === "echelonne" && <span className="ml-1 text-slate-400">(paiement en plusieurs fois)</span>}
+        {vente?.type_vente === "echelonne" && <span className="ml-1 text-muted-2">(paiement en plusieurs fois)</span>}
       </p>
 
       {enLigne || echelonneSansPaiement ? (
         <>
-          <button
-            type="button"
+          {/* Action unique et pleine largeur : cet écran s'adresse à un public peu
+              à l'aise avec le numérique — cf. le docstring de la page. */}
+          <Button
+            variant="primary"
+            loading={busy}
             onClick={() => (enLigne && ventePaie ? onPayer(ventePaie.id) : onPayerEcheance(venteId))}
-            disabled={busy}
-            className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#2D8F5A] px-5 py-4 text-base font-bold text-white shadow-sm transition-colors hover:bg-[#24794c] disabled:opacity-60"
+            className="bg-success hover:bg-success/90 h-auto w-full rounded-xl py-4 text-base font-bold text-white"
           >
-            {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <CreditCard className="h-5 w-5" />}
+            {!busy && <CreditCard className="size-5" aria-hidden />}
             {busy ? "Redirection…" : `Payer mon terrain${enLigne && ventePaie?.montant_total != null ? ` — ${fcfa(ventePaie.montant_total)}` : ""}`}
-          </button>
-          <p className="mt-2 text-center text-xs text-slate-400">
+          </Button>
+          <p className="mt-2 text-center text-xs text-muted-2">
             Paiement mobile money sécurisé — ou payez en espèces au guichet SGNF.
           </p>
         </>
       ) : guichet ? (
         <Info tone="wait" icon={Landmark}>
-          <span className="font-semibold text-slate-700">À payer au guichet SGNF</span>
+          <span className="font-semibold text-foreground">À payer au guichet SGNF</span>
           {ventePaie?.montant_total != null && <> — {fcfa(ventePaie.montant_total)}</>}. Présentez-vous à
           l&apos;agence ; votre certificat de propriété sera établi dès le paiement.
         </Info>
@@ -420,18 +443,18 @@ function Proprietaire({
   return (
     <div className="space-y-4">
       {/* Bandeau propriété acquise */}
-      <div className="flex items-start gap-2.5 rounded-xl border border-[#2D8F5A]/30 bg-[#2D8F5A]/5 px-4 py-3">
-        <PartyPopper className="mt-0.5 h-5 w-5 shrink-0 text-[#2D8F5A]" />
+      <div className="border-success/30 bg-success-subtle flex items-start gap-2.5 rounded-xl border px-4 py-3">
+        <PartyPopper className="text-success mt-0.5 size-5 shrink-0" aria-hidden />
         <div>
-          <p className="text-sm font-bold text-[#2D8F5A]">Félicitations, vous êtes propriétaire !</p>
+          <p className="text-success text-sm font-bold">Félicitations, vous êtes propriétaire !</p>
           {certificat && (
             <a
               href={verifUrl(certificat.reference)}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold text-[#0D3B66] underline decoration-dotted hover:no-underline"
+              className="text-accent mt-1 inline-flex items-center gap-1.5 text-xs font-semibold underline decoration-dotted hover:no-underline"
             >
-              <FileCheck2 className="h-3.5 w-3.5" />
+              <FileCheck2 className="size-3.5" aria-hidden />
               Voir mon certificat de propriété ({certificat.reference})
             </a>
           )}
@@ -440,31 +463,32 @@ function Proprietaire({
 
       {/* Étape attestation */}
       {attestation ? (
-        <a
-          href={verifUrl(attestation.reference)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#0D3B66] px-5 py-4 text-base font-bold text-white shadow-sm transition-colors hover:bg-[#0a2f52]"
+        <Button
+          asChild
+          variant="primary"
+          className="h-auto w-full rounded-xl py-4 text-base font-bold"
         >
-          <ShieldCheck className="h-5 w-5" />
-          Voir mon attestation
-        </a>
+          <a href={verifUrl(attestation.reference)} target="_blank" rel="noopener noreferrer">
+            <ShieldCheck className="size-5" aria-hidden />
+            Voir mon attestation
+          </a>
+        </Button>
       ) : attEnLigne ? (
         <>
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            loading={busy}
             onClick={() => attPaie && onPayer(attPaie.id)}
-            disabled={busy}
-            className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#2D8F5A] px-5 py-4 text-base font-bold text-white shadow-sm transition-colors hover:bg-[#24794c] disabled:opacity-60"
+            className="bg-success hover:bg-success/90 h-auto w-full rounded-xl py-4 text-base font-bold text-white"
           >
-            {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <CreditCard className="h-5 w-5" />}
+            {!busy && <CreditCard className="size-5" aria-hidden />}
             {busy ? "Redirection…" : `Payer mon attestation${attPaie?.montant_total != null ? ` — ${fcfa(attPaie.montant_total)}` : ""}`}
-          </button>
-          <p className="text-center text-xs text-slate-400">Dernière étape : votre attestation officielle de cession.</p>
+          </Button>
+          <p className="text-center text-xs text-muted-2">Dernière étape : votre attestation officielle de cession.</p>
         </>
       ) : attGuichet ? (
         <Info tone="wait" icon={Landmark}>
-          <span className="font-semibold text-slate-700">Attestation à régler au guichet SGNF</span>
+          <span className="font-semibold text-foreground">Attestation à régler au guichet SGNF</span>
           {attPaie?.montant_total != null && <> — {fcfa(attPaie.montant_total)}</>}. Elle sera émise dès le paiement.
         </Info>
       ) : hasCession ? (
@@ -484,17 +508,21 @@ function StepBubble({ state, icon: Icon, label }: { state: StepState; icon: type
   return (
     <div className="flex flex-col items-center gap-1">
       <div
-        className={`flex h-9 w-9 items-center justify-center rounded-full border-2 ${
+        className={`flex size-9 items-center justify-center rounded-full border-2 ${
           done
-            ? "border-[#2D8F5A] bg-[#2D8F5A] text-white"
+            ? "border-success bg-success text-white"
             : current
-              ? "border-[#F39C12] bg-[#F39C12]/10 text-[#F39C12]"
-              : "border-slate-200 bg-white text-slate-300"
+              ? "border-warning bg-warning-subtle text-warning"
+              : "border-border bg-card text-muted-2"
         }`}
       >
-        {done ? <CheckCircle2 className="h-5 w-5" /> : <Icon className="h-4 w-4" />}
+        {done ? <CheckCircle2 className="size-5" aria-hidden /> : <Icon className="size-4" aria-hidden />}
       </div>
-      <span className={`text-[10px] font-semibold ${current ? "text-[#F39C12]" : done ? "text-[#2D8F5A]" : "text-slate-400"}`}>
+      <span
+        className={`text-[10px] font-semibold ${
+          current ? "text-warning" : done ? "text-success" : "text-muted-2"
+        }`}
+      >
         {label}
       </span>
     </div>
@@ -505,10 +533,10 @@ function Info({ children, tone, icon: Icon }: { children: React.ReactNode; tone:
   return (
     <div
       className={`flex items-start gap-2.5 rounded-xl px-4 py-3 text-sm leading-relaxed ${
-        tone === "wait" ? "bg-[#0D3B66]/[0.04] text-slate-600" : "bg-slate-50 text-slate-500"
+        tone === "wait" ? "bg-accent-subtle text-foreground" : "bg-inset text-muted-foreground"
       }`}
     >
-      {Icon && <Icon className="mt-0.5 h-4 w-4 shrink-0 text-[#0D3B66]" />}
+      {Icon && <Icon className="text-accent mt-0.5 size-4 shrink-0" aria-hidden />}
       <p>{children}</p>
     </div>
   );
