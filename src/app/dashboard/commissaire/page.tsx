@@ -1,10 +1,8 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import Link from "next/link";
 import {
   AlertTriangle,
-  ChevronRight,
   FileCheck2,
   FileWarning,
   Gift,
@@ -13,10 +11,19 @@ import {
   ScrollText,
   ShieldCheck,
 } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
+import { motion } from "framer-motion";
+
+import { cn } from "@/lib/utils";
+import { stagger } from "@/lib/motion";
 import { createClient } from "@/utils/supabase/client";
 import { useChargement } from "@/hooks/useChargement";
-import { LoadingScreen, StatCard } from "@/components/dashboard/chefferie/SharedUI";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Card } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Kpi } from "@/components/ds/kpi";
+import { ScrollArea } from "@/components/ds/scroll-area";
 import {
   LotDetailModal,
   QUALITE_LABELS,
@@ -51,13 +58,13 @@ type SupRow = {
   pv_alerte_statut: string | null;
 };
 
-const STATUT_LOT: Record<string, { badge: "disponible" | "attribue" | "en_validation" | "litige"; label: string }> = {
-  attribue: { badge: "attribue", label: "Attribué" },
-  occupe: { badge: "attribue", label: "Occupé" },
-  vendu: { badge: "attribue", label: "Vendu" },
-  libre: { badge: "disponible", label: "Libre" },
-  en_litige: { badge: "litige", label: "Litige" },
-  reserve_equipement: { badge: "en_validation", label: "Réservé" },
+const STATUT_LOT: Record<string, { tone: "accent" | "success" | "neutral" | "danger" | "warning"; label: string }> = {
+  attribue: { tone: "accent", label: "Attribué" },
+  occupe: { tone: "accent", label: "Occupé" },
+  vendu: { tone: "success", label: "Vendu" },
+  libre: { tone: "neutral", label: "Libre" },
+  en_litige: { tone: "danger", label: "Litige" },
+  reserve_equipement: { tone: "warning", label: "Réservé" },
 };
 
 const FILTERS = [
@@ -102,7 +109,8 @@ export default function CommissairePage() {
     setGroupe((profRes.data as { groupe: string } | null)?.groupe ?? null);
   }, [supabase]);
 
-  const { isLoading: loading } = useChargement(fetchData, [fetchData]);
+  const { isLoading: loading, recharger } = useChargement(fetchData, [fetchData]);
+  const { counts } = useBadgeCounts();
 
   // Charge le dossier complet d'un lot à la demande, puis ouvre le modal partagé.
   const ouvrirDossier = async (lotId: string) => {
@@ -140,126 +148,129 @@ export default function CommissairePage() {
     return true;
   });
 
-  if (loading) return <LoadingScreen />;
+  // Le chargement et l'état vide gardent la coquille : sans elle, l'écran
+  // perdrait sa navigation le temps de la requête, puis la retrouverait.
+  if (loading) {
+    return (
+      <AppShell loading counts={counts} onRefresh={recharger}>
+        <div className="flex min-h-[320px] items-center justify-center">
+          <span className="text-[13px] font-medium text-muted-2">Chargement du registre…</span>
+        </div>
+      </AppShell>
+    );
+  }
 
   // ── État vide : commissaire non encore rattaché à un lotissement légalisé ──
   if (rows.length === 0 && estCommissaire) {
     return (
-      <div className="flex min-h-[320px] items-center justify-center px-4">
-        <div className="max-w-sm text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100">
-            <ShieldCheck className="h-6 w-6 text-[#1E6091]" />
-          </div>
-          <p className="text-sm font-semibold text-slate-800">Aucun lotissement sous votre supervision</p>
-          <p className="mt-2 text-sm leading-relaxed text-slate-400">
-            Votre supervision porte sur les lotissements dont vous avez légalisé les PV. Dès qu&apos;un
-            lotissement vous est rattaché, son registre apparaîtra ici.
-          </p>
-          <Link
-            href="/dashboard/messages"
-            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1E6091]"
-          >
-            Contacter l&apos;administration
-          </Link>
-        </div>
-      </div>
+      <AppShell loading={false} counts={counts} onRefresh={recharger}>
+        <EmptyState
+          icon={ShieldCheck}
+          title="Aucun lotissement sous votre supervision"
+          description="Votre supervision porte sur les lotissements dont vous avez légalisé les PV. Dès qu'un lotissement vous est rattaché, son registre apparaîtra ici."
+          action={{ label: "Contacter l'administration", href: "/dashboard/messages" }}
+        />
+      </AppShell>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <AppShell loading={loading} counts={counts} onRefresh={recharger}>
       {/* En-tête */}
       <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-[11px] font-bold tracking-[0.22em] text-primary uppercase">
             {estCommissaire ? "Commissaire de justice · Supervision" : "Supervision · Contrôle et conformité"}
           </p>
-          <span className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            <ShieldCheck className="h-3 w-3" />
+          <Badge tone="neutral">
+            <ShieldCheck className="size-3" />
             Lecture seule
-          </span>
+          </Badge>
         </div>
-        <h1 className="text-2xl font-bold text-[#0D3B66]">
+        <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
           {estCommissaire ? "Registre sous ma supervision" : "Registre foncier national"}
         </h1>
-        <p className="text-sm text-slate-500">
+        <p className="text-[13.5px] text-muted-foreground">
           {rows.length} lot{rows.length > 1 ? "s" : ""} · {lotissementsUniques} lotissement
           {lotissementsUniques > 1 ? "s" : ""}
           {estCommissaire ? " dont vous avez légalisé les PV." : " — accès en consultation."}
         </p>
+        <p className="mt-1 max-w-2xl text-[13px] text-muted-2">
+          Consultez le registre, filtrez par statut, et ouvrez le dossier foncier de chaque lot — score de
+          confiance, historique de propriété, litiges.
+        </p>
       </div>
 
-      {/* Carte principale — registre des lots (ancre sur la même page) */}
-      <a
-        href="#registre"
-        className="group flex items-center justify-between gap-4 rounded-3xl border border-[#0D3B66]/15 bg-gradient-to-br from-[#0D3B66] to-[#1E6091] p-6 text-white shadow-sm transition hover:shadow-md sm:p-8"
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
+        aria-label="Indicateurs de supervision"
       >
-        <div>
-          <div className="flex items-center gap-2 text-white/70">
-            <Landmark className="h-5 w-5" />
-            <span className="text-xs font-semibold uppercase tracking-[0.2em]">Lots sous supervision</span>
-          </div>
-          <p className="mt-3 text-5xl font-bold leading-none">{rows.length}</p>
-          <p className="mt-2 max-w-md text-sm text-white/70">
-            Consultez le registre, filtrez par statut, et ouvrez le dossier foncier de chaque lot
-            (score de confiance, historique de propriété, litiges).
-          </p>
-        </div>
-        <ChevronRight className="h-6 w-6 shrink-0 text-white/60 transition group-hover:translate-x-1" />
-      </a>
-
-      {/* Rubriques de synthèse */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard
+        <Kpi
+          icon={Landmark}
+          label="Lots sous supervision"
           href="#registre"
+          loading={loading}
+          value={rows.length}
+          legende={
+            <>
+              sur {lotissementsUniques} lotissement{lotissementsUniques > 1 ? "s" : ""}
+            </>
+          }
+        />
+        <Kpi
           icon={FileCheck2}
           label="Attestations délivrées"
-          value={attDelivrees}
-          subtitle={`sur ${attestationsAvecRef} au registre`}
-        />
-        <StatCard
           href="#registre"
+          loading={loading}
+          value={attDelivrees}
+          legende={<>sur {attestationsAvecRef} au registre</>}
+        />
+        <Kpi
           icon={Gift}
           label="Dont gratuites"
-          value={attGratuites}
-          subtitle="1ers propriétaires d'origine"
-        />
-        <StatCard
           href="#registre"
+          loading={loading}
+          value={attGratuites}
+          legende={<>1ers propriétaires d&apos;origine</>}
+        />
+        <Kpi
           icon={AlertTriangle}
           label="PV à régulariser"
+          href="#registre"
+          loading={loading}
           value={pvAlertLots.length}
-          subtitle={pvAlertLots.length > 0 ? "Lots en attente de PV" : "À jour"}
-          alerte={pvAlertLots.length}
+          tone={pvAlertLots.length > 0 ? "warning" : "neutral"}
+          legende={pvAlertLots.length > 0 ? <>lots en attente de PV</> : <>aucun PV en attente</>}
         />
-        <StatCard
-          href="/dashboard/litiges"
+        <Kpi
           icon={FileWarning}
           label="Litiges"
+          href="/dashboard/litiges"
+          loading={loading}
           value={litigesCount}
-          subtitle={litigesCount > 0 ? "Actifs sur votre ressort" : "Aucun litige actif"}
-          alerte={litigesCount}
+          tone={litigesCount > 0 ? "warning" : "neutral"}
+          legende={litigesCount > 0 ? <>actifs sur votre ressort</> : <>aucun litige actif</>}
         />
-      </div>
+      </motion.section>
 
       {/* Registre des lots — cible de l'ancre #registre */}
-      <section
-        id="registre"
-        className="scroll-mt-6 overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm"
-      >
-        <div className="border-b border-slate-100 px-5 py-4">
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-[#0D3B66]">
-            <ScrollText className="h-4 w-4 text-[#0D3B66]" />
+      <Card id="registre" className="scroll-mt-6 overflow-hidden">
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="flex items-center gap-1.5 text-[13.5px] font-semibold text-foreground">
+            <ScrollText className="size-4 text-primary" />
             Registre des lots
           </h2>
-          <p className="mt-0.5 text-xs text-slate-400">
+          <p className="mt-0.5 text-[11.5px] text-muted-2">
             {pvAlertLots.length > 0
-              ? `${pvAlertLots.length} lot${pvAlertLots.length > 1 ? "s" : ""} avec PV en attente`
+              ? `${pvAlertLots.length} lot${pvAlertLots.length > 1 ? "s" : ""} avec PV en attente — cliquez un lot pour ouvrir son dossier foncier`
               : "Cliquez un lot pour ouvrir son dossier foncier"}
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2 border-b border-slate-100 px-5 py-3">
+        <div className="scb flex gap-2 overflow-x-auto border-b border-border px-5 py-3">
           {FILTERS.map((f) => {
             const n =
               f.key === "all"
@@ -267,22 +278,26 @@ export default function CommissairePage() {
                 : f.key === "pv"
                   ? pvAlertLots.length
                   : rows.filter((r) => r.statut === f.key).length;
+            const actif = filter === f.key;
             return (
               <button
                 key={f.key}
                 type="button"
                 onClick={() => setFilter(f.key)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                  filter === f.key
-                    ? "border-[#0D3B66] bg-[#0D3B66] text-white"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                }`}
+                aria-pressed={actif}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                  actif
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-card text-muted-foreground hover:border-border-strong hover:text-foreground",
+                )}
               >
                 {f.label}
                 <span
-                  className={`rounded-full px-1.5 text-[10px] ${
-                    filter === f.key ? "bg-white/20" : "bg-slate-100 text-slate-500"
-                  }`}
+                  className={cn(
+                    "tabular rounded-full px-1.5 text-[10px]",
+                    actif ? "bg-white/20" : "bg-inset text-muted-2",
+                  )}
                 >
                   {n}
                 </span>
@@ -291,47 +306,54 @@ export default function CommissairePage() {
           })}
         </div>
 
-        <div className="divide-y divide-slate-100">
-          {shown.length === 0 ? (
-            <div className="px-5 py-10 text-center text-sm text-slate-500">Aucun lot dans ce filtre.</div>
-          ) : (
-            shown.map((r) => {
-              const st = STATUT_LOT[r.statut ?? "libre"] ?? STATUT_LOT.libre;
-              return (
-                <button
-                  key={r.lot_id}
-                  type="button"
-                  onClick={() => ouvrirDossier(r.lot_id)}
-                  disabled={dossierEnCours === r.lot_id}
-                  className={`flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-slate-50 ${
-                    dossierEnCours === r.lot_id ? "opacity-60" : ""
-                  }`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs text-slate-400">
-                        Îlot {r.ilot_numero} · Lot {r.numero_lot}
-                      </span>
-                      <span className="text-sm font-semibold text-slate-800">
-                        {r.attributaire_nom ?? "— libre"}
-                      </span>
-                      {r.verrouille && <Lock className="h-3 w-3 text-amber-500" />}
+        {/* Le registre d'un commissaire dépasse le millier de lots : la liste
+            défile chez elle plutôt que d'étirer la page sans fin. */}
+        <ScrollArea className="max-h-[560px]">
+          <div className="divide-y divide-border">
+            {shown.length === 0 ? (
+              <div className="px-5 py-10 text-center text-[13px] text-muted-2">Aucun lot dans ce filtre.</div>
+            ) : (
+              shown.map((r) => {
+                const st = STATUT_LOT[r.statut ?? "libre"] ?? STATUT_LOT.libre;
+                return (
+                  <button
+                    key={r.lot_id}
+                    type="button"
+                    onClick={() => ouvrirDossier(r.lot_id)}
+                    disabled={dossierEnCours === r.lot_id}
+                    className={cn(
+                      "flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-inset",
+                      dossierEnCours === r.lot_id && "opacity-60",
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="tabular text-[11.5px] text-muted-2">
+                          Îlot {r.ilot_numero} · Lot {r.numero_lot}
+                        </span>
+                        <span className="text-[13.5px] font-semibold text-foreground">
+                          {r.attributaire_nom ?? "— libre"}
+                        </span>
+                        {r.verrouille && <Lock className="size-3 text-warning" />}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-muted-foreground">
+                        {r.qualite && <span>{QUALITE_LABELS[r.qualite] ?? r.qualite}</span>}
+                        {r.attestation_statut && (
+                          <span className="text-success">· attestation {r.attestation_statut}</span>
+                        )}
+                        {r.pv_alerte_statut && (
+                          <span className="text-warning">· PV {r.pv_alerte_statut.replace(/_/g, " ")}</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
-                      {r.qualite && <span>{QUALITE_LABELS[r.qualite] ?? r.qualite}</span>}
-                      {r.attestation_statut && <span className="text-[#2D8F5A]">· attestation {r.attestation_statut}</span>}
-                      {r.pv_alerte_statut && (
-                        <span className="text-[#F39C12]">· PV {r.pv_alerte_statut.replace(/_/g, " ")}</span>
-                      )}
-                    </div>
-                  </div>
-                  <Badge status={st.badge}>{st.label}</Badge>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </section>
+                    <Badge tone={st.tone}>{st.label}</Badge>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </ScrollArea>
+      </Card>
 
       {/* Dossier foncier (lecture seule) — modal partagé */}
       {dossierLot && (
@@ -343,6 +365,6 @@ export default function CommissairePage() {
           onClose={() => setDossierLot(null)}
         />
       )}
-    </div>
+    </AppShell>
   );
 }
