@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { useProfile } from "@/hooks/useProfile";
 import { useTheme } from "@/hooks/useTheme";
 import { usePersistentState } from "@/hooks/usePersistentState";
-import { hasCustomNavOrder, visibleNavItems, type BadgeKey } from "@/lib/navigation";
+import { hasCustomNavOrder, libelleEspace, visibleNavItems, type BadgeKey } from "@/lib/navigation";
 import { TooltipProvider } from "@/components/ds/tooltip";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ds/sheet";
 import { AppSidebar } from "./AppSidebar";
@@ -109,6 +109,7 @@ export function AppShell({
                   collapsed={collapsed}
                   grouped={grouped}
                   pilotage={wide}
+                  sousTitre={libelleEspace(groupe)}
                   onToggleCollapsed={toggleCollapsed}
                 />
               </div>
@@ -124,6 +125,7 @@ export function AppShell({
                   collapsed={false}
                   grouped={grouped}
                   pilotage={wide}
+                  sousTitre={libelleEspace(groupe)}
                   onNavigate={() => setMobileOpen(false)}
                 />
               </SheetContent>

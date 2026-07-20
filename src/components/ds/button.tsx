@@ -55,8 +55,18 @@ function Button({
       aria-busy={loading || undefined}
       {...props}
     >
-      {loading && !asChild ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-      {children}
+      {/* En `asChild`, on passe l'enfant SEUL : le `null` du spinner compterait
+          comme un seconde enfant et Slot n'en accepte qu'un (« Slot failed to
+          slot onto its children »). Le spinner n'a de toute façon pas de sens
+          ici — c'est l'élément délégué qui porte son propre contenu. */}
+      {asChild ? (
+        children
+      ) : (
+        <>
+          {loading ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+          {children}
+        </>
+      )}
     </Comp>
   );
 }

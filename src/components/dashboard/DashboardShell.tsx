@@ -73,6 +73,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     // handoff) : ils n'ont jamais eu de version « chrome historique ».
     "/dashboard/statistiques",
     "/dashboard/administration",
+    "/dashboard/operateur",
   ];
   if (ECRANS_DS.includes(pathname.replace(/\/+$/, ""))) {
     return (

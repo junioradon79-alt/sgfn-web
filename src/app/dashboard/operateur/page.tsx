@@ -1,19 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  Boxes,
-  HandCoins,
-  Landmark,
-  MapPin,
-  MessageSquare,
-  PackageCheck,
-} from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
-import KpiCard from "@/components/dashboard/KpiCard";
+import { motion } from "framer-motion";
+import { Boxes, HandCoins, Landmark, MapPin, MessageSquare, PackageCheck } from "lucide-react";
+
 import { createClient } from "@/utils/supabase/client";
 import { fetchAllPages } from "@/lib/supabase-pagination";
+import { fadeUp, stagger } from "@/lib/motion";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Kpi } from "@/components/ds/kpi";
+import { ScrollArea } from "@/components/ds/scroll-area";
+import { Skeleton } from "@/components/ds/skeleton";
 
 /**
  * Espace Opérateur — vue cantonnée à SON périmètre (RLS lots_read_scope).
@@ -47,11 +51,11 @@ type LotissementRow = {
   nb_ilots: number | null;
 };
 
-const STATUT_LOT: Record<string, { badge: "disponible" | "attribue" | "en_validation" | "litige"; label: string }> = {
-  attribue: { badge: "attribue", label: "Détenu" },
-  vendu: { badge: "disponible", label: "Cédé" },
-  libre: { badge: "disponible", label: "Libre" },
-  en_litige: { badge: "litige", label: "Litige" },
+const STATUT_LOT: Record<string, { tone: "accent" | "success" | "neutral" | "danger"; label: string }> = {
+  attribue: { tone: "accent", label: "Détenu" },
+  vendu: { tone: "success", label: "Cédé" },
+  libre: { tone: "neutral", label: "Libre" },
+  en_litige: { tone: "danger", label: "Litige" },
 };
 
 const estLotOperateur = (l: LotRow) =>
@@ -63,9 +67,14 @@ export default function OperateurPage() {
   const [lotissements, setLotissements] = useState<LotissementRow[]>([]);
   const [lots, setLots] = useState<LotRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tick, setTick] = useState(0);
+
+  const { counts } = useBadgeCounts();
+  const rafraichir = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
     (async () => {
+      setLoading(true);
       // Périmètre opérateur : son identifiant + ses lotissements.
       const { data: monOp } = await supabase.rpc("mon_operateur_id");
 
@@ -118,122 +127,182 @@ export default function OperateurPage() {
       );
       setLoading(false);
     })();
-  }, [supabase]);
+  }, [supabase, tick]);
 
   const opLots = lots.filter(estLotOperateur);
   const cedables = opLots.filter((l) => l.statut !== "vendu");
   const cedes = opLots.filter((l) => l.statut === "vendu");
 
-  const kpis: { label: string; value: number; icon: typeof Landmark; gradient: [string, string] }[] = [
-    { label: "Mes lotissements", value: lotissements.length, icon: Landmark, gradient: ["#1E6091", "#4FA8D8"] },
-    { label: "Lots dans mon périmètre", value: lots.length, icon: Boxes, gradient: ["#7C3AED", "#C084FC"] },
-    { label: "Mes lots en nature (cédables)", value: cedables.length, icon: HandCoins, gradient: ["#B45309", "#F59E0B"] },
-    { label: "Lots en nature cédés", value: cedes.length, icon: PackageCheck, gradient: ["#16A34A", "#4ADE80"] },
-  ];
-
   return (
-    <div className="mx-auto max-w-5xl">
-      {/* En-tête */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <AppShell loading={loading} counts={counts} onRefresh={rafraichir}>
+      {/* Titre de l'écran — l'en-tête du shell porte la salutation, pas le
+          contexte métier : c'est la page qui dit où l'on est et pourquoi. */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-brand-primary">Espace Opérateur</h1>
-          <p className="mt-1.5 text-sm sm:text-base text-slate-500">
+          <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+            Espace Opérateur
+          </h1>
+          <p className="mt-1 text-[13.5px] text-muted-foreground">
             Vos lotissements et vos lots en nature — les seuls que vous pouvez céder à des tiers.
           </p>
         </div>
-        <Link
-          href="/dashboard/messages"
-          className="inline-flex shrink-0 items-center gap-2 rounded-full border border-slate-200/60 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
-        >
-          <MessageSquare className="h-4 w-4 text-[#0D3B66]" />
-          Demandes d&apos;intérêt
-        </Link>
+        <Button asChild variant="outline" className="shrink-0">
+          <Link href="/dashboard/messages">
+            <MessageSquare />
+            Demandes d&apos;intérêt
+          </Link>
+        </Button>
       </div>
 
-      {/* KPIs */}
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {kpis.map((k) => (
-          <KpiCard key={k.label} label={k.label} value={loading ? "…" : k.value} icon={k.icon} gradient={k.gradient} size="sm" />
-        ))}
-      </div>
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        aria-label="Indicateurs de mon périmètre"
+      >
+        <Kpi
+          icon={Landmark}
+          label="Mes lotissements"
+          loading={loading}
+          value={lotissements.length}
+          legende={<>périmètres dont vous êtes l&apos;opérateur</>}
+        />
+        <Kpi
+          icon={Boxes}
+          label="Lots dans mon périmètre"
+          href="/dashboard/lots"
+          loading={loading}
+          value={lots.length}
+          legende={<>tous statuts confondus</>}
+        />
+        <Kpi
+          icon={HandCoins}
+          label="Lots en nature (cédables)"
+          loading={loading}
+          value={cedables.length}
+          tone={cedables.length > 0 ? "warning" : "neutral"}
+          legende={<>reçus en rémunération, pas encore cédés</>}
+        />
+        <Kpi
+          icon={PackageCheck}
+          label="Lots en nature cédés"
+          loading={loading}
+          value={cedes.length}
+          legende={<>sur {opLots.length} lot{opLots.length > 1 ? "s" : ""} en nature</>}
+        />
+      </motion.section>
 
-      {/* Mes lotissements */}
-      <section className="mb-6">
-        <div className="mb-3">
-          <h2 className="text-sm font-semibold text-slate-800">Mes lotissements</h2>
-          <p className="text-xs text-slate-400">Lotissements dont vous êtes l&apos;opérateur</p>
-        </div>
-        {loading ? (
-          <div className="rounded-xl border border-slate-200/60 bg-white px-5 py-8 text-center text-sm text-slate-500">
-            Chargement…
-          </div>
-        ) : lotissements.length === 0 ? (
-          <div className="rounded-xl border border-slate-200/60 bg-white px-5 py-8 text-center text-sm text-slate-500">
-            Aucun lotissement rattaché à votre compte opérateur.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {lotissements.map((lo) => (
-              <div key={lo.id} className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
-                <p className="text-sm font-semibold text-slate-800">{lo.nom}</p>
-                <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
-                  <MapPin className="h-3 w-3" />
-                  {lo.village ?? "—"} · {lo.commune ?? "—"}
-                </p>
-                <div className="mt-3 flex gap-2">
-                  <span className="rounded-lg bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
-                    <b className="text-[#0D3B66]">{lo.nb_lots ?? 0}</b> lots
-                  </span>
-                  <span className="rounded-lg bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
-                    <b className="text-[#0D3B66]">{lo.nb_ilots ?? 0}</b> îlots
-                  </span>
-                </div>
+      <motion.div variants={stagger(0.05, 0.06)} initial="hidden" animate="show" className="flex flex-col gap-5">
+        <motion.div variants={fadeUp}>
+          <Card>
+            <CardHeader>
+              <div>
+                <CardTitle>Mes lotissements</CardTitle>
+                <CardDescription>Lotissements dont vous êtes l&apos;opérateur</CardDescription>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
+            </CardHeader>
 
-      {/* Mes lots en nature */}
-      <section className="overflow-hidden rounded-xl border border-[#9C6406]/30 bg-white">
-        <div className="border-b border-[#9C6406]/20 bg-[#F6ECD6]/40 px-5 py-3">
-          <p className="flex items-center gap-1.5 text-sm font-semibold text-[#7a5407]">
-            <HandCoins className="h-4 w-4" />
-            Mes lots en nature
-          </p>
-          <p className="text-xs text-[#9C6406]/80">
-            Lots reçus en rémunération — les seuls que vous pouvez céder à des tiers
-          </p>
-        </div>
-        {loading ? (
-          <div className="px-5 py-8 text-center text-sm text-slate-500">Chargement…</div>
-        ) : opLots.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-slate-500">
-            Aucun lot en nature enregistré à votre nom pour l&apos;instant.
-          </div>
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {opLots.map((l) => {
-              const st = STATUT_LOT[l.statut ?? "libre"] ?? STATUT_LOT.libre;
-              return (
-                <li key={l.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
-                  <span className="font-mono text-xs text-slate-400">
-                    Îlot {l.ilots?.numero} · Lot {l.numero_lot}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm text-slate-600">
-                    {l.ilots?.lotissements?.nom ?? "—"}
-                  </span>
-                  <Badge status={st.badge}>{st.label}</Badge>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        <p className="border-t border-slate-100 px-5 py-3 text-xs leading-relaxed text-slate-500">
-          Ces lots apparaissent dans l&apos;inventaire des visiteurs, signalés « Lot opérateur ». Quand un
-          acquéreur manifeste son intérêt, vous recevez le message dans <b>Demandes d&apos;intérêt</b>.
-        </p>
-      </section>
-    </div>
+            <div className="px-5 pb-5">
+              {loading ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Skeleton className="h-[104px]" />
+                  <Skeleton className="h-[104px]" />
+                </div>
+              ) : lotissements.length === 0 ? (
+                <EmptyState
+                  icon={Landmark}
+                  title="Aucun lotissement"
+                  description="Aucun lotissement n'est rattaché à votre compte opérateur."
+                />
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {lotissements.map((lo) => (
+                    <div
+                      key={lo.id}
+                      className="rounded-xl border border-border p-4 transition-colors hover:border-primary/40"
+                    >
+                      <p className="text-[13.5px] font-semibold text-foreground">{lo.nom}</p>
+                      <p className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-muted-2">
+                        <MapPin className="size-3 shrink-0" aria-hidden />
+                        {lo.village ?? "—"} · {lo.commune ?? "—"}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="rounded-lg bg-inset px-3 py-1.5 text-[11.5px] text-muted-foreground">
+                          <b className="tabular text-foreground">{lo.nb_lots ?? 0}</b> lots
+                        </span>
+                        <span className="rounded-lg bg-inset px-3 py-1.5 text-[11.5px] text-muted-foreground">
+                          <b className="tabular text-foreground">{lo.nb_ilots ?? 0}</b> îlots
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+        </motion.div>
+
+        <motion.div variants={fadeUp}>
+          <Card>
+            <CardHeader>
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <HandCoins className="size-4 text-warning" aria-hidden />
+                  Mes lots en nature
+                </CardTitle>
+                <CardDescription>
+                  Lots reçus en rémunération — les seuls que vous pouvez céder à des tiers
+                  {!loading && opLots.length > 0 && ` · ${opLots.length} lot${opLots.length > 1 ? "s" : ""}`}
+                </CardDescription>
+              </div>
+            </CardHeader>
+
+            {loading ? (
+              <div className="px-5 pb-5">
+                <Skeleton className="h-32" />
+              </div>
+            ) : opLots.length === 0 ? (
+              <div className="px-5 pb-5">
+                <EmptyState
+                  icon={HandCoins}
+                  title="Aucun lot en nature"
+                  description="Aucun lot n'est enregistré à votre nom en rémunération pour l'instant."
+                />
+              </div>
+            ) : (
+              // Un opérateur peut détenir plusieurs centaines de lots en nature
+              // (612 sur le périmètre de test) : sans hauteur bornée, la page
+              // s'étirait sur plus de 30 000 px et le reste de l'écran devenait
+              // inatteignable. La liste défile chez elle.
+              <ScrollArea className="max-h-[420px]">
+                <ul className="divide-y divide-border">
+                  {opLots.map((l) => {
+                    const st = STATUT_LOT[l.statut ?? "libre"] ?? STATUT_LOT.libre;
+                    return (
+                      <li key={l.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
+                        <span className="tabular shrink-0 text-[11.5px] text-muted-2">
+                          Îlot {l.ilots?.numero} · Lot {l.numero_lot}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
+                          {l.ilots?.lotissements?.nom ?? "—"}
+                        </span>
+                        <Badge tone={st.tone}>{st.label}</Badge>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </ScrollArea>
+            )}
+
+            <p className="border-t border-border px-5 py-3.5 text-[11.5px] leading-relaxed text-muted-2">
+              Ces lots apparaissent dans l&apos;inventaire des visiteurs, signalés « Lot opérateur ». Quand un
+              acquéreur manifeste son intérêt, vous recevez le message dans{" "}
+              <b className="text-muted-foreground">Demandes d&apos;intérêt</b>.
+            </p>
+          </Card>
+        </motion.div>
+      </motion.div>
+    </AppShell>
   );
 }

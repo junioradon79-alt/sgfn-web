@@ -71,6 +71,20 @@ export interface NavItem {
   href: string;
   icon: LucideIcon;
   section: NavSection;
+  /**
+   * Rubrique dans un dashboard de rôle, quand elle diffère de la rubrique
+   * nationale. Le handoff range « Attributaires » sous Utilisateurs côté
+   * Pilotage et sous Registre foncier côté Opérateur : c'est le même écran, vu
+   * de deux métiers différents.
+   */
+  sectionRole?: NavSection;
+  /**
+   * Rang dans sa rubrique, côté dashboard de rôle. Un seul tableau `NAV_ITEMS`
+   * ne peut pas porter deux ordres : le handoff classe « Attributaires » avant
+   * « Attributions » côté Opérateur et l'inverse côté Pilotage. Sans valeur,
+   * l'entrée garde sa position dans `NAV_ITEMS`, après celles qui en ont une.
+   */
+  ordreRole?: number;
   /** Groupes autorisés. Omis = visible par tous. */
   roles?: string[];
   /** Masqué pour l'admin (espaces dédiés aux autres rôles). */
@@ -105,6 +119,30 @@ export const SECTION_LABELS_ROLE: Partial<Record<NavSection, string>> = {
   cadastre: "Registre foncier",
   dossiers: "Instruction",
 };
+
+/**
+ * Sous-titre du bloc de marque, sous « SGNF ».
+ *
+ * Le handoff donne un intitulé propre à chaque écran : la barre latérale
+ * annonce *où l'on est*, pas seulement le nom du produit. Les rôles absents du
+ * handoff (acquéreur, agent IA) retombent sur le libellé générique.
+ */
+export const ESPACE_LABELS: Record<string, string> = {
+  admin: "Centre de Pilotage Foncier",
+  operateur: "Espace Opérateur",
+  amenageur: "Espace Opérateur", // rôle fusionné, cf. mémoire projet
+  geometre: "Espace Géomètre",
+  chefferie: "Espace Chefferie",
+  commissaire: "Supervision",
+  verificateur: "Supervision",
+  proprietaire_terrien: "Propriétaire terrien",
+  proprietaire: "Propriétaire terrien", // rôle déprécié, fondu dans le précédent
+  operateur_saisie: "Saisie foncière",
+  acquereur: "Espace Acquéreur",
+};
+
+export const libelleEspace = (groupe: string | null) =>
+  (groupe && ESPACE_LABELS[groupe]) || "Espace de travail";
 
 /** Icône d'en-tête de rubrique (handoff : chaque rubrique en porte une). */
 export const SECTION_ICONS: Record<NavSection, LucideIcon> = {
@@ -144,24 +182,26 @@ export const SECTION_ORDER: NavSection[] = [
  */
 export const NAV_ITEMS: NavItem[] = [
   // ── Pilotage ──
-  { label: "Centre de pilotage", href: "/dashboard", icon: LayoutDashboard, section: "pilotage", keywords: "accueil tableau de bord home" },
+  // Le handoff ne montre cette entrée que sur Pilotage et Géomètre. `roles: []`
+  // = admin ; le géomètre la garde via sa liste fermée ROLE_NAV_ORDER.
+  { label: "Centre de pilotage", href: "/dashboard", icon: LayoutDashboard, section: "pilotage", roles: [], keywords: "accueil tableau de bord home" },
   { label: "Supervision", href: "/dashboard/commissaire", icon: ShieldCheck, section: "pilotage", roles: ["commissaire", "verificateur"] },
   // Le handoff range la carte sous Cadastre et l'IA sous Intelligence.
   { label: "Carte foncière", href: "/dashboard/carte", icon: MapPinned, section: "cadastre", roles: ["geometre", "commissaire", "verificateur"], keywords: "gps parcelles géolocalisation" },
   { label: "SGNF AI", href: "/dashboard/ia", icon: Sparkles, section: "intelligence", roles: ["verificateur", "agent_ia", "geometre"] },
 
   // ── Cadastre (« Registre foncier » côté métier) ──
-  { label: "Lotissements", href: "/lotissements", icon: Map, section: "cadastre", roles: ["operateur", "amenageur", "geometre", "chefferie", "verificateur", "proprietaire_terrien"] },
+  { label: "Lotissements", href: "/lotissements", icon: Map, section: "cadastre", roles: ["operateur", "amenageur", "geometre", "chefferie", "verificateur", "proprietaire_terrien"], ordreRole: 1 },
   { label: "Îlots", href: "/dashboard/ilots", icon: LayoutGrid, section: "cadastre", roles: [], keywords: "blocs découpage périmètre" },
-  { label: "Lots", href: "/dashboard/lots", icon: Boxes, section: "cadastre", roles: ["operateur", "amenageur", "geometre", "verificateur", "commissaire", "proprietaire_terrien"], keywords: "parcelles terrains" },
+  { label: "Lots", href: "/dashboard/lots", icon: Boxes, section: "cadastre", roles: ["operateur", "amenageur", "geometre", "verificateur", "commissaire", "proprietaire_terrien"], keywords: "parcelles terrains", ordreRole: 2 },
   { label: "Géomètres-experts", href: "/dashboard/geometres", icon: Ruler, section: "cadastre", roles: [], keywords: "bornage numéro d'ordre cabinet" },
 
   // ── Dossiers (« Instruction » côté métier) ──
   { label: "Dossiers ADU", href: "/dashboard/dossiers-adu", icon: ClipboardList, section: "dossiers", roles: ["geometre", "commissaire", "verificateur", "chefferie", "proprietaire_terrien"], keywords: "acd instruction urbanisme" },
   { label: "Litiges", href: "/dashboard/litiges", icon: FileWarning, section: "dossiers", roles: ["commissaire", "verificateur", "chefferie", "proprietaire_terrien"], badgeKey: "litigesActifs", keywords: "conflits contentieux" },
-  { label: "Demandes d'acquisition", href: "/dashboard/demandes-acquisition", icon: ClipboardCheck, section: "dossiers", roles: ["operateur"], badgeKey: "demandes", keywords: "ventes tunnel acquéreur" },
-  { label: "Attributions", href: "/dashboard/attributions", icon: Link2, section: "dossiers", roles: ["operateur", "amenageur", "verificateur", "commissaire", "proprietaire_terrien"] },
-  { label: "Concertation", href: "/dashboard/concertation", icon: Handshake, section: "dossiers", roles: ["chefferie", "proprietaire", "operateur", "proprietaire_terrien"] },
+  { label: "Demandes d'acquisition", href: "/dashboard/demandes-acquisition", icon: ClipboardCheck, section: "dossiers", roles: ["operateur"], badgeKey: "demandes", keywords: "ventes tunnel acquéreur", ordreRole: 1 },
+  { label: "Attributions", href: "/dashboard/attributions", icon: Link2, section: "dossiers", sectionRole: "cadastre", roles: ["operateur", "amenageur", "verificateur", "commissaire", "proprietaire_terrien"], ordreRole: 4 },
+  { label: "Concertation", href: "/dashboard/concertation", icon: Handshake, section: "dossiers", roles: ["chefferie", "proprietaire", "operateur", "proprietaire_terrien"], ordreRole: 3 },
   { label: "Validations", href: "/dashboard/validations", icon: ClipboardCheck, section: "dossiers", roles: [], keywords: "approbation contrôle" },
   { label: "Démarches", href: "/dashboard/demarches", icon: Ruler, section: "dossiers", roles: ["geometre"], keywords: "bornage honoraires transmission mutation" },
 
@@ -169,9 +209,9 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Contacts TerraCI Market", href: "/dashboard/contacts-marketplace", icon: Store, section: "marketplace", roles: ["admin"], badgeKey: "marketplace", keywords: "marketplace annonces mon terrain" },
 
   // ── Utilisateurs ──
-  { label: "Attributaires", href: "/dashboard/attributaires", icon: Users, section: "utilisateurs", roles: ["operateur", "amenageur", "verificateur", "commissaire", "proprietaire_terrien"], keywords: "bénéficiaires" },
+  { label: "Attributaires", href: "/dashboard/attributaires", icon: Users, section: "utilisateurs", sectionRole: "cadastre", roles: ["operateur", "amenageur", "verificateur", "commissaire", "proprietaire_terrien"], keywords: "bénéficiaires", ordreRole: 3 },
   { label: "Familles", href: "/dashboard/familles", icon: Home, section: "utilisateurs", roles: [], keywords: "chefferies lignages" },
-  { label: "Invitations", href: "/dashboard/invitations", icon: MailOpen, section: "utilisateurs", roles: ["operateur", "amenageur", "proprietaire_terrien"] },
+  { label: "Invitations", href: "/dashboard/invitations", icon: MailOpen, section: "utilisateurs", sectionRole: "dossiers", roles: ["operateur", "amenageur", "proprietaire_terrien"], ordreRole: 2 },
 
   // ── Paiements ──
   { label: "Paiements", href: "/dashboard/paiements", icon: CreditCard, section: "paiements", roles: [], keywords: "transactions encaissements recettes quittances" },
@@ -187,7 +227,7 @@ export const NAV_ITEMS: NavItem[] = [
 
   // ── Espaces dédiés (masqués pour l'admin) ──
   { label: "Mon espace", href: "/dashboard/mon-achat", icon: ClipboardCheck, section: "espaces", roles: ["acquereur"], adminHide: true, keywords: "acquéreur suivi terrains achat" },
-  { label: "Trouver un terrain", href: "/dashboard/acquisition", icon: Compass, section: "espaces", roles: ["acquereur", "amenageur"], adminHide: true },
+  { label: "Trouver un terrain", href: "/dashboard/acquisition", icon: Compass, section: "espaces", roles: ["acquereur", "amenageur", "operateur"], adminHide: true },
   { label: "Mon espace", href: "/dashboard/proprietaire", icon: Landmark, section: "espaces", roles: ["proprietaire", "acquereur"], adminHide: true },
   { label: "Mettre en vente", href: "/dashboard/mettre-en-vente", icon: Store, section: "espaces", roles: ["proprietaire", "proprietaire_terrien"], adminHide: true, keywords: "marketplace annonce terraci market vendre terrain" },
   { label: "Mon activité", href: "/dashboard/operateur", icon: HandCoins, section: "espaces", roles: ["operateur"], adminHide: true },
@@ -197,7 +237,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Mes missions", href: "/dashboard/missions", icon: Briefcase, section: "espaces", roles: ["geometre"], adminHide: true },
 
   // ── Documents ──
-  { label: "Documents", href: "/dashboard/documents", icon: FileText, section: "documents", keywords: "registre documentaire actes attestations" },
+  { label: "Documents", href: "/dashboard/documents", icon: FileText, section: "documents", sectionRole: "general", keywords: "registre documentaire actes attestations" },
   { label: "Consultations QR", href: "/dashboard/consultations-qr", icon: QrCode, section: "documents", roles: ["admin"], keywords: "vérification qr code" },
 
   // ── Général ──

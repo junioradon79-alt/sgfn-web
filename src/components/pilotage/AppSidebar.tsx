@@ -50,6 +50,7 @@ export function AppSidebar({
   collapsed,
   grouped = true,
   pilotage = false,
+  sousTitre = "Espace de travail",
   onToggleCollapsed,
   onNavigate,
 }: {
@@ -62,6 +63,8 @@ export function AppSidebar({
   /** true = vocabulaire national (« Cadastre », « Dossiers ») ; false = vocabulaire
    *  métier (« Registre foncier », « Instruction »). Cf. SECTION_LABELS_ROLE. */
   pilotage?: boolean;
+  /** Intitulé sous « SGNF » — le handoff en donne un par écran. */
+  sousTitre?: string;
   onToggleCollapsed?: () => void;
   onNavigate?: () => void;
 }) {
@@ -82,6 +85,9 @@ export function AppSidebar({
 
   const libelleSection = (section: NavItem["section"]) =>
     (pilotage ? undefined : SECTION_LABELS_ROLE[section]) ?? SECTION_LABELS[section];
+
+  /** Rubrique effective : le point de vue métier peut ranger l'écran ailleurs. */
+  const sectionDe = (item: NavItem) => (pilotage ? item.section : item.sectionRole ?? item.section);
 
   // Ordre d'épinglage, pas ordre du menu : l'utilisateur reconnaît sa liste.
   // Un favori pointant vers une entrée que son rôle ne voit plus est ignoré.
@@ -205,7 +211,7 @@ export function AppSidebar({
           {!collapsed && (
             <span className="flex min-w-0 flex-col leading-tight">
               <span className="font-display text-[16px] font-extrabold tracking-tight text-foreground uppercase">SGNF</span>
-              <span className="mt-0.5 truncate text-[10.5px] font-medium text-muted-foreground">Centre de pilotage</span>
+              <span className="mt-0.5 truncate text-[10.5px] font-medium text-muted-foreground">{sousTitre}</span>
             </span>
           )}
         </Link>
@@ -242,7 +248,12 @@ export function AppSidebar({
             )}
 
             {SECTION_ORDER.map((section) => {
-              const sectionItems = retenus.filter((i) => i.section === section);
+              const sectionItems = retenus.filter((i) => sectionDe(i) === section);
+              // Côté métier, l'ordre du handoff diffère de l'ordre national.
+              // Les entrées sans rang gardent leur position d'origine, à la suite.
+              if (!pilotage) {
+                sectionItems.sort((a, b) => (a.ordreRole ?? Infinity) - (b.ordreRole ?? Infinity));
+              }
               // Une section vidée par le filtre disparaît — un intitulé seul,
               // sans lien dessous, ne renseigne sur rien.
               if (sectionItems.length === 0) return null;
