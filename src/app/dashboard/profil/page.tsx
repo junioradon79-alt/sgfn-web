@@ -1,22 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import {
-  Bell,
-  CircleHelp,
-  FileText,
-  Headphones,
-  KeyRound,
-  Loader2,
-  Mail,
-  Phone,
-  Save,
-  ShieldCheck,
-  UserRound,
+  Bell, CircleHelp, FileText, Headphones, KeyRound, Mail, Phone, Save, ShieldCheck, UserRound,
 } from "lucide-react";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Button } from "@/components/ds/button";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ds/card";
+import { Input } from "@/components/ds/input";
+import { Field } from "@/components/ds/label";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useProfile } from "@/hooks/useProfile";
 import { createClient } from "@/utils/supabase/client";
+import { fadeUp, stagger } from "@/lib/motion";
 
 const roleLabels: Record<string, string> = {
   admin: "Administrateur", operateur: "Opérateur", proprietaire: "Propriétaire", acquereur: "Acquéreur", amenageur: "Aménageur", commissaire: "Commissaire", verificateur: "Vérificateur", chefferie: "Chefferie", geometre: "Géomètre", agent_ia: "Agent IA", proprietaire_terrien: "Propriétaire terrien", operateur_saisie: "Opérateur de saisie",
@@ -26,7 +25,8 @@ type Feedback = { type: "ok" | "error"; message: string } | null;
 
 export default function ProfilPage() {
   const { profile, loading } = useProfile();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+  const { counts } = useBadgeCounts();
   const role = profile?.groupe ? roleLabels[profile.groupe] ?? profile.groupe : "—";
 
   // ── Coordonnées (nom_complet, telephone) ────────────────────────────────────
@@ -96,131 +96,193 @@ export default function ProfilPage() {
     setPwdFeedback({ type: "ok", message: "Mot de passe mis à jour." });
   };
 
-  const inputClass =
-    "w-full rounded-xl border border-[#E3E8EF] bg-white px-3.5 py-2.5 text-sm text-[#172033] shadow-sm placeholder:text-slate-400 focus:border-[#0F5E8C] focus:outline-none focus:ring-2 focus:ring-[#0F5E8C]/10";
-  const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-[#526176]";
-
   return (
-    <div className="mx-auto w-full max-w-6xl">
-      <div className="mb-8">
-        <p className="text-sm font-bold uppercase tracking-[0.15em] text-[#0F5E8C]">Compte</p>
-        <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-[#0B2E4F]">Profil et sécurité</h1>
-        <p className="mt-2 text-[#526176]">Mettez à jour vos coordonnées et votre mot de passe.</p>
+    <AppShell loading={loading} counts={counts} onRefresh={() => {}}>
+      <div>
+        <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Compte</p>
+        <h1 className="mt-1 font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+          Profil et sécurité
+        </h1>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
+          Mettez à jour vos coordonnées et votre mot de passe.
+        </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-6">
+      <motion.div
+        variants={stagger(0.05, 0.06)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-start"
+      >
+        <div className="flex min-w-0 flex-col gap-5">
           {/* Identité (lecture seule) */}
-          <section className="rounded-2xl border border-[#E3E8EF] bg-white p-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0B2E4F]/[0.06] text-[#0B2E4F]">
-                <UserRound className="h-6 w-6" />
+          <motion.div variants={fadeUp}>
+            <Card className="p-6">
+              <div className="flex items-center gap-4">
+                <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-inset text-primary">
+                  <UserRound className="size-6" aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <h2 className="font-display text-lg font-bold text-foreground">
+                    {loading ? "Chargement…" : profile?.nom_complet || "Utilisateur SGNF"}
+                  </h2>
+                  <p className="text-[13px] text-muted-foreground">{role}</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-bold text-[#0B2E4F]">{loading ? "Chargement…" : profile?.nom_complet || "Utilisateur SGNF"}</h2>
-                <p className="text-sm text-[#526176]">{role}</p>
-              </div>
-            </div>
-            <dl className="mt-7 divide-y divide-[#E3E8EF] border-y border-[#E3E8EF]">
-              <div className="flex justify-between gap-4 py-4">
-                <dt className="text-sm text-[#526176]">Rôle et droits</dt>
-                <dd className="text-right text-sm font-bold text-[#172033]">{role}</dd>
-              </div>
-              <div className="flex justify-between gap-4 py-4">
-                <dt className="text-sm text-[#526176]">Statut du compte</dt>
-                <dd className="inline-flex items-center gap-1.5 text-sm font-bold text-[#147A55]">
-                  <span className="h-2 w-2 rounded-full bg-[#147A55]" />
-                  {profile?.actif ? "Actif" : "À confirmer"}
-                </dd>
-              </div>
-            </dl>
-            <p className="mt-5 flex gap-2 text-sm leading-6 text-[#526176]">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#147A55]" /> Votre rôle et vos rattachements sont
-              gérés par l&apos;administration SGNF et ne sont pas modifiables ici.
-            </p>
-          </section>
+
+              <dl className="mt-6 divide-y divide-border border-y border-border">
+                <div className="flex justify-between gap-4 py-3.5">
+                  <dt className="text-[13px] text-muted-foreground">Rôle et droits</dt>
+                  <dd className="text-right text-[13px] font-bold text-foreground">{role}</dd>
+                </div>
+                <div className="flex justify-between gap-4 py-3.5">
+                  <dt className="text-[13px] text-muted-foreground">Statut du compte</dt>
+                  <dd className="inline-flex items-center gap-1.5 text-[13px] font-bold text-success">
+                    <span className="size-2 rounded-full bg-success" aria-hidden />
+                    {profile?.actif ? "Actif" : "À confirmer"}
+                  </dd>
+                </div>
+              </dl>
+
+              <p className="mt-5 flex gap-2 text-[13px] leading-6 text-muted-foreground">
+                <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
+                Votre rôle et vos rattachements sont gérés par l&apos;administration SGNF et ne sont pas
+                modifiables ici.
+              </p>
+            </Card>
+          </motion.div>
 
           {/* Coordonnées (éditable) */}
-          <section className="rounded-2xl border border-[#E3E8EF] bg-white p-6">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-[#0B2E4F]">
-              <Phone className="h-5 w-5 text-[#0F5E8C]" /> Coordonnées
-            </h2>
-            <div className="mt-5 space-y-4">
-              <div>
-                <label htmlFor="nom" className={labelClass}>Nom complet</label>
-                <input id="nom" type="text" value={nom} onChange={(e) => setNom(e.target.value)} className={inputClass} placeholder="Prénom NOM" disabled={loading || savingInfos} />
+          <motion.div variants={fadeUp}>
+            <Card>
+              <CardHeader>
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Phone className="size-4 text-accent" aria-hidden />
+                    Coordonnées
+                  </CardTitle>
+                </div>
+              </CardHeader>
+              <div className="space-y-4 px-5 pb-5">
+                <Field label="Nom complet" htmlFor="nom">
+                  <Input id="nom" type="text" value={nom} placeholder="Prénom NOM"
+                    onChange={(e) => setNom(e.target.value)} disabled={loading || savingInfos} />
+                </Field>
+                <Field label="Téléphone" htmlFor="telephone">
+                  <Input id="telephone" type="tel" value={telephone} placeholder="Ex. 0700000000"
+                    onChange={(e) => setTelephone(e.target.value)} disabled={loading || savingInfos} />
+                </Field>
+                {infosFeedback && (
+                  <p role="alert" className={`text-[13px] font-medium ${infosFeedback.type === "ok" ? "text-success" : "text-danger"}`}>
+                    {infosFeedback.message}
+                  </p>
+                )}
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    loading={savingInfos}
+                    disabled={loading || !infosModifie}
+                    onClick={enregistrerInfos}
+                  >
+                    <Save />
+                    Enregistrer
+                  </Button>
+                </div>
               </div>
-              <div>
-                <label htmlFor="telephone" className={labelClass}>Téléphone</label>
-                <input id="telephone" type="tel" value={telephone} onChange={(e) => setTelephone(e.target.value)} className={inputClass} placeholder="Ex. 0700000000" disabled={loading || savingInfos} />
-              </div>
-              {infosFeedback && (
-                <p className={`text-sm ${infosFeedback.type === "ok" ? "text-[#147A55]" : "text-red-600"}`}>{infosFeedback.message}</p>
-              )}
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={enregistrerInfos}
-                  disabled={loading || savingInfos || !infosModifie}
-                  className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#0B2E4F] px-5 text-sm font-bold text-white transition hover:bg-[#0F5E8C] disabled:opacity-50"
-                >
-                  {savingInfos ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  Enregistrer
-                </button>
-              </div>
-            </div>
-          </section>
+            </Card>
+          </motion.div>
 
           {/* Mot de passe (éditable) */}
-          <section className="rounded-2xl border border-[#E3E8EF] bg-white p-6">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-[#0B2E4F]">
-              <KeyRound className="h-5 w-5 text-[#0F5E8C]" /> Mot de passe
-            </h2>
-            <p className="mt-2 text-sm text-[#526176]">Au moins 8 caractères. Vous resterez connecté après le changement.</p>
-            <div className="mt-5 space-y-4">
-              <div>
-                <label htmlFor="pwd" className={labelClass}>Nouveau mot de passe</label>
-                <input id="pwd" type="password" autoComplete="new-password" value={pwd} onChange={(e) => setPwd(e.target.value)} className={inputClass} placeholder="••••••••" disabled={savingPwd} />
+          <motion.div variants={fadeUp}>
+            <Card>
+              <CardHeader>
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <KeyRound className="size-4 text-accent" aria-hidden />
+                    Mot de passe
+                  </CardTitle>
+                  <CardDescription>
+                    Au moins 8 caractères. Vous resterez connecté après le changement.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+              <div className="space-y-4 px-5 pb-5">
+                <Field label="Nouveau mot de passe" htmlFor="pwd">
+                  <Input id="pwd" type="password" autoComplete="new-password" value={pwd}
+                    placeholder="••••••••" onChange={(e) => setPwd(e.target.value)} disabled={savingPwd} />
+                </Field>
+                <Field label="Confirmer le mot de passe" htmlFor="pwdConfirm">
+                  <Input id="pwdConfirm" type="password" autoComplete="new-password" value={pwdConfirm}
+                    placeholder="••••••••" onChange={(e) => setPwdConfirm(e.target.value)} disabled={savingPwd} />
+                </Field>
+                {pwdFeedback && (
+                  <p role="alert" className={`text-[13px] font-medium ${pwdFeedback.type === "ok" ? "text-success" : "text-danger"}`}>
+                    {pwdFeedback.message}
+                  </p>
+                )}
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    loading={savingPwd}
+                    disabled={!pwd || !pwdConfirm}
+                    onClick={changerMotDePasse}
+                  >
+                    <KeyRound />
+                    Mettre à jour le mot de passe
+                  </Button>
+                </div>
               </div>
-              <div>
-                <label htmlFor="pwdConfirm" className={labelClass}>Confirmer le mot de passe</label>
-                <input id="pwdConfirm" type="password" autoComplete="new-password" value={pwdConfirm} onChange={(e) => setPwdConfirm(e.target.value)} className={inputClass} placeholder="••••••••" disabled={savingPwd} />
-              </div>
-              {pwdFeedback && (
-                <p className={`text-sm ${pwdFeedback.type === "ok" ? "text-[#147A55]" : "text-red-600"}`}>{pwdFeedback.message}</p>
-              )}
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={changerMotDePasse}
-                  disabled={savingPwd || !pwd || !pwdConfirm}
-                  className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#0B2E4F] px-5 text-sm font-bold text-white transition hover:bg-[#0F5E8C] disabled:opacity-50"
-                >
-                  {savingPwd ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-                  Mettre à jour le mot de passe
-                </button>
-              </div>
-            </div>
-          </section>
+            </Card>
+          </motion.div>
         </div>
 
         {/* Support */}
-        <aside className="space-y-4">
-          <section className="rounded-2xl border border-[#E3E8EF] bg-white p-6">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#0B2E4F]/[0.06] text-[#0F5E8C]"><Headphones className="h-5 w-5" /></div>
-            <h2 className="mt-4 text-lg font-bold text-[#0B2E4F]">Besoin d&apos;aide ?</h2>
-            <p className="mt-2 text-sm leading-6 text-[#526176]">Expliquez votre demande ; indiquez le dossier ou la référence concernée pour accélérer son traitement.</p>
-            <Link href="/contact" className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0B2E4F] text-sm font-bold text-white transition hover:bg-[#0F5E8C]"><Mail className="h-4 w-4" /> Contacter le support</Link>
-          </section>
-          <section className="rounded-2xl border border-[#E3E8EF] bg-white p-6">
-            <h2 className="flex items-center gap-2 font-bold text-[#0B2E4F]"><CircleHelp className="h-5 w-5 text-[#0F5E8C]" /> Ressources utiles</h2>
-            <div className="mt-4 space-y-2">
-              <Link href="/mode-emploi-saisie" className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-[#0F5E8C] hover:bg-slate-50"><FileText className="h-4 w-4" /> Guide de saisie</Link>
-              <Link href="/dashboard/messages" className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-[#0F5E8C] hover:bg-slate-50"><Bell className="h-4 w-4" /> Messages et demandes</Link>
-            </div>
-          </section>
+        <aside className="flex min-w-0 flex-col gap-4">
+          <motion.div variants={fadeUp}>
+            <Card className="p-6">
+              <span className="flex size-11 items-center justify-center rounded-xl bg-inset text-accent">
+                <Headphones className="size-5" aria-hidden />
+              </span>
+              <h2 className="mt-4 font-display text-lg font-bold text-foreground">Besoin d&apos;aide ?</h2>
+              <p className="mt-2 text-[13px] leading-6 text-muted-foreground">
+                Expliquez votre demande ; indiquez le dossier ou la référence concernée pour accélérer
+                son traitement.
+              </p>
+              <Button asChild variant="primary" className="mt-5 w-full">
+                <Link href="/contact">
+                  <Mail />
+                  Contacter le support
+                </Link>
+              </Button>
+            </Card>
+          </motion.div>
+
+          <motion.div variants={fadeUp}>
+            <Card className="p-6">
+              <h2 className="flex items-center gap-2 font-display font-bold text-foreground">
+                <CircleHelp className="size-4 text-accent" aria-hidden />
+                Ressources utiles
+              </h2>
+              <div className="mt-4 flex flex-col gap-1">
+                <Link
+                  href="/mode-emploi-saisie"
+                  className="flex items-center gap-2 rounded-lg px-2 py-2 text-[13px] font-semibold text-accent transition-colors hover:bg-inset"
+                >
+                  <FileText className="size-4" aria-hidden /> Guide de saisie
+                </Link>
+                <Link
+                  href="/dashboard/messages"
+                  className="flex items-center gap-2 rounded-lg px-2 py-2 text-[13px] font-semibold text-accent transition-colors hover:bg-inset"
+                >
+                  <Bell className="size-4" aria-hidden /> Messages et demandes
+                </Link>
+              </div>
+            </Card>
+          </motion.div>
         </aside>
-      </div>
-    </div>
+      </motion.div>
+    </AppShell>
   );
 }

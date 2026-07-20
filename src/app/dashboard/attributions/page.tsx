@@ -1,13 +1,26 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
-import { useChargement } from "@/hooks/useChargement";
-import { Badge } from "@/components/ui/Badge";
+import { type FormEvent, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { History, Link2, Plus } from "lucide-react";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Input, Textarea } from "@/components/ds/input";
+import { Kpi } from "@/components/ds/kpi";
+import { Field } from "@/components/ds/label";
+import { SelectItem } from "@/components/ds/select";
 import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
+import { CaseACocher, ChampSelect, ModaleFormulaire } from "@/components/dashboard/ModaleFormulaire";
 import { createClient } from "@/utils/supabase/client";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { useChargement } from "@/hooks/useChargement";
 import { useProfile } from "@/hooks/useProfile";
+import { fadeUp, stagger } from "@/lib/motion";
 import { fetchAllPages } from "@/lib/supabase-pagination";
-import { Link2, Plus, X } from "lucide-react";
 
 type AttributionRecord = {
   id: string;
@@ -35,22 +48,25 @@ const QUALITE_OPTIONS = [
 
 const TABLE_HEADERS = ["Lot", "Attributaire", "Qualité", "Statut", "Depuis", "Observation"] as const;
 
+const FORM_VIDE = {
+  lot_id: "",
+  attributaire_id: "",
+  qualite: "ayant_droit",
+  actuel: true,
+  depuis: new Date().toISOString().slice(0, 10),
+  observation: "",
+};
+
 export default function AttributionsPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const { isAdmin } = useProfile();
+  const { counts } = useBadgeCounts();
 
   const [attributions, setAttributions] = useState<AttributionRecord[]>([]);
   const [lotsOptions, setLotsOptions] = useState<LotOption[]>([]);
   const [attributairesOptions, setAttributairesOptions] = useState<AttributaireOption[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [form, setForm] = useState({
-    lot_id: "",
-    attributaire_id: "",
-    qualite: "ayant_droit",
-    actuel: true,
-    depuis: new Date().toISOString().slice(0, 10),
-    observation: "",
-  });
+  const [form, setForm] = useState(FORM_VIDE);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -80,7 +96,7 @@ export default function AttributionsPage() {
     setAttributairesOptions((attrRes.data ?? []) as AttributaireOption[]);
   });
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!form.lot_id || !form.attributaire_id) {
       setErrorMessage("Le lot et l'attributaire sont obligatoires.");
@@ -107,14 +123,7 @@ export default function AttributionsPage() {
       return;
     }
 
-    setForm({
-      lot_id: "",
-      attributaire_id: "",
-      qualite: "ayant_droit",
-      actuel: true,
-      depuis: new Date().toISOString().slice(0, 10),
-      observation: "",
-    });
+    setForm({ ...FORM_VIDE, depuis: new Date().toISOString().slice(0, 10) });
     setIsModalOpen(false);
     setIsSubmitting(false);
     setSuccessMessage("Attribution enregistrée avec succès.");
@@ -126,257 +135,209 @@ export default function AttributionsPage() {
     });
   };
 
+  const actuelles = attributions.filter((a) => a.actuel).length;
+
   return (
-    <div className="mx-auto max-w-6xl">
-      {/* En-tête */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <AppShell loading={dataLoading} counts={counts} onRefresh={recharger}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-brand-primary">
-            Attributions Foncières
+          <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+            Attributions foncières
           </h1>
-          <p className="mt-1.5 text-sm text-slate-500">
+          <p className="mt-1 text-[13.5px] text-muted-foreground">
             Enregistrement et suivi des attributions de lots aux ayants droit et acquéreurs.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <BoutonImprimer />
           {isAdmin && (
-            <button
+            <Button
               type="button"
+              variant="primary"
+              className="print:hidden"
               onClick={() => { setIsModalOpen(true); setErrorMessage(null); }}
-              className="print:hidden inline-flex items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#1E6091] active:scale-[0.98]"
             >
-              <Plus className="h-4 w-4" />
+              <Plus />
               Nouvelle attribution
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-3"
+        aria-label="Indicateurs des attributions"
+      >
+        <Kpi
+          icon={Link2}
+          label="Attributions au registre"
+          loading={dataLoading}
+          value={attributions.length}
+          legende={<>historique complet, tous rangs</>}
+        />
+        <Kpi
+          icon={History}
+          label="Attributions actuelles"
+          loading={dataLoading}
+          value={actuelles}
+          legende={<>un titulaire en cours par lot</>}
+        />
+        <Kpi
+          icon={Plus}
+          label="Lots libres"
+          loading={dataLoading}
+          value={lotsOptions.length}
+          legende={<>attribuables immédiatement</>}
+        />
+      </motion.section>
+
       {successMessage && (
-        <div className="mb-4 rounded-2xl border border-emerald-200/80 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+        <p role="status" className="rounded-xl border border-success/25 bg-success-subtle px-4 py-3 text-sm font-medium text-success">
           {successMessage}
-        </div>
+        </p>
       )}
 
-      {/* Tableau */}
-      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white print:overflow-visible print:rounded-none print:border-none">
-        <div className="overflow-x-auto print:overflow-visible">
-          <table className="w-full min-w-[760px] border-collapse text-left">
-            <thead>
-              <tr className="border-b border-slate-200/60 bg-slate-50/50">
-                {TABLE_HEADERS.map((header) => (
-                  <th
-                    key={header}
-                    scope="col"
-                    className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-slate-500"
-                  >
-                    {header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200/60">
-              {dataLoading ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-500">
-                    Chargement des attributions…
-                  </td>
-                </tr>
-              ) : attributions.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-500">
-                    Aucune attribution enregistrée.
-                  </td>
-                </tr>
-              ) : (
-                attributions.map((attr) => (
-                  <tr key={attr.id} className="transition-colors hover:bg-slate-50/60">
-                    <td className="px-5 py-4 text-sm font-semibold text-[#0D3B66]">
-                      {attr.lots?.numero_lot ? `Lot ${attr.lots.numero_lot}` : "—"}
-                    </td>
-                    <td className="px-5 py-4 text-sm font-medium text-slate-800">
-                      {attr.attributaires?.nom || "—"}
-                    </td>
-                    <td className="px-5 py-4 text-sm text-slate-600">
-                      {QUALITE_OPTIONS.find((q) => q.value === attr.qualite)?.label ?? attr.qualite ?? "—"}
-                    </td>
-                    <td className="px-5 py-4">
-                      <Badge status={attr.actuel ? "attribue" : "disponible"}>
-                        {attr.actuel ? "Actuel" : "Historique"}
-                      </Badge>
-                    </td>
-                    <td className="px-5 py-4 text-sm text-slate-500">
-                      {attr.depuis
-                        ? new Date(attr.depuis).toLocaleDateString("fr-FR", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "—"}
-                    </td>
-                    <td className="max-w-[200px] truncate px-5 py-4 text-sm text-slate-500">
-                      {attr.observation || "—"}
-                    </td>
+      <motion.div variants={fadeUp} initial="hidden" animate="show">
+        <Card className="overflow-hidden print:border-none print:shadow-none">
+          {dataLoading ? (
+            <p className="px-5 py-10 text-center text-sm text-muted-foreground">Chargement des attributions…</p>
+          ) : attributions.length === 0 ? (
+            <EmptyState
+              icon={Link2}
+              title="Aucune attribution enregistrée"
+              description="Aucun lot de votre périmètre n'a encore été attribué."
+            />
+          ) : (
+            // 1 352 attributions sur la vue nationale : sans hauteur bornée, la
+            // page dépasse les 70 000 px. Défilement interne, en overflow natif
+            // (pas ScrollArea) parce que cet écran s'imprime.
+            <div className="max-h-[62vh] overflow-auto print:max-h-none print:overflow-visible">
+              <table className="w-full min-w-[760px] border-collapse text-left">
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-border bg-inset">
+                    {TABLE_HEADERS.map((header) => (
+                      <th
+                        key={header}
+                        scope="col"
+                        className="bg-inset px-5 py-3 text-[10.5px] font-bold tracking-wider text-muted-foreground uppercase"
+                      >
+                        {header}
+                      </th>
+                    ))}
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Modal de création */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-2xl sm:p-8">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
-                  Nouvelle attribution
-                </p>
-                <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">
-                  Lier un lot à un attributaire
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-                aria-label="Fermer"
-              >
-                <X className="h-4 w-4" />
-              </button>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {attributions.map((attr) => (
+                    <tr key={attr.id} className="transition-colors hover:bg-inset/70">
+                      <td className="px-5 py-3.5 text-[13px] font-bold text-foreground">
+                        {attr.lots?.numero_lot ? `Lot ${attr.lots.numero_lot}` : "—"}
+                      </td>
+                      <td className="px-5 py-3.5 text-[13px] font-medium text-foreground">
+                        {attr.attributaires?.nom || "—"}
+                      </td>
+                      <td className="px-5 py-3.5 text-[13px] text-muted-foreground">
+                        {QUALITE_OPTIONS.find((q) => q.value === attr.qualite)?.label ?? attr.qualite ?? "—"}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <Badge tone={attr.actuel ? "accent" : "neutral"}>
+                          {attr.actuel ? "Actuel" : "Historique"}
+                        </Badge>
+                      </td>
+                      <td className="px-5 py-3.5 text-[13px] text-muted-2">
+                        {attr.depuis
+                          ? new Date(attr.depuis).toLocaleDateString("fr-FR", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : "—"}
+                      </td>
+                      <td className="max-w-[200px] truncate px-5 py-3.5 text-[13px] text-muted-2">
+                        {attr.observation || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+          )}
+        </Card>
+      </motion.div>
 
-            <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-              {/* Lot */}
-              <div className="space-y-1.5">
-                <label htmlFor="attr-lot" className="text-sm font-medium text-slate-700">
-                  Lot foncier <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="attr-lot"
-                  value={form.lot_id}
-                  onChange={(e) => setForm((f) => ({ ...f, lot_id: e.target.value }))}
-                  required
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-                >
-                  <option value="">— Sélectionner un lot libre —</option>
-                  {lotsOptions.map((lot) => (
-                    <option key={lot.id} value={lot.id}>
-                      Lot {lot.numero_lot}
-                    </option>
-                  ))}
-                </select>
-              </div>
+      {isModalOpen && (
+        <ModaleFormulaire
+          surTitre="Nouvelle attribution"
+          titre="Lier un lot à un attributaire"
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handleSubmit}
+          error={errorMessage}
+          isSubmitting={isSubmitting}
+          libelleAction="Enregistrer l'attribution"
+          libelleEnCours="Enregistrement…"
+        >
+          <ChampSelect
+            id="attr-lot"
+            label="Lot foncier"
+            required
+            placeholder="— Sélectionner un lot libre —"
+            value={form.lot_id}
+            onChange={(v) => setForm((f) => ({ ...f, lot_id: v }))}
+          >
+            {lotsOptions.map((lot) => (
+              <SelectItem key={lot.id} value={lot.id}>Lot {lot.numero_lot}</SelectItem>
+            ))}
+          </ChampSelect>
 
-              {/* Attributaire */}
-              <div className="space-y-1.5">
-                <label htmlFor="attr-attrib" className="text-sm font-medium text-slate-700">
-                  Attributaire <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="attr-attrib"
-                  value={form.attributaire_id}
-                  onChange={(e) => setForm((f) => ({ ...f, attributaire_id: e.target.value }))}
-                  required
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-                >
-                  <option value="">— Sélectionner un attributaire —</option>
-                  {attributairesOptions.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.nom}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          <ChampSelect
+            id="attr-attrib"
+            label="Attributaire"
+            required
+            value={form.attributaire_id}
+            onChange={(v) => setForm((f) => ({ ...f, attributaire_id: v }))}
+          >
+            {attributairesOptions.map((a) => (
+              <SelectItem key={a.id} value={a.id}>{a.nom ?? "—"}</SelectItem>
+            ))}
+          </ChampSelect>
 
-              {/* Qualité */}
-              <div className="space-y-1.5">
-                <label htmlFor="attr-qualite" className="text-sm font-medium text-slate-700">
-                  Qualité de l&apos;attributaire
-                </label>
-                <select
-                  id="attr-qualite"
-                  value={form.qualite}
-                  onChange={(e) => setForm((f) => ({ ...f, qualite: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-                >
-                  {QUALITE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          <ChampSelect
+            id="attr-qualite"
+            label="Qualité de l'attributaire"
+            value={form.qualite}
+            onChange={(v) => setForm((f) => ({ ...f, qualite: v }))}
+          >
+            {QUALITE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </ChampSelect>
 
-              {/* Depuis */}
-              <div className="space-y-1.5">
-                <label htmlFor="attr-depuis" className="text-sm font-medium text-slate-700">
-                  Date d&apos;effet
-                </label>
-                <input
-                  id="attr-depuis"
-                  type="date"
-                  value={form.depuis}
-                  onChange={(e) => setForm((f) => ({ ...f, depuis: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-                />
-              </div>
+          <Field label="Date d'effet" htmlFor="attr-depuis">
+            <Input
+              id="attr-depuis"
+              type="date"
+              value={form.depuis}
+              onChange={(e) => setForm((f) => ({ ...f, depuis: e.target.value }))}
+            />
+          </Field>
 
-              {/* Actuel */}
-              <label className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/70 px-4 py-3 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={form.actuel}
-                  onChange={(e) => setForm((f) => ({ ...f, actuel: e.target.checked }))}
-                  className="h-4 w-4 rounded border-slate-300 text-[#0D3B66] focus:ring-[#0D3B66]"
-                />
-                Attribution actuelle (marque le lot comme &quot;Attribué&quot;)
-              </label>
+          <CaseACocher checked={form.actuel} onChange={(v) => setForm((f) => ({ ...f, actuel: v }))}>
+            Attribution actuelle (marque le lot comme « Attribué »)
+          </CaseACocher>
 
-              {/* Observation */}
-              <div className="space-y-1.5">
-                <label htmlFor="attr-obs" className="text-sm font-medium text-slate-700">
-                  Observation
-                </label>
-                <textarea
-                  id="attr-obs"
-                  value={form.observation}
-                  onChange={(e) => setForm((f) => ({ ...f, observation: e.target.value }))}
-                  placeholder="Remarques, conditions particulières…"
-                  rows={2}
-                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-                />
-              </div>
-
-              {errorMessage && (
-                <div className="rounded-2xl border border-red-200/70 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {errorMessage}
-                </div>
-              )}
-
-              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white transition-all hover:bg-[#1E6091] disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {isSubmitting ? "Enregistrement…" : "Enregistrer l'attribution"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+          <Field label="Observation" htmlFor="attr-obs">
+            <Textarea
+              id="attr-obs"
+              value={form.observation}
+              rows={2}
+              onChange={(e) => setForm((f) => ({ ...f, observation: e.target.value }))}
+              placeholder="Remarques, conditions particulières…"
+            />
+          </Field>
+        </ModaleFormulaire>
       )}
-    </div>
+    </AppShell>
   );
 }
