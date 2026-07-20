@@ -225,7 +225,10 @@ jouer**, jamais « on attend le client ».
 - **Création de dossier ADU** : mêmes champs, même insertion, même `cree_par`.
 - **Journal d'audit** : le détail avant/après reste accessible au clic — c'est
   la valeur probante du journal.
-- Les 25 autres pages `/dashboard/*` gardent leur chrome historique.
+- ~~Les 25 autres pages `/dashboard/*` gardent leur chrome historique.~~
+  **Migration terminée (20/07) : les 35 écrans `/dashboard/*` sont sur `AppShell`.**
+  `DashboardShell` ne porte plus de chrome — réduit à sa garde d'auth +
+  `InactivityLogout` (le chrome legacy était devenu du code mort).
 
 ### Bugs trouvés au navigateur (invisibles au typecheck et au lint)
 
@@ -270,8 +273,16 @@ débordement horizontal.
 
 ### Suite
 
-- Migrer les autres pages `/dashboard/*` sur le DS, puis remonter `.dark` sur `<html>`.
-  *(Surfaces publiques faites : Site Vitrine et `/login` sont sur les jetons depuis le 20/07 — il ne reste que les `/dashboard/*` legacy.)*
+- ✅ **Migration `/dashboard/*` terminée (20/07).** Les 35 écrans rendent leur
+  chrome via `AppShell` ; `DashboardShell` réduit à sa garde d'auth ; `KpiCard`
+  supprimé (remplacé par `Kpi`) ; `ui/Badge` passé sur les jetons DS (API
+  inchangée). `ui/Input` laissé tel quel : ses seuls consommateurs restants sont
+  des **pages publiques claires** (inscription, devenir-geometre, lotissements).
+  Briques réutilisées : `ModaleFormulaire`/`ChampSelect`, `Kpi`, `Card`,
+  `ds/dialog`, `ds/badge`, `ds/select`, `PortalScopeProvider`.
+- **Optionnel** : remonter `.dark` de `PortalScopeProvider` (posé par `AppShell`)
+  vers `<html>`. Non requis — le `PortalScopeProvider` a réglé le problème des
+  portails Radix, donc le mode sombre scopé par écran fonctionne partout.
 - Brancher les recettes quand CinetPay sera activé (le KPI et l'onglet Paiements
   sont prêts et se remplissent seuls).
 - Géolocaliser les 897 lots restants — c'est ce que l'écran réclame en premier.
