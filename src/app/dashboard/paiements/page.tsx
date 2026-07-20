@@ -1,17 +1,45 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { Badge } from "@/components/ui/Badge";
-import KpiCard from "@/components/dashboard/KpiCard";
-import { createClient } from "@/utils/supabase/client";
+import { motion } from "framer-motion";
 import {
   Banknote, CheckCircle2, Clock, CreditCard, Download, Plus, Receipt, ShieldCheck, TrendingUp, X,
 } from "lucide-react";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
+import {
+  Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ds/dialog";
+import { Kpi } from "@/components/ds/kpi";
+import { Field } from "@/components/ds/label";
+import { Input } from "@/components/ds/input";
+import { SelectItem } from "@/components/ds/select";
+import { ChampSelect } from "@/components/dashboard/ModaleFormulaire";
+import { createClient } from "@/utils/supabase/client";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { stagger } from "@/lib/motion";
 import {
   MOYEN_OPTIONS, MOYEN_LABELS, STATUT_CONFIG, TYPE_DEMARCHE_LABELS, TYPE_OPTIONS, fcfa, isMoyenManuel,
   labelTypePaiement,
   type TypeDemarche, type TypePaiement,
 } from "@/lib/paiements";
+
+type BadgeTone = "neutral" | "accent" | "success" | "warning" | "danger";
+
+// Le lib expose encore les statuts « ui/Badge » historiques ; on les traduit ici
+// en tons du Design System.
+const BADGE_TONE: Record<string, BadgeTone> = {
+  disponible: "neutral",
+  attribue: "success",
+  en_validation: "warning",
+  litige: "danger",
+};
+
+// Radix Select refuse la chaîne vide : sentinelle « rien de sélectionné ».
+const VIDE = "__vide__";
 
 type PaiementRecord = {
   id: string;
@@ -297,194 +325,144 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-200/60 px-6 py-4">
-          <h2 className="text-base font-bold text-[#0D3B66]">Nouveau paiement</h2>
-          <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100">
-            <X className="h-5 w-5 text-slate-500" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Nouveau paiement</DialogTitle>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 px-6 py-5">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Type</label>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value as TypePaiement)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
-            >
-              {TYPE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
+        <form onSubmit={handleSubmit}>
+          <DialogBody className="space-y-4">
+            <ChampSelect id="pay-type" label="Type" value={type} onChange={(v) => setType(v as TypePaiement)}>
+              {TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </ChampSelect>
 
-          {type === "attestation_cession" && (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Attestation de cession</label>
-              <select
-                value={attestationId}
-                onChange={(e) => setAttestationId(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
+            {type === "attestation_cession" && (
+              <ChampSelect
+                id="pay-att"
+                label="Attestation de cession"
+                value={attestationId || VIDE}
+                onChange={(v) => setAttestationId(v === VIDE ? "" : v)}
               >
-                <option value="">— Sélectionner —</option>
+                <SelectItem value={VIDE}>— Sélectionner —</SelectItem>
                 {attestations.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.reference} — {a.attributaires?.nom ?? "?"} ({a.statut})
-                  </option>
+                  <SelectItem key={a.id} value={a.id}>{a.reference} — {a.attributaires?.nom ?? "?"} ({a.statut})</SelectItem>
                 ))}
-              </select>
-            </div>
-          )}
+              </ChampSelect>
+            )}
 
-          {type === "honoraires" && (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Démarche concernée</label>
-              <select
-                value={demarcheId}
-                onChange={(e) => setDemarcheId(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
+            {type === "honoraires" && (
+              <ChampSelect
+                id="pay-dem"
+                label="Démarche concernée"
+                value={demarcheId || VIDE}
+                onChange={(v) => setDemarcheId(v === VIDE ? "" : v)}
               >
-                <option value="">— Sélectionner —</option>
+                <SelectItem value={VIDE}>— Sélectionner —</SelectItem>
                 {demarches.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {TYPE_DEMARCHE_LABELS[d.type as TypeDemarche] ?? d.type ?? "Démarche"} —{" "}
-                    {d.attributaires?.nom ?? "?"} (
-                    {d.montant_honoraires != null ? fcfa(d.montant_honoraires) : "à chiffrer"})
-                  </option>
+                  <SelectItem key={d.id} value={d.id}>
+                    {TYPE_DEMARCHE_LABELS[d.type as TypeDemarche] ?? d.type ?? "Démarche"} — {d.attributaires?.nom ?? "?"} ({d.montant_honoraires != null ? fcfa(d.montant_honoraires) : "à chiffrer"})
+                  </SelectItem>
                 ))}
-              </select>
-            </div>
-          )}
+              </ChampSelect>
+            )}
 
-          {type === "vente_terrain" && (
-            <>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Vente</label>
-                <select
-                  value={venteId}
-                  onChange={(e) => setVenteId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
+            {type === "vente_terrain" && (
+              <>
+                <ChampSelect
+                  id="pay-vente"
+                  label="Vente"
+                  value={venteId || VIDE}
+                  onChange={(v) => setVenteId(v === VIDE ? "" : v)}
                 >
-                  <option value="">— Sélectionner —</option>
+                  <SelectItem value={VIDE}>— Sélectionner —</SelectItem>
                   {ventes.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.attributaires?.nom ?? "?"} — {fcfa(v.prix_total)} ({v.type_vente})
-                    </option>
+                    <SelectItem key={v.id} value={v.id}>{v.attributaires?.nom ?? "?"} — {fcfa(v.prix_total)} ({v.type_vente})</SelectItem>
                   ))}
-                </select>
-              </div>
-              {venteChoisie?.type_vente === "echelonne" && (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Échéance</label>
-                  <select
-                    value={echeanceId}
-                    onChange={(e) => setEcheanceId(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
+                </ChampSelect>
+                {venteChoisie?.type_vente === "echelonne" && (
+                  <ChampSelect
+                    id="pay-ech"
+                    label="Échéance"
+                    value={echeanceId || VIDE}
+                    onChange={(v) => setEcheanceId(v === VIDE ? "" : v)}
                   >
-                    <option value="">— Sélectionner —</option>
+                    <SelectItem value={VIDE}>— Sélectionner —</SelectItem>
                     {echeances.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        Échéance {e.numero} — {fcfa(e.montant_du)} (due le {e.date_echeance})
-                      </option>
+                      <SelectItem key={e.id} value={e.id}>Échéance {e.numero} — {fcfa(e.montant_du)} (due le {e.date_echeance})</SelectItem>
                     ))}
-                  </select>
-                </div>
-              )}
-            </>
-          )}
+                  </ChampSelect>
+                )}
+              </>
+            )}
 
-          {type === "autre" && (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Attributaire concerné</label>
-              <select
-                value={autreAttributaireId}
-                onChange={(e) => setAutreAttributaireId(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
+            {type === "autre" && (
+              <ChampSelect
+                id="pay-attr"
+                label="Attributaire concerné"
+                value={autreAttributaireId || VIDE}
+                onChange={(v) => setAutreAttributaireId(v === VIDE ? "" : v)}
               >
-                <option value="">— Sélectionner —</option>
-                {attributaires.map((a) => (
-                  <option key={a.id} value={a.id}>{a.nom}</option>
-                ))}
-              </select>
+                <SelectItem value={VIDE}>— Sélectionner —</SelectItem>
+                {attributaires.map((a) => <SelectItem key={a.id} value={a.id}>{a.nom}</SelectItem>)}
+              </ChampSelect>
+            )}
+
+            <div className="space-y-1.5">
+              <label htmlFor="pay-montant" className="text-[13px] font-semibold text-foreground">Montant total (FCFA)</label>
+              <Input
+                id="pay-montant"
+                type="number"
+                value={montant}
+                onChange={(e) => setMontant(e.target.value)}
+                readOnly={montantReadOnly}
+                placeholder="Ex : 250000"
+                className="read-only:bg-inset"
+              />
+              {tarifActif?.montant_min != null && tarifActif.montant_max != null && (
+                <p className="text-xs text-muted-2">
+                  Grille tarifaire : {fcfa(tarifActif.montant_min)} – {fcfa(tarifActif.montant_max)}
+                </p>
+              )}
+              {type === "honoraires" && demarcheChoisie && !tarifActif && demarcheChoisie.montant_honoraires == null && (
+                <p className="text-xs text-warning">
+                  Montant non encore fixé dans la grille tarifaire — saisie libre à confirmer.
+                </p>
+              )}
             </div>
-          )}
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Montant total (FCFA)</label>
-            <input
-              type="number"
-              value={montant}
-              onChange={(e) => setMontant(e.target.value)}
-              readOnly={montantReadOnly}
-              placeholder="Ex : 250000"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 read-only:bg-slate-50 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
-            />
-            {tarifActif?.montant_min != null && tarifActif.montant_max != null && (
-              <p className="mt-1 text-xs text-slate-400">
-                Grille tarifaire : {fcfa(tarifActif.montant_min)} – {fcfa(tarifActif.montant_max)}
+            <Field label="Bénéficiaire" htmlFor="pay-benef">
+              <Input
+                id="pay-benef"
+                type="text"
+                value={beneficiaire}
+                onChange={(e) => setBeneficiaire(e.target.value)}
+                placeholder="Nom complet"
+              />
+            </Field>
+
+            <ChampSelect id="pay-moyen" label="Moyen de paiement" value={moyen} onChange={setMoyen}>
+              {MOYEN_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </ChampSelect>
+
+            {err && (
+              <p role="alert" className="rounded-md border border-danger/25 bg-danger-subtle px-3 py-2 text-xs font-medium text-danger">
+                {err}
               </p>
             )}
-            {type === "honoraires" && demarcheChoisie && !tarifActif && demarcheChoisie.montant_honoraires == null && (
-              <p className="mt-1 text-xs text-[#D97706]">
-                Montant non encore fixé dans la grille tarifaire — saisie libre à confirmer.
-              </p>
-            )}
-          </div>
+          </DialogBody>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Bénéficiaire</label>
-            <input
-              type="text"
-              value={beneficiaire}
-              onChange={(e) => setBeneficiaire(e.target.value)}
-              placeholder="Nom complet"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Moyen de paiement</label>
-            <select
-              value={moyen}
-              onChange={(e) => setMoyen(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
-            >
-              {MOYEN_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {err && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{err}</p>}
-
-          <div className="flex gap-3 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            >
-              Annuler
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 rounded-xl bg-[#0D3B66] py-2.5 text-sm font-semibold text-white hover:bg-[#1E6091] disabled:opacity-60"
-            >
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+            <Button type="submit" variant="primary" loading={saving}>
               {saving ? "Enregistrement…" : "Créer"}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
-
-// ── Page principale ──────────────────────────────────────────────────────────
 
 // ── Tarifs 3e attestation par chefferie (niveau 3) — admin ───────────────────
 // La 1re attestation est gratuite, la 2e au forfait national (table `tarifs`).
@@ -595,46 +573,46 @@ function TarifsChefferieAdmin() {
   const nbConfigures = rows.filter((r) => r.hasRow && r.actif).length;
 
   return (
-    <div className="mb-6 overflow-hidden rounded-xl border border-slate-200/60 bg-white">
+    <Card className="overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left hover:bg-slate-50/60"
+        className="flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left hover:bg-inset/60"
       >
         <span className="flex items-center gap-2">
-          <Receipt className="h-4 w-4 text-[#0D3B66]" />
-          <span className="text-sm font-semibold text-slate-800">Tarifs 3e attestation par chefferie</span>
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+          <Receipt className="h-4 w-4 text-accent" />
+          <span className="text-sm font-semibold text-foreground">Tarifs 3e attestation par chefferie</span>
+          <span className="rounded-full bg-inset px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
             {nbConfigures}/{rows.length} actif(s)
           </span>
         </span>
-        <span className="text-xs font-medium text-[#0D3B66]">{open ? "Masquer" : "Configurer"}</span>
+        <span className="text-xs font-medium text-accent">{open ? "Masquer" : "Configurer"}</span>
       </button>
 
       {open && (
-        <div className="border-t border-slate-200/60 px-5 py-4">
-          <p className="mb-3 text-xs leading-relaxed text-slate-500">
+        <div className="border-t border-border px-5 py-4">
+          <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
             À partir de la 3e attestation de cession sur un lot, le tarif dépend de la chefferie
             (autorité coutumière) du lotissement. Total facturé = montant chefferie + commission SGNF.
             Une chefferie sans tarif actif bloque toute 3e cession de ses lots.
           </p>
 
           {error && (
-            <div className="mb-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <div className="mb-3 flex items-center gap-2 rounded-lg border border-danger/25 bg-danger-subtle px-3 py-2 text-xs text-danger">
               <X className="h-3.5 w-3.5 shrink-0" />
               {error}
             </div>
           )}
 
           {loading ? (
-            <p className="py-4 text-center text-sm text-slate-400">Chargement…</p>
+            <p className="py-4 text-center text-sm text-muted-2">Chargement…</p>
           ) : rows.length === 0 ? (
-            <p className="py-4 text-center text-sm text-slate-400">Aucune chefferie enregistrée.</p>
+            <p className="py-4 text-center text-sm text-muted-2">Aucune chefferie enregistrée.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] border-collapse text-left text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200/60 text-[11px] uppercase tracking-wide text-slate-400">
+                  <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-2">
                     <th className="py-2 pr-3 font-medium">Chefferie</th>
                     <th className="py-2 pr-3 font-medium">Montant chefferie</th>
                     <th className="py-2 pr-3 font-medium">Commission SGNF</th>
@@ -648,40 +626,38 @@ function TarifsChefferieAdmin() {
                     const e = edits[r.autorite_coutumiere_id] ?? { montant: "", commission: "", actif: true };
                     const total = (Number(e.montant) || 0) + (Number(e.commission) || 0);
                     return (
-                      <tr key={r.autorite_coutumiere_id} className="border-b border-slate-100 last:border-0">
-                        <td className="py-2.5 pr-3 font-medium text-slate-800">
+                      <tr key={r.autorite_coutumiere_id} className="border-b border-border last:border-0">
+                        <td className="py-2.5 pr-3 font-medium text-foreground">
                           {r.nom}
                           {!r.hasRow && (
-                            <span className="ml-2 rounded-full bg-[#F39C12]/10 px-2 py-0.5 text-[10px] font-semibold text-[#F39C12]">
-                              à définir
-                            </span>
+                            <Badge tone="warning" className="ml-2">à définir</Badge>
                           )}
                         </td>
                         <td className="py-2.5 pr-3">
-                          <input
+                          <Input
                             inputMode="numeric"
                             value={e.montant}
                             onChange={(ev) => setField(r.autorite_coutumiere_id, "montant", ev.target.value)}
                             placeholder="0"
-                            className="w-28 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm tabular-nums focus:border-[#0D3B66] focus:outline-none"
+                            className="w-28 tabular-nums"
                           />
                         </td>
                         <td className="py-2.5 pr-3">
-                          <input
+                          <Input
                             inputMode="numeric"
                             value={e.commission}
                             onChange={(ev) => setField(r.autorite_coutumiere_id, "commission", ev.target.value)}
                             placeholder="0"
-                            className="w-28 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm tabular-nums focus:border-[#0D3B66] focus:outline-none"
+                            className="w-28 tabular-nums"
                           />
                         </td>
-                        <td className="py-2.5 pr-3 font-semibold tabular-nums text-[#0D3B66]">{fcfa(total)}</td>
+                        <td className="py-2.5 pr-3 font-semibold tabular-nums text-accent">{fcfa(total)}</td>
                         <td className="py-2.5 pr-3">
                           <button
                             type="button"
                             onClick={() => toggleActif(r.autorite_coutumiere_id)}
                             className={`inline-flex h-5 w-9 items-center rounded-full px-0.5 transition-colors ${
-                              e.actif ? "bg-[#2D8F5A]" : "bg-slate-300"
+                              e.actif ? "bg-success" : "bg-border-strong"
                             }`}
                             aria-pressed={e.actif}
                           >
@@ -691,11 +667,12 @@ function TarifsChefferieAdmin() {
                           </button>
                         </td>
                         <td className="py-2.5">
-                          <button
+                          <Button
                             type="button"
+                            variant="primary"
+                            size="sm"
                             onClick={() => void save(r.autorite_coutumiere_id)}
                             disabled={savingId === r.autorite_coutumiere_id}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#0D3B66] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1E6091] disabled:opacity-60"
                           >
                             {savedId === r.autorite_coutumiere_id ? (
                               <>
@@ -706,7 +683,7 @@ function TarifsChefferieAdmin() {
                             ) : (
                               "Enregistrer"
                             )}
-                          </button>
+                          </Button>
                         </td>
                       </tr>
                     );
@@ -717,7 +694,7 @@ function TarifsChefferieAdmin() {
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -770,33 +747,34 @@ function FraisAgregateurConfig() {
   };
 
   return (
-    <div className="mb-6 rounded-xl border border-slate-200/60 bg-white px-5 py-4">
+    <Card className="px-5 py-4">
       <div className="flex items-center gap-2">
-        <CreditCard className="h-4 w-4 text-[#0D3B66]" />
-        <span className="text-sm font-semibold text-slate-800">Frais agrégateur — paiement en ligne</span>
+        <CreditCard className="h-4 w-4 text-accent" />
+        <span className="text-sm font-semibold text-foreground">Frais agrégateur — paiement en ligne</span>
       </div>
-      <p className="mt-1 text-xs leading-relaxed text-slate-500">
-        Montant <span className="font-medium">fixe</span> prélevé par l&apos;agrégateur (CinetPay) sur chaque
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        Montant <span className="font-medium text-foreground">fixe</span> prélevé par l&apos;agrégateur (CinetPay) sur chaque
         transaction en ligne. Déduit de la commission SGNF (attestation) ; absorbé par l&apos;acquéreur (vente).
         Les paiements au guichet (espèces/virement) ne sont pas concernés.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <div className="relative">
-          <input
+          <Input
             inputMode="numeric"
             value={valeur}
             onChange={(e) => setValeur(e.target.value.replace(/[^0-9]/g, ""))}
             disabled={loading}
             placeholder="0"
-            className="w-40 rounded-lg border border-slate-200 px-3 py-2 pr-14 text-sm tabular-nums focus:border-[#0D3B66] focus:outline-none"
+            className="w-40 pr-14 tabular-nums"
           />
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">FCFA</span>
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-2">FCFA</span>
         </div>
-        <button
+        <Button
           type="button"
+          variant="primary"
+          size="sm"
           onClick={() => void save()}
           disabled={saving || loading || valeur === initial}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#0D3B66] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1E6091] disabled:opacity-50"
         >
           {saved ? (
             <>
@@ -807,15 +785,16 @@ function FraisAgregateurConfig() {
           ) : (
             "Enregistrer"
           )}
-        </button>
-        {error && <span className="text-xs text-red-600">{error}</span>}
+        </Button>
+        {error && <span className="text-xs text-danger">{error}</span>}
       </div>
-    </div>
+    </Card>
   );
 }
 
 export default function PaiementsPage() {
   const supabase = useMemo(() => createClient(), []);
+  const { counts } = useBadgeCounts();
 
   const [paiements, setPaiements] = useState<PaiementRecord[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -949,7 +928,7 @@ export default function PaiementsPage() {
   const paiementsAffiches = vue === "a_valider" ? aValider : paiements;
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <AppShell loading={dataLoading} counts={counts} onRefresh={loadPaiements}>
       {showModal && (
         <NouveauPaiementModal
           onClose={() => setShowModal(false)}
@@ -958,41 +937,38 @@ export default function PaiementsPage() {
       )}
 
       {/* En-tête */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-brand-primary">
-            Suivi des Paiements
+          <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+            Suivi des paiements
           </h1>
-          <p className="mt-1.5 text-sm text-slate-500">
+          <p className="mt-1 text-[13.5px] text-muted-foreground">
             Traçabilité des transactions, honoraires et commissions de la plateforme.{" "}
-            <span className={enAttente > 0 ? "font-medium text-[#F39C12]" : "font-medium text-[#2D8F5A]"}>
+            <span className={enAttente > 0 ? "font-medium text-warning" : "font-medium text-success"}>
               {enAttente} en attente.
             </span>
           </p>
         </div>
 
         {canCreate && (
-          <button
-            onClick={() => setShowModal(true)}
-            className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#1E6091]"
-          >
+          <Button type="button" variant="primary" className="shrink-0" onClick={() => setShowModal(true)}>
             <Plus className="h-4 w-4" />
             Nouveau paiement
-          </button>
+          </Button>
         )}
       </div>
 
       {isAdmin && (
-        <div className="mb-5 flex gap-2">
+        <div className="flex gap-2">
           <button
             onClick={() => setVue("registre")}
-            className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${vue === "registre" ? "bg-[#0D3B66] text-white" : "bg-white text-slate-600 border border-slate-200"}`}
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${vue === "registre" ? "bg-primary text-primary-foreground" : "border border-border bg-card text-muted-foreground hover:bg-inset"}`}
           >
             Registre
           </button>
           <button
             onClick={() => setVue("a_valider")}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${vue === "a_valider" ? "bg-[#0D3B66] text-white" : "bg-white text-slate-600 border border-slate-200"}`}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${vue === "a_valider" ? "bg-primary text-primary-foreground" : "border border-border bg-card text-muted-foreground hover:bg-inset"}`}
           >
             <ShieldCheck className="h-3.5 w-3.5" />
             À valider {aValider.length > 0 && `(${aValider.length})`}
@@ -1001,7 +977,7 @@ export default function PaiementsPage() {
       )}
 
       {payError && (
-        <div className="mb-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="flex items-center gap-2 rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm text-danger">
           <X className="h-4 w-4 shrink-0" />
           {payError}
           <button onClick={() => setPayError(null)} className="ml-auto font-medium underline">
@@ -1012,23 +988,17 @@ export default function PaiementsPage() {
 
       {/* KPI */}
       {vue === "registre" && (
-        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {(
-            [
-              { label: "Total encaissé", value: fcfa(totalEncaisse), icon: Banknote, gradient: ["#16A34A", "#4ADE80"] },
-              { label: "Commission SGNF", value: fcfa(totalCommission), icon: TrendingUp, gradient: ["#1E6091", "#4FA8D8"] },
-              { label: "Paiements en attente", value: String(enAttente), icon: Clock, gradient: ["#D97706", "#FBBF24"] },
-            ] as { label: string; value: string; icon: typeof Banknote; gradient: [string, string] }[]
-          ).map((metric) => (
-            <KpiCard
-              key={metric.label}
-              label={metric.label}
-              value={dataLoading ? "…" : metric.value}
-              icon={metric.icon}
-              gradient={metric.gradient}
-            />
-          ))}
-        </div>
+        <motion.section
+          variants={stagger(0, 0.05)}
+          initial="hidden"
+          animate="show"
+          className="grid gap-4 sm:grid-cols-3"
+          aria-label="Indicateurs des paiements"
+        >
+          <Kpi icon={Banknote} label="Total encaissé" loading={dataLoading} value={totalEncaisse} format={fcfa} legende={<>paiements confirmés</>} />
+          <Kpi icon={TrendingUp} label="Commission SGNF" loading={dataLoading} value={totalCommission} format={fcfa} legende={<>part de la plateforme</>} />
+          <Kpi icon={Clock} label="Paiements en attente" loading={dataLoading} value={enAttente} tone={enAttente > 0 ? "warning" : "neutral"} legende={<>à traiter</>} />
+        </motion.section>
       )}
 
       {/* Config admin : frais agrégateur + tarifs 3e attestation par chefferie */}
@@ -1036,39 +1006,39 @@ export default function PaiementsPage() {
       {isAdmin && vue === "registre" && <TarifsChefferieAdmin />}
 
       {/* Tableau */}
-      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white">
-        <div className="border-b border-slate-200/60 bg-slate-50/50 px-5 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <Card className="overflow-hidden">
+        <div className="border-b border-border bg-inset px-5 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {vue === "a_valider" ? "Paiements en attente de validation manuelle" : "Registre des transactions"}
           </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] border-collapse text-left">
             <thead>
-              <tr className="border-b border-slate-200/60 bg-slate-50/50">
-                {TABLE_HEADERS.map((header) => (
+              <tr className="border-b border-border bg-inset">
+                {TABLE_HEADERS.map((header, i) => (
                   <th
-                    key={header}
+                    key={header || `col-${i}`}
                     scope="col"
-                    className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-slate-500"
+                    className="px-5 py-3.5 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground"
                   >
                     {header}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200/60">
+            <tbody className="divide-y divide-border">
               {dataLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-muted-foreground">
                     Chargement des paiements…
                   </td>
                 </tr>
               ) : paiementsAffiches.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
-                      <Receipt className="h-6 w-6 text-slate-300" />
+                      <Receipt className="h-6 w-6 text-muted-2" />
                       {vue === "a_valider" ? "Aucun paiement à valider." : "Aucun paiement enregistré."}
                     </div>
                   </td>
@@ -1085,26 +1055,26 @@ export default function PaiementsPage() {
                   const repart = repartitions[p.id] ?? [];
                   return (
                     <Fragment key={p.id}>
-                    <tr className="transition-colors hover:bg-slate-50/60">
-                      <td className="px-5 py-4 font-mono text-xs font-medium text-[#0D3B66]">
+                    <tr className="transition-colors hover:bg-inset/60">
+                      <td className="px-5 py-4 font-mono text-xs font-medium text-accent">
                         {p.id.slice(0, 8).toUpperCase()}
                       </td>
-                      <td className="max-w-[180px] truncate px-5 py-4 text-sm text-slate-700">
+                      <td className="max-w-[180px] truncate px-5 py-4 text-sm text-foreground">
                         {p.beneficiaire || (p.attributaires as { nom: string | null } | null)?.nom || "—"}
                       </td>
-                      <td className="px-5 py-4 text-sm text-slate-600">
+                      <td className="px-5 py-4 text-sm text-muted-foreground">
                         {labelTypePaiement(p.type, p.ventes?.type_vente)}
                       </td>
-                      <td className="px-5 py-4 text-sm font-semibold tabular-nums text-slate-800">
+                      <td className="px-5 py-4 text-sm font-semibold tabular-nums text-foreground">
                         {fcfa(p.montant_total)}
                       </td>
-                      <td className="px-5 py-4 text-sm text-slate-600">
+                      <td className="px-5 py-4 text-sm text-muted-foreground">
                         {MOYEN_LABELS[p.moyen ?? ""] ?? p.moyen ?? "—"}
                       </td>
                       <td className="px-5 py-4">
-                        <Badge status={cfg.badge}>{cfg.label}</Badge>
+                        <Badge tone={BADGE_TONE[cfg.badge] ?? "warning"}>{cfg.label}</Badge>
                       </td>
-                      <td className="px-5 py-4 text-sm text-slate-500">
+                      <td className="px-5 py-4 text-sm text-muted-2">
                         {p.cree_le
                           ? new Date(p.cree_le).toLocaleDateString("fr-FR", {
                               day: "2-digit",
@@ -1114,67 +1084,71 @@ export default function PaiementsPage() {
                           : "—"}
                       </td>
                       <td className="px-5 py-4">
-                        {canPay && (
-                          <button
-                            onClick={() => void handlePayer(p)}
-                            disabled={payingId === p.id}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#0D3B66] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1E6091] disabled:opacity-60"
-                          >
-                            <CreditCard className="h-3.5 w-3.5" />
-                            {payingId === p.id ? "…" : "Payer"}
-                          </button>
-                        )}
-                        {vue === "a_valider" && (
-                          <button
-                            onClick={() => void handleValider(p)}
-                            disabled={validatingId === p.id}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#2D8F5A] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#256b48] disabled:opacity-60"
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            {validatingId === p.id ? "…" : "Valider"}
-                          </button>
-                        )}
-                        {vue === "registre" && p.statut === "confirme" && p.reference && (
-                          <button
-                            onClick={() => void handleTelechargerRecu(p)}
-                            disabled={downloadingId === p.id}
-                            title="Télécharger le reçu"
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                            {downloadingId === p.id ? "…" : "Reçu"}
-                          </button>
-                        )}
-                        {repart.length > 0 && (
-                          <button
-                            onClick={() => setOpenRepart(openRepart === p.id ? null : p.id)}
-                            title="Voir la répartition"
-                            className={`ml-1 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                              openRepart === p.id
-                                ? "border-[#0D3B66] bg-[#0D3B66]/5 text-[#0D3B66]"
-                                : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                            }`}
-                          >
-                            <TrendingUp className="h-3.5 w-3.5" />
-                            Répartition
-                          </button>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          {canPay && (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => void handlePayer(p)}
+                              disabled={payingId === p.id}
+                            >
+                              <CreditCard className="h-3.5 w-3.5" />
+                              {payingId === p.id ? "…" : "Payer"}
+                            </Button>
+                          )}
+                          {vue === "a_valider" && (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              className="bg-success text-white hover:bg-success/90"
+                              onClick={() => void handleValider(p)}
+                              disabled={validatingId === p.id}
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              {validatingId === p.id ? "…" : "Valider"}
+                            </Button>
+                          )}
+                          {vue === "registre" && p.statut === "confirme" && p.reference && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void handleTelechargerRecu(p)}
+                              disabled={downloadingId === p.id}
+                              title="Télécharger le reçu"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                              {downloadingId === p.id ? "…" : "Reçu"}
+                            </Button>
+                          )}
+                          {repart.length > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setOpenRepart(openRepart === p.id ? null : p.id)}
+                              title="Voir la répartition"
+                              className={openRepart === p.id ? "border-accent text-accent" : undefined}
+                            >
+                              <TrendingUp className="h-3.5 w-3.5" />
+                              Répartition
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                     {openRepart === p.id && repart.length > 0 && (
-                      <tr className="bg-slate-50/50">
+                      <tr className="bg-inset/50">
                         <td colSpan={8} className="px-5 py-3">
                           <div className="flex flex-wrap items-stretch gap-2">
                             {repart.map((r, i) => (
                               <div
                                 key={i}
-                                className="min-w-[150px] rounded-lg border border-slate-200 bg-white px-3 py-2"
+                                className="min-w-[150px] rounded-lg border border-border bg-card px-3 py-2"
                               >
-                                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-2">
                                   {BENEF_LABELS[r.beneficiaire_type] ?? r.beneficiaire_type}
                                 </p>
-                                {r.nom && <p className="truncate text-xs text-slate-500">{r.nom}</p>}
-                                <p className="mt-0.5 text-sm font-bold tabular-nums text-[#0D3B66]">{fcfa(r.montant)}</p>
+                                {r.nom && <p className="truncate text-xs text-muted-foreground">{r.nom}</p>}
+                                <p className="mt-0.5 text-sm font-bold tabular-nums text-accent">{fcfa(r.montant)}</p>
                               </div>
                             ))}
                           </div>
@@ -1188,14 +1162,14 @@ export default function PaiementsPage() {
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
 
       {/* Info agrégateur */}
-      <p className="mt-4 text-center text-xs text-slate-400">
+      <p className="text-center text-xs text-muted-2">
         Paiements en ligne sécurisés via{" "}
-        <span className="font-semibold text-slate-500">CinetPay</span> —
+        <span className="font-semibold text-muted-foreground">CinetPay</span> —
         Wave · Orange Money · MTN Money · Moov Money · Visa / Mastercard
       </p>
-    </div>
+    </AppShell>
   );
 }
