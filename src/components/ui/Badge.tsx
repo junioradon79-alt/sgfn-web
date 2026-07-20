@@ -8,6 +8,9 @@ interface BadgeProps {
   className?: string;
 }
 
+// Jetons du Design System plutôt que des hex figés : les 3 écrans dashboard qui
+// consomment encore ce badge (geometres, saisie, FileValidation) suivent ainsi
+// le thème clair/sombre. L'API `status` + le point pulsé restent inchangés.
 const STATUS_STYLES: Record<
   ParcelStatus,
   {
@@ -19,39 +22,39 @@ const STATUS_STYLES: Record<
   }
 > = {
   disponible: {
-    border: "border-[#2D8F5A]/25",
-    bg: "bg-[#2D8F5A]/10",
-    text: "text-[#2D8F5A]",
-    dot: "bg-[#2D8F5A]",
-    dotAnim: "bg-[#2D8F5A]/60",
+    border: "border-success/25",
+    bg: "bg-success-subtle",
+    text: "text-success",
+    dot: "bg-success",
+    dotAnim: "bg-success/60",
   },
   attribue: {
-    border: "border-[#1E6091]/25",
-    bg: "bg-[#1E6091]/10",
-    text: "text-[#1E6091]",
-    dot: "bg-[#1E6091]",
-    dotAnim: "bg-[#1E6091]/60",
+    border: "border-accent/25",
+    bg: "bg-accent-subtle",
+    text: "text-accent",
+    dot: "bg-accent",
+    dotAnim: "bg-accent/60",
   },
   en_validation: {
-    border: "border-[#F39C12]/25",
-    bg: "bg-[#F39C12]/10",
-    text: "text-[#F39C12]",
-    dot: "bg-[#F39C12]",
-    dotAnim: "bg-[#F39C12]/60",
+    border: "border-warning/25",
+    bg: "bg-warning-subtle",
+    text: "text-warning",
+    dot: "bg-warning",
+    dotAnim: "bg-warning/60",
   },
   litige: {
-    border: "border-[#EF4444]/25",
-    bg: "bg-[#EF4444]/10",
-    text: "text-[#EF4444]",
-    dot: "bg-[#EF4444]",
-    dotAnim: "bg-[#EF4444]/60",
+    border: "border-danger/25",
+    bg: "bg-danger-subtle",
+    text: "text-danger",
+    dot: "bg-danger",
+    dotAnim: "bg-danger/60",
   },
   neutre: {
-    border: "border-slate-300/60",
-    bg: "bg-slate-100",
-    text: "text-slate-500",
-    dot: "bg-slate-400",
-    dotAnim: "bg-slate-400/60",
+    border: "border-border",
+    bg: "bg-inset",
+    text: "text-muted-foreground",
+    dot: "bg-muted-foreground",
+    dotAnim: "bg-muted-foreground/60",
   },
 };
 
