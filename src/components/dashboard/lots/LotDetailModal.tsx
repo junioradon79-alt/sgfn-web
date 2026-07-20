@@ -1,7 +1,15 @@
 "use client";
 
-import { AlertTriangle, ExternalLink, Lock, X } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
+import type * as React from "react";
+import { AlertTriangle, ExternalLink, Lock } from "lucide-react";
+import { Badge } from "@/components/ds/badge";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ds/dialog";
 import RadialGauge from "@/components/ui/RadialGauge";
 
 // ─── Types partagés (page Lots + détail lotissement) ───────────────────────────
@@ -101,6 +109,18 @@ const SCORE_MAX: Record<keyof Omit<ScoreConfiance, "total">, number> = {
 
 // ─── Helpers partagés ──────────────────────────────────────────────────────────
 
+/**
+ * Correspondance statut de lot → ton du Design System, pour que le registre, le
+ * dossier et les dashboards de rôle parlent la même langue chromatique.
+ * Exportée : les appelants affichent leur badge eux-mêmes.
+ */
+export const LOT_STATUS_TONE: Record<LotStatus, "success" | "accent" | "warning" | "danger"> = {
+  disponible: "success",
+  attribue: "accent",
+  en_validation: "warning",
+  litige: "danger",
+};
+
 export function getBadgeConfig(lot: LotRecord): { status: LotStatus; label: string } {
   if (lot.verrouille) return { status: "litige", label: "Gel juridique" };
   switch ((lot.statut ?? "").toLowerCase()) {
@@ -147,30 +167,25 @@ export function LotDetailModal({ lot, litiges, score, pvAlert, onClose }: {
   const attestation = lot.attestations_cession?.[0];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-2xl overflow-y-auto rounded-[1.75rem] border border-slate-200/70 bg-white shadow-2xl" style={{ maxHeight: "90vh" }}>
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6 sm:p-8">
-          <div className="flex items-center gap-3">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Dossier foncier</p>
-              <h2 className="mt-1 text-xl font-semibold text-[#0D3B66]">
-                Lot {lot.numero_lot}
-                {lot.numero_parcelle && <span className="ml-2 text-sm font-normal text-slate-400">— Parcelle {lot.numero_parcelle}</span>}
-              </h2>
-            </div>
-            <Badge status={badge.status}>{badge.label}</Badge>
-            {lot.verrouille && <Lock className="h-4 w-4 text-amber-500" />}
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Dossier foncier</p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <DialogTitle>
+              Lot {lot.numero_lot}
+              {lot.numero_parcelle && (
+                <span className="ml-2 text-sm font-normal text-muted-2">— Parcelle {lot.numero_parcelle}</span>
+              )}
+            </DialogTitle>
+            <Badge tone={LOT_STATUS_TONE[badge.status]}>{badge.label}</Badge>
+            {lot.verrouille && <Lock className="size-4 text-warning" aria-label="Gel juridique" />}
           </div>
-          <button type="button" onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+        </DialogHeader>
 
-        <div className="space-y-6 p-6 sm:p-8">
+        <DialogBody className="space-y-6">
           {/* Localisation */}
-          <section>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Localisation</p>
+          <Section titre="Localisation">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
                 { label: "Lotissement", value: lotissementNom },
@@ -178,17 +193,13 @@ export function LotDetailModal({ lot, litiges, score, pvAlert, onClose }: {
                 { label: "Commune", value: commune },
                 { label: "Village", value: village ?? "—" },
               ].map((item) => (
-                <div key={item.label} className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-xs text-slate-400">{item.label}</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-700">{item.value}</p>
-                </div>
+                <Fiche key={item.label} label={item.label} value={item.value} />
               ))}
             </div>
-          </section>
+          </Section>
 
           {/* Caractéristiques */}
-          <section>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Caractéristiques</p>
+          <Section titre="Caractéristiques">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {[
                 { label: "Superficie", value: lot.superficie_m2 ? `${Number(lot.superficie_m2).toLocaleString("fr-FR")} m²` : "—" },
@@ -197,19 +208,16 @@ export function LotDetailModal({ lot, litiges, score, pvAlert, onClose }: {
                 { label: "Équipement public", value: lot.est_equipement ? "Oui" : "Non" },
                 { label: "Gel juridique", value: lot.verrouille ? "Oui" : "Non" },
               ].map((item) => (
-                <div key={item.label} className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-xs text-slate-400">{item.label}</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-700">{item.value}</p>
-                </div>
+                <Fiche key={item.label} label={item.label} value={item.value} />
               ))}
             </div>
-          </section>
+          </Section>
 
           {/* Alerte PV de réunion de famille */}
           {pvAlert && (
-            <div className="flex items-start gap-2.5 rounded-xl border border-amber-200/70 bg-amber-50 p-3">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-              <p className="text-xs text-amber-700">
+            <div className="flex items-start gap-2.5 rounded-xl border border-warning/25 bg-warning-subtle p-3">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+              <p className="text-xs text-warning">
                 PV de réunion de famille :{" "}
                 <span className="font-semibold">{(pvAlert.statut ?? "").replace(/_/g, " ")}</span>
                 {pvAlert.reference && pvAlert.reference !== "—" && ` · réf. ${pvAlert.reference}`}
@@ -220,72 +228,74 @@ export function LotDetailModal({ lot, litiges, score, pvAlert, onClose }: {
 
           {/* Attestation de cession */}
           {attestation && (
-            <div className="flex items-center gap-2 rounded-xl border border-emerald-200/70 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-700">
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-success/25 bg-success-subtle px-3 py-2.5 text-xs text-success">
               <span className="font-semibold">{attestation.reference}</span>
               <span>· {attestation.statut}</span>
-              {!attestation.cession_id && <span className="text-emerald-600/80">· gratuite (1er propriétaire d&apos;origine)</span>}
+              {!attestation.cession_id && <span className="opacity-80">· gratuite (1er propriétaire d&apos;origine)</span>}
               <a
                 href={`/passeport?ref=${encodeURIComponent(attestation.reference ?? "")}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ml-auto flex items-center gap-1 font-semibold text-emerald-800 underline-offset-2 hover:underline"
+                className="ml-auto flex items-center gap-1 font-semibold underline-offset-2 hover:underline"
               >
                 Voir le Passeport public
-                <ExternalLink className="h-3 w-3" />
+                <ExternalLink className="size-3" aria-hidden />
               </a>
             </div>
           )}
 
           {/* Score de confiance */}
           {score && (
-            <section>
-              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Score de confiance</p>
-              <div className="flex flex-wrap items-center gap-4 rounded-xl bg-slate-50 p-4 sm:gap-6">
+            <Section titre="Score de confiance">
+              <div className="flex flex-wrap items-center gap-4 rounded-xl bg-inset p-4 sm:gap-6">
+                {/* Les hex du dégradé sont ceux des jetons sémantiques
+                    (`--success` / `--warning` / `--danger`), identiques en clair
+                    et en sombre par décision de la refonte : le SVG peut donc
+                    les porter en dur sans casser le thème. */}
                 <RadialGauge
                   value={score.total}
                   size={88}
                   strokeWidth={9}
                   gradient={score.total >= 70 ? ["#16A34A", "#4ADE80"] : score.total >= 40 ? ["#D97706", "#FBBF24"] : ["#DC2626", "#F87171"]}
                 >
-                  <span className="text-lg font-bold tracking-tight text-slate-700">{score.total}</span>
+                  <span className="text-lg font-bold tracking-tight text-foreground">{score.total}</span>
                 </RadialGauge>
                 <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-3">
                   {(Object.keys(SCORE_LABELS) as (keyof typeof SCORE_LABELS)[]).map((key) => (
-                    <div key={key} className="rounded-lg bg-white p-2 text-center shadow-sm">
-                      <p className="text-[10px] uppercase tracking-wide text-slate-400">{SCORE_LABELS[key]}</p>
-                      <p className="text-sm font-semibold text-slate-700">{score[key]}/{SCORE_MAX[key]}</p>
+                    <div key={key} className="rounded-lg border border-border bg-card p-2 text-center">
+                      <p className="text-[10px] tracking-wide text-muted-2 uppercase">{SCORE_LABELS[key]}</p>
+                      <p className="tabular text-sm font-semibold text-foreground">{score[key]}/{SCORE_MAX[key]}</p>
                     </div>
                   ))}
                 </div>
               </div>
-            </section>
+            </Section>
           )}
 
           {/* Historique de propriété */}
-          <section>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Historique de propriété</p>
+          <Section titre="Historique de propriété">
             {historique.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+              <div className="rounded-xl border border-dashed border-border bg-inset p-4 text-sm text-muted-foreground">
                 {badge.status === "attribue"
                   ? "Ce lot est attribué, mais le détail de l'attribution est réservé à certains rôles (admin, chefferie, opérateur, vérificateur, commissaire…)."
                   : "Aucune attribution enregistrée — lot libre."}
               </div>
             ) : (
-              <ol className="relative space-y-4 border-l-2 border-slate-200 pl-5">
+              <ol className="relative space-y-4 border-l-2 border-border pl-5">
                 {historique.map((a, idx) => (
                   <li key={`${a.attributaires?.id ?? "attr"}-${idx}`} className="relative">
                     <span
-                      className={`absolute -left-[1.6rem] top-1 h-3 w-3 rounded-full border-2 border-white ${
-                        a.actuel ? "bg-[#2D8F5A]" : "bg-slate-300"
+                      className={`absolute -left-[1.6rem] top-1 size-3 rounded-full border-2 border-card ${
+                        a.actuel ? "bg-success" : "bg-border-strong"
                       }`}
                     />
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-800">{a.attributaires?.nom ?? "—"}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold text-foreground">{a.attributaires?.nom ?? "—"}</p>
                       {a.actuel && (
-                        <span className="rounded bg-[#2D8F5A]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#2D8F5A]">ACTUEL</span>
+                        <span className="rounded bg-success-subtle px-1.5 py-0.5 text-[10px] font-bold text-success">ACTUEL</span>
                       )}
                     </div>
-                    <p className="mt-0.5 text-xs text-slate-500">
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       {QUALITE_LABELS[a.qualite ?? ""] ?? a.qualite ?? "—"}
                       {a.attributaires?.type === "collectif_ayants_droit" && " · collectif"}
                       {a.observation && ` · ${a.observation}`}
@@ -294,35 +304,67 @@ export function LotDetailModal({ lot, litiges, score, pvAlert, onClose }: {
                 ))}
               </ol>
             )}
-          </section>
+          </Section>
 
           {/* Litiges */}
           {litiges.length > 0 && (
-            <section>
-              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#EF4444]">Litiges</p>
+            <Section titre="Litiges" ton="danger">
               <div className="space-y-2">
                 {litiges.map((l) => (
-                  <div key={l.id} className="flex items-center justify-between rounded-xl border border-red-100 bg-red-50/50 px-4 py-3">
+                  <div key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-danger/20 bg-danger-subtle px-4 py-3">
                     <div>
-                      <p className="text-sm font-medium text-slate-800">{l.objet ?? "—"}</p>
-                      {l.ouvert_le && <p className="mt-0.5 text-xs text-slate-500">Ouvert le {new Date(l.ouvert_le).toLocaleDateString("fr-FR")}</p>}
+                      <p className="text-sm font-medium text-foreground">{l.objet ?? "—"}</p>
+                      {l.ouvert_le && <p className="mt-0.5 text-xs text-muted-foreground">Ouvert le {new Date(l.ouvert_le).toLocaleDateString("fr-FR")}</p>}
                     </div>
-                    <span className="text-xs font-semibold text-[#EF4444]">{STATUT_LITIGE_LABELS[l.statut ?? ""] ?? l.statut}</span>
+                    <span className="text-xs font-semibold text-danger">{STATUT_LITIGE_LABELS[l.statut ?? ""] ?? l.statut}</span>
                   </div>
                 ))}
               </div>
-            </section>
+            </Section>
           )}
 
           {/* Observation */}
           {lot.observation && (
-            <section>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Observation</p>
-              <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">{lot.observation}</p>
-            </section>
+            <Section titre="Observation">
+              <p className="rounded-xl bg-inset p-3 text-sm text-foreground">{lot.observation}</p>
+            </Section>
           )}
-        </div>
-      </div>
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Intertitre du dossier — même graisse partout, le ton signale la gravité. */
+function Section({
+  titre,
+  ton = "accent",
+  children,
+}: {
+  titre: string;
+  ton?: "accent" | "danger";
+  children: React.ReactNode;
+}) {
+  return (
+    <section>
+      <p
+        className={`mb-3 text-[11px] font-bold tracking-[0.18em] uppercase ${
+          ton === "danger" ? "text-danger" : "text-accent"
+        }`}
+      >
+        {titre}
+      </p>
+      {children}
+    </section>
+  );
+}
+
+/** Couple libellé / valeur des grilles d'identité du lot. */
+function Fiche({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="rounded-xl bg-inset p-3">
+      <p className="text-xs text-muted-2">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-foreground">{value}</p>
     </div>
   );
 }

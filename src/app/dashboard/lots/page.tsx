@@ -1,19 +1,33 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import {
-  AlertTriangle, ArrowRightLeft, Banknote, Eye, Filter, Lock, Plus, Search, X,
+  AlertTriangle, ArrowRightLeft, Banknote, Boxes, Eye, FileWarning, Lock, Plus, Search,
 } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
-import { Input } from "@/components/ui/Input";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
+import {
+  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ds/dialog";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Input, Textarea } from "@/components/ds/input";
+import { Kpi } from "@/components/ds/kpi";
+import { Field } from "@/components/ds/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ds/select";
 import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
 import {
-  LotDetailModal, getBadgeConfig, lotPvAlert,
-  type LotRecord, type PvInfo, type ScoreConfiance, type LitigeRow,
+  LOT_STATUS_TONE, LotDetailModal, getBadgeConfig, lotPvAlert,
+  type LitigeRow, type LotRecord, type PvInfo, type ScoreConfiance,
 } from "@/components/dashboard/lots/LotDetailModal";
 import { createClient } from "@/utils/supabase/client";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
 import { useProfile } from "@/hooks/useProfile";
+import { fadeUp, stagger } from "@/lib/motion";
 import { MOYEN_OPTIONS, fcfa, type MoyenPaiement } from "@/lib/paiements";
 import { fetchAllPages } from "@/lib/supabase-pagination";
 import type { Database } from "../../../../database.types";
@@ -42,27 +56,35 @@ const QUALITE_OPTIONS = [
   { value: "reservataire", label: "Réservataire" },
 ];
 
-// ─── Select helper ────────────────────────────────────────────────────────────
+const STATUT_OPTIONS = [
+  { value: "disponible", label: "Disponible" },
+  { value: "attribue", label: "Attribué" },
+  { value: "occupe", label: "Occupé" },
+  { value: "vendu", label: "Vendu" },
+  { value: "en_validation", label: "En validation" },
+  { value: "en_litige", label: "Litige" },
+  { value: "reserve_equipement", label: "Équipement" },
+];
 
-function SelectField({ id, label, value, onChange, children, required }: {
+// Radix Select refuse la chaîne vide comme valeur d'option : il lui faut un
+// jeton explicite pour « pas de filtre ».
+const TOUS = "tous";
+
+// ─── Champ « liste déroulante » du Design System ──────────────────────────────
+
+function ChampSelect({ id, label, value, onChange, required, children }: {
   id: string; label: string; value: string;
-  onChange: (v: string) => void; children: React.ReactNode; required?: boolean;
+  onChange: (v: string) => void; required?: boolean; children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className="text-sm font-medium text-slate-700">
-        {label}{required && <span className="text-red-500"> *</span>}
-      </label>
-      <select
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-      >
-        {children}
-      </select>
-    </div>
+    <Field label={label} htmlFor={id} required={required}>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger id={id}>
+          <SelectValue placeholder="— Sélectionner —" />
+        </SelectTrigger>
+        <SelectContent>{children}</SelectContent>
+      </Select>
+    </Field>
   );
 }
 
@@ -93,61 +115,41 @@ function AttributionModal({ lot, attributaires, onClose, onSubmit, isSubmitting 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-2xl sm:p-8">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Transférer</p>
-            <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">Attribuer le Lot {lot.numero_lot}</h2>
-          </div>
-          <button type="button" onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <ModaleFormulaire
+      surTitre="Transférer"
+      titre={`Attribuer le Lot ${lot.numero_lot}`}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      error={error}
+      isSubmitting={isSubmitting}
+      libelleAction="Confirmer l'attribution"
+      libelleEnCours="Enregistrement…"
+    >
+      <ChampSelect id="attr-attributaire" label="Attributaire" required
+        value={form.attributaire_id} onChange={(v) => setForm((f) => ({ ...f, attributaire_id: v }))}>
+        {attributaires.map((a) => <SelectItem key={a.id} value={a.id}>{a.nom ?? "—"}</SelectItem>)}
+      </ChampSelect>
 
-        <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-          <SelectField id="attr-attributaire" label="Attributaire" value={form.attributaire_id} onChange={(v) => setForm((f) => ({ ...f, attributaire_id: v }))} required>
-            <option value="">— Sélectionner —</option>
-            {attributaires.map((a) => <option key={a.id} value={a.id}>{a.nom}</option>)}
-          </SelectField>
+      <ChampSelect id="attr-qualite" label="Qualité"
+        value={form.qualite} onChange={(v) => setForm((f) => ({ ...f, qualite: v }))}>
+        {QUALITE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+      </ChampSelect>
 
-          <SelectField id="attr-qualite" label="Qualité" value={form.qualite} onChange={(v) => setForm((f) => ({ ...f, qualite: v }))}>
-            {QUALITE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </SelectField>
+      <Field label="Date d'effet" htmlFor="attr-depuis">
+        <Input id="attr-depuis" type="date" value={form.depuis}
+          onChange={(e) => setForm((f) => ({ ...f, depuis: e.target.value }))} />
+      </Field>
 
-          <div className="space-y-1.5">
-            <label htmlFor="attr-depuis" className="text-sm font-medium text-slate-700">Date d&apos;effet</label>
-            <input
-              id="attr-depuis" type="date" value={form.depuis}
-              onChange={(e) => setForm((f) => ({ ...f, depuis: e.target.value }))}
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-            />
-          </div>
+      <Caseacocher checked={form.actuel} onChange={(v) => setForm((f) => ({ ...f, actuel: v }))}>
+        Attribution actuelle (met le lot en statut « Attribué »)
+      </Caseacocher>
 
-          <label className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/70 px-4 py-3 text-sm text-slate-700">
-            <input type="checkbox" checked={form.actuel} onChange={(e) => setForm((f) => ({ ...f, actuel: e.target.checked }))}
-              className="h-4 w-4 rounded border-slate-300 text-[#0D3B66] focus:ring-[#0D3B66]" />
-            Attribution actuelle (met le lot en statut &quot;Attribué&quot;)
-          </label>
-
-          <div className="space-y-1.5">
-            <label htmlFor="attr-obs" className="text-sm font-medium text-slate-700">Observation</label>
-            <textarea id="attr-obs" value={form.observation} rows={2} onChange={(e) => setForm((f) => ({ ...f, observation: e.target.value }))}
-              placeholder="Remarques, conditions…"
-              className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10" />
-          </div>
-
-          {error && <div className="rounded-2xl border border-red-200/70 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-
-          <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-            <button type="button" onClick={onClose} className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Annuler</button>
-            <button type="submit" disabled={isSubmitting} className="rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E6091] disabled:opacity-70">
-              {isSubmitting ? "Enregistrement…" : "Confirmer l'attribution"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      <Field label="Observation" htmlFor="attr-obs">
+        <Textarea id="attr-obs" value={form.observation} rows={2}
+          onChange={(e) => setForm((f) => ({ ...f, observation: e.target.value }))}
+          placeholder="Remarques, conditions…" />
+      </Field>
+    </ModaleFormulaire>
   );
 }
 
@@ -171,55 +173,38 @@ function LitigeModal({ lot, onClose, onSubmit, isSubmitting }: {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-2xl sm:p-8">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#EF4444]">Nouveau dossier</p>
-            <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">Déclarer un litige — Lot {lot.numero_lot}</h2>
-          </div>
-          <button type="button" onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <ModaleFormulaire
+      surTitre="Nouveau dossier"
+      surTitreTon="danger"
+      titre={`Déclarer un litige — Lot ${lot.numero_lot}`}
+      description={[
+        lot.ilots?.lotissements?.nom,
+        lot.ilots?.numero ? `Îlot ${lot.ilots.numero}` : null,
+      ].filter(Boolean).join(" · ") || undefined}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      error={error}
+      isSubmitting={isSubmitting}
+      variante="danger"
+      libelleAction="Ouvrir le dossier"
+      libelleEnCours="Ouverture…"
+    >
+      <Field label="Objet du litige" htmlFor="litige-objet" required>
+        <Input id="litige-objet" type="text" value={form.objet} required
+          onChange={(e) => setForm((f) => ({ ...f, objet: e.target.value }))}
+          placeholder="Ex. Contestation de limites de parcelle" />
+      </Field>
 
-        {/* Lot info reminder */}
-        <div className="mt-5 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          <span className="font-semibold text-slate-700">Lot {lot.numero_lot}</span>
-          {lot.ilots?.lotissements?.nom && ` — ${lot.ilots.lotissements.nom}`}
-          {lot.ilots?.numero && `, Îlot ${lot.ilots.numero}`}
-        </div>
+      <Field label="Notes" htmlFor="litige-notes">
+        <Textarea id="litige-notes" value={form.notes} rows={3}
+          onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+          placeholder="Contexte, parties impliquées, pièces jointes…" />
+      </Field>
 
-        <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
-          <div className="space-y-1.5">
-            <label htmlFor="litige-objet" className="text-sm font-medium text-slate-700">Objet du litige <span className="text-red-500">*</span></label>
-            <input id="litige-objet" type="text" value={form.objet} onChange={(e) => setForm((f) => ({ ...f, objet: e.target.value }))} required
-              placeholder="Ex. Contestation de limites de parcelle"
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10" />
-          </div>
-          <div className="space-y-1.5">
-            <label htmlFor="litige-notes" className="text-sm font-medium text-slate-700">Notes</label>
-            <textarea id="litige-notes" value={form.notes} rows={3} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              placeholder="Contexte, parties impliquées, pièces jointes…"
-              className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10" />
-          </div>
-
-          <div className="flex items-start gap-2.5 rounded-2xl border border-amber-200/70 bg-amber-50 p-3">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-            <p className="text-xs text-amber-700">L&apos;ouverture d&apos;un dossier de litige est définitive et consignée dans le journal d&apos;audit.</p>
-          </div>
-
-          {error && <div className="rounded-2xl border border-red-200/70 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-
-          <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-            <button type="button" onClick={onClose} className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Annuler</button>
-            <button type="submit" disabled={isSubmitting} className="rounded-full bg-[#EF4444] px-4 py-2 text-sm font-medium text-white hover:bg-[#DC2626] disabled:opacity-70">
-              {isSubmitting ? "Ouverture…" : "Ouvrir le dossier"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      <Avertissement>
+        L&apos;ouverture d&apos;un dossier de litige est définitive et consignée dans le journal d&apos;audit.
+      </Avertissement>
+    </ModaleFormulaire>
   );
 }
 
@@ -268,73 +253,153 @@ function CessionModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-2xl sm:p-8">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Nouvelle cession</p>
-            <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">Lot {lot.numero_lot} — {nextRang}e attestation</h2>
-          </div>
-          <button type="button" onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Prévisualisation du tarif */}
-        {tarifDisponible ? (
-          <div className="mt-5 rounded-2xl border border-[#0D3B66]/15 bg-[#0D3B66]/5 p-4 text-sm text-[#0D3B66]">
-            <p className="font-semibold">{fcfa(montantTotal)} au total</p>
-            <p className="mt-0.5 text-xs text-[#0D3B66]/70">
+    <ModaleFormulaire
+      surTitre="Nouvelle cession"
+      titre={`Lot ${lot.numero_lot} — ${nextRang}e attestation`}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      error={error}
+      isSubmitting={isSubmitting}
+      actionDesactivee={!tarifDisponible}
+      libelleAction="Créer la cession"
+      libelleEnCours="Enregistrement…"
+      entete={
+        tarifDisponible ? (
+          // `accent` et non `primary` : le primaire est un bleu marine sombre,
+          // identique dans les deux thèmes par décision de la refonte — écrit
+          // sur une surface sombre, il devient illisible. L'accent est le bleu
+          // clair, précisément prévu pour porter du texte dans les deux thèmes.
+          <div className="rounded-xl border border-accent/25 bg-accent-subtle p-4 text-sm text-accent">
+            <p className="tabular font-semibold">{fcfa(montantTotal)} au total</p>
+            <p className="tabular mt-0.5 text-xs opacity-80">
               {fcfa(partChefferie)} chefferie + {fcfa(commission)} commission SGNF
             </p>
           </div>
         ) : (
-          <div className="mt-5 flex items-start gap-2.5 rounded-2xl border border-amber-200/70 bg-amber-50 p-3">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-            <p className="text-xs text-amber-700">
-              {isTier2
-                ? "Tarif de la 2e attestation non configuré — contactez l'équipe SGNF."
-                : "Tarif non défini pour la chefferie de ce lotissement (3e attestation et plus) — contactez l'équipe SGNF pour le fixer."}
-            </p>
-          </div>
-        )}
+          <Avertissement>
+            {isTier2
+              ? "Tarif de la 2e attestation non configuré — contactez l'équipe SGNF."
+              : "Tarif non défini pour la chefferie de ce lotissement (3e attestation et plus) — contactez l'équipe SGNF pour le fixer."}
+          </Avertissement>
+        )
+      }
+    >
+      <ChampSelect id="cession-acquereur" label="Acquéreur" required
+        value={form.acquereur_id} onChange={(v) => setForm((f) => ({ ...f, acquereur_id: v }))}>
+        {candidats.map((a) => <SelectItem key={a.id} value={a.id}>{a.nom ?? "—"}</SelectItem>)}
+      </ChampSelect>
 
-        <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
-          <SelectField id="cession-acquereur" label="Acquéreur" value={form.acquereur_id} onChange={(v) => setForm((f) => ({ ...f, acquereur_id: v }))} required>
-            <option value="">— Sélectionner —</option>
-            {candidats.map((a) => <option key={a.id} value={a.id}>{a.nom}</option>)}
-          </SelectField>
+      <Field label="Date de cession" htmlFor="cession-date">
+        <Input id="cession-date" type="date" value={form.date_cession}
+          onChange={(e) => setForm((f) => ({ ...f, date_cession: e.target.value }))} />
+      </Field>
 
-          <div className="space-y-1.5">
-            <label htmlFor="cession-date" className="text-sm font-medium text-slate-700">Date de cession</label>
-            <input
-              id="cession-date" type="date" value={form.date_cession}
-              onChange={(e) => setForm((f) => ({ ...f, date_cession: e.target.value }))}
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-            />
-          </div>
+      <ChampSelect id="cession-moyen" label="Moyen de paiement"
+        value={form.moyen} onChange={(v) => setForm((f) => ({ ...f, moyen: v as MoyenPaiement }))}>
+        {MOYEN_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+      </ChampSelect>
 
-          <SelectField id="cession-moyen" label="Moyen de paiement" value={form.moyen} onChange={(v) => setForm((f) => ({ ...f, moyen: v as MoyenPaiement }))}>
-            {MOYEN_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </SelectField>
+      <Field label="Observation" htmlFor="cession-obs">
+        <Textarea id="cession-obs" value={form.observation} rows={2}
+          onChange={(e) => setForm((f) => ({ ...f, observation: e.target.value }))}
+          placeholder="Remarques, conditions…" />
+      </Field>
+    </ModaleFormulaire>
+  );
+}
 
-          <div className="space-y-1.5">
-            <label htmlFor="cession-obs" className="text-sm font-medium text-slate-700">Observation</label>
-            <textarea id="cession-obs" value={form.observation} rows={2} onChange={(e) => setForm((f) => ({ ...f, observation: e.target.value }))}
-              placeholder="Remarques, conditions…"
-              className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10" />
-          </div>
+// ─── Briques communes aux modales ─────────────────────────────────────────────
 
-          {error && <div className="rounded-2xl border border-red-200/70 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+/**
+ * Coquille des quatre formulaires de l'écran. Les modales étaient quatre copies
+ * de la même structure ; les factoriser garantit qu'un correctif d'ergonomie
+ * (fermeture au clavier, ordre des boutons) profite aux quatre d'un coup.
+ */
+function ModaleFormulaire({
+  surTitre, surTitreTon = "accent", titre, description, entete, children,
+  onClose, onSubmit, error, isSubmitting, actionDesactivee, variante = "primary",
+  libelleAction, libelleEnCours,
+}: {
+  surTitre: string;
+  surTitreTon?: "accent" | "danger";
+  titre: string;
+  description?: string;
+  entete?: React.ReactNode;
+  children: React.ReactNode;
+  onClose: () => void;
+  onSubmit: (e: FormEvent) => void;
+  error: string | null;
+  isSubmitting: boolean;
+  actionDesactivee?: boolean;
+  variante?: "primary" | "danger";
+  libelleAction: string;
+  libelleEnCours: string;
+}) {
+  return (
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <p className={`text-[11px] font-bold tracking-[0.18em] uppercase ${
+            surTitreTon === "danger" ? "text-danger" : "text-accent"
+          }`}>
+            {surTitre}
+          </p>
+          <DialogTitle>{titre}</DialogTitle>
+          {description && <DialogDescription>{description}</DialogDescription>}
+        </DialogHeader>
 
-          <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-            <button type="button" onClick={onClose} className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Annuler</button>
-            <button type="submit" disabled={isSubmitting || !tarifDisponible} className="rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E6091] disabled:opacity-70">
-              {isSubmitting ? "Enregistrement…" : "Créer la cession"}
-            </button>
-          </div>
+        <form onSubmit={onSubmit}>
+          <DialogBody className="space-y-4">
+            {entete}
+            {children}
+            {error && (
+              <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-3 py-2 text-sm font-medium text-danger">
+                {error}
+              </p>
+            )}
+          </DialogBody>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+            <Button
+              type="submit"
+              variant={variante}
+              loading={isSubmitting}
+              disabled={actionDesactivee}
+            >
+              {isSubmitting ? libelleEnCours : libelleAction}
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Caseacocher({ checked, onChange, children }: {
+  checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode;
+}) {
+  return (
+    <label className="flex items-center gap-3 rounded-xl border border-border bg-inset px-4 py-3 text-sm text-foreground transition-colors hover:border-border-strong">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="size-4 rounded border-border"
+        // `accent-color` en jeton : la case native suit le thème sans qu'on ait
+        // à la reconstruire en div.
+        style={{ accentColor: "var(--primary)" }}
+      />
+      {children}
+    </label>
+  );
+}
+
+function Avertissement({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl border border-warning/25 bg-warning-subtle p-3">
+      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+      <p className="text-xs text-warning">{children}</p>
     </div>
   );
 }
@@ -350,8 +415,9 @@ const EMPTY_FORM = {
 };
 
 export default function LotsPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const { isAdmin, isChefferie, profile } = useProfile();
+  const { counts } = useBadgeCounts();
   const canCreateCession = isAdmin || profile?.groupe === "operateur";
 
   const [lotRows, setLotRows] = useState<LotRecord[]>([]);
@@ -362,8 +428,7 @@ export default function LotsPage() {
   const [tarifsChefferie, setTarifsChefferie] = useState<Map<string, TarifChefferie>>(new Map());
   const [pvFilter, setPvFilter] = useState(false);
   const [search, setSearch] = useState("");
-  const [statutFilter, setStatutFilter] = useState("");
-
+  const [statutFilter, setStatutFilter] = useState(TOUS);
 
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -498,14 +563,13 @@ export default function LotsPage() {
         });
         setTarifsChefferie(map);
       });
-  }, []);
+  }, [supabase]);
 
-  // Load litiges + score de confiance when a lot detail is opened
+  // Chargement du dossier quand une fiche s'ouvre. La remise à zéro se fait à
+  // l'ouverture (`ouvrirDossier`), pas ici : un `setState` dans la branche
+  // « pas de lot sélectionné » violerait `react-hooks/set-state-in-effect`.
   useEffect(() => {
-    if (!detailLot) {
-      setScoreConfiance(null);
-      return;
-    }
+    if (!detailLot) return;
     supabase
       .from("litiges")
       .select("id, objet, statut, ouvert_le")
@@ -514,9 +578,15 @@ export default function LotsPage() {
     supabase
       .rpc("calculer_score_confiance", { p_lot_id: detailLot.id })
       .then(({ data }) => setScoreConfiance((data ?? null) as ScoreConfiance | null));
-  }, [detailLot]);
+  }, [detailLot, supabase]);
 
-  const handleCreateSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  const ouvrirDossier = (lot: LotRecord) => {
+    setLotLitiges([]);
+    setScoreConfiance(null);
+    setDetailLot(lot);
+  };
+
+  const handleCreateSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!formState.numero_lot.trim()) {
       setErrorMessage("Le numéro de lot est obligatoire.");
@@ -665,285 +735,313 @@ export default function LotsPage() {
       const lotissement = (l.ilots?.lotissements?.nom ?? "").toLowerCase();
       return num.includes(q) || parcelle.includes(q) || attrNom.includes(q) || lotissement.includes(q);
     })
-    .filter((l) => !statutFilter || (l.statut ?? "disponible") === statutFilter);
+    .filter((l) => statutFilter === TOUS || (l.statut ?? "disponible") === statutFilter);
+
+  const vueFiltree = statutFilter !== TOUS || pvFilter || Boolean(search);
 
   return (
-    <div className="mx-auto w-full max-w-7xl">
-      {/* En-tête */}
-      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-[#E3E8EF] bg-white p-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)] sm:flex-row sm:items-start sm:justify-between sm:p-6">
+    <AppShell loading={isLoading} counts={counts} onRefresh={recharger}>
+      {/* Titre de l'écran — l'en-tête du shell porte la salutation, pas le
+          contexte métier : c'est la page qui dit où l'on est et pourquoi. */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#0F5E8C]">Registre foncier</p>
-          <h1 className="mt-2 font-display text-2xl font-extrabold tracking-tight text-[#0B2E4F] sm:text-3xl">Tableau des lots</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#526176] sm:text-base">Suivi, traçabilité et statut juridique des parcelles cadastrales enregistrées.</p>
+          <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+            Registre foncier
+          </h1>
+          <p className="mt-1 text-[13.5px] text-muted-foreground">
+            Suivi, traçabilité et statut juridique des parcelles cadastrales enregistrées.
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <BoutonImprimer />
           {!isChefferie && (
-            <button type="button" onClick={() => { setIsModalOpen(true); setErrorMessage(null); setSuccessMessage(null); }}
-              className="print:hidden inline-flex h-10 items-center gap-2 rounded-lg bg-[#0B2E4F] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#0F5E8C]">
-              <Plus className="h-4 w-4" />
+            <Button
+              type="button"
+              variant="primary"
+              className="print:hidden"
+              onClick={() => { setIsModalOpen(true); setErrorMessage(null); setSuccessMessage(null); }}
+            >
+              <Plus />
               Ajouter un lot
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-[#E3E8EF] bg-white p-4 shadow-[0_1px_3px_rgba(16,24,40,0.04)]">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#526176]">Lots affichés</p>
-          <p className="mt-2 text-2xl font-extrabold tabular text-[#0B2E4F]">{displayedRows.length}</p>
-        </div>
-        <div className="rounded-xl border border-[#E3E8EF] bg-white p-4 shadow-[0_1px_3px_rgba(16,24,40,0.04)]">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#526176]">PV à régulariser</p>
-          <p className="mt-2 text-2xl font-extrabold tabular text-[#B45309]">{pvAlertCount}</p>
-        </div>
-        <div className="rounded-xl border border-[#E3E8EF] bg-white p-4 shadow-[0_1px_3px_rgba(16,24,40,0.04)]">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#526176]">Filtres</p>
-          <p className="mt-2 text-sm font-extrabold text-[#0B2E4F]">{statutFilter || pvFilter || search ? "Vue filtrée" : "Vue complète"}</p>
-        </div>
-      </div>
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+        aria-label="Indicateurs du registre"
+      >
+        <Kpi
+          icon={Boxes}
+          label="Lots au registre"
+          loading={isLoading}
+          value={scopedRows.length}
+          legende={<>dans votre périmètre</>}
+        />
+        <Kpi
+          icon={Search}
+          label="Lots affichés"
+          loading={isLoading}
+          value={displayedRows.length}
+          legende={vueFiltree ? <>vue filtrée</> : <>vue complète, sans filtre</>}
+        />
+        <Kpi
+          icon={FileWarning}
+          label="PV à régulariser"
+          loading={isLoading}
+          value={pvAlertCount}
+          tone={pvAlertCount > 0 ? "warning" : "neutral"}
+          legende={<>transmissions depuis un collectif</>}
+        />
+      </motion.section>
 
       {successMessage && (
-        <div className="mb-4 rounded-2xl border border-emerald-200/80 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{successMessage}</div>
+        <p role="status" className="rounded-xl border border-success/25 bg-success-subtle px-4 py-3 text-sm font-medium text-success">
+          {successMessage}
+        </p>
       )}
 
-      {/* Barre de recherche */}
-      <div className="print:hidden mb-6 flex flex-col gap-3 rounded-2xl border border-[#E3E8EF] bg-white p-3 shadow-[0_1px_3px_rgba(16,24,40,0.04)] sm:flex-row sm:items-center">
-        <div className="relative w-full sm:max-w-md">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <Input
-            type="search"
-            placeholder="Rechercher un lot, un attributaire…"
-            className="h-10 border-[#C9D5E0] bg-white pl-9"
-            aria-label="Rechercher un lot"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <div className="relative">
-          <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <select
-            value={statutFilter}
-            onChange={(e) => setStatutFilter(e.target.value)}
-            className="h-10 appearance-none rounded-lg border border-[#C9D5E0] bg-white py-2 pl-9 pr-8 text-sm font-semibold text-[#526176] shadow-sm transition-colors hover:border-[#B8C7D6] focus:border-[#0F5E8C] focus:outline-none focus:ring-2 focus:ring-[#0F5E8C]/20"
-            aria-label="Filtrer par statut"
+      <motion.div variants={stagger(0.05, 0.06)} initial="hidden" animate="show" className="flex flex-col gap-5">
+        {/* Barre de recherche */}
+        <motion.div variants={fadeUp}>
+          <Card className="flex-row flex-wrap items-center gap-3 p-3 print:hidden">
+            <div className="relative min-w-0 flex-1 sm:max-w-md">
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input
+                type="search"
+                placeholder="Rechercher un lot, un attributaire…"
+                className="pl-9"
+                aria-label="Rechercher un lot"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <Select value={statutFilter} onValueChange={setStatutFilter}>
+              <SelectTrigger className="w-full sm:w-52" aria-label="Filtrer par statut">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TOUS}>Tous les statuts</SelectItem>
+                {STATUT_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Card>
+        </motion.div>
+
+        {/* Bandeau d'alerte PV de réunion de famille */}
+        {pvAlertCount > 0 && (
+          <motion.button
+            variants={fadeUp}
+            type="button"
+            onClick={() => setPvFilter((v) => !v)}
+            aria-pressed={pvFilter}
+            className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors print:hidden ${
+              pvFilter
+                ? "border-warning/40 bg-warning-subtle text-warning"
+                : "border-warning/25 bg-warning-subtle/60 text-warning hover:bg-warning-subtle"
+            }`}
           >
-            <option value="">Tous les statuts</option>
-            <option value="disponible">Disponible</option>
-            <option value="attribue">Attribué</option>
-            <option value="occupe">Occupé</option>
-            <option value="vendu">Vendu</option>
-            <option value="en_validation">En validation</option>
-            <option value="en_litige">Litige</option>
-            <option value="reserve_equipement">Équipement</option>
-          </select>
-        </div>
-      </div>
+            <AlertTriangle className="size-4 shrink-0" aria-hidden />
+            <span>
+              <span className="font-semibold">{pvAlertCount} lot{pvAlertCount > 1 ? "s" : ""}</span>{" "}
+              en attente d&apos;un PV de réunion de famille (transmission par un collectif d&apos;ayants-droit).
+            </span>
+            <span className="ml-auto shrink-0 font-semibold underline">
+              {pvFilter ? "Tout afficher" : "Voir"}
+            </span>
+          </motion.button>
+        )}
 
-      {/* Bandeau d'alerte PV de réunion de famille */}
-      {pvAlertCount > 0 && (
-        <button
-          type="button"
-          onClick={() => setPvFilter((v) => !v)}
-          className={`print:hidden mb-4 flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
-            pvFilter
-              ? "border-amber-300 bg-amber-100 text-amber-800"
-              : "border-amber-200/70 bg-amber-50 text-amber-700 hover:bg-amber-100/70"
-          }`}
-        >
-          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
-          <span>
-            <span className="font-semibold">{pvAlertCount} lot{pvAlertCount > 1 ? "s" : ""}</span>{" "}
-            en attente d&apos;un PV de réunion de famille (transmission par un collectif d&apos;ayants-droit).
-          </span>
-          <span className="ml-auto shrink-0 font-semibold underline">
-            {pvFilter ? "Tout afficher" : "Voir"}
-          </span>
-        </button>
-      )}
-
-      {/* Tableau */}
-      <div className="overflow-hidden rounded-2xl border border-[#E3E8EF] bg-white shadow-[0_1px_3px_rgba(16,24,40,0.06)] print:overflow-visible print:rounded-none print:border-none">
-        <div className="overflow-x-auto print:overflow-visible">
-          <table className="w-full min-w-[860px] border-collapse text-left">
-            <thead>
-              <tr className="border-b border-[#E3E8EF] bg-[#F7F9FC]">
-                {TABLE_HEADERS.map((header) => (
-                  <th key={header} scope="col" className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.12em] text-[#526176] last:text-right print:last:hidden">
-                    {header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E3E8EF]">
-              {isLoading ? (
-                <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">Chargement des lots…</td></tr>
-              ) : displayedRows.length === 0 ? (
-                <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">{search || statutFilter ? "Aucun lot ne correspond à votre recherche." : pvFilter ? "Aucun lot avec un PV à régulariser." : "Aucun lot enregistré."}</td></tr>
-              ) : (
-                displayedRows.map((lot) => {
-                  const badge = getBadgeConfig(lot);
-                  const lotissementNom = lot.ilots?.lotissements?.nom;
-                  const commune = lot.ilots?.lotissements?.commune;
-                  const ilotNum = lot.ilots?.numero;
-                  const attrActuel = lot.attributions?.find((a) => a.actuel) ?? lot.attributions?.[0];
-
-                  return (
-                    <tr key={lot.id} className="transition-colors hover:bg-[#F7F9FC]">
-                      {/* Lot */}
-                      <td className="px-5 py-4">
-                        <p className="text-sm font-extrabold text-[#0B2E4F]">Lot {lot.numero_lot}</p>
-                        {lot.numero_parcelle && <p className="mt-0.5 text-xs text-slate-400">Parc. {lot.numero_parcelle}</p>}
-                        {lot.verrouille && <span className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-amber-600"><Lock className="h-3 w-3" />Gelé</span>}
-                      </td>
-
-                      {/* Lotissement & localité */}
-                      <td className="px-5 py-4">
-                        <p className="text-sm font-medium text-slate-800">{lotissementNom ?? "—"}</p>
-                        <div className="mt-0.5 flex items-center gap-2">
-                          {ilotNum && (
-                            <span className="inline-flex items-center rounded-md bg-[#0B2E4F]/[0.08] px-1.5 py-0.5 text-xs font-semibold text-[#0B2E4F]">
-                              Îlot {ilotNum}
-                            </span>
-                          )}
-                          {commune && <span className="text-xs text-slate-400">{commune}</span>}
-                        </div>
-                      </td>
-
-                      {/* Attributaire */}
-                      <td className="px-5 py-4 text-sm text-slate-700">
-                        {attrActuel?.attributaires?.nom ?? (
-                          badge.status === "attribue" ? (
-                            <span className="text-slate-400 italic" title="Le détail de l'attribution est réservé à certains rôles (admin, chefferie, opérateur, vérificateur, commissaire…).">
-                              Non visible pour votre rôle
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">Non attribué</span>
-                          )
-                        )}
-                      </td>
-
-                      {/* Statut */}
-                      <td className="px-5 py-4">
-                        <Badge status={badge.status}>{badge.label}</Badge>
-                        {lotPvAlert(lot, pvByCollectif) && (
-                          <span className="mt-1 flex items-center gap-1 text-xs font-medium text-amber-600">
-                            <AlertTriangle className="h-3 w-3" />PV à régulariser
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-5 py-4 text-right print:hidden">
-                        <div className="inline-flex items-center gap-0.5">
-                          <button
-                            type="button"
-                            onClick={() => { setLotLitiges([]); setDetailLot(lot); }}
-                            title="Voir le dossier"
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#0B2E4F]"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          {isAdmin && (
-                            <button
-                              type="button"
-                              onClick={() => setTransfertLot(lot)}
-                              title="Transférer / Attribuer"
-                              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#0F5E8C]"
-                            >
-                              <ArrowRightLeft className="h-4 w-4" />
-                            </button>
-                          )}
-                          {isAdmin && (
-                            <button
-                              type="button"
-                              onClick={() => setLitigeLot(lot)}
-                              title="Déclarer un litige"
-                              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-[#EF4444]"
-                            >
-                              <AlertTriangle className="h-4 w-4" />
-                            </button>
-                          )}
-                          {canCreateCession && attrActuel && (
-                            <button
-                              type="button"
-                              onClick={() => setCessionLot(lot)}
-                              title="Créer une cession"
-                              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-[#2D8F5A]"
-                            >
-                              <Banknote className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
+        {/* Tableau */}
+        <motion.div variants={fadeUp}>
+          <Card className="overflow-hidden print:border-none print:shadow-none">
+            {isLoading ? (
+              <p className="px-5 py-10 text-center text-sm text-muted-foreground">Chargement des lots…</p>
+            ) : displayedRows.length === 0 ? (
+              <EmptyState
+                icon={Boxes}
+                title={vueFiltree ? "Aucun lot ne correspond" : "Aucun lot enregistré"}
+                description={
+                  vueFiltree
+                    ? "Aucune parcelle du registre ne répond à ces critères. Élargissez la recherche ou le filtre de statut."
+                    : "Le registre de votre périmètre est vide."
+                }
+              />
+            ) : (
+              // Défilement interne plutôt qu'une page à rallonge : le registre
+              // compte ~900 lots, soit près de 50 000 px de haut si on laisse la
+              // table s'étirer — tout ce qui suit devient inatteignable. En
+              // `overflow-auto` natif (pas `ScrollArea`) parce que cet écran
+              // s'imprime : les surcharges `print:` doivent pouvoir rendre la
+              // hauteur au navigateur.
+              <div className="max-h-[62vh] overflow-auto print:max-h-none print:overflow-visible">
+                <table className="w-full min-w-[860px] border-collapse text-left">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="border-b border-border bg-inset">
+                      {TABLE_HEADERS.map((header) => (
+                        <th
+                          key={header}
+                          scope="col"
+                          className="bg-inset px-5 py-3 text-[10.5px] font-bold tracking-wider text-muted-foreground uppercase last:text-right print:last:hidden"
+                        >
+                          {header}
+                        </th>
+                      ))}
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {displayedRows.map((lot) => {
+                      const badge = getBadgeConfig(lot);
+                      const lotissementNom = lot.ilots?.lotissements?.nom;
+                      const commune = lot.ilots?.lotissements?.commune;
+                      const ilotNum = lot.ilots?.numero;
+                      const attrActuel = lot.attributions?.find((a) => a.actuel) ?? lot.attributions?.[0];
+
+                      return (
+                        <tr key={lot.id} className="transition-colors hover:bg-inset/70">
+                          {/* Lot */}
+                          <td className="px-5 py-3.5">
+                            <p className="text-[13px] font-bold text-foreground">Lot {lot.numero_lot}</p>
+                            {lot.numero_parcelle && <p className="mt-0.5 text-xs text-muted-2">Parc. {lot.numero_parcelle}</p>}
+                            {lot.verrouille && (
+                              <span className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-warning">
+                                <Lock className="size-3" aria-hidden />Gelé
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Lotissement & localité */}
+                          <td className="px-5 py-3.5">
+                            <p className="text-[13px] font-medium text-foreground">{lotissementNom ?? "—"}</p>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                              {ilotNum && (
+                                <span className="inline-flex items-center rounded-md bg-accent-subtle px-1.5 py-0.5 text-xs font-semibold text-accent">
+                                  Îlot {ilotNum}
+                                </span>
+                              )}
+                              {commune && <span className="text-xs text-muted-2">{commune}</span>}
+                            </div>
+                          </td>
+
+                          {/* Attributaire */}
+                          <td className="px-5 py-3.5 text-[13px] text-muted-foreground">
+                            {attrActuel?.attributaires?.nom ?? (
+                              badge.status === "attribue" ? (
+                                <span className="text-muted-2 italic" title="Le détail de l'attribution est réservé à certains rôles (admin, chefferie, opérateur, vérificateur, commissaire…).">
+                                  Non visible pour votre rôle
+                                </span>
+                              ) : (
+                                <span className="text-muted-2">Non attribué</span>
+                              )
+                            )}
+                          </td>
+
+                          {/* Statut */}
+                          <td className="px-5 py-3.5">
+                            <Badge tone={LOT_STATUS_TONE[badge.status]}>{badge.label}</Badge>
+                            {lotPvAlert(lot, pvByCollectif) && (
+                              <span className="mt-1 flex items-center gap-1 text-xs font-medium text-warning">
+                                <AlertTriangle className="size-3" aria-hidden />PV à régulariser
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-5 py-3.5 text-right print:hidden">
+                            <div className="inline-flex items-center gap-0.5">
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => ouvrirDossier(lot)}
+                                title="Voir le dossier"
+                                aria-label={`Voir le dossier du lot ${lot.numero_lot}`}
+                              >
+                                <Eye />
+                              </Button>
+                              {isAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onClick={() => setTransfertLot(lot)}
+                                  title="Transférer / Attribuer"
+                                  aria-label={`Transférer le lot ${lot.numero_lot}`}
+                                >
+                                  <ArrowRightLeft />
+                                </Button>
+                              )}
+                              {isAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="hover:bg-danger-subtle hover:text-danger"
+                                  onClick={() => setLitigeLot(lot)}
+                                  title="Déclarer un litige"
+                                  aria-label={`Déclarer un litige sur le lot ${lot.numero_lot}`}
+                                >
+                                  <AlertTriangle />
+                                </Button>
+                              )}
+                              {canCreateCession && attrActuel && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="hover:bg-success-subtle hover:text-success"
+                                  onClick={() => setCessionLot(lot)}
+                                  title="Créer une cession"
+                                  aria-label={`Créer une cession sur le lot ${lot.numero_lot}`}
+                                >
+                                  <Banknote />
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </motion.div>
+      </motion.div>
 
       {/* Modal création lot */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-y-auto rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-[0_30px_80px_-20px_rgba(2,8,23,0.35)] sm:p-8" style={{ maxHeight: "92vh" }}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Nouveau lot</p>
-                <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">Créer une parcelle foncière</h2>
-              </div>
-              <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600" aria-label="Fermer">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+        <ModaleFormulaire
+          surTitre="Nouveau lot"
+          titre="Créer une parcelle foncière"
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handleCreateSubmit}
+          error={errorMessage}
+          isSubmitting={isSubmitting}
+          libelleAction="Enregistrer la parcelle"
+          libelleEnCours="Enregistrement…"
+        >
+          <Field label="Numéro de lot" htmlFor="lot-numero" required>
+            <Input id="lot-numero" type="text" value={formState.numero_lot} required
+              onChange={(e) => setFormState((f) => ({ ...f, numero_lot: e.target.value }))}
+              placeholder="Ex. 042" />
+          </Field>
 
-            <form className="mt-6 space-y-4" onSubmit={handleCreateSubmit}>
-              <div className="space-y-1.5">
-                <label htmlFor="lot-numero" className="text-sm font-medium text-slate-700">Numéro de lot <span className="text-red-500">*</span></label>
-                <Input id="lot-numero" type="text" value={formState.numero_lot} onChange={(e) => setFormState((f) => ({ ...f, numero_lot: e.target.value }))} placeholder="Ex. 042" required />
-              </div>
+          <ChampSelect id="lot-ilot" label="Îlot de rattachement" required
+            value={formState.ilot_id} onChange={(v) => setFormState((f) => ({ ...f, ilot_id: v }))}>
+            {Object.entries(ilotGroups).map(([lotNom, ilots]) => (
+              <SelectGroupeLotissement key={lotNom} nom={lotNom} ilots={ilots} />
+            ))}
+          </ChampSelect>
 
-              <div className="space-y-1.5">
-                <label htmlFor="lot-ilot" className="text-sm font-medium text-slate-700">ID de l’îlot <span className="text-red-500">*</span></label>
-                <select
-                  id="lot-ilot"
-                  value={formState.ilot_id}
-                  onChange={(e) => setFormState((f) => ({ ...f, ilot_id: e.target.value }))}
-                  required
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition-colors focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-                >
-                  <option value="">— Sélectionner un îlot —</option>
-                  {Object.entries(ilotGroups).map(([lotNom, ilots]) => (
-                    <optgroup key={lotNom} label={lotNom}>
-                      {ilots.map((ilot) => (
-                        <option key={ilot.id} value={ilot.id}>Îlot {ilot.numero} — {ilot.lotissements?.commune ?? ""}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </div>
-
-              <label className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/70 px-4 py-3 text-sm text-slate-700 transition-colors hover:border-slate-300">
-                <input type="checkbox" checked={formState.est_equipement} onChange={(e) => setFormState((f) => ({ ...f, est_equipement: e.target.checked }))}
-                  className="h-4 w-4 rounded border-slate-300 text-[#0D3B66] focus:ring-[#0D3B66]" />
-                Type d’équipement
-              </label>
-
-              {errorMessage && (
-                <div className="rounded-2xl border border-red-200/70 bg-red-50 px-3 py-2 text-sm text-red-700">{errorMessage}</div>
-              )}
-
-              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50">Annuler</button>
-                <button type="submit" disabled={isSubmitting} className="rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#1E6091] disabled:opacity-70">
-                  {isSubmitting ? "Enregistrement…" : "Enregistrer la parcelle"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+          <Caseacocher
+            checked={formState.est_equipement}
+            onChange={(v) => setFormState((f) => ({ ...f, est_equipement: v }))}
+          >
+            Réservé à un équipement public
+          </Caseacocher>
+        </ModaleFormulaire>
       )}
 
       {/* Modals d'action */}
@@ -968,6 +1066,23 @@ export default function LotsPage() {
           />
         );
       })()}
-    </div>
+    </AppShell>
+  );
+}
+
+/**
+ * Radix Select n'a pas d'`optgroup` : on rend le nom du lotissement comme
+ * intertitre non sélectionnable, au-dessus de ses îlots.
+ */
+function SelectGroupeLotissement({ nom, ilots }: { nom: string; ilots: IlotOption[] }) {
+  return (
+    <>
+      <p className="px-2 pt-2 pb-1 text-[10.5px] font-bold tracking-wider text-muted-2 uppercase">{nom}</p>
+      {ilots.map((ilot) => (
+        <SelectItem key={ilot.id} value={ilot.id}>
+          Îlot {ilot.numero} {ilot.lotissements?.commune ? `— ${ilot.lotissements.commune}` : ""}
+        </SelectItem>
+      ))}
+    </>
   );
 }
