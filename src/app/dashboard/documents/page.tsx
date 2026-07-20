@@ -1,12 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useChargement } from "@/hooks/useChargement";
-import { createClient } from "@/utils/supabase/client";
-import { Badge } from "@/components/ui/Badge";
-import { useProfile } from "@/hooks/useProfile";
-import UploadPlanModal from "@/components/dashboard/UploadPlanModal";
-import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import {
   Download,
   FileCheck,
@@ -15,9 +10,9 @@ import {
   ExternalLink,
   Hash,
   QrCode,
-  X,
   Copy,
   Check,
+  CheckCircle2,
   Upload,
   Image as ImageIcon,
   Loader2 as LoaderIcon,
@@ -26,7 +21,25 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
+import {
+  Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from "@/components/ds/dialog";
+import { Kpi } from "@/components/ds/kpi";
+import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
+import UploadPlanModal from "@/components/dashboard/UploadPlanModal";
+import { createClient } from "@/utils/supabase/client";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { useChargement } from "@/hooks/useChargement";
+import { useProfile } from "@/hooks/useProfile";
+import { fadeUp, stagger } from "@/lib/motion";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+type BadgeTone = "neutral" | "accent" | "success" | "warning" | "danger";
 
 type AttestationRow = {
   id: string;
@@ -72,11 +85,11 @@ type DlState = Record<string, "idle" | "loading" | "error">;
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
-const ATT_STATUT_BADGE: Record<string, "disponible" | "en_validation" | "attribue" | "litige"> = {
-  a_generer: "en_validation",
-  generee: "disponible",
-  delivree: "attribue",
-  revoquee: "litige",
+const ATT_STATUT_TONE: Record<string, BadgeTone> = {
+  a_generer: "warning",
+  generee: "accent",
+  delivree: "success",
+  revoquee: "danger",
 };
 const ATT_STATUT_LABEL: Record<string, string> = {
   a_generer: "À générer",
@@ -85,11 +98,11 @@ const ATT_STATUT_LABEL: Record<string, string> = {
   revoquee: "Révoquée",
 };
 
-const PV_STATUT_BADGE: Record<string, "disponible" | "en_validation" | "attribue" | "litige"> = {
-  a_fournir: "en_validation",
-  fourni: "disponible",
-  valide: "attribue",
-  rejete: "litige",
+const PV_STATUT_TONE: Record<string, BadgeTone> = {
+  a_fournir: "warning",
+  fourni: "accent",
+  valide: "success",
+  rejete: "danger",
 };
 const PV_STATUT_LABEL: Record<string, string> = {
   a_fournir: "À fournir",
@@ -124,6 +137,8 @@ function fmtDate(iso: string | null) {
   });
 }
 
+const TH_CLASS = "bg-inset px-5 py-3 text-left text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground";
+
 // ─── Indicateur de signature ──────────────────────────────────────────────────
 
 function SigDots({ proprietaire, operateur, chefferie }: { proprietaire: string | null; operateur: string | null; chefferie: string | null }) {
@@ -139,15 +154,15 @@ function SigDots({ proprietaire, operateur, chefferie }: { proprietaire: string 
         <div
           key={s.label}
           title={s.date ? `${s.label} — ${fmtDate(s.date)}` : `${s.label} — non signé`}
-          className={`h-2.5 w-2.5 rounded-full ${s.date ? "bg-emerald-500" : "bg-slate-200"}`}
+          className={`h-2.5 w-2.5 rounded-full ${s.date ? "bg-success" : "bg-border"}`}
         />
       ))}
-      <span className="ml-1 text-xs text-slate-400">{signed}/3</span>
+      <span className="ml-1 text-xs text-muted-2">{signed}/3</span>
     </div>
   );
 }
 
-// ─── Onglets Attestations ─────────────────────────────────────────────────────
+// ─── Onglet Attestations ──────────────────────────────────────────────────────
 
 function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree }: {
   rows: AttestationRow[];
@@ -159,8 +174,8 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
 }) {
   if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-sm text-slate-400">
-        <FileCheck className="mb-3 h-8 w-8 text-slate-300" />
+      <div className="flex flex-col items-center justify-center py-16 text-sm text-muted-foreground">
+        <FileCheck className="mb-3 h-8 w-8 text-muted-2" />
         Aucune attestation enregistrée.
       </div>
     );
@@ -169,17 +184,17 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
     <div className="overflow-x-auto">
       <table className="w-full min-w-[800px] text-sm">
         <thead>
-          <tr className="border-b border-slate-100 bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-            <th className="px-5 py-3">Référence</th>
-            <th className="px-5 py-3">Lot</th>
-            <th className="px-5 py-3">Acquéreur</th>
-            <th className="px-5 py-3">Statut</th>
-            <th className="px-5 py-3">Signatures</th>
-            <th className="px-5 py-3">Date émission</th>
-            <th className="px-5 py-3"></th>
+          <tr className="border-b border-border">
+            <th className={TH_CLASS}>Référence</th>
+            <th className={TH_CLASS}>Lot</th>
+            <th className={TH_CLASS}>Acquéreur</th>
+            <th className={TH_CLASS}>Statut</th>
+            <th className={TH_CLASS}>Signatures</th>
+            <th className={TH_CLASS}>Date émission</th>
+            <th className={TH_CLASS}></th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-border">
           {rows.map((att) => {
             const lot = att.lots;
             const lotLabel = lot
@@ -189,21 +204,19 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
             const dl = dlState[att.reference] ?? "idle";
             const remise = remiseState[att.id] ?? "idle";
             return (
-              <tr key={att.id} className="transition hover:bg-slate-50/50">
-                <td className="px-5 py-3.5 font-mono text-xs font-semibold text-[#0D3B66]">
+              <tr key={att.id} className="transition hover:bg-inset/60">
+                <td className="px-5 py-3.5 font-mono text-xs font-semibold text-accent">
                   {att.reference}
                 </td>
-                <td className="px-5 py-3.5 text-slate-700">
+                <td className="px-5 py-3.5 text-foreground">
                   {lotLabel}
-                  {lotissement && (
-                    <p className="text-xs text-slate-400">{lotissement}</p>
-                  )}
+                  {lotissement && <p className="text-xs text-muted-2">{lotissement}</p>}
                 </td>
-                <td className="px-5 py-3.5 text-slate-600">
+                <td className="px-5 py-3.5 text-muted-foreground">
                   {att.attributaires?.nom ?? "—"}
                 </td>
                 <td className="px-5 py-3.5">
-                  <Badge status={ATT_STATUT_BADGE[att.statut] ?? "en_validation"}>
+                  <Badge tone={ATT_STATUT_TONE[att.statut] ?? "warning"}>
                     {ATT_STATUT_LABEL[att.statut] ?? att.statut}
                   </Badge>
                 </td>
@@ -214,46 +227,46 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
                     chefferie={att.sig_chefferie_le}
                   />
                 </td>
-                <td className="px-5 py-3.5 text-slate-500">
+                <td className="px-5 py-3.5 text-muted-2">
                   {fmtDate(att.date_emission ?? att.cree_le)}
                 </td>
                 <td className="px-5 py-3.5 text-right">
                   <div className="flex items-center justify-end gap-1">
-                  {att.statut === "generee" && (
-                    <button
-                      onClick={() => onMarquerDelivree(att.id)}
-                      disabled={remise === "loading"}
-                      title="Marquer comme délivrée (remise physique au bénéficiaire)"
-                      className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
-                        remise === "error"
-                          ? "text-red-500"
-                          : "text-slate-400 hover:bg-slate-100 hover:text-emerald-600"
-                      } disabled:opacity-50`}
+                    {att.statut === "generee" && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => onMarquerDelivree(att.id)}
+                        disabled={remise === "loading"}
+                        title="Marquer comme délivrée (remise physique au bénéficiaire)"
+                        aria-label="Marquer comme délivrée"
+                        className={remise === "error" ? "text-danger" : "hover:text-success"}
+                      >
+                        <PackageCheck className={remise === "loading" ? "animate-pulse" : ""} />
+                      </Button>
+                    )}
+                    {att.qr_token && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => onShowQr(att)}
+                        title="QR code de vérification"
+                        aria-label="QR code de vérification"
+                      >
+                        <QrCode />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => onDownload(att.reference)}
+                      disabled={dl === "loading"}
+                      title="Télécharger"
+                      aria-label="Télécharger"
+                      className={dl === "error" ? "text-danger" : undefined}
                     >
-                      <PackageCheck className={`h-4 w-4 ${remise === "loading" ? "animate-pulse" : ""}`} />
-                    </button>
-                  )}
-                  {att.qr_token && (
-                    <button
-                      onClick={() => onShowQr(att)}
-                      title="QR code de vérification"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[#0D3B66]"
-                    >
-                      <QrCode className="h-4 w-4" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => onDownload(att.reference)}
-                    disabled={dl === "loading"}
-                    title="Télécharger"
-                    className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
-                      dl === "error"
-                        ? "text-red-500"
-                        : "text-slate-400 hover:bg-slate-100 hover:text-[#0D3B66]"
-                    } disabled:opacity-50`}
-                  >
-                    <Download className={`h-4 w-4 ${dl === "loading" ? "animate-pulse" : ""}`} />
-                  </button>
+                      <Download className={dl === "loading" ? "animate-pulse" : ""} />
+                    </Button>
                   </div>
                 </td>
               </tr>
@@ -270,8 +283,8 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
 function PvTab({ rows }: { rows: PvRow[] }) {
   if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-sm text-slate-400">
-        <FileSignature className="mb-3 h-8 w-8 text-slate-300" />
+      <div className="flex flex-col items-center justify-center py-16 text-sm text-muted-foreground">
+        <FileSignature className="mb-3 h-8 w-8 text-muted-2" />
         Aucun PV de famille enregistré.
       </div>
     );
@@ -280,53 +293,47 @@ function PvTab({ rows }: { rows: PvRow[] }) {
     <div className="overflow-x-auto">
       <table className="w-full min-w-[700px] text-sm">
         <thead>
-          <tr className="border-b border-slate-100 bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-            <th className="px-5 py-3">Référence</th>
-            <th className="px-5 py-3">Objet</th>
-            <th className="px-5 py-3">Collectif</th>
-            <th className="px-5 py-3">Statut</th>
-            <th className="px-5 py-3">Date réunion</th>
-            <th className="px-5 py-3">Validé le</th>
-            <th className="px-5 py-3"></th>
+          <tr className="border-b border-border">
+            <th className={TH_CLASS}>Référence</th>
+            <th className={TH_CLASS}>Objet</th>
+            <th className={TH_CLASS}>Collectif</th>
+            <th className={TH_CLASS}>Statut</th>
+            <th className={TH_CLASS}>Date réunion</th>
+            <th className={TH_CLASS}>Validé le</th>
+            <th className={TH_CLASS}></th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-border">
           {rows.map((pv) => {
             const fileUrl = pv.document?.url_fichier ?? null;
             return (
-              <tr key={pv.id} className="transition hover:bg-slate-50/50">
-                <td className="px-5 py-3.5 font-mono text-xs font-semibold text-[#0D3B66]">
+              <tr key={pv.id} className="transition hover:bg-inset/60">
+                <td className="px-5 py-3.5 font-mono text-xs font-semibold text-accent">
                   {pv.reference}
                 </td>
-                <td className="px-5 py-3.5 text-slate-800">
+                <td className="px-5 py-3.5 text-foreground">
                   <p className="max-w-[260px] truncate">{pv.objet}</p>
-                  {pv.lieu && (
-                    <p className="text-xs text-slate-400">{pv.lieu}</p>
-                  )}
+                  {pv.lieu && <p className="text-xs text-muted-2">{pv.lieu}</p>}
                 </td>
-                <td className="px-5 py-3.5 text-slate-600">
+                <td className="px-5 py-3.5 text-muted-foreground">
                   {pv.attributaires?.nom ?? "—"}
                 </td>
                 <td className="px-5 py-3.5">
-                  <Badge status={PV_STATUT_BADGE[pv.statut] ?? "en_validation"}>
+                  <Badge tone={PV_STATUT_TONE[pv.statut] ?? "warning"}>
                     {PV_STATUT_LABEL[pv.statut] ?? pv.statut}
                   </Badge>
                 </td>
-                <td className="px-5 py-3.5 text-slate-500">{fmtDate(pv.date_reunion)}</td>
-                <td className="px-5 py-3.5 text-slate-500">{fmtDate(pv.valide_le)}</td>
+                <td className="px-5 py-3.5 text-muted-2">{fmtDate(pv.date_reunion)}</td>
+                <td className="px-5 py-3.5 text-muted-2">{fmtDate(pv.valide_le)}</td>
                 <td className="px-5 py-3.5 text-right">
                   {fileUrl ? (
-                    <a
-                      href={fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Ouvrir le document"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[#0D3B66]"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
+                    <Button asChild variant="ghost" size="icon-sm" title="Ouvrir le document">
+                      <a href={fileUrl} target="_blank" rel="noopener noreferrer" aria-label="Ouvrir le document">
+                        <ExternalLink />
+                      </a>
+                    </Button>
                   ) : (
-                    <span className="text-slate-300">—</span>
+                    <span className="text-muted-2">—</span>
                   )}
                 </td>
               </tr>
@@ -347,16 +354,16 @@ function PlanApercu({ doc, apercuUrl, onOpenLightbox }: {
 }) {
   if (!doc.apercu_url) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-600">
-        <ImageIcon className="h-3 w-3" /> Conversion en cours
-      </span>
+      <Badge tone="warning">
+        <ImageIcon /> Conversion en cours
+      </Badge>
     );
   }
   if (!apercuUrl) {
-    return <LoaderIcon className="h-4 w-4 animate-spin text-slate-300" />;
+    return <LoaderIcon className="h-4 w-4 animate-spin text-muted-2" />;
   }
   return (
-    <button onClick={() => onOpenLightbox(apercuUrl)} className="block h-12 w-16 overflow-hidden rounded-lg border border-slate-200">
+    <button type="button" onClick={() => onOpenLightbox(apercuUrl)} className="block h-12 w-16 overflow-hidden rounded-lg border border-border">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={apercuUrl} alt="Aperçu du plan" className="h-full w-full object-cover" />
     </button>
@@ -371,8 +378,8 @@ function DocumentsTab({ rows, apercuUrls, dlOriginal, onOpenLightbox }: {
 }) {
   if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-sm text-slate-400">
-        <FileText className="mb-3 h-8 w-8 text-slate-300" />
+      <div className="flex flex-col items-center justify-center py-16 text-sm text-muted-foreground">
+        <FileText className="mb-3 h-8 w-8 text-muted-2" />
         Aucun document téléversé.
       </div>
     );
@@ -381,86 +388,71 @@ function DocumentsTab({ rows, apercuUrls, dlOriginal, onOpenLightbox }: {
     <div className="overflow-x-auto">
       <table className="w-full min-w-[700px] text-sm">
         <thead>
-          <tr className="border-b border-slate-100 bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-            <th className="px-5 py-3">Type</th>
-            <th className="px-5 py-3">Titre</th>
-            <th className="px-5 py-3">Aperçu</th>
-            <th className="px-5 py-3">Lot associé</th>
-            <th className="px-5 py-3">Date document</th>
-            <th className="px-5 py-3">Intégrité</th>
-            <th className="px-5 py-3"></th>
+          <tr className="border-b border-border">
+            <th className={TH_CLASS}>Type</th>
+            <th className={TH_CLASS}>Titre</th>
+            <th className={TH_CLASS}>Aperçu</th>
+            <th className={TH_CLASS}>Lot associé</th>
+            <th className={TH_CLASS}>Date document</th>
+            <th className={TH_CLASS}>Intégrité</th>
+            <th className={TH_CLASS}></th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-border">
           {rows.map((doc) => {
             const lot = doc.lots;
             const lotLabel = lot ? `Lot ${lot.numero_lot ?? "—"}` : null;
             const lotissement = lot?.ilots?.lotissements?.nom ?? null;
             const estPlan = doc.type === "plan_lot" || doc.type === "plan_lotissement";
             return (
-              <tr key={doc.id} className="transition hover:bg-slate-50/50">
+              <tr key={doc.id} className="transition hover:bg-inset/60">
                 <td className="px-5 py-3.5">
-                  <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                    {DOC_TYPE_LABEL[doc.type] ?? doc.type}
-                  </span>
+                  <Badge tone="neutral">{DOC_TYPE_LABEL[doc.type] ?? doc.type}</Badge>
                 </td>
-                <td className="px-5 py-3.5 text-slate-800">
-                  {doc.titre ?? <span className="text-slate-300">Sans titre</span>}
+                <td className="px-5 py-3.5 text-foreground">
+                  {doc.titre ?? <span className="text-muted-2">Sans titre</span>}
                 </td>
                 <td className="px-5 py-3.5">
                   {estPlan ? (
                     <PlanApercu doc={doc} apercuUrl={apercuUrls[doc.id]} onOpenLightbox={onOpenLightbox} />
                   ) : (
-                    <span className="text-slate-300">—</span>
+                    <span className="text-muted-2">—</span>
                   )}
                 </td>
-                <td className="px-5 py-3.5 text-slate-600">
+                <td className="px-5 py-3.5 text-muted-foreground">
                   {lotLabel ? (
                     <>
                       {lotLabel}
-                      {lotissement && (
-                        <p className="text-xs text-slate-400">{lotissement}</p>
-                      )}
+                      {lotissement && <p className="text-xs text-muted-2">{lotissement}</p>}
                     </>
                   ) : (
-                    <span className="text-slate-300">—</span>
+                    <span className="text-muted-2">—</span>
                   )}
                 </td>
-                <td className="px-5 py-3.5 text-slate-500">
+                <td className="px-5 py-3.5 text-muted-2">
                   {fmtDate(doc.date_document ?? doc.televerse_le)}
                 </td>
                 <td className="px-5 py-3.5">
                   {doc.hash_fichier ? (
-                    <span
-                      title={doc.hash_fichier}
-                      className="flex items-center gap-1 text-xs text-emerald-600"
-                    >
+                    <span title={doc.hash_fichier} className="flex items-center gap-1 text-xs text-success">
                       <Hash className="h-3 w-3" />
                       Hashé
                     </span>
                   ) : (
-                    <span className="text-xs text-slate-300">—</span>
+                    <span className="text-xs text-muted-2">—</span>
                   )}
                 </td>
                 <td className="px-5 py-3.5 text-right">
                   {estPlan ? (
-                    <button
-                      onClick={() => dlOriginal(doc.id)}
-                      title="Télécharger l'original"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[#0D3B66]"
-                    >
-                      <Download className="h-4 w-4" />
-                    </button>
+                    <Button variant="ghost" size="icon-sm" onClick={() => dlOriginal(doc.id)} title="Télécharger l'original" aria-label="Télécharger l'original">
+                      <Download />
+                    </Button>
                   ) : (
-                    <a
-                      href={doc.url_fichier}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Ouvrir"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[#0D3B66]"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
+                    <Button asChild variant="ghost" size="icon-sm" title="Ouvrir">
+                      <a href={doc.url_fichier} target="_blank" rel="noopener noreferrer" aria-label="Ouvrir">
+                        <ExternalLink />
+                      </a>
+                    </Button>
                   )}
                 </td>
               </tr>
@@ -487,45 +479,27 @@ function QrModal({ att, onClose }: { att: AttestationRow; onClose: () => void })
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between">
-          <div className="text-left">
-            <p className="text-sm font-semibold text-[#0D3B66]">QR code de vérification</p>
-            <p className="mt-0.5 font-mono text-xs text-slate-500">{att.reference}</p>
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>QR code de vérification</DialogTitle>
+          <DialogDescription className="font-mono">{att.reference}</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="space-y-4 text-center">
+          <div className="flex justify-center rounded-xl border border-border bg-white p-5">
+            <QRCodeSVG value={urlVerification} size={220} level="M" includeMargin={false} />
           </div>
-          <button
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="mt-4 flex justify-center rounded-xl border border-slate-200 bg-white p-5">
-          <QRCodeSVG value={urlVerification} size={220} level="M" includeMargin={false} />
-        </div>
-
-        <p className="mt-4 text-xs leading-relaxed text-slate-500">
-          Ce QR code figure sur le document imprimé. Tout scan mène à la page
-          publique de vérification SGNF et est journalisé côté serveur.
-        </p>
-
-        <button
-          onClick={copier}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1E6091]"
-        >
-          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-          {copied ? "Lien copié" : "Copier le lien de vérification"}
-        </button>
-      </div>
-    </div>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Ce QR code figure sur le document imprimé. Tout scan mène à la page
+            publique de vérification SGNF et est journalisé côté serveur.
+          </p>
+          <Button type="button" variant="primary" className="w-full" onClick={copier}>
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {copied ? "Lien copié" : "Copier le lien de vérification"}
+          </Button>
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -534,8 +508,9 @@ function QrModal({ att, onClose }: { att: AttestationRow; onClose: () => void })
 type Tab = "attestations" | "pv" | "documents";
 
 export default function DocumentsPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const { profile, isAdmin } = useProfile();
+  const { counts } = useBadgeCounts();
   const [activeTab, setActiveTab] = useState<Tab>("attestations");
   const [attestations, setAttestations] = useState<AttestationRow[]>([]);
   const [pvs, setPvs] = useState<PvRow[]>([]);
@@ -554,7 +529,6 @@ export default function DocumentsPage() {
   const peutTeleverserPlan = isAdmin || profile?.groupe === "geometre";
 
   const load = useCallback(async () => {
-
     const [attRes, pvRes, docRes, eligiblesRes] = await Promise.all([
       supabase
         .from("attestations_cession")
@@ -580,8 +554,7 @@ export default function DocumentsPage() {
     setPvs((pvRes.data ?? []) as unknown as PvRow[]);
     setDocs((docRes.data ?? []) as unknown as DocumentRow[]);
     setAttestationsEligibles(eligiblesRes.count ?? 0);
-
-  }, []);
+  }, [supabase]);
 
   // Rattrapage permanent : reste affiché en continu (contrairement à l'alerte du
   // Centre de pilotage, qui disparaît une fois soldée) -- ne génère effectivement
@@ -597,9 +570,9 @@ export default function DocumentsPage() {
       return;
     }
     void load();
-  }, [load]);
+  }, [load, supabase]);
 
-  const { isLoading: loading } = useChargement(load, [load]);
+  const { isLoading: loading, recharger } = useChargement(load, [load]);
 
   // Récupère une URL signée pour un document générique (table "documents")
   const signerDocument = useCallback(async (id: string, variant: "original" | "apercu") => {
@@ -618,7 +591,7 @@ export default function DocumentsPage() {
     const json = await res.json();
     if (!res.ok || !json.url) throw new Error(json.erreur || "Erreur");
     return json.url as string;
-  }, []);
+  }, [supabase]);
 
   // Charge les vignettes des plans dès qu'un apercu est disponible
   useEffect(() => {
@@ -694,134 +667,124 @@ export default function DocumentsPage() {
   const pvValides = pvs.filter((p) => p.statut === "valide").length;
 
   return (
-    <div className="space-y-6">
+    <AppShell loading={loading} counts={counts} onRefresh={recharger}>
       {/* En-tête */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#0D3B66]">Coffre-fort Documentaire</h1>
-          <p className="mt-1 text-sm sm:text-base text-slate-500">
+          <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+            Coffre-fort documentaire
+          </h1>
+          <p className="mt-1 text-[13.5px] text-muted-foreground">
             Attestations de cession, PV de famille et documents officiels.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <BoutonImprimer />
           {isAdmin && (
-            <button
+            <Button
+              type="button"
+              variant="outline"
+              className="print:hidden"
               onClick={genererAttestations}
               disabled={attestationsEligibles === 0 || genererEnCours}
+              loading={genererEnCours}
               title={
                 attestationsEligibles === 0
                   ? "Aucune attestation gratuite éligible en attente : les conditions ne sont pas réunies."
                   : `${attestationsEligibles} lot${attestationsEligibles > 1 ? "s" : ""} éligible${attestationsEligibles > 1 ? "s" : ""} à l'attestation gratuite, jamais générée (imports faits trigger désactivé).`
               }
-              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
             >
-              {genererEnCours ? (
-                <LoaderIcon className="h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4" />
-              )}
+              {genererEnCours ? null : <Sparkles className="h-4 w-4" />}
               {genererEnCours
                 ? "Génération…"
                 : attestationsEligibles > 0
                   ? `Générer les attestations éligibles (${attestationsEligibles})`
                   : "Générer les attestations éligibles"}
-            </button>
+            </Button>
           )}
           {peutTeleverserPlan && (
-            <button
-              onClick={() => setShowUpload(true)}
-              className="flex items-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091]"
-            >
+            <Button type="button" variant="primary" className="print:hidden" onClick={() => setShowUpload(true)}>
               <Upload className="h-4 w-4" />
               Téléverser un plan
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
       {genererErreur && (
-        <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+        <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-2.5 text-sm font-medium text-danger">
           Échec de la génération des attestations : {genererErreur}
         </p>
       )}
 
       {/* KPIs */}
-      {!loading && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Attestations</p>
-            <p className="mt-1 text-2xl font-bold text-[#0D3B66]">{attestations.length}</p>
-          </div>
-          <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/50 p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Délivrées</p>
-            <p className="mt-1 text-2xl font-bold text-emerald-700">{delivrees}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">PV de famille</p>
-            <p className="mt-1 text-2xl font-bold text-[#0D3B66]">{pvs.length}</p>
-          </div>
-          <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/50 p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">PV validés</p>
-            <p className="mt-1 text-2xl font-bold text-emerald-700">{pvValides}</p>
-          </div>
-        </div>
-      )}
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        aria-label="Indicateurs documentaires"
+      >
+        <Kpi icon={FileCheck} label="Attestations" loading={loading} value={attestations.length} legende={<>au coffre-fort</>} />
+        <Kpi icon={PackageCheck} label="Délivrées" loading={loading} value={delivrees} legende={<>remises au bénéficiaire</>} />
+        <Kpi icon={FileSignature} label="PV de famille" loading={loading} value={pvs.length} legende={<>collectifs d&apos;ayants-droit</>} />
+        <Kpi icon={CheckCircle2} label="PV validés" loading={loading} value={pvValides} legende={<>approuvés</>} />
+      </motion.section>
 
       {/* Onglets */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-        {/* Barre d'onglets */}
-        <div className="flex border-b border-slate-100">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium transition ${
-                activeTab === tab.id
-                  ? "border-b-2 border-[#0D3B66] text-[#0D3B66]"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+      <motion.div variants={fadeUp} initial="hidden" animate="show">
+        <Card className="overflow-hidden">
+          {/* Barre d'onglets */}
+          <div className="flex border-b border-border">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium transition ${
                   activeTab === tab.id
-                    ? "bg-[#0D3B66]/10 text-[#0D3B66]"
-                    : "bg-slate-100 text-slate-500"
+                    ? "border-b-2 border-accent text-accent"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {loading ? "…" : tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {/* Contenu */}
-        {loading ? (
-          <div className="flex items-center justify-center py-16 text-sm text-slate-400">
-            Chargement…
+                {tab.icon}
+                {tab.label}
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    activeTab === tab.id ? "bg-accent-subtle text-accent" : "bg-inset text-muted-foreground"
+                  }`}
+                >
+                  {loading ? "…" : tab.count}
+                </span>
+              </button>
+            ))}
           </div>
-        ) : activeTab === "attestations" ? (
-          <AttestationsTab
-            rows={attestations}
-            dlState={dlState}
-            remiseState={remiseState}
-            onDownload={telecharger}
-            onShowQr={setQrAtt}
-            onMarquerDelivree={marquerDelivree}
-          />
-        ) : activeTab === "pv" ? (
-          <PvTab rows={pvs} />
-        ) : (
-          <DocumentsTab
-            rows={docs}
-            apercuUrls={apercuUrls}
-            dlOriginal={telechargerOriginalPlan}
-            onOpenLightbox={setLightbox}
-          />
-        )}
-      </div>
+
+          {/* Contenu */}
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
+              Chargement…
+            </div>
+          ) : activeTab === "attestations" ? (
+            <AttestationsTab
+              rows={attestations}
+              dlState={dlState}
+              remiseState={remiseState}
+              onDownload={telecharger}
+              onShowQr={setQrAtt}
+              onMarquerDelivree={marquerDelivree}
+            />
+          ) : activeTab === "pv" ? (
+            <PvTab rows={pvs} />
+          ) : (
+            <DocumentsTab
+              rows={docs}
+              apercuUrls={apercuUrls}
+              dlOriginal={telechargerOriginalPlan}
+              onOpenLightbox={setLightbox}
+            />
+          )}
+        </Card>
+      </motion.div>
 
       {qrAtt && <QrModal att={qrAtt} onClose={() => setQrAtt(null)} />}
 
@@ -834,13 +797,13 @@ export default function DocumentsPage() {
 
       {lightbox && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-6"
           onClick={() => setLightbox(null)}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={lightbox} alt="Aperçu du plan" className="max-h-full max-w-full rounded-lg shadow-2xl" />
         </div>
       )}
-    </div>
+    </AppShell>
   );
 }
