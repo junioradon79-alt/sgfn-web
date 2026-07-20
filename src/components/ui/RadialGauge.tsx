@@ -16,7 +16,10 @@ export default function RadialGauge({
   size = 96,
   strokeWidth = 10,
   gradient,
-  trackColor = "#F1F5F9",
+  // Jeton plutôt qu'un gris figé : sur une page sombre, l'ancien `#F1F5F9`
+  // dessinait un anneau blanc autour de la jauge. `--border` suit le thème et
+  // vaut un gris clair équivalent hors du sous-arbre sombre.
+  trackColor = "var(--border)",
   children,
 }: Props) {
   const gradientId = useId();

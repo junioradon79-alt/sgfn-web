@@ -137,6 +137,12 @@ h1, h2, h3, h4, h5, h6 {
 .dark {
   /* Sombre « encre de nuit » — valeurs handoff : neutres/surfaces basculent,
      la marque et les sémantiques restent identiques au mode clair. */
+
+  /* Les contrôles dessinés par le navigateur (sélecteur de date, cases à
+     cocher, ascenseurs) ignorent nos jetons et restent clairs sans cette
+     ligne : un calendrier blanc s'ouvrait au-dessus d'une modale sombre. */
+  color-scheme: dark;
+
   --background: #0B1524;
   --card: #111E30;
   --elevated: #16223A;

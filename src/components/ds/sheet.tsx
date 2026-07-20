@@ -4,6 +4,7 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePortalContainer } from "./portal-scope";
 
 /** Panneau latéral — utilisé pour la navigation mobile (drawer). */
 function Sheet(props: React.ComponentProps<typeof DialogPrimitive.Root>) {
@@ -20,8 +21,9 @@ function SheetContent({
   side = "left",
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & { side?: "left" | "right" }) {
+  const container = usePortalContainer();
   return (
-    <DialogPrimitive.Portal>
+    <DialogPrimitive.Portal container={container}>
       <DialogPrimitive.Overlay
         className={cn(
           "fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm",

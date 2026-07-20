@@ -9,6 +9,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { hasCustomNavOrder, libelleEspace, visibleNavItems, type BadgeKey } from "@/lib/navigation";
 import { TooltipProvider } from "@/components/ds/tooltip";
+import { PortalScopeProvider } from "@/components/ds/portal-scope";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ds/sheet";
 import { AppSidebar } from "./AppSidebar";
 import { AppHeader } from "./AppHeader";
@@ -87,8 +88,12 @@ export function AppShell({
   const nom = profile?.nom_complet ?? "Administrateur";
   const role = profile?.groupe ?? "admin";
 
+  // `PortalScopeProvider` porte la classe `dark` ET ancre les portails Radix
+  // (menus, ⌘K, dialogues, listes déroulantes, infobulles) sous elle : rendus
+  // dans `document.body`, ils sortaient du sous-arbre thémé et s'affichaient en
+  // clair sur une page sombre.
   return (
-    <div className={cn(isDark && "dark")}>
+    <PortalScopeProvider className={cn(isDark && "dark")}>
       <MotionConfig reducedMotion="user">
         <TooltipProvider>
           <div className="flex min-h-screen bg-background text-foreground">
@@ -168,6 +173,6 @@ export function AppShell({
           />
         </TooltipProvider>
       </MotionConfig>
-    </div>
+    </PortalScopeProvider>
   );
 }
