@@ -1,17 +1,29 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/utils/supabase/client";
-import { useChargement } from "@/hooks/useChargement";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import Link from "next/link";
 import {
-  Users, UserCheck, AlertTriangle, Search, X, Check,
+  Users, UserCheck, AlertTriangle, Search, Check,
   UserPlus, ChevronRight, Crown, Landmark, Link2, Unlink, Building2, Plus,
 } from "lucide-react";
-import { Input } from "@/components/ui/Input";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
+import {
+  Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ds/dialog";
+import { Field } from "@/components/ds/label";
+import { Input } from "@/components/ds/input";
 import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
-import Link from "next/link";
+import { createClient } from "@/utils/supabase/client";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { useChargement } from "@/hooks/useChargement";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+type BadgeTone = "neutral" | "accent" | "success" | "warning" | "danger";
 
 type ChefProfile = {
   id: string;
@@ -93,12 +105,15 @@ const GROUPE_LABELS: Record<string, string> = {
   admin: "Admin",
 };
 
-const GROUPE_BADGE: Record<string, string> = {
-  chefferie: "bg-amber-50 text-amber-700 border border-amber-200",
-  proprietaire_terrien: "bg-teal-50 text-teal-700 border border-teal-200",
-  proprietaire: "bg-blue-50 text-blue-700 border border-blue-200",
-  admin: "bg-slate-100 text-slate-600 border border-slate-200",
+// Ton (Badge DS) par rôle — remplace les couleurs figées (amber-50, teal-50…)
+// illisibles sur page sombre. L'étiquette porte le reste de la distinction.
+const GROUPE_TONE: Record<string, BadgeTone> = {
+  chefferie: "warning",
+  proprietaire_terrien: "success",
+  proprietaire: "accent",
+  admin: "neutral",
 };
+const groupeTone = (g: string): BadgeTone => GROUPE_TONE[g] ?? "neutral";
 
 // ─── Modal : créer une grande famille ────────────────────────────────────────
 
@@ -109,7 +124,7 @@ function CreerGrandeFamilleModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [nom, setNom] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
@@ -127,40 +142,29 @@ function CreerGrandeFamilleModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-md overflow-hidden rounded-[1.75rem] border border-slate-200/70 bg-white shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Nouvelle grande famille</p>
-            <h2 className="mt-1 text-lg font-semibold text-[#0D3B66]">Créer une grande famille</h2>
-          </div>
-          <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="space-y-4 p-6">
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-600">Nom *</label>
-            <Input autoFocus placeholder="Ex : BEUH, AKE, YAGO…" value={nom} onChange={(e) => setNom(e.target.value)} />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-600">Description (optionnel)</label>
-            <Input placeholder="Ex : Grande famille BEUH — Village Ebimpe" value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-        </div>
-        <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
-          <button onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100">Annuler</button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="rounded-xl bg-[#0D3B66] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1E6091] disabled:opacity-40"
-          >
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Nouvelle grande famille</p>
+          <DialogTitle>Créer une grande famille</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="space-y-4">
+          <Field label="Nom" htmlFor="gf-nom" required>
+            <Input id="gf-nom" autoFocus placeholder="Ex : BEUH, AKE, YAGO…" value={nom} onChange={(e) => setNom(e.target.value)} />
+          </Field>
+          <Field label="Description (optionnel)" htmlFor="gf-desc">
+            <Input id="gf-desc" placeholder="Ex : Grande famille BEUH — Village Ebimpe" value={description} onChange={(e) => setDescription(e.target.value)} />
+          </Field>
+          {error && <p role="alert" className="text-sm font-medium text-danger">{error}</p>}
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+          <Button type="button" variant="primary" loading={saving} onClick={handleSave}>
             {saving ? "Création…" : "Créer"}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -177,7 +181,7 @@ function LierGrandeFamilleModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState("");
 
@@ -198,64 +202,55 @@ function LierGrandeFamilleModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-md overflow-hidden rounded-[1.75rem] border border-slate-200/70 bg-white shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Grande famille</p>
-            <h2 className="mt-1 text-lg font-semibold text-[#0D3B66]">{famille.nom}</h2>
-          </div>
-          <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Grande famille</p>
+          <DialogTitle>{famille.nom}</DialogTitle>
+        </DialogHeader>
 
         {famille.grande_famille && (
-          <div className="flex items-center justify-between border-b border-slate-100 bg-indigo-50/40 px-6 py-3">
+          <div className="flex items-center justify-between border-b border-border bg-accent-subtle px-5 py-3">
             <div>
-              <p className="text-xs text-slate-400">Grande famille actuelle</p>
-              <p className="text-sm font-semibold text-[#0D3B66]">{famille.grande_famille.nom}</p>
+              <p className="text-xs text-muted-2">Grande famille actuelle</p>
+              <p className="text-sm font-semibold text-accent">{famille.grande_famille.nom}</p>
             </div>
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={handleDelier}
               disabled={saving === "unlink"}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-40"
+              className="text-danger hover:bg-danger-subtle hover:text-danger"
             >
               <Unlink className="h-3.5 w-3.5" />
               {saving === "unlink" ? "…" : "Délier"}
-            </button>
+            </Button>
           </div>
         )}
 
-        {error && <p className="px-6 py-2 text-sm text-red-600">{error}</p>}
+        {error && <p role="alert" className="px-5 py-2 text-sm text-danger">{error}</p>}
 
         {grandesFamilles.length === 0 ? (
-          <p className="px-6 py-8 text-center text-sm text-slate-400">Aucune grande famille. Créez-en une d&apos;abord.</p>
+          <p className="px-5 py-8 text-center text-sm text-muted-2">Aucune grande famille. Créez-en une d&apos;abord.</p>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="max-h-[50vh] divide-y divide-border overflow-y-auto">
             {grandesFamilles.map((gf) => {
               const isCurrent = gf.id === famille.grande_famille_id;
               return (
-                <li key={gf.id} className={`flex items-center justify-between gap-3 px-6 py-3.5 ${isCurrent ? "bg-indigo-50/40" : "hover:bg-slate-50"}`}>
+                <li key={gf.id} className={`flex items-center justify-between gap-3 px-5 py-3.5 ${isCurrent ? "bg-accent-subtle" : "hover:bg-inset"}`}>
                   <div>
-                    <p className="font-medium text-slate-800">
+                    <p className="font-medium text-foreground">
                       {gf.nom}
                       {isCurrent && (
-                        <span className="ml-2 inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
-                          <Check className="h-3 w-3" /> Liée
-                        </span>
+                        <Badge tone="accent" className="ml-2"><Check /> Liée</Badge>
                       )}
                     </p>
-                    {gf.description && <p className="text-xs text-slate-400">{gf.description}</p>}
+                    {gf.description && <p className="text-xs text-muted-2">{gf.description}</p>}
                   </div>
                   {!isCurrent && (
-                    <button
-                      onClick={() => handleLier(gf.id)}
-                      disabled={saving === gf.id}
-                      className="shrink-0 rounded-xl border border-[#0D3B66] px-3 py-1.5 text-xs font-semibold text-[#0D3B66] transition hover:bg-[#0D3B66] hover:text-white disabled:opacity-40"
-                    >
+                    <Button variant="outline" size="sm" onClick={() => handleLier(gf.id)} disabled={saving === gf.id}>
                       {saving === gf.id ? "…" : "Lier"}
-                    </button>
+                    </Button>
                   )}
                 </li>
               );
@@ -263,11 +258,11 @@ function LierGrandeFamilleModal({
           </ul>
         )}
 
-        <div className="border-t border-slate-100 px-6 py-4">
-          <button onClick={onClose} className="text-sm font-medium text-slate-400 transition hover:text-slate-600">Fermer</button>
-        </div>
-      </div>
-    </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>Fermer</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -282,7 +277,7 @@ function LierCollectifModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [search, setSearch] = useState("");
   const [collectifs, setCollectifs] = useState<CollectifOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -313,7 +308,7 @@ function LierCollectifModal({
       setCollectifs((attrs ?? []).map((a) => ({ id: a.id, nom: a.nom, nb_lots: countMap[a.id] ?? 0 })));
       setLoading(false);
     })();
-  }, [famille.attributaire_id]);
+  }, [famille.attributaire_id, supabase]);
 
   const filtered = collectifs.filter((c) => !search || c.nom.toLowerCase().includes(search.toLowerCase()));
 
@@ -336,69 +331,62 @@ function LierCollectifModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-[1.75rem] border border-slate-200/70 bg-white shadow-2xl" style={{ maxHeight: "90vh" }}>
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Lier un collectif d&apos;ayants-droit</p>
-            <h2 className="mt-1 text-lg font-semibold text-[#0D3B66]">{famille.nom}</h2>
-          </div>
-          <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Lier un collectif d&apos;ayants-droit</p>
+          <DialogTitle>{famille.nom}</DialogTitle>
+        </DialogHeader>
 
         {famille.collectif && (
-          <div className="flex items-center justify-between border-b border-slate-100 bg-blue-50/40 px-6 py-3">
+          <div className="flex items-center justify-between border-b border-border bg-accent-subtle px-5 py-3">
             <div>
-              <p className="text-xs text-slate-400">Collectif actuel</p>
-              <p className="text-sm font-semibold text-[#0D3B66]">{famille.collectif.nom}</p>
+              <p className="text-xs text-muted-2">Collectif actuel</p>
+              <p className="text-sm font-semibold text-accent">{famille.collectif.nom}</p>
             </div>
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={handleDelier}
               disabled={saving === "unlink"}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-40"
+              className="text-danger hover:bg-danger-subtle hover:text-danger"
             >
               <Unlink className="h-3.5 w-3.5" />
               {saving === "unlink" ? "…" : "Délier"}
-            </button>
+            </Button>
           </div>
         )}
 
-        <div className="border-b border-slate-100 p-4">
+        <div className="border-b border-border p-4">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-2" />
             <Input autoFocus placeholder="Rechercher un collectif…" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
         </div>
 
-        <div className="overflow-y-auto" style={{ maxHeight: "46vh" }}>
-          {error && <p className="px-4 py-2 text-sm text-red-600">{error}</p>}
+        <div className="max-h-[46vh] overflow-y-auto">
+          {error && <p role="alert" className="px-4 py-2 text-sm text-danger">{error}</p>}
           {loading ? (
-            <p className="px-4 py-8 text-center text-sm text-slate-400">Chargement…</p>
+            <p className="px-4 py-8 text-center text-sm text-muted-2">Chargement…</p>
           ) : filtered.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-slate-400">Aucun collectif disponible.</p>
+            <p className="px-4 py-8 text-center text-sm text-muted-2">Aucun collectif disponible.</p>
           ) : (
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-border">
               {filtered.map((c) => {
                 const isCurrent = c.id === famille.attributaire_id;
                 return (
-                  <li key={c.id} className={`flex items-center justify-between gap-3 px-4 py-3 ${isCurrent ? "bg-blue-50/40" : "hover:bg-slate-50"}`}>
+                  <li key={c.id} className={`flex items-center justify-between gap-3 px-4 py-3 ${isCurrent ? "bg-accent-subtle" : "hover:bg-inset"}`}>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-800">
+                      <p className="truncate text-sm font-medium text-foreground">
                         {c.nom}
-                        {isCurrent && <span className="ml-2 inline-flex items-center gap-0.5 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700"><Check className="h-3 w-3" /> Lié</span>}
+                        {isCurrent && <Badge tone="accent" className="ml-2"><Check /> Lié</Badge>}
                       </p>
-                      <p className="text-xs text-slate-400">{c.nb_lots} lot{c.nb_lots !== 1 ? "s" : ""} attribué{c.nb_lots !== 1 ? "s" : ""}</p>
+                      <p className="text-xs text-muted-2">{c.nb_lots} lot{c.nb_lots !== 1 ? "s" : ""} attribué{c.nb_lots !== 1 ? "s" : ""}</p>
                     </div>
                     {!isCurrent && (
-                      <button
-                        onClick={() => handleLier(c.id)}
-                        disabled={saving === c.id}
-                        className="shrink-0 rounded-xl border border-[#0D3B66] px-3 py-1.5 text-xs font-semibold text-[#0D3B66] transition hover:bg-[#0D3B66] hover:text-white disabled:opacity-40"
-                      >
+                      <Button variant="outline" size="sm" onClick={() => handleLier(c.id)} disabled={saving === c.id}>
                         {saving === c.id ? "…" : "Lier"}
-                      </button>
+                      </Button>
                     )}
                   </li>
                 );
@@ -407,11 +395,11 @@ function LierCollectifModal({
           )}
         </div>
 
-        <div className="border-t border-slate-100 px-4 py-3">
-          <p className="text-xs text-slate-400">{filtered.length} collectif{filtered.length !== 1 ? "s" : ""} disponible{filtered.length !== 1 ? "s" : ""}</p>
+        <div className="border-t border-border px-4 py-3">
+          <p className="text-xs text-muted-2">{filtered.length} collectif{filtered.length !== 1 ? "s" : ""} disponible{filtered.length !== 1 ? "s" : ""}</p>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -426,7 +414,7 @@ function DesignerChefFamilleModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [search, setSearch] = useState("");
   const [profiles, setProfiles] = useState<ProfilePicker[]>([]);
   const [loading, setLoading] = useState(true);
@@ -444,7 +432,7 @@ function DesignerChefFamilleModal({
       setLoading(false);
     };
     void load();
-  }, []);
+  }, [supabase]);
 
   const filtered = profiles.filter((p) => {
     const q = search.toLowerCase();
@@ -473,78 +461,72 @@ function DesignerChefFamilleModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-[1.75rem] border border-slate-200/70 bg-white shadow-2xl" style={{ maxHeight: "90vh" }}>
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Désigner un chef de famille</p>
-            <h2 className="mt-1 text-lg font-semibold text-[#0D3B66]">{famille.nom}</h2>
-            {famille.chef_de_famille && (
-              <p className="mt-0.5 text-xs text-slate-400">Chef enregistré : {famille.chef_de_famille}</p>
-            )}
-          </div>
-          <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="border-b border-slate-100 p-4">
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Désigner un chef de famille</p>
+          <DialogTitle>{famille.nom}</DialogTitle>
+          {famille.chef_de_famille && (
+            <p className="text-xs text-muted-2">Chef enregistré : {famille.chef_de_famille}</p>
+          )}
+        </DialogHeader>
+        <div className="border-b border-border p-4">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-2" />
             <Input autoFocus placeholder="Rechercher un profil par nom ou rôle…" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
         </div>
-        <div className="overflow-y-auto" style={{ maxHeight: "50vh" }}>
-          {error && <p className="px-4 py-2 text-sm text-red-600">{error}</p>}
+        <div className="max-h-[50vh] overflow-y-auto">
+          {error && <p role="alert" className="px-4 py-2 text-sm text-danger">{error}</p>}
           {loading ? (
-            <p className="px-4 py-8 text-center text-sm text-slate-400">Chargement…</p>
+            <p className="px-4 py-8 text-center text-sm text-muted-2">Chargement…</p>
           ) : filtered.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-slate-400">Aucun profil trouvé.</p>
+            <p className="px-4 py-8 text-center text-sm text-muted-2">Aucun profil trouvé.</p>
           ) : (
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-border">
               {filtered.map((p) => {
                 const isCurrentChef = p.id === famille.chef_profile_id;
                 const alreadyLinked = p.famille_id && p.famille_id !== famille.id;
                 return (
-                  <li key={p.id} className={`flex items-center justify-between gap-3 px-4 py-3 ${isCurrentChef ? "bg-emerald-50/60" : "hover:bg-slate-50"}`}>
+                  <li key={p.id} className={`flex items-center justify-between gap-3 px-4 py-3 ${isCurrentChef ? "bg-success-subtle" : "hover:bg-inset"}`}>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-800">
+                      <p className="truncate text-sm font-medium text-foreground">
                         {p.nom_complet}
                         {isCurrentChef && (
-                          <span className="ml-2 inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                            <Check className="h-3 w-3" /> Actuel
-                          </span>
+                          <Badge tone="success" className="ml-2"><Check /> Actuel</Badge>
                         )}
                       </p>
                       <div className="mt-0.5 flex items-center gap-2">
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${GROUPE_BADGE[p.groupe] ?? "bg-slate-100 text-slate-600 border border-slate-200"}`}>
-                          {GROUPE_LABELS[p.groupe] ?? p.groupe}
-                        </span>
-                        {p.telephone && <span className="text-xs text-slate-400">{p.telephone}</span>}
-                        {alreadyLinked && <span className="text-xs text-amber-600">· lié à une autre famille</span>}
+                        <Badge tone={groupeTone(p.groupe)}>{GROUPE_LABELS[p.groupe] ?? p.groupe}</Badge>
+                        {p.telephone && <span className="text-xs text-muted-2">{p.telephone}</span>}
+                        {alreadyLinked && <span className="text-xs text-warning">· lié à une autre famille</span>}
                       </div>
                     </div>
-                    <button
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleDesigner(p)}
-                      disabled={saving === p.id || isCurrentChef}
-                      className="shrink-0 rounded-xl border border-[#0D3B66] px-3 py-1.5 text-xs font-semibold text-[#0D3B66] transition hover:bg-[#0D3B66] hover:text-white disabled:cursor-default disabled:opacity-40"
+                      disabled={saving === p.id || Boolean(isCurrentChef)}
                     >
                       {saving === p.id ? "…" : isCurrentChef ? "Désigné" : "Désigner"}
-                    </button>
+                    </Button>
                   </li>
                 );
               })}
             </ul>
           )}
         </div>
-        <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
-          <p className="text-xs text-slate-400">{filtered.length} profil{filtered.length !== 1 ? "s" : ""}</p>
-          <Link href="/dashboard/invitations" className="flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200">
-            <UserPlus className="h-3.5 w-3.5" />
-            Inviter un chef
-          </Link>
-        </div>
-      </div>
-    </div>
+        <DialogFooter className="sm:justify-between">
+          <p className="text-xs text-muted-2">{filtered.length} profil{filtered.length !== 1 ? "s" : ""}</p>
+          <Button asChild variant="subtle" size="sm">
+            <Link href="/dashboard/invitations">
+              <UserPlus className="h-3.5 w-3.5" />
+              Inviter un chef
+            </Link>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -559,7 +541,7 @@ function DesignerChefVillageModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [search, setSearch] = useState("");
   const [profiles, setProfiles] = useState<ProfilePicker[]>([]);
   const [loading, setLoading] = useState(true);
@@ -577,7 +559,7 @@ function DesignerChefVillageModal({
       setLoading(false);
     };
     void load();
-  }, []);
+  }, [supabase]);
 
   const filtered = profiles.filter((p) => {
     const q = search.toLowerCase();
@@ -606,93 +588,86 @@ function DesignerChefVillageModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-[1.75rem] border border-slate-200/70 bg-white shadow-2xl" style={{ maxHeight: "90vh" }}>
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-600">Désigner un chef de village</p>
-            <h2 className="mt-1 text-lg font-semibold text-[#0D3B66]">{autorite.nom}</h2>
-            {autorite.village && <p className="mt-0.5 text-xs text-slate-400">Village : {autorite.village}</p>}
-            {autorite.chef && <p className="text-xs text-slate-400">Chef (registre) : {autorite.chef}</p>}
-          </div>
-          <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <p className="text-[11px] font-bold tracking-[0.18em] text-warning uppercase">Désigner un chef de village</p>
+          <DialogTitle>{autorite.nom}</DialogTitle>
+          {autorite.village && <p className="text-xs text-muted-2">Village : {autorite.village}</p>}
+          {autorite.chef && <p className="text-xs text-muted-2">Chef (registre) : {autorite.chef}</p>}
+        </DialogHeader>
 
         {autorite.chefs_profils.length > 0 && (
-          <div className="border-b border-slate-100 bg-amber-50/40 px-4 py-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-700">Compte(s) actuellement lié(s)</p>
+          <div className="border-b border-border bg-warning-subtle px-4 py-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-warning">Compte(s) actuellement lié(s)</p>
             <ul className="space-y-1.5">
               {autorite.chefs_profils.map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning">
                       <Crown className="h-3 w-3" />
                     </div>
-                    <span className="truncate text-sm font-medium text-slate-800">{c.nom_complet}</span>
-                    <span className="shrink-0 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 border border-amber-200">
-                      {GROUPE_LABELS[c.groupe] ?? c.groupe}
-                    </span>
+                    <span className="truncate text-sm font-medium text-foreground">{c.nom_complet}</span>
+                    <Badge tone="warning" className="shrink-0">{GROUPE_LABELS[c.groupe] ?? c.groupe}</Badge>
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleRetirer(c.id)}
                     disabled={saving === c.id}
-                    className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-red-500 transition hover:bg-red-50 disabled:opacity-40"
+                    className="text-danger hover:bg-danger-subtle hover:text-danger"
                   >
                     {saving === c.id ? "…" : "Retirer"}
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
           </div>
         )}
 
-        <div className="border-b border-slate-100 p-4">
+        <div className="border-b border-border p-4">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-2" />
             <Input autoFocus placeholder="Rechercher un profil…" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
         </div>
 
-        <div className="overflow-y-auto" style={{ maxHeight: "42vh" }}>
-          {error && <p className="px-4 py-2 text-sm text-red-600">{error}</p>}
+        <div className="max-h-[42vh] overflow-y-auto">
+          {error && <p role="alert" className="px-4 py-2 text-sm text-danger">{error}</p>}
           {loading ? (
-            <p className="px-4 py-8 text-center text-sm text-slate-400">Chargement…</p>
+            <p className="px-4 py-8 text-center text-sm text-muted-2">Chargement…</p>
           ) : filtered.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-slate-400">Aucun profil trouvé.</p>
+            <p className="px-4 py-8 text-center text-sm text-muted-2">Aucun profil trouvé.</p>
           ) : (
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-border">
               {filtered.map((p) => {
                 const isLinked = currentChefIds.has(p.id);
                 const linkedElsewhere = p.autorite_coutumiere_id && p.autorite_coutumiere_id !== autorite.id;
                 return (
-                  <li key={p.id} className={`flex items-center justify-between gap-3 px-4 py-3 ${isLinked ? "bg-amber-50/40" : "hover:bg-slate-50"}`}>
+                  <li key={p.id} className={`flex items-center justify-between gap-3 px-4 py-3 ${isLinked ? "bg-warning-subtle" : "hover:bg-inset"}`}>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-800">
+                      <p className="truncate text-sm font-medium text-foreground">
                         {p.nom_complet}
                         {isLinked && (
-                          <span className="ml-2 inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                            <Check className="h-3 w-3" /> Lié
-                          </span>
+                          <Badge tone="warning" className="ml-2"><Check /> Lié</Badge>
                         )}
                       </p>
                       <div className="mt-0.5 flex items-center gap-2">
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${GROUPE_BADGE[p.groupe] ?? "bg-slate-100 text-slate-600 border border-slate-200"}`}>
-                          {GROUPE_LABELS[p.groupe] ?? p.groupe}
-                        </span>
-                        {p.telephone && <span className="text-xs text-slate-400">{p.telephone}</span>}
-                        {linkedElsewhere && <span className="text-xs text-amber-600">· lié à une autre chefferie</span>}
+                        <Badge tone={groupeTone(p.groupe)}>{GROUPE_LABELS[p.groupe] ?? p.groupe}</Badge>
+                        {p.telephone && <span className="text-xs text-muted-2">{p.telephone}</span>}
+                        {linkedElsewhere && <span className="text-xs text-warning">· lié à une autre chefferie</span>}
                       </div>
                     </div>
                     {!isLinked && (
-                      <button
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleDesigner(p)}
                         disabled={saving === p.id}
-                        className="shrink-0 rounded-xl border border-amber-600 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-600 hover:text-white disabled:cursor-default disabled:opacity-40"
+                        className="border-warning/40 text-warning hover:bg-warning hover:text-white"
                       >
                         {saving === p.id ? "…" : "Désigner"}
-                      </button>
+                      </Button>
                     )}
                   </li>
                 );
@@ -701,15 +676,17 @@ function DesignerChefVillageModal({
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
-          <p className="text-xs text-slate-400">{filtered.length} profil{filtered.length !== 1 ? "s" : ""}</p>
-          <Link href="/dashboard/invitations" className="flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200">
-            <UserPlus className="h-3.5 w-3.5" />
-            Inviter un chef
-          </Link>
-        </div>
-      </div>
-    </div>
+        <DialogFooter className="sm:justify-between">
+          <p className="text-xs text-muted-2">{filtered.length} profil{filtered.length !== 1 ? "s" : ""}</p>
+          <Button asChild variant="subtle" size="sm">
+            <Link href="/dashboard/invitations">
+              <UserPlus className="h-3.5 w-3.5" />
+              Inviter un chef
+            </Link>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -718,7 +695,8 @@ function DesignerChefVillageModal({
 type Tab = "familles" | "autorites" | "grandesfamilles";
 
 export default function FamillesPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+  const { counts } = useBadgeCounts();
   const [tab, setTab] = useState<Tab>("familles");
 
   // ── Grandes familles ──
@@ -741,7 +719,6 @@ export default function FamillesPage() {
   const [modalAutorite, setModalAutorite] = useState<AutoriteCoutumiere | null>(null);
 
   const fetchGrandesFamilles = useCallback(async () => {
-
     const { data: gfs } = await supabase.from("grandes_familles").select("id, nom, description").order("nom");
 
     // Lignées de premier niveau (rattachées à une grande famille, sans parent lignée)
@@ -787,11 +764,9 @@ export default function FamillesPage() {
     }
 
     setGrandesFamilles((gfs ?? []).map((gf) => ({ ...gf, lignees: ligneesByGF[gf.id] ?? [] })));
-
-  }, []);
+  }, [supabase]);
 
   const fetchFamilles = useCallback(async () => {
-
     const { data } = await supabase
       .from("familles")
       .select(
@@ -803,11 +778,9 @@ export default function FamillesPage() {
       )
       .order("nom");
     setFamilles((data ?? []) as unknown as Famille[]);
-
-  }, []);
+  }, [supabase]);
 
   const fetchAutorites = useCallback(async () => {
-
     const { data: acs } = await supabase.from("autorites_coutumieres").select("id, nom, type, village, chef").order("nom");
 
     const { data: chefsProfils } = await supabase
@@ -823,12 +796,17 @@ export default function FamillesPage() {
     }
 
     setAutorites((acs ?? []).map((ac) => ({ ...ac, chefs_profils: chefsByAutorite[ac.id] ?? [] })));
+  }, [supabase]);
 
-  }, []);
+  const { isLoading: grandesFamillesLoading, recharger: rechargerGF } = useChargement(fetchGrandesFamilles, [fetchGrandesFamilles]);
+  const { isLoading: famillesLoading, recharger: rechargerF } = useChargement(fetchFamilles, [fetchFamilles]);
+  const { isLoading: autoritesLoading, recharger: rechargerA } = useChargement(fetchAutorites, [fetchAutorites]);
 
-  const { isLoading: grandesFamillesLoading } = useChargement(fetchGrandesFamilles, [fetchGrandesFamilles]);
-  const { isLoading: famillesLoading } = useChargement(fetchFamilles, [fetchFamilles]);
-  const { isLoading: autoritesLoading } = useChargement(fetchAutorites, [fetchAutorites]);
+  const rafraichir = useCallback(() => {
+    void rechargerGF();
+    void rechargerF();
+    void rechargerA();
+  }, [rechargerGF, rechargerF, rechargerA]);
 
   const sansChefFamille = familles.filter((f) => !f.chef_profile_id).length;
   // Une sous-lignée (lignee_id défini) est implicitement rattachée à une grande famille
@@ -846,59 +824,60 @@ export default function FamillesPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <AppShell loading={grandesFamillesLoading || famillesLoading || autoritesLoading} counts={counts} onRefresh={rafraichir}>
       {/* En-tête */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Chefferie & Désignations</h1>
-          <p className="mt-0.5 text-sm text-slate-500">
+          <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+            Chefferie &amp; désignations
+          </h1>
+          <p className="mt-1 text-[13.5px] text-muted-foreground">
             Gérez la hiérarchie familiale et liez les comptes numériques aux familles et autorités coutumières.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <BoutonImprimer />
-          <Link
-            href="/dashboard/invitations"
-            className="print:hidden inline-flex items-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E6091]"
-          >
-            <UserPlus className="h-4 w-4" />
-            Inviter un chef
-          </Link>
+          <Button asChild variant="primary" className="print:hidden">
+            <Link href="/dashboard/invitations">
+              <UserPlus className="h-4 w-4" />
+              Inviter un chef
+            </Link>
+          </Button>
         </div>
       </div>
 
       {/* Onglets */}
-      <div className="print:hidden flex flex-wrap gap-1 rounded-2xl border border-slate-200/60 bg-slate-50 p-1 w-fit">
+      <div className="flex w-fit flex-wrap gap-1 rounded-2xl border border-border bg-inset p-1 print:hidden">
         <button
           onClick={() => setTab("grandesfamilles")}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${tab === "grandesfamilles" ? "bg-white shadow-sm text-[#0D3B66]" : "text-slate-500 hover:text-slate-700"}`}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${tab === "grandesfamilles" ? "bg-card text-accent shadow-panel" : "text-muted-foreground hover:text-foreground"}`}
         >
           <Building2 className="h-4 w-4" />
           Grandes familles
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-200 px-1.5 text-xs font-semibold text-slate-600">
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-border px-1.5 text-xs font-semibold text-muted-foreground">
             {grandesFamilles.length}
           </span>
         </button>
         <button
           onClick={() => setTab("familles")}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${tab === "familles" ? "bg-white shadow-sm text-[#0D3B66]" : "text-slate-500 hover:text-slate-700"}`}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${tab === "familles" ? "bg-card text-accent shadow-panel" : "text-muted-foreground hover:text-foreground"}`}
         >
           <Landmark className="h-4 w-4" />
           Lignées
           {sansChefFamille > 0 && (
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-xs font-semibold text-amber-700">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-warning-subtle px-1.5 text-xs font-semibold text-warning">
               {sansChefFamille}
             </span>
           )}
         </button>
         <button
           onClick={() => setTab("autorites")}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${tab === "autorites" ? "bg-white shadow-sm text-[#0D3B66]" : "text-slate-500 hover:text-slate-700"}`}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${tab === "autorites" ? "bg-card text-accent shadow-panel" : "text-muted-foreground hover:text-foreground"}`}
         >
           <Crown className="h-4 w-4" />
           Autorités coutumières
           {sansChefAutorite > 0 && (
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-xs font-semibold text-amber-700">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-warning-subtle px-1.5 text-xs font-semibold text-warning">
               {sansChefAutorite}
             </span>
           )}
@@ -908,65 +887,61 @@ export default function FamillesPage() {
       {/* ══ Onglet Grandes familles ════════════════════════════════════════════ */}
       {tab === "grandesfamilles" && (
         <>
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-500">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
               Chaque grande famille regroupe une ou plusieurs lignées, elles-mêmes composées d&apos;attributaires primaires et leurs collectifs d&apos;ayants-droit.
             </p>
-            <button
-              onClick={() => setShowCreerGF(true)}
-              className="print:hidden inline-flex shrink-0 items-center gap-2 rounded-xl border border-[#0D3B66] px-3 py-2 text-sm font-semibold text-[#0D3B66] transition hover:bg-[#0D3B66] hover:text-white"
-            >
+            <Button variant="outline" className="shrink-0 print:hidden" onClick={() => setShowCreerGF(true)}>
               <Plus className="h-4 w-4" />
               Nouvelle
-            </button>
+            </Button>
           </div>
 
           {grandesFamillesLoading ? (
-            <div className="flex items-center justify-center py-16 text-sm text-slate-400">Chargement…</div>
+            <div className="flex items-center justify-center py-16 text-sm text-muted-2">Chargement…</div>
           ) : grandesFamilles.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 rounded-2xl border border-dashed border-slate-200">
-              <Building2 className="h-8 w-8 text-slate-300" />
-              <p className="text-sm text-slate-400">Aucune grande famille créée.</p>
-              <button
-                onClick={() => setShowCreerGF(true)}
-                className="rounded-xl bg-[#0D3B66] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1E6091]"
-              >
+            <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border py-16">
+              <Building2 className="h-8 w-8 text-muted-2" />
+              <p className="text-sm text-muted-foreground">Aucune grande famille créée.</p>
+              <Button variant="primary" size="sm" onClick={() => setShowCreerGF(true)}>
                 Créer la première grande famille
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               {grandesFamilles.map((gf) => (
-                <div key={gf.id} className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-                  <div className="border-b border-slate-100 bg-indigo-50/30 px-5 py-4">
+                <Card key={gf.id} className="overflow-hidden">
+                  <div className="border-b border-border bg-accent-subtle px-5 py-4">
                     <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-indigo-600" />
-                      <p className="font-bold text-[#0D3B66]">{gf.nom}</p>
+                      <Building2 className="h-4 w-4 text-accent" />
+                      <p className="font-bold text-foreground">{gf.nom}</p>
                     </div>
-                    {gf.description && <p className="mt-0.5 text-xs text-slate-400">{gf.description}</p>}
-                    <p className="mt-1 text-xs text-indigo-600 font-medium">{gf.lignees.length} lignée{gf.lignees.length !== 1 ? "s" : ""}</p>
+                    {gf.description && <p className="mt-0.5 text-xs text-muted-2">{gf.description}</p>}
+                    <p className="mt-1 text-xs font-medium text-accent">{gf.lignees.length} lignée{gf.lignees.length !== 1 ? "s" : ""}</p>
                   </div>
                   {gf.lignees.length > 0 ? (
-                    <ul className="divide-y divide-slate-100">
+                    <ul className="divide-y divide-border">
                       {gf.lignees.map((l) => (
                         <li key={l.id}>
                           {/* Lignée de premier niveau */}
                           <div className="flex items-center gap-3 px-5 py-3.5">
-                            <Landmark className="h-3.5 w-3.5 shrink-0 text-indigo-500" />
+                            <Landmark className="h-3.5 w-3.5 shrink-0 text-accent" />
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-semibold text-slate-800">{l.nom}</p>
+                              <p className="text-sm font-semibold text-foreground">{l.nom}</p>
                               {l.chef_profile ? (
-                                <p className="text-xs text-emerald-600 font-medium">{l.chef_profile.nom_complet}</p>
+                                <p className="text-xs font-medium text-success">{l.chef_profile.nom_complet}</p>
                               ) : l.chef_de_famille ? (
-                                <p className="text-xs text-slate-400">{l.chef_de_famille} <span className="text-amber-500">· sans compte</span></p>
+                                <p className="text-xs text-muted-2">{l.chef_de_famille} <span className="text-warning">· sans compte</span></p>
                               ) : (
-                                <p className="text-xs text-amber-600">Sans chef lié</p>
+                                <p className="text-xs text-warning">Sans chef lié</p>
                               )}
                               {l.sous_lignees.length > 0 && (
-                                <p className="text-xs text-indigo-400">{l.sous_lignees.length} sous-lignée{l.sous_lignees.length > 1 ? "s" : ""}</p>
+                                <p className="text-xs text-accent">{l.sous_lignees.length} sous-lignée{l.sous_lignees.length > 1 ? "s" : ""}</p>
                               )}
                             </div>
-                            <button
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() => setModalFamille({
                                 id: l.id,
                                 nom: l.nom,
@@ -981,28 +956,29 @@ export default function FamillesPage() {
                                 lignee_id: null,
                                 lignee: null,
                               })}
-                              className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[#0D3B66] transition hover:bg-[#0D3B66]/8 border border-[#0D3B66]/20"
                             >
                               {l.chef_profile_id ? "Modifier" : "Désigner"}
-                            </button>
+                            </Button>
                           </div>
                           {/* Sous-lignées */}
                           {l.sous_lignees.length > 0 && (
-                            <ul className="border-t border-slate-100 bg-slate-50/60">
+                            <ul className="border-t border-border bg-inset/60">
                               {l.sous_lignees.map((sl) => (
                                 <li key={sl.id} className="flex items-center gap-3 py-2.5 pr-5 pl-10">
-                                  <ChevronRight className="h-3 w-3 shrink-0 text-slate-300" />
+                                  <ChevronRight className="h-3 w-3 shrink-0 text-muted-2" />
                                   <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-medium text-slate-700">{sl.nom}</p>
+                                    <p className="text-xs font-medium text-foreground">{sl.nom}</p>
                                     {sl.chef_profile ? (
-                                      <p className="text-xs text-emerald-600">{sl.chef_profile.nom_complet}</p>
+                                      <p className="text-xs text-success">{sl.chef_profile.nom_complet}</p>
                                     ) : sl.chef_de_famille ? (
-                                      <p className="text-xs text-slate-400">{sl.chef_de_famille} <span className="text-amber-500">· sans compte</span></p>
+                                      <p className="text-xs text-muted-2">{sl.chef_de_famille} <span className="text-warning">· sans compte</span></p>
                                     ) : (
-                                      <p className="text-xs text-amber-500">Sans chef</p>
+                                      <p className="text-xs text-warning">Sans chef</p>
                                     )}
                                   </div>
-                                  <button
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
                                     onClick={() => setModalFamille({
                                       id: sl.id,
                                       nom: sl.nom,
@@ -1017,10 +993,9 @@ export default function FamillesPage() {
                                       lignee_id: l.id,
                                       lignee: { id: l.id, nom: l.nom },
                                     })}
-                                    className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 transition hover:bg-slate-200 border border-slate-200"
                                   >
                                     {sl.chef_profile_id ? "Modifier" : "Désigner"}
-                                  </button>
+                                  </Button>
                                 </li>
                               ))}
                             </ul>
@@ -1029,9 +1004,9 @@ export default function FamillesPage() {
                       ))}
                     </ul>
                   ) : (
-                    <p className="px-5 py-4 text-sm text-slate-400 italic">Aucune lignée liée — allez dans l&apos;onglet Lignées pour les rattacher.</p>
+                    <p className="px-5 py-4 text-sm italic text-muted-2">Aucune lignée liée — allez dans l&apos;onglet Lignées pour les rattacher.</p>
                   )}
-                </div>
+                </Card>
               ))}
             </div>
           )}
@@ -1042,13 +1017,13 @@ export default function FamillesPage() {
       {tab === "familles" && (
         <>
           {!famillesLoading && sansChefFamille > 0 && (
-            <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <div className="flex items-start gap-3 rounded-2xl border border-warning/30 bg-warning-subtle px-4 py-3.5">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <div>
-                <p className="text-sm font-semibold text-amber-800">
+                <p className="text-sm font-semibold text-warning">
                   {sansChefFamille} lignée{sansChefFamille > 1 ? "s" : ""} sans compte chef lié
                 </p>
-                <p className="mt-0.5 text-xs text-amber-700">
+                <p className="mt-0.5 text-xs text-warning">
                   Les demandes d&apos;intérêt sur ces lignées n&apos;atteindront que les admins.
                 </p>
               </div>
@@ -1057,152 +1032,147 @@ export default function FamillesPage() {
 
           {!famillesLoading && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Lignées totales</p>
-                <p className="mt-1 text-2xl font-bold text-[#0D3B66]">{familles.length}</p>
-              </div>
-              <div className="rounded-2xl border border-indigo-200/60 bg-indigo-50/50 p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Rattachées</p>
-                <p className="mt-1 text-2xl font-bold text-indigo-700">{familles.length - sansGrandeFamille}</p>
-              </div>
-              <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/50 p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Chef lié</p>
-                <p className="mt-1 text-2xl font-bold text-emerald-700">{familles.length - sansChefFamille}</p>
-              </div>
-              <div className="rounded-2xl border border-amber-200/60 bg-amber-50/50 p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">Sans chef lié</p>
-                <p className="mt-1 text-2xl font-bold text-amber-700">{sansChefFamille}</p>
-              </div>
+              <Card className="p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-2">Lignées totales</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">{familles.length}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-accent">Rattachées</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-accent">{familles.length - sansGrandeFamille}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-success">Chef lié</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-success">{familles.length - sansChefFamille}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-warning">Sans chef lié</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-warning">{sansChefFamille}</p>
+              </Card>
             </div>
           )}
 
-          <div className="print:hidden relative w-full max-w-sm">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <div className="relative w-full max-w-sm print:hidden">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-2" />
             <Input placeholder="Rechercher une lignée…" className="pl-9" value={searchFamilles} onChange={(e) => setSearchFamilles(e.target.value)} />
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm print:overflow-visible print:rounded-none print:border-none">
+          <Card className="overflow-hidden print:overflow-visible print:rounded-none print:border-none">
             {famillesLoading ? (
-              <div className="flex items-center justify-center py-16 text-sm text-slate-400">Chargement…</div>
+              <div className="flex items-center justify-center py-16 text-sm text-muted-2">Chargement…</div>
             ) : filteredFamilles.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 py-16">
-                <Users className="h-8 w-8 text-slate-300" />
-                <p className="text-sm text-slate-400">Aucune lignée trouvée.</p>
+                <Users className="h-8 w-8 text-muted-2" />
+                <p className="text-sm text-muted-foreground">Aucune lignée trouvée.</p>
               </div>
             ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    <th className="px-5 py-3">Lignée</th>
-                    <th className="px-5 py-3">Rattachement</th>
-                    <th className="px-5 py-3">Collectif d&apos;ayants-droit</th>
-                    <th className="px-5 py-3">Chef (registre)</th>
-                    <th className="px-5 py-3">Compte lié</th>
-                    <th className="px-5 py-3 print:hidden"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredFamilles.map((f) => (
-                    <tr key={f.id} className="transition hover:bg-slate-50/50">
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-1.5">
-                          {f.lignee_id && <ChevronRight className="h-3 w-3 shrink-0 text-slate-300" />}
-                          <p className={`font-medium text-slate-800 ${f.lignee_id ? "text-sm" : ""}`}>{f.nom}</p>
-                        </div>
-                      </td>
-                      {/* Colonne Rattachement : grande famille et/ou lignée parente */}
-                      <td className="px-5 py-3.5">
-                        {f.lignee ? (
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-1 text-xs text-indigo-600">
-                              <Building2 className="h-3 w-3" />
-                              {f.grande_famille?.nom ?? "—"}
-                            </div>
-                            <div className="flex items-center gap-1 text-xs text-slate-500">
-                              <Landmark className="h-3 w-3" />
-                              {f.lignee.nom}
-                            </div>
-                          </div>
-                        ) : f.grande_famille ? (
-                          <button
-                            onClick={() => setModalGrandeFamille(f)}
-                            className="flex items-center gap-1 text-xs text-indigo-600 hover:underline"
-                          >
-                            <Building2 className="h-3 w-3" />
-                            {f.grande_famille.nom}
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => setModalGrandeFamille(f)}
-                            className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-500 transition hover:bg-indigo-100"
-                          >
-                            <Link2 className="h-3 w-3" /> Rattacher
-                          </button>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {f.collectif ? (
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-                              <Link2 className="h-3 w-3" />
-                            </div>
-                            <div>
-                              <p className="truncate text-sm font-medium text-slate-800">{f.collectif.nom}</p>
-                              <button
-                                onClick={() => setModalCollectif(f)}
-                                className="text-xs text-slate-400 underline-offset-2 hover:text-[#1E6091] hover:underline"
-                              >
-                                Modifier
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setModalCollectif(f)}
-                            className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-100"
-                          >
-                            <Link2 className="h-3 w-3" /> Lier
-                          </button>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5 text-slate-600">
-                        {f.chef_de_famille ?? <span className="text-slate-300">—</span>}
-                        {f.contact && <p className="text-xs text-slate-400">{f.contact}</p>}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {f.chef_profile ? (
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                              <UserCheck className="h-3.5 w-3.5" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-slate-800">{f.chef_profile.nom_complet}</p>
-                              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${GROUPE_BADGE[f.chef_profile.groupe] ?? "bg-slate-100 text-slate-600 border border-slate-200"}`}>
-                                {GROUPE_LABELS[f.chef_profile.groupe] ?? f.chef_profile.groupe}
-                              </span>
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
-                            <AlertTriangle className="h-3 w-3" /> Non lié
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5 text-right print:hidden">
-                        <button
-                          onClick={() => setModalFamille(f)}
-                          className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-[#0D3B66]"
-                        >
-                          {f.chef_profile ? "Modifier" : "Désigner"}
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-inset text-left text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <th className="px-5 py-3">Lignée</th>
+                      <th className="px-5 py-3">Rattachement</th>
+                      <th className="px-5 py-3">Collectif d&apos;ayants-droit</th>
+                      <th className="px-5 py-3">Chef (registre)</th>
+                      <th className="px-5 py-3">Compte lié</th>
+                      <th className="px-5 py-3 print:hidden"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {filteredFamilles.map((f) => (
+                      <tr key={f.id} className="transition hover:bg-inset/60">
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-1.5">
+                            {f.lignee_id && <ChevronRight className="h-3 w-3 shrink-0 text-muted-2" />}
+                            <p className="font-medium text-foreground">{f.nom}</p>
+                          </div>
+                        </td>
+                        {/* Colonne Rattachement : grande famille et/ou lignée parente */}
+                        <td className="px-5 py-3.5">
+                          {f.lignee ? (
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1 text-xs text-accent">
+                                <Building2 className="h-3 w-3" />
+                                {f.grande_famille?.nom ?? "—"}
+                              </div>
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Landmark className="h-3 w-3" />
+                                {f.lignee.nom}
+                              </div>
+                            </div>
+                          ) : f.grande_famille ? (
+                            <button
+                              onClick={() => setModalGrandeFamille(f)}
+                              className="flex items-center gap-1 text-xs text-accent hover:underline"
+                            >
+                              <Building2 className="h-3 w-3" />
+                              {f.grande_famille.nom}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setModalGrandeFamille(f)}
+                              className="inline-flex items-center gap-1 rounded-full bg-accent-subtle px-2 py-0.5 text-xs font-medium text-accent transition hover:brightness-95"
+                            >
+                              <Link2 className="h-3 w-3" /> Rattacher
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          {f.collectif ? (
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+                                <Link2 className="h-3 w-3" />
+                              </div>
+                              <div>
+                                <p className="truncate text-sm font-medium text-foreground">{f.collectif.nom}</p>
+                                <button
+                                  onClick={() => setModalCollectif(f)}
+                                  className="text-xs text-muted-2 underline-offset-2 hover:text-accent hover:underline"
+                                >
+                                  Modifier
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setModalCollectif(f)}
+                              className="inline-flex items-center gap-1 rounded-full bg-accent-subtle px-2.5 py-1 text-xs font-medium text-accent transition hover:brightness-95"
+                            >
+                              <Link2 className="h-3 w-3" /> Lier
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-muted-foreground">
+                          {f.chef_de_famille ?? <span className="text-muted-2">—</span>}
+                          {f.contact && <p className="text-xs text-muted-2">{f.contact}</p>}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          {f.chef_profile ? (
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-success/15 text-success">
+                                <UserCheck className="h-3.5 w-3.5" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-foreground">{f.chef_profile.nom_complet}</p>
+                                <Badge tone={groupeTone(f.chef_profile.groupe)}>{GROUPE_LABELS[f.chef_profile.groupe] ?? f.chef_profile.groupe}</Badge>
+                              </div>
+                            </div>
+                          ) : (
+                            <Badge tone="warning"><AlertTriangle /> Non lié</Badge>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-right print:hidden">
+                          <Button variant="ghost" size="sm" onClick={() => setModalFamille(f)}>
+                            {f.chef_profile ? "Modifier" : "Désigner"}
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
-          </div>
+          </Card>
         </>
       )}
 
@@ -1210,13 +1180,13 @@ export default function FamillesPage() {
       {tab === "autorites" && (
         <>
           {!autoritesLoading && sansChefAutorite > 0 && (
-            <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <div className="flex items-start gap-3 rounded-2xl border border-warning/30 bg-warning-subtle px-4 py-3.5">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <div>
-                <p className="text-sm font-semibold text-amber-800">
+                <p className="text-sm font-semibold text-warning">
                   {sansChefAutorite} autorité{sansChefAutorite > 1 ? "s" : ""} sans compte chef de village lié
                 </p>
-                <p className="mt-0.5 text-xs text-amber-700">
+                <p className="mt-0.5 text-xs text-warning">
                   Les validations de ces chefferies ne pourront pas être routées vers un compte numérique.
                 </p>
               </div>
@@ -1225,88 +1195,85 @@ export default function FamillesPage() {
 
           {!autoritesLoading && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Autorités totales</p>
-                <p className="mt-1 text-2xl font-bold text-[#0D3B66]">{autorites.length}</p>
-              </div>
-              <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/50 p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Chef lié</p>
-                <p className="mt-1 text-2xl font-bold text-emerald-700">{autorites.length - sansChefAutorite}</p>
-              </div>
-              <div className="col-span-2 rounded-2xl border border-amber-200/60 bg-amber-50/50 p-4 shadow-sm sm:col-span-1">
-                <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">Sans chef lié</p>
-                <p className="mt-1 text-2xl font-bold text-amber-700">{sansChefAutorite}</p>
-              </div>
+              <Card className="p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-2">Autorités totales</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">{autorites.length}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-success">Chef lié</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-success">{autorites.length - sansChefAutorite}</p>
+              </Card>
+              <Card className="col-span-2 p-4 sm:col-span-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-warning">Sans chef lié</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-warning">{sansChefAutorite}</p>
+              </Card>
             </div>
           )}
 
-          <div className="print:hidden relative w-full max-w-sm">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <div className="relative w-full max-w-sm print:hidden">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-2" />
             <Input placeholder="Rechercher une autorité ou un village…" className="pl-9" value={searchAutorites} onChange={(e) => setSearchAutorites(e.target.value)} />
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm print:overflow-visible print:rounded-none print:border-none">
+          <Card className="overflow-hidden print:overflow-visible print:rounded-none print:border-none">
             {autoritesLoading ? (
-              <div className="flex items-center justify-center py-16 text-sm text-slate-400">Chargement…</div>
+              <div className="flex items-center justify-center py-16 text-sm text-muted-2">Chargement…</div>
             ) : filteredAutorites.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 py-16">
-                <Crown className="h-8 w-8 text-slate-300" />
-                <p className="text-sm text-slate-400">Aucune autorité coutumière trouvée.</p>
+                <Crown className="h-8 w-8 text-muted-2" />
+                <p className="text-sm text-muted-foreground">Aucune autorité coutumière trouvée.</p>
               </div>
             ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    <th className="px-5 py-3">Autorité</th>
-                    <th className="px-5 py-3">Chef (registre)</th>
-                    <th className="px-5 py-3">Compte(s) lié(s)</th>
-                    <th className="px-5 py-3 print:hidden"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredAutorites.map((a) => (
-                    <tr key={a.id} className="transition hover:bg-slate-50/50">
-                      <td className="px-5 py-3.5">
-                        <p className="font-medium text-slate-800">{a.nom}</p>
-                        {a.village && <p className="mt-0.5 text-xs text-slate-400">{a.village}</p>}
-                        {a.type && <p className="text-xs text-slate-400">{a.type}</p>}
-                      </td>
-                      <td className="px-5 py-3.5 text-slate-600">
-                        {a.chef ?? <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {a.chefs_profils.length > 0 ? (
-                          <div className="space-y-1">
-                            {a.chefs_profils.map((c) => (
-                              <div key={c.id} className="flex items-center gap-2">
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-                                  <Crown className="h-3 w-3" />
-                                </div>
-                                <span className="text-sm font-medium text-slate-800">{c.nom_complet}</span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
-                            <AlertTriangle className="h-3 w-3" /> Non lié
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5 text-right print:hidden">
-                        <button
-                          onClick={() => setModalAutorite(a)}
-                          className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-[#0D3B66]"
-                        >
-                          {a.chefs_profils.length > 0 ? "Gérer" : "Désigner"}
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-inset text-left text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <th className="px-5 py-3">Autorité</th>
+                      <th className="px-5 py-3">Chef (registre)</th>
+                      <th className="px-5 py-3">Compte(s) lié(s)</th>
+                      <th className="px-5 py-3 print:hidden"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {filteredAutorites.map((a) => (
+                      <tr key={a.id} className="transition hover:bg-inset/60">
+                        <td className="px-5 py-3.5">
+                          <p className="font-medium text-foreground">{a.nom}</p>
+                          {a.village && <p className="mt-0.5 text-xs text-muted-2">{a.village}</p>}
+                          {a.type && <p className="text-xs text-muted-2">{a.type}</p>}
+                        </td>
+                        <td className="px-5 py-3.5 text-muted-foreground">
+                          {a.chef ?? <span className="text-muted-2">—</span>}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          {a.chefs_profils.length > 0 ? (
+                            <div className="space-y-1">
+                              {a.chefs_profils.map((c) => (
+                                <div key={c.id} className="flex items-center gap-2">
+                                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning">
+                                    <Crown className="h-3 w-3" />
+                                  </div>
+                                  <span className="text-sm font-medium text-foreground">{c.nom_complet}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <Badge tone="warning"><AlertTriangle /> Non lié</Badge>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-right print:hidden">
+                          <Button variant="ghost" size="sm" onClick={() => setModalAutorite(a)}>
+                            {a.chefs_profils.length > 0 ? "Gérer" : "Désigner"}
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
-          </div>
+          </Card>
         </>
       )}
 
@@ -1314,7 +1281,7 @@ export default function FamillesPage() {
       {showCreerGF && (
         <CreerGrandeFamilleModal
           onClose={() => setShowCreerGF(false)}
-          onSuccess={() => { setShowCreerGF(false); void fetchGrandesFamilles(); }}
+          onSuccess={() => { setShowCreerGF(false); void rechargerGF(); }}
         />
       )}
 
@@ -1323,7 +1290,7 @@ export default function FamillesPage() {
           famille={modalGrandeFamille}
           grandesFamilles={grandesFamilles}
           onClose={() => setModalGrandeFamille(null)}
-          onSuccess={() => { setModalGrandeFamille(null); void fetchFamilles(); void fetchGrandesFamilles(); }}
+          onSuccess={() => { setModalGrandeFamille(null); void rechargerF(); void rechargerGF(); }}
         />
       )}
 
@@ -1331,7 +1298,7 @@ export default function FamillesPage() {
         <LierCollectifModal
           famille={modalCollectif}
           onClose={() => setModalCollectif(null)}
-          onSuccess={() => { setModalCollectif(null); void fetchFamilles(); }}
+          onSuccess={() => { setModalCollectif(null); void rechargerF(); }}
         />
       )}
 
@@ -1339,7 +1306,7 @@ export default function FamillesPage() {
         <DesignerChefFamilleModal
           famille={modalFamille}
           onClose={() => setModalFamille(null)}
-          onSuccess={() => { setModalFamille(null); void fetchFamilles(); void fetchGrandesFamilles(); }}
+          onSuccess={() => { setModalFamille(null); void rechargerF(); void rechargerGF(); }}
         />
       )}
 
@@ -1347,9 +1314,9 @@ export default function FamillesPage() {
         <DesignerChefVillageModal
           autorite={modalAutorite}
           onClose={() => setModalAutorite(null)}
-          onSuccess={() => { setModalAutorite(null); void fetchAutorites(); }}
+          onSuccess={() => { setModalAutorite(null); void rechargerA(); }}
         />
       )}
-    </div>
+    </AppShell>
   );
 }
