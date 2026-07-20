@@ -1,16 +1,29 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
-import { createClient } from "@/utils/supabase/client";
-import { useChargement } from "@/hooks/useChargement";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   MessageSquare, FileText, Plus, X, Send, Upload,
   Users, Building2, Crown, HandCoins, ShieldCheck,
   ChevronLeft, AlertTriangle, Search, Loader2, Download, Trash2,
 } from "lucide-react";
-import { Input } from "@/components/ui/Input";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
+import {
+  Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ds/dialog";
+import { Field } from "@/components/ds/label";
+import { Input, Textarea } from "@/components/ds/input";
+import { SelectItem } from "@/components/ds/select";
+import { ChampSelect } from "@/components/dashboard/ModaleFormulaire";
+import { createClient } from "@/utils/supabase/client";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { useChargement } from "@/hooks/useChargement";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+type BadgeTone = "neutral" | "accent" | "success" | "warning" | "danger";
 
 type Participant = {
   id: string;
@@ -65,13 +78,20 @@ const GROUPE_LABELS: Record<string, string> = {
   verificateur: "Vérificateur", geometre: "Géomètre", agent_ia: "Agent IA", amenageur: "Aménageur",
 };
 
-const GROUPE_COLORS: Record<string, string> = {
-  admin:        "bg-slate-100 text-slate-700 border-slate-200",
-  chefferie:    "bg-amber-50 text-amber-700 border-amber-200",
-  proprietaire_terrien: "bg-teal-50 text-teal-700 border-teal-200",
-  proprietaire: "bg-blue-50 text-blue-700 border-blue-200",
-  operateur:    "bg-emerald-50 text-emerald-700 border-emerald-200",
+// Ton (Badge DS) par rôle — le DS n'a que 5 tons, l'icône du rôle porte le
+// reste de la distinction. Remplace les couleurs figées (amber-50, teal-50…)
+// qui rendaient en clair sur page sombre.
+const GROUPE_TONE: Record<string, BadgeTone> = {
+  admin: "neutral",
+  chefferie: "warning",
+  proprietaire_terrien: "accent",
+  proprietaire: "accent",
+  operateur: "success",
 };
+const groupeTone = (g: string): BadgeTone => GROUPE_TONE[g] ?? "neutral";
+
+// Sentinelle « aucun lotissement » — Radix Select refuse la chaîne vide.
+const AUCUN_LOT = "aucun";
 
 function GroupeIcon({ groupe }: { groupe: string }) {
   if (groupe === "admin") return <ShieldCheck className="h-3 w-3" />;
@@ -104,7 +124,7 @@ function NouvelEspaceModal({
   onClose: () => void;
   onSuccess: (id: string) => void;
 }) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [step, setStep] = useState<"form" | "saving">("form");
   const [sujet, setSujet] = useState("");
   const [lotissements, setLotissements] = useState<LotissementOption[]>([]);
@@ -133,7 +153,7 @@ function NouvelEspaceModal({
         .order("nom_complet");
       setAllProfiles((profiles ?? []) as Participant[]);
     })();
-  }, []);
+  }, [supabase]);
 
   // Auto-sélection des participants du lotissement — déclenchée par le
   // changement du select (event handler), pas par un effet.
@@ -175,7 +195,7 @@ function NouvelEspaceModal({
     if (myId && id === myId) return; // l'initiateur reste toujours dedans
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
@@ -213,131 +233,123 @@ function NouvelEspaceModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-[1.75rem] border border-slate-200/70 bg-white shadow-2xl" style={{ maxHeight: "92vh" }}>
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Concertation</p>
+          <DialogTitle>Nouvel espace d&apos;échange</DialogTitle>
+        </DialogHeader>
+
+        <DialogBody className="space-y-4">
+          {/* Objet */}
+          <Field label="Objet" htmlFor="conc-sujet" required>
+            <Input
+              id="conc-sujet"
+              autoFocus
+              placeholder="Ex : Régularisation APFC — Lotissement Koelea-Accor"
+              value={sujet}
+              onChange={(e) => setSujet(e.target.value)}
+            />
+          </Field>
+
+          {/* Lotissement (facultatif) */}
+          <ChampSelect
+            id="conc-lot"
+            label="Lotissement concerné (optionnel)"
+            value={lotissementId || AUCUN_LOT}
+            onChange={(v) => choisirLotissement(v === AUCUN_LOT ? "" : v)}
+          >
+            <SelectItem value={AUCUN_LOT}>— Aucun lotissement —</SelectItem>
+            {lotissements.map((l) => (
+              <SelectItem key={l.id} value={l.id}>{l.nom}{l.village ? ` — ${l.village}` : ""}</SelectItem>
+            ))}
+          </ChampSelect>
+
+          {/* Participants */}
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Concertation</p>
-            <h2 className="mt-1 text-lg font-semibold text-[#0D3B66]">Nouvel espace d&apos;échange</h2>
-          </div>
-          <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="overflow-y-auto" style={{ maxHeight: "60vh" }}>
-          <div className="space-y-4 p-6">
-            {/* Objet */}
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">Objet *</label>
-              <Input
-                autoFocus
-                placeholder="Ex : Régularisation APFC — Lotissement Koelea-Accor"
-                value={sujet}
-                onChange={(e) => setSujet(e.target.value)}
-              />
+            <div className="mb-2 flex items-center justify-between">
+              <label className="text-[13px] font-semibold text-foreground">
+                Participants ({selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""})
+              </label>
             </div>
-
-            {/* Lotissement (facultatif) */}
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">Lotissement concerné (optionnel)</label>
-              <select
-                value={lotissementId}
-                onChange={(e) => choisirLotissement(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#1E6091]/30"
-              >
-                <option value="">— Aucun lotissement sélectionné —</option>
-                {lotissements.map((l) => (
-                  <option key={l.id} value={l.id}>{l.nom}{l.village ? ` — ${l.village}` : ""}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Participants */}
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-600">Participants ({selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""})</label>
-              </div>
-              {selectedIds.size > 0 && (
-                <div className="mb-2 flex flex-wrap gap-1.5">
-                  {[...selectedIds].map((id) => {
-                    const p = allProfiles.find((x) => x.id === id);
-                    if (!p) return null;
-                    const isMe = id === myId;
-                    return (
-                      <span key={id} className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${GROUPE_COLORS[p.groupe] ?? "bg-slate-100 text-slate-600 border-slate-200"}`}>
-                        <GroupeIcon groupe={p.groupe} />
-                        {p.nom_complet.split(" ")[0]}
-                        {!isMe && (
-                          <button onClick={() => toggleParticipant(id)} className="ml-0.5 opacity-60 hover:opacity-100">
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-              <div className="relative mb-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                <Input
-                  placeholder="Ajouter un participant…"
-                  className="pl-9 text-sm"
-                  value={searchParticipant}
-                  onChange={(e) => setSearchParticipant(e.target.value)}
-                />
-              </div>
-              <div className="max-h-36 overflow-y-auto rounded-xl border border-slate-100 divide-y divide-slate-50">
-                {filteredProfiles.slice(0, 20).map((p) => {
-                  const checked = selectedIds.has(p.id);
-                  const isMe = p.id === myId;
+            {selectedIds.size > 0 && (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {[...selectedIds].map((id) => {
+                  const p = allProfiles.find((x) => x.id === id);
+                  if (!p) return null;
+                  const isMe = id === myId;
                   return (
-                    <button
-                      key={p.id}
-                      onClick={() => toggleParticipant(p.id)}
-                      disabled={isMe}
-                      className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition ${checked ? "bg-blue-50/60" : "hover:bg-slate-50"} ${isMe ? "cursor-default opacity-60" : ""}`}
-                    >
-                      <span className={`h-4 w-4 shrink-0 rounded border flex items-center justify-center ${checked ? "bg-[#0D3B66] border-[#0D3B66]" : "border-slate-300"}`}>
-                        {checked && <span className="text-white text-xs leading-none">✓</span>}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium text-slate-800">{p.nom_complet}</span>
-                        <span className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-xs ${GROUPE_COLORS[p.groupe] ?? "bg-slate-100 text-slate-600 border-slate-200"}`}>
-                          <GroupeIcon groupe={p.groupe} />
-                          {GROUPE_LABELS[p.groupe] ?? p.groupe}
-                        </span>
-                      </span>
-                    </button>
+                    <Badge key={id} tone={groupeTone(p.groupe)}>
+                      <GroupeIcon groupe={p.groupe} />
+                      {p.nom_complet.split(" ")[0]}
+                      {!isMe && (
+                        <button
+                          type="button"
+                          onClick={() => toggleParticipant(id)}
+                          className="ml-0.5 opacity-60 transition-opacity hover:opacity-100"
+                          aria-label={`Retirer ${p.nom_complet}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </Badge>
                   );
                 })}
               </div>
-            </div>
-
-            {error && (
-              <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                {error}
-              </div>
             )}
+            <div className="relative mb-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-2" />
+              <Input
+                placeholder="Ajouter un participant…"
+                className="pl-9"
+                value={searchParticipant}
+                onChange={(e) => setSearchParticipant(e.target.value)}
+              />
+            </div>
+            <div className="max-h-36 divide-y divide-border overflow-y-auto rounded-md border border-border">
+              {filteredProfiles.slice(0, 20).map((p) => {
+                const checked = selectedIds.has(p.id);
+                const isMe = p.id === myId;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => toggleParticipant(p.id)}
+                    disabled={isMe}
+                    className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition ${checked ? "bg-accent-subtle" : "hover:bg-inset"} ${isMe ? "cursor-default opacity-60" : ""}`}
+                  >
+                    <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-primary bg-primary" : "border-border-strong"}`}>
+                      {checked && <span className="text-[11px] leading-none text-primary-foreground">✓</span>}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-foreground">{p.nom_complet}</span>
+                      <Badge tone={groupeTone(p.groupe)} className="mt-0.5">
+                        <GroupeIcon groupe={p.groupe} />
+                        {GROUPE_LABELS[p.groupe] ?? p.groupe}
+                      </Badge>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
-          <button onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">
-            Annuler
-          </button>
-          <button
-            onClick={handleCreate}
-            disabled={step === "saving"}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1E6091] disabled:opacity-40"
-          >
-            {step === "saving" ? <><Loader2 className="h-4 w-4 animate-spin" /> Création…</> : "Créer l'espace"}
-          </button>
-        </div>
-      </div>
-    </div>
+          {error && (
+            <p role="alert" className="flex items-center gap-2 rounded-xl border border-danger/25 bg-danger-subtle px-3 py-2 text-sm font-medium text-danger">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              {error}
+            </p>
+          )}
+        </DialogBody>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+          <Button type="button" variant="primary" loading={step === "saving"} onClick={handleCreate}>
+            {step === "saving" ? "Création…" : "Créer l'espace"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -352,7 +364,7 @@ function EspaceDetail({
   myId: string | null;
   onBack: () => void;
 }) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [tab, setTab] = useState<"messages" | "documents">("messages");
 
   // Messages
@@ -375,7 +387,7 @@ function EspaceDetail({
       .eq("conversation_id", espace.id)
       .order("envoye_le");
     setMessages((data ?? []) as unknown as Message[]);
-  }, [espace.id]);
+  }, [espace.id, supabase]);
 
   const fetchDocs = useCallback(async () => {
     const { data } = await supabase
@@ -384,7 +396,7 @@ function EspaceDetail({
       .eq("conversation_id", espace.id)
       .order("created_at", { ascending: false });
     setDocs((data ?? []) as unknown as Doc[]);
-  }, [espace.id]);
+  }, [espace.id, supabase]);
 
   const { isLoading: messagesLoading } = useChargement(fetchMessages, [fetchMessages]);
   const { isLoading: docsLoading } = useChargement(fetchDocs, [fetchDocs], tab === "documents");
@@ -402,7 +414,7 @@ function EspaceDetail({
       }, () => { void fetchMessages(); })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [espace.id, fetchMessages]);
+  }, [espace.id, fetchMessages, supabase]);
 
   const handleSend = async () => {
     if (!corps.trim() || sending || !myId) return;
@@ -460,45 +472,45 @@ function EspaceDetail({
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-b border-slate-100 bg-white px-5 py-4">
+      <div className="border-b border-border bg-card px-5 py-4">
         <div className="flex items-start gap-3">
-          <button onClick={onBack} className="mt-0.5 shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 lg:hidden">
+          <button onClick={onBack} className="mt-0.5 shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-inset lg:hidden">
             <ChevronLeft className="h-4 w-4" />
           </button>
           <div className="min-w-0 flex-1">
-            <h2 className="truncate font-semibold text-slate-800">{espace.sujet ?? "Espace sans titre"}</h2>
+            <h2 className="truncate font-semibold text-foreground">{espace.sujet ?? "Espace sans titre"}</h2>
             {espace.lotissement && (
-              <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
+              <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-2">
                 <Building2 className="h-3 w-3" />
                 {espace.lotissement.nom}{espace.lotissement.village ? ` — ${espace.lotissement.village}` : ""}
               </p>
             )}
             <div className="mt-1.5 flex flex-wrap gap-1">
               {espace.participants.map((p) => (
-                <span key={p.id} className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${GROUPE_COLORS[p.groupe] ?? "bg-slate-100 text-slate-600 border-slate-200"}`}>
+                <Badge key={p.id} tone={groupeTone(p.groupe)}>
                   <GroupeIcon groupe={p.groupe} />
                   {p.nom_complet.split(" ").slice(0, 2).join(" ")}
-                </span>
+                </Badge>
               ))}
             </div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="mt-3 flex gap-1 rounded-xl border border-slate-100 bg-slate-50 p-1 w-fit">
+        <div className="mt-3 flex w-fit gap-1 rounded-xl border border-border bg-inset p-1">
           <button
             onClick={() => setTab("messages")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${tab === "messages" ? "bg-white shadow-sm text-[#0D3B66]" : "text-slate-500 hover:text-slate-700"}`}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${tab === "messages" ? "bg-card text-accent shadow-panel" : "text-muted-foreground hover:text-foreground"}`}
           >
             <MessageSquare className="h-3.5 w-3.5" /> Messages
           </button>
           <button
             onClick={() => setTab("documents")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${tab === "documents" ? "bg-white shadow-sm text-[#0D3B66]" : "text-slate-500 hover:text-slate-700"}`}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${tab === "documents" ? "bg-card text-accent shadow-panel" : "text-muted-foreground hover:text-foreground"}`}
           >
             <FileText className="h-3.5 w-3.5" /> Documents
             {docs.length > 0 && (
-              <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-slate-200 px-1 text-xs text-slate-600">{docs.length}</span>
+              <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-border px-1 text-xs text-muted-foreground">{docs.length}</span>
             )}
           </button>
         </div>
@@ -507,28 +519,28 @@ function EspaceDetail({
       {/* ── Onglet Messages ── */}
       {tab === "messages" && (
         <>
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
             {messagesLoading ? (
-              <div className="flex justify-center py-8 text-sm text-slate-400"><Loader2 className="h-5 w-5 animate-spin" /></div>
+              <div className="flex justify-center py-8 text-muted-2"><Loader2 className="h-5 w-5 animate-spin" /></div>
             ) : messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-                <MessageSquare className="h-8 w-8 text-slate-200" />
-                <p className="text-sm text-slate-400">Aucun message pour l&apos;instant.</p>
-                <p className="text-xs text-slate-300">Démarrez la concertation ci-dessous.</p>
+                <MessageSquare className="h-8 w-8 text-muted-2" />
+                <p className="text-sm text-muted-foreground">Aucun message pour l&apos;instant.</p>
+                <p className="text-xs text-muted-2">Démarrez la concertation ci-dessous.</p>
               </div>
             ) : (
               messages.map((m) => {
                 const isMine = m.expediteur === myId;
                 return (
                   <div key={m.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 ${isMine ? "bg-[#0D3B66] text-white rounded-br-sm" : "bg-slate-100 text-slate-800 rounded-bl-sm"}`}>
+                    <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 ${isMine ? "rounded-br-sm bg-primary text-primary-foreground" : "rounded-bl-sm bg-inset text-foreground"}`}>
                       {!isMine && m.profil && (
-                        <p className={`mb-1 text-xs font-semibold ${GROUPE_COLORS[m.profil.groupe] ? "text-current" : "text-slate-500"}`}>
+                        <p className="mb-1 text-xs font-semibold text-muted-foreground">
                           {m.profil.nom_complet} · {GROUPE_LABELS[m.profil.groupe] ?? m.profil.groupe}
                         </p>
                       )}
                       <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.corps}</p>
-                      <p className={`mt-1 text-right text-xs ${isMine ? "text-white/60" : "text-slate-400"}`}>{fmtHeure(m.envoye_le)}</p>
+                      <p className={`mt-1 text-right text-xs ${isMine ? "text-primary-foreground/60" : "text-muted-2"}`}>{fmtHeure(m.envoye_le)}</p>
                     </div>
                   </div>
                 );
@@ -538,24 +550,27 @@ function EspaceDetail({
           </div>
 
           {/* Zone de saisie */}
-          <div className="border-t border-slate-100 bg-white px-4 py-3">
-            {sendError && <p className="mb-2 text-sm text-red-600">{sendError}</p>}
+          <div className="border-t border-border bg-card px-4 py-3">
+            {sendError && <p className="mb-2 text-sm text-danger">{sendError}</p>}
             <div className="flex items-end gap-2">
-              <textarea
+              <Textarea
                 value={corps}
                 onChange={(e) => setCorps(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
                 placeholder="Votre message… (Entrée pour envoyer)"
                 rows={2}
-                className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E6091]/30"
+                className="flex-1"
               />
-              <button
+              <Button
+                type="button"
+                variant="primary"
+                size="icon"
                 onClick={() => void handleSend()}
                 disabled={!corps.trim() || sending}
-                className="shrink-0 rounded-xl bg-[#0D3B66] p-2.5 text-white transition hover:bg-[#1E6091] disabled:opacity-40"
+                aria-label="Envoyer"
               >
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              </button>
+              </Button>
             </div>
           </div>
         </>
@@ -573,55 +588,63 @@ function EspaceDetail({
               className="hidden"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleUpload(f); e.target.value = ""; }}
             />
-            <button
+            <Button
+              type="button"
+              variant="outline"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="inline-flex items-center gap-2 rounded-xl border border-[#0D3B66] px-4 py-2 text-sm font-semibold text-[#0D3B66] transition hover:bg-[#0D3B66] hover:text-white disabled:opacity-40"
             >
               {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               {uploading ? "Envoi en cours…" : "Ajouter un document"}
-            </button>
-            {uploadError && <p className="mt-2 text-sm text-red-600">{uploadError}</p>}
-            <p className="mt-1.5 text-xs text-slate-400">PDF, Word, Excel, images — 20 Mo max par fichier</p>
+            </Button>
+            {uploadError && <p className="mt-2 text-sm text-danger">{uploadError}</p>}
+            <p className="mt-1.5 text-xs text-muted-2">PDF, Word, Excel, images — 20 Mo max par fichier</p>
           </div>
 
           {docsLoading ? (
-            <div className="flex justify-center py-8 text-slate-400"><Loader2 className="h-5 w-5 animate-spin" /></div>
+            <div className="flex justify-center py-8 text-muted-2"><Loader2 className="h-5 w-5 animate-spin" /></div>
           ) : docs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-12 text-center rounded-2xl border border-dashed border-slate-200">
-              <FileText className="h-8 w-8 text-slate-200" />
-              <p className="text-sm text-slate-400">Aucun document partagé.</p>
+            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-12 text-center">
+              <FileText className="h-8 w-8 text-muted-2" />
+              <p className="text-sm text-muted-foreground">Aucun document partagé.</p>
             </div>
           ) : (
             <ul className="space-y-2">
               {docs.map((doc) => (
-                <li key={doc.id} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 shadow-sm hover:border-slate-200">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-50 border border-slate-100">
-                    <FileText className="h-4 w-4 text-slate-400" />
+                <li key={doc.id} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-panel transition hover:border-border-strong">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-inset">
+                    <FileText className="h-4 w-4 text-muted-2" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-800">{doc.nom_fichier}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="truncate text-sm font-medium text-foreground">{doc.nom_fichier}</p>
+                    <p className="text-xs text-muted-2">
                       {doc.uploader?.nom_complet ?? "Inconnu"} · {fmt(doc.created_at)}
                       {doc.taille_octets ? ` · ${fmtOctets(doc.taille_octets)}` : ""}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => void handleDownload(doc)}
-                      className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-[#0D3B66]"
                       title="Télécharger"
+                      aria-label="Télécharger"
                     >
                       <Download className="h-4 w-4" />
-                    </button>
+                    </Button>
                     {doc.uploader?.nom_complet && (
-                      <button
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
                         onClick={() => void handleDelete(doc)}
-                        className="rounded-lg p-1.5 text-slate-300 transition hover:bg-red-50 hover:text-red-500"
                         title="Supprimer"
+                        aria-label="Supprimer"
+                        className="text-muted-2 hover:bg-danger-subtle hover:text-danger"
                       >
                         <Trash2 className="h-4 w-4" />
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </li>
@@ -637,7 +660,8 @@ function EspaceDetail({
 // ─── Page principale ──────────────────────────────────────────────────────────
 
 export default function ConcertationPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+  const { counts } = useBadgeCounts();
   const [myId, setMyId] = useState<string | null>(null);
   const [espaces, setEspaces] = useState<Espace[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -649,7 +673,7 @@ export default function ConcertationPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) setMyId(user.id);
     })();
-  }, []);
+  }, [supabase]);
 
   const fetchEspaces = useCallback(async () => {
     // Espaces où je suis participant
@@ -702,9 +726,9 @@ export default function ConcertationPage() {
         participants: participantsByConv[c.id] ?? [],
       }))
     );
-  }, []);
+  }, [supabase]);
 
-  const { isLoading: loading } = useChargement(fetchEspaces, [fetchEspaces]);
+  const { isLoading: loading, recharger } = useChargement(fetchEspaces, [fetchEspaces]);
 
   const filteredEspaces = espaces.filter((e) => {
     const q = search.toLowerCase();
@@ -715,112 +739,105 @@ export default function ConcertationPage() {
   const selected = selectedId ? espaces.find((e) => e.id === selectedId) ?? null : null;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-      {/* ── Panneau gauche : liste ── */}
-      <div className={`flex flex-col border-r border-slate-100 bg-slate-50/40 ${selected ? "hidden lg:flex" : "flex"} w-full lg:w-72 xl:w-80 shrink-0`}>
-        {/* Header liste */}
-        <div className="border-b border-slate-100 px-4 py-4">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <h1 className="text-sm font-bold text-[#0D3B66]">Concertation</h1>
-              <p className="text-xs text-slate-400">Espaces d&apos;échange multi-acteurs</p>
+    <AppShell loading={loading} counts={counts} onRefresh={recharger}>
+      <div className="flex h-[calc(100vh-10rem)] min-h-[560px] overflow-hidden rounded-2xl border border-border bg-card shadow-panel">
+        {/* ── Panneau gauche : liste ── */}
+        <div className={`flex flex-col border-r border-border bg-inset/40 ${selected ? "hidden lg:flex" : "flex"} w-full shrink-0 lg:w-72 xl:w-80`}>
+          {/* Header liste */}
+          <div className="border-b border-border px-4 py-4">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h1 className="text-sm font-bold text-foreground">Concertation</h1>
+                <p className="text-xs text-muted-2">Espaces d&apos;échange multi-acteurs</p>
+              </div>
+              <Button type="button" variant="primary" size="sm" onClick={() => setShowNouveau(true)}>
+                <Plus className="h-3.5 w-3.5" /> Nouveau
+              </Button>
             </div>
-            <button
-              onClick={() => setShowNouveau(true)}
-              className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-[#0D3B66] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#1E6091]"
-            >
-              <Plus className="h-3.5 w-3.5" /> Nouveau
-            </button>
+            <div className="relative mt-3">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-2" />
+              <Input
+                placeholder="Rechercher…"
+                className="pl-9"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
           </div>
-          <div className="relative mt-3">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-            <Input
-              placeholder="Rechercher…"
-              className="pl-9 text-sm"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+
+          {/* Liste */}
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <div className="flex justify-center py-12 text-muted-2"><Loader2 className="h-5 w-5 animate-spin" /></div>
+            ) : filteredEspaces.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-center">
+                <MessageSquare className="h-8 w-8 text-muted-2" />
+                <p className="text-sm text-muted-foreground">Aucun espace de concertation.</p>
+                <Button type="button" variant="primary" size="sm" onClick={() => setShowNouveau(true)}>
+                  Créer le premier
+                </Button>
+              </div>
+            ) : (
+              <ul className="divide-y divide-border">
+                {filteredEspaces.map((e) => {
+                  const isSelected = selected?.id === e.id;
+                  return (
+                    <li key={e.id}>
+                      <button
+                        onClick={() => setSelectedId(e.id)}
+                        className={`w-full border-l-2 px-4 py-3.5 text-left transition ${isSelected ? "border-accent bg-accent-subtle" : "border-transparent hover:bg-inset"}`}
+                      >
+                        <p className="truncate text-sm font-semibold text-foreground">{e.sujet ?? "Sans titre"}</p>
+                        {e.lotissement && (
+                          <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-2">
+                            <Building2 className="h-3 w-3 shrink-0" />
+                            {e.lotissement.nom}
+                          </p>
+                        )}
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {e.participants.slice(0, 4).map((p) => (
+                            <Badge key={p.id} tone={groupeTone(p.groupe)}>
+                              <GroupeIcon groupe={p.groupe} />
+                              {GROUPE_LABELS[p.groupe] ?? p.groupe}
+                            </Badge>
+                          ))}
+                          {e.participants.length > 4 && (
+                            <Badge tone="neutral">+{e.participants.length - 4}</Badge>
+                          )}
+                        </div>
+                        <p className="mt-1 text-right text-xs text-muted-2">{fmt(e.cree_le)}</p>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </div>
 
-        {/* Liste */}
-        <div className="flex-1 overflow-y-auto">
-          {loading ? (
-            <div className="flex justify-center py-12 text-slate-400"><Loader2 className="h-5 w-5 animate-spin" /></div>
-          ) : filteredEspaces.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-12 px-4 text-center">
-              <MessageSquare className="h-8 w-8 text-slate-200" />
-              <p className="text-sm text-slate-400">Aucun espace de concertation.</p>
-              <button
-                onClick={() => setShowNouveau(true)}
-                className="rounded-xl bg-[#0D3B66] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1E6091]"
-              >
-                Créer le premier
-              </button>
-            </div>
+        {/* ── Panneau droit : détail ── */}
+        <div className={`min-w-0 flex-1 ${selected ? "flex" : "hidden lg:flex"} flex-col`}>
+          {selected ? (
+            <EspaceDetail
+              espace={selected}
+              myId={myId}
+              onBack={() => setSelectedId(null)}
+            />
           ) : (
-            <ul className="divide-y divide-slate-100">
-              {filteredEspaces.map((e) => {
-                const isSelected = selected?.id === e.id;
-                return (
-                  <li key={e.id}>
-                    <button
-                      onClick={() => setSelectedId(e.id)}
-                      className={`w-full px-4 py-3.5 text-left transition ${isSelected ? "bg-[#0D3B66]/6 border-l-2 border-[#0D3B66]" : "hover:bg-slate-50 border-l-2 border-transparent"}`}
-                    >
-                      <p className="truncate text-sm font-semibold text-slate-800">{e.sujet ?? "Sans titre"}</p>
-                      {e.lotissement && (
-                        <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-400">
-                          <Building2 className="h-3 w-3 shrink-0" />
-                          {e.lotissement.nom}
-                        </p>
-                      )}
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {e.participants.slice(0, 4).map((p) => (
-                          <span key={p.id} className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-xs ${GROUPE_COLORS[p.groupe] ?? "bg-slate-100 text-slate-500 border-slate-200"}`}>
-                            <GroupeIcon groupe={p.groupe} />
-                            {GROUPE_LABELS[p.groupe] ?? p.groupe}
-                          </span>
-                        ))}
-                        {e.participants.length > 4 && (
-                          <span className="rounded-full border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">+{e.participants.length - 4}</span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-right text-xs text-slate-300">{fmt(e.cree_le)}</p>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-inset">
+                <MessageSquare className="h-7 w-7 text-muted-2" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground">Sélectionnez un espace</p>
+                <p className="mt-1 text-sm text-muted-foreground">ou créez un nouvel espace de concertation entre SGNF, la Chefferie, le Chef de famille et l&apos;Opérateur.</p>
+              </div>
+              <Button type="button" variant="primary" onClick={() => setShowNouveau(true)}>
+                <Plus className="h-4 w-4" /> Nouvel espace
+              </Button>
+            </div>
           )}
         </div>
-      </div>
-
-      {/* ── Panneau droit : détail ── */}
-      <div className={`min-w-0 flex-1 ${selected ? "flex" : "hidden lg:flex"} flex-col`}>
-        {selected ? (
-          <EspaceDetail
-            espace={selected}
-            myId={myId}
-            onBack={() => setSelectedId(null)}
-          />
-        ) : (
-          <div className="flex flex-col items-center justify-center gap-4 h-full text-center px-8">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-50 border border-slate-100">
-              <MessageSquare className="h-7 w-7 text-slate-300" />
-            </div>
-            <div>
-              <p className="font-semibold text-slate-700">Sélectionnez un espace</p>
-              <p className="mt-1 text-sm text-slate-400">ou créez un nouvel espace de concertation entre SGNF, la Chefferie, le Chef de famille et l&apos;Opérateur.</p>
-            </div>
-            <button
-              onClick={() => setShowNouveau(true)}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1E6091]"
-            >
-              <Plus className="h-4 w-4" /> Nouvel espace
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Modal */}
@@ -835,6 +852,6 @@ export default function ConcertationPage() {
           }}
         />
       )}
-    </div>
+    </AppShell>
   );
 }
