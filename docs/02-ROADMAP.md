@@ -57,7 +57,7 @@ Dashboards, home institutionnelle (nav horizontale + sidebar simplifiée), espac
 Montants réels validés le 03/07/2026 (détail complet dans `Grille_Tarifaire_SGNF_2026-07-03.md`, racine du repo) :
 
 | Acte | Montant | Commission SGNF |
-|---|---|---|
+| --- | --- | --- |
 | Attestation de cession | 100 000 – 150 000 FCFA | 10 000 FCFA |
 | Vente de terrain | — | Aucune |
 | Entérinement chefferie (APFC) | 550 000 FCFA | 50 000 FCFA |

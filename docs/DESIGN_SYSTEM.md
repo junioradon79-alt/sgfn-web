@@ -16,7 +16,7 @@ couverture par district — `Abidjan 97 %`, `Yamoussoukro 90 %`… Ces chiffres
 La réalité, mesurée en base le 13/07/2026 :
 
 | | |
-|---|---|
+| --- | --- |
 | Lots | **898** — dont **1 seul géolocalisé** |
 | Périmètres | **2**, aux mêmes coordonnées (Anyama · Ebimpé) |
 | Attestations de cession | 90 émises, **87 délivrées** |
@@ -37,7 +37,7 @@ d'illustration.** Un zéro se conçoit (`EmptyState`), il ne se maquille pas.
 ## 2. Ce que l'écran répond, dans l'ordre
 
 | # | Question du pilote | Composant |
-|---|---|---|
+| --- | --- | --- |
 | 1 | Où en est le patrimoine ? | `KpiRow` — 4 indicateurs |
 | 2 | Où est-il, physiquement ? | **`TerritoryMap`** — composant principal |
 | 3 | Qu'est-ce qui m'attend ? | `AlertCenter` · `ActivityCenter` |
@@ -46,7 +46,7 @@ d'illustration.** Un zéro se conçoit (`EmptyState`), il ne se maquille pas.
 ### Densité
 
 | | Avant | Après |
-|---|---|---|
+| --- | --- | --- |
 | Blocs visibles | 8 | **4** |
 | Widgets | ~20 | **9** |
 
@@ -71,7 +71,7 @@ Soit **−55 %**, au-delà de l'objectif de −40 %. Ce qui a disparu et où c'e
 `*` n'est redéfinie, donc les ~25 pages existantes (écrites en couleurs fixes)
 sont strictement inchangées. Les composants du DS peignent leur propre surface.
 
-```
+```text
 Surfaces   --background --card --elevated --inset
 Texte      --foreground --muted-foreground --muted-2
 Lignes     --border --border-strong --ring

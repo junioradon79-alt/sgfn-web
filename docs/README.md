@@ -43,7 +43,7 @@ Nécessite un `.env.local` avec `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPAB
 ## 5. Index complet
 
 | Fichier | Contenu |
-|---|---|
+| --- | --- |
 | [01-VISION.md](01-VISION.md) | Mission, vision, valeurs, positionnement produit |
 | [02-ROADMAP.md](02-ROADMAP.md) | État d'avancement détaillé + feuille de route priorisée |
 | [03-ARCHITECTURE.md](03-ARCHITECTURE.md) | Stack, contrainte d'hébergement, rôles/routage, edge functions, déploiement |

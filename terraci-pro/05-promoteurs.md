@@ -24,7 +24,7 @@ and qual ilike '%operateur%';
 ## 3. Paliers proposés
 
 | Palier | Pour qui | Ce qu'il inclut |
-|---|---|---|
+| --- | --- | --- |
 | **Découverte** (statu quo, gratuit) | Rôle `operateur` actuel — déjà en production, comme géomètre | Gestion lot par lot (attributions, cessions, paiements individuels), comme aujourd'hui |
 | **Pro Promoteur — Programme** | Promoteur avec un programme actif suivi | Tableau de bord agrégé par programme (composition des lots, actes délivrés, recettes perçues, alertes — même gabarit que le Centre de pilotage/chefferie), scopé à ses propres lotissements |
 | **Pro Promoteur — Multi-programmes** | Promoteur gérant plusieurs programmes/opérateurs sous une même structure | Tout Programme + vue consolidée inter-programmes, export mensuel |

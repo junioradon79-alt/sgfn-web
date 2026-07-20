@@ -7,13 +7,14 @@
 `dossiers-partenaires/05-notaires.md` (§3) : *« la vérification (`/verifier`) est publique et immédiate — utilisable dès aujourd'hui sans intégration technique. Pour un usage plus soutenu (volume important de vérifications, besoin d'historique consolidé), une discussion de partenariat permettrait de cadrer un accès dédié. »*
 
 Deux manques concrets, pas un vague « accès dédié » :
+
 1. **Le prix à l'unité ne tient pas à l'échelle d'un usage professionnel.** Le paywall grand public facture 60 000 FCFA la consultation d'un verdict d'attestation de cession (au-delà de la 1ʳᵉ, gratuite). Un notaire qui authentifie plusieurs actes par mois ne peut pas fonctionner sur ce modèle — il a besoin d'un forfait.
 2. **Aucune mémoire de ses propres vérifications.** Aujourd'hui `/verifier` est un aller simple : on scanne, on lit le verdict, on repart. Rien ne garde trace de ce qu'une étude a déjà vérifié — donc rien ne peut l'alerter si le statut d'un document qu'elle a authentifié change *après coup* (ex. : une attestation validée par l'étude est révoquée trois mois plus tard suite à un litige). C'est le vrai différenciateur professionnel, pas juste « moins cher à l'unité ».
 
 ## 2. Paliers proposés
 
 | Palier | Pour qui | Ce qu'il inclut |
-|---|---|---|
+| --- | --- | --- |
 | **Découverte** (statu quo, gratuit) | Tout le monde, y compris les études qui ne s'abonnent pas | Scan QR public, 1ʳᵉ consultation de verdict gratuite par document, 60 000 FCFA à l'unité au-delà — inchangé |
 | **Pro Notaire — Essentiel** | Étude individuelle, usage régulier | Vérifications illimitées (ou plafond haut, ex. 100/mois — à trancher), tableau de bord « Historique de mes vérifications », **alerte si un document déjà vérifié change de statut** (révoqué, litige ouvert) |
 | **Pro Notaire — Étude** | Cabinet avec plusieurs clercs/collaborateurs | Tout l'Essentiel + plusieurs comptes utilisateurs sous un même abonnement, export mensuel (PDF/CSV) des vérifications effectuées — utile comme pièce de conformité interne |

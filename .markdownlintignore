@@ -1,0 +1,23 @@
+# Contenu généré ou tiers — jamais écrit à la main, donc jamais à corriger.
+# Sans cette liste, le panneau « Problèmes » de l'éditeur affiche quelques
+# milliers de signalements de style sur des fichiers que personne ne relit,
+# ce qui noie les vrais.
+
+node_modules/
+
+# Rapports du graphe de connaissance, régénérés par `graphify update .`
+# (déjà hors dépôt, cf. .gitignore).
+graphify-out/
+
+# Export statique Next.js et sa copie Capacitor dans le projet Android.
+out/
+android/
+
+# Paquet de handoff design fourni par le directeur (source externe).
+SGFN Dashboard recreation/
+
+# Skills installés (graphify, ui-ux-pro-max, caveman-*) : code tiers, on ne
+# corrige pas le style d'un paquet qu'on ne maintient pas et que sa prochaine
+# mise à jour réécrirait.
+.agents/skills/
+.claude/skills/

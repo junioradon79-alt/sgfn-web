@@ -35,7 +35,7 @@ Un métier à la fois, jusqu'à une offre concrète (paliers + périmètre fonct
 Chaque métier a fait remonter une forme de besoin différente — ce n'est pas un hasard, ça structure ce qui reste à faire :
 
 | Métier | Ce qu'il paie vraiment | Recoupe |
-|---|---|---|
+| --- | --- | --- |
 | Notaires | Volume de vérifications + historique/alerte | Fondation commune (§02) |
 | Banques | Accès API programmatique | API publique v1 (Phase 3 pt.2) |
 | Agences | Volume de publication (mandats) | Tension avec le modèle d'intermédiation marketplace déjà acté |

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint/main/schema/markdownlint-config-schema.json",
+
+  "//": "Règles désactivées parce qu'elles contredisent une convention d'écriture assumée de ce projet, PAS pour masquer des défauts. Tout ce qui touche à la structure du document (lignes vides autour des titres et des listes, tableaux, fin de fichier) reste actif.",
+
+  "MD013": false,
+  "//MD013": "Longueur de ligne. La documentation de ce projet — document directeur en tête — est de la prose française en paragraphes longs, une idée par puce, souvent 200 à 500 caractères. Recouper à 80 colonnes rendrait les diffs illisibles (une reformulation déplacerait toutes les lignes suivantes) sans rien apprendre au lecteur. 3 103 signalements, aucun défaut.",
+
+  "MD025": false,
+  "//MD025": "Titre de niveau 1 unique. Plusieurs documents (docs/05-DESIGN_SYSTEM.md) numérotent leurs sections en `# 1.`, `# 2.` — choix de mise en page délibéré, ces fichiers ne sont pas des pages web.",
+
+  "MD033": false,
+  "//MD033": "HTML dans le markdown. Utilisé à dessein pour les blocs `<details>` et quelques mises en forme que le markdown ne couvre pas.",
+
+  "MD036": false,
+  "//MD036": "Emphase en guise de titre. Le style de ce projet ouvre les puces par un segment en gras (`**Leçon du 20/07 —** …`) : c'est une amorce de phrase, pas un titre déguisé."
+}

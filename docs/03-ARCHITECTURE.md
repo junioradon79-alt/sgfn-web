@@ -11,7 +11,7 @@
 Le projet se compose de **deux dépôts Git indépendants**, partageant le **même backend Supabase** :
 
 | Dépôt | Rôle | Domaine cible (marque) | Domaine réellement actif |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `sgfn-web` (`c:\Dev\sgfn-web`) | Plateforme institutionnelle SGNF — tableaux de bord par rôle, gestion foncière, documents, vérification QR | `https://sgnf.ci` | `https://sgfn.ci` |
 | `monterrain-web` (`c:\Dev\monterrain-web`) | Marketplace publique « TerraCI Market » (ex « Mon Terrain », renommée le 15/07/2026 — nom/logo/tokens seulement, domaine inchangé) — annonces de parcelles vérifiées | `https://monterrain.sgnf.ci` | `https://monterrain.sgfn.ci` |
 
@@ -53,7 +53,7 @@ Vercel a été envisagé puis écarté (compte payant + DNS + GitHub non souhait
 
 Colonne `profiles.groupe` (enum Postgres `groupe_utilisateur`), valeurs exactes :
 
-```
+```text
 admin, chefferie, proprietaire, operateur, acquereur, verificateur, agent_ia, geometre, commissaire, amenageur
 ```
 
@@ -62,7 +62,7 @@ admin, chefferie, proprietaire, operateur, acquereur, verificateur, agent_ia, ge
 Le routage post-connexion (`src/app/dashboard/page.tsx`, table `ROLE_HOME`) :
 
 | Rôle | Espace |
-|---|---|
+| --- | --- |
 | `proprietaire` | `/dashboard/proprietaire` |
 | `acquereur`, `amenageur` | `/dashboard/acquisition` |
 | `operateur` | `/dashboard/operateur` |
@@ -76,7 +76,7 @@ Le mapping `acquereur`/`amenageur` → acquisition et le fait que `admin`/`geome
 
 # 5. Structure des dossiers (sgfn-web)
 
-```
+```text
 src/
   app/                  routes Next.js (App Router), voir liste complète ci-dessous
     dashboard/          espaces par rôle (proprietaire, operateur, commissaire, chefferie, acquisition, admin...)
@@ -105,7 +105,7 @@ public/.htaccess         routing Apache (mappe /route → route.html, sert les f
 État au 04/07/2026 — toutes `ACTIVE` :
 
 | Fonction | JWT requis | Rôle |
-|---|---|---|
+| --- | --- | --- |
 | `generation-document` (v43 au 15/07) | oui | Génère les PDF (attestation, certificat, APFC, quittance, PV bornage) via PDFMonkey + repli HTML, appelée par trigger DB (`sgfn_call_edge`). QR généré en `errorCorrectionLevel: "H"` avec blason SGNF incrusté + légende anti-phishing sous le QR sur les 3 gabarits légaux (attestation cession/certificat vente/APFC) |
 | `telecharger-document` | oui | Sert une URL signée service_role pour un document généré/délivré, après vérif du jeton appelant |
 | `verification-qr` (v15) | non | Vérifie une attestation/certificat/APFC par référence ou jeton QR, journalise le scan dans `scans_qr`. Depuis le 07/07 : verdict des **attestations de cession** bloqué derrière la consultation payante (60 000 FCFA, table `consultations_qr`) — certificats et APFC restent gratuits |
@@ -132,9 +132,11 @@ Aucun serveur Node en prod — déploiement = build statique + upload manuel cPa
 
 1. `pnpm build` → `next build` puis `scripts/create-out.js` qui assemble `out/` (HTML, `_next/static`, contenu de `public/`, `.htaccess`).
 2. Archiver le **contenu** de `out/` en **`.tar.gz`** :
+
    ```bash
    tar -czf sgfn-deploy.tar.gz -C out .
    ```
+
 3. Upload + extraction manuelle via le Gestionnaire de fichiers cPanel (pas de SSH disponible sur cet hébergement).
 
 ⚠️ **Piège critique, déjà rencontré en prod : ne JAMAIS livrer en `.zip`.** Un zip créé par `Compress-Archive` (PowerShell) ne préserve pas les permissions Unix → les dossiers extraits sortent en `644` (sans bit exécution) → **403 Forbidden sur tout `/_next/`** (page sans CSS/JS). Symptôme distinctif : un fichier inexistant sous `/_next/` renvoie 403 et non 404 = dossier non traversable.

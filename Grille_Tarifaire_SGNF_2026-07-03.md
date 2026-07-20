@@ -5,7 +5,7 @@
 ## 1. Actes payants — plateforme SGNF
 
 | Acte | Montant (fourchette) | Commission SGNF | Statut |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Attestation de cession (délivrance) | 100 000 – 150 000 FCFA | 10 000 FCFA | ✅ validé |
 | Consultation via QR code d'une attestation de cession | 60 000 FCFA (dont 50 000 pour la chefferie concernée) | 10 000 FCFA | ✅ validé (montants réajustés le 07/07) — **implémenté le 07/07** : verdict bloqué tant que la consultation n'est pas payée (voir §4) |
 | Vente de terrain | — | Aucune commission | ✅ validé |
@@ -13,7 +13,7 @@
 ## 2. Honoraires géomètre — par démarche (table `demarches`)
 
 | Démarche | Montant (fourchette) | Commission SGNF | Statut |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Entérinement chefferie (délivrance APFC) | 550 000 FCFA | 50 000 FCFA | ✅ validé |
 | Mutation acquéreur | 550 000 FCFA | 50 000 FCFA | ✅ validé |
 | Transmission | 300 000 – 500 000 FCFA | 30 000 – 50 000 FCFA | ✅ validé |
@@ -29,7 +29,7 @@
 ## 3. Marketplace « Mon Terrain » (monterrain-web)
 
 | Acte | Montant | Statut |
-|---|---|---|
+| --- | --- | --- |
 | Pass contact (7 jours, 10 mises en relation, non remboursable) | 5 000 FCFA | ✅ réel, actif en base — paiement CinetPay pas encore opérationnel en prod (secret manquant) |
 | Commission SGNF sur les ventes de lots via la marketplace | 0 FCFA | ✅ décision déjà actée |
 
@@ -50,5 +50,6 @@ La vérification d'une attestation de cession via le QR code est un acte payant 
 ---
 
 **Prochaine étape suggérée** : chiffrer bornage et demande ACD, trancher les points ouverts sur la consultation QR payante, puis décider s'il faut :
+
 - poser les montants comme valeurs par défaut côté UI (`dashboard/paiements`, formulaire démarches) au lieu d'une saisie libre à chaque fois ;
 - introduire une vraie table `tarifs` en base pour centraliser ces montants (aujourd'hui aucune table de ce type n'existe — tout est saisi manuellement paiement par paiement).

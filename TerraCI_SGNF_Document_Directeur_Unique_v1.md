@@ -51,7 +51,7 @@ Tout choix produit doit satisfaire quatre critères : **Sécurité, Simplicité,
 ## 3. Écosystème produit cible et correspondance avec les acquis
 
 | Produit TerraCI (vision) | Acquis SGNF (réalité au 07/07/2026 soir) | État |
-|---|---|---|
+| --- | --- | --- |
 | TerraCI Verify | `/verifier` — vérification QR ; verdict d'attestation de cession payant (60 000 FCFA) sauf la 1re attestation, gratuite ; **badge de marque TerraCI Verify posé le 15/07** | ✅ En production |
 | TerraCI Market | monterrain.sgfn.ci — pass 5 000 FCFA / 7 jours / 10 contacts ; **renommé de « Mon Terrain » le 15/07** (logo + nom + tokens couleur ; palette terre/argile/sable du reste du site volontairement pas remplacée) | ✅ En production (v1), marque à jour |
 | TerraCI Docs | Coffre-fort documentaire, génération d'actes, versionnement, **tarification par palier des attestations de cession** | ✅ En production |
@@ -110,7 +110,7 @@ Tout choix produit doit satisfaire quatre critères : **Sécurité, Simplicité,
 ### 4.3 Dette technique et risques ouverts (au 16/07)
 
 | # | Sujet | Gravité | Détail |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 1 | **Activation des notifications WhatsApp** | 🟡 | Fondation déployée et **inerte**. Manque : l'approbation des modèles Meta (`sgnf_action_agence`, `sgnf_acquereur_etape`, ~24-48h) + les 2 secrets edge `WHATSAPP_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID`. Aussi : **6 profils/18 sans numéro `telephone` valide** (marqués `ignore` à l'envoi) → prévoir le téléphone obligatoire à l'inscription. |
 | 2 | **Secrets CinetPay absents** | 🔴 Bloquant revenus | Toute l'infra en ligne est codée **et déployée** (edge fns, ventilation) ; il ne manque que 2 secrets edge `CINETPAY_API_KEY`/`CINETPAY_SITE_ID`. Un bug latent du webhook (`marquer_paiement_recu`) a été corrigé le 09/07. Un bug CORS latent bloquant tout appel `initier-paiement` depuis un vrai navigateur a aussi été corrigé le 11/07 (voir §10) — sans lui, poser les secrets n'aurait pas suffi. Sans secrets : paiement en ligne (pass, attestation, vente) et paywall QR indisponibles. |
 | 3 | Pivot plans CAD → DXF | 🟡 | Commit `25a91cc` non testé en réel (rendu blanc DWG contourné). |
@@ -151,6 +151,7 @@ Tout choix produit doit satisfaire quatre critères : **Sécurité, Simplicité,
 ### A1 — Architecture de marque ✅ TRANCHÉ (13/07/2026)
 
 **Décision actée : architecture à deux niveaux.**
+
 - **SGNF** reste la marque institutionnelle et back-office (crédibilité auprès des chefferies, commissaires, administrations ; le domaine sgfn.ci est en ligne et connu des utilisateurs).
 - **TerraCI** devient la marque produit grand public et commerciale, coiffant progressivement Mon Terrain (→ TerraCI Market), la vérification (→ TerraCI Verify), etc.
 - Aucun renommage de ce qui fonctionne ; la migration de marque se fait produit par produit, au rythme des refontes.
@@ -160,6 +161,7 @@ Tout choix produit doit satisfaire quatre critères : **Sécurité, Simplicité,
 ### A2 — Positionnement institutionnel
 
 Deux voies possibles, qui conditionnent toute la Phase 3 :
+
 - **Voie privée** : plateforme de confiance privée, revenus autonomes (pass, paywall QR, actes, abonnements Pro, API). Rapide, indépendante, mais plafond de légitimité pour le passage national.
 - **Voie partenariale** : rapprochement avec les services cadastraux / collectivités / ministères, jusqu'à une éventuelle délégation. Plus lent, mais seul chemin crédible vers le statut d'infrastructure nationale visé par la Constitution TerraCI.
 
@@ -168,12 +170,14 @@ Deux voies possibles, qui conditionnent toute la Phase 3 :
 ### A3 — Doctrine documentaire
 
 Les Livres VIII–XVII sont rédigés **en rétro-documentant SGNF**, pas en théorie :
+
 - Livre VIII (Base de données) : généré à ~80 % depuis le schéma Supabase existant.
 - Livre IX (API) : dérivé des edge functions et de la future API publique.
 - Livre X (Sécurité) : consolidation des audits déjà menés (advisors, RLS, `generation-document`).
 - Livres XIII–XIV (Business/Marketing) : à partir de la grille tarifaire réelle (y compris le nouveau modèle à paliers) et des dossiers partenaires.
 
 **Doctrine des trois couches de connaissance** — pour éviter les doublons, chaque fait a **un seul foyer** ; les autres couches y renvoient sans le recopier :
+
 - **Graphe de code** (`graphify-out/`, généré par `graphify update .`, hors dépôt) — le *comment* : structure, dépendances, qui-appelle-quoi. Jamais rédigé à la main ; par conséquent **ce document ne décrit pas la forme du code**, seulement les *décisions* d'architecture.
 - **Ce document** (versionné, partageable) — le *pourquoi* : décisions durables, règles métier, arbitrages, roadmap, modèle économique, risques.
 - **Mémoire agent** (`memory/`, hors dépôt) — le *où on en est* : état opératoire et pièges de reprise (emplacement des mots de passe test, `tar.gz` et non `zip`, « pas encore testé en navigateur », bug latent dans tel fichier).
@@ -252,7 +256,7 @@ Le monolithe Supabase actuel est **conservé** jusqu'à la fin du pilote multi-s
 ### Revenus actuels (implémentés)
 
 | Canal | Montant | Répartition | Statut |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Pass marketplace | 5 000 FCFA / 7 j / 10 contacts | 100 % SGNF | En prod (paiement manuel, en ligne dès secrets CinetPay) |
 | Consultation QR attestation (2e et suivantes ; la 1re est gratuite) | 60 000 FCFA | 50 000 chefferie + 10 000 SGNF | Déployé serveur, front à uploader |
 | **Délivrance attestation de cession — 2e** | 30 000 FCFA | 20 000 chefferie + 10 000 SGNF | Codé et testé serveur le 07/07 soir, front à tester |
@@ -410,6 +414,7 @@ Grosse session centrée sur le **parcours Acquéreur** et le **modèle de paieme
 **Paiement en ligne + bug webhook corrigé.** L'infra CinetPay était déjà entièrement codée **et déployée** (edge fns `initier-paiement`/`confirmer-paiement` actives, page `/paiements/retour`) — seuls manquent les secrets `CINETPAY_API_KEY`/`CINETPAY_SITE_ID`. Bug latent trouvé et corrigé : `marquer_paiement_recu` (appelée par le webhook) plantait (`CASE` renvoyant du `text` non casté vers l'enum `statut_paiement`, ERROR 42804) — jamais déclenché car CinetPay inactif, mais aurait cassé la 1re confirmation en ligne. Front « Payer en ligne » ajouté au tunnel + UI admin des tarifs 3e attestation par chefferie sur `/dashboard/paiements`. Commits `8a79041`, `ea2c5d9`.
 
 **Reséquencement majeur — la propriété bascule à la VENTE, plus à la cession.** Décision structurante actée avec le user : le tunnel acquéreur est une **revente réelle**. Trois voies de paiement : (1) **prix du lot** (vente comptant/échelonné) → **Propriétaire** (titulaire actuel, SGNF 0 %, SGNF enregistre le flux) ; (2) **attestation** → **Chefferie + Commission SGNF** ; (3) **frais agrégateur**. La propriété **ne bascule qu'au Certificat de vente** (vente soldée) ; l'attestation devient une étape séparée, après. Les attributions originelles (opérateur rang 1‑2, propriétaire terrien rang 1) restent administratives. Implémenté et testé e2e en rollback :
+
 - `creer_vente` + réécriture des triggers `ventes` : échéances à la création, **certificat + bascule de propriété au solde** (`trg_ventes_soldee`). Comptant → solde immédiat ; échelonné (3×2M) → certificat seulement à la dernière échéance. Commit `e11a984`.
 - **Répartition automatique** (`repartitions_paiement` + trigger `ventiler_paiement`) : vente → Propriétaire 100 % + frais agrégateur absorbés par l'acquéreur ; attestation → Chefferie + Commission SGNF, frais agrégateur **déduits de la commission SGNF**. Frais = **montant fixe configurable** (défaut 0), paiements en ligne uniquement. Commit `e11a984`.
 - **Découplage de l'attestation** : `facturer_attestation_cession` facture le titulaire actuel selon son palier **sans re-transférer la propriété**. `creer_cession` reste pour la cession manuelle admin. Commit `c36f6c7`.

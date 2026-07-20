@@ -22,6 +22,7 @@ Deux façons de représenter « ce compte a un abonnement Pro » étaient sur la
 - Option B — table `abonnements_pro` indépendante des rôles (`profil_id`, `metier`, `palier`, `statut`, `debut`, `fin`), rattachée à n'importe quel compte existant (`acquereur`, `verificateur`, ou un compte créé sans rôle métier particulier). Le paywall de `/verifier` et du futur Passeport consulte cette table plutôt que le groupe : *« ce profil a un abonnement actif → pas de paywall, historique activé »*. Plus simple à étendre (ajouter un métier = une ligne de config, pas une migration d'enum), et ne mélange pas « ce que je peux faire dans l'app » (rôle) avec « ce que je paie » (abonnement).
 
 **Décision confirmée par l'utilisateur : Option B.** Table `abonnements_pro` indépendante des rôles applicatifs, quel que soit le métier (notaire, banque, agence, promoteur). Conséquence directe pour l'implémentation à venir :
+
 - Migration : `abonnements_pro (id, profil_id, metier, palier, statut, debut, fin)`, RLS scopée sur `profil_id = auth.uid()` (+ lecture admin).
 - Tout paywall/gate Pro (`/verifier`, futur Passeport, tableau de bord « Historique de mes vérifications ») doit interroger cette table plutôt que `mon_groupe()` — nouvelle fonction `mon_abonnement_pro_actif(metier)` du même esprit que `ma_chefferie_id()`/`mon_operateur_id()` déjà utilisées ailleurs dans le projet, pour ne pas dupliquer la requête à chaque écran.
 - `suivis_documents` (§3) référence `abonnement_id`, pas `profil_id` directement — cohérent avec ce choix.

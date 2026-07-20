@@ -9,6 +9,7 @@
 Notaires et banques demandaient un **volume de vérifications**. Une agence demande autre chose : **un volume de publication**. Ce n'est pas un consommateur de verdicts, c'est un vendeur professionnel qui gère plusieurs mandats (biens de plusieurs propriétaires différents) et veut les publier efficacement sur Mon Terrain — pas les saisir un par un comme le ferait un propriétaire individuel via « Mettre en vente ».
 
 Deux besoins concrets :
+
 1. **Gérer plusieurs mandats sous un seul compte** — aujourd'hui, publier une annonce (`/dashboard/mettre-en-vente`) est pensé pour un propriétaire qui publie son propre bien. Une agence qui représente 15 vendeurs différents n'a pas de moyen de centraliser ça.
 2. **Volume, pas verdict** — le dossier le dit explicitement : la facturation devrait suivre le nombre d'annonces, pas un forfait de vérifications comme pour les deux métiers précédents.
 
@@ -21,7 +22,7 @@ Une agence professionnelle pourrait naturellement réclamer un contact direct et
 ## 3. Paliers proposés — volume de publication, pas de vérification
 
 | Palier | Pour qui | Ce qu'il inclut |
-|---|---|---|
+| --- | --- | --- |
 | **Découverte** (statu quo, gratuit) | Propriétaire individuel, ou agence avec 1-2 mandats occasionnels | Publication via « Mettre en vente », un bien à la fois, comme aujourd'hui |
 | **Pro Agence — Mandats** | Agence avec plusieurs mandats actifs en continu | Compte agence dédié, tableau de bord listant tous ses mandats (pas seulement le sien), badge « Agence partenaire » sur les annonces, publication centralisée pour le compte de plusieurs propriétaires (avec consentement du propriétaire à tracer, cf. §4) |
 | **Pro Agence — Volume** | Grosse agence, gros portefeuille | Tout Mandats + tarif dégressif au nombre d'annonces actives, reporting mensuel des mandats publiés/vendus |
