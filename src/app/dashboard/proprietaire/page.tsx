@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import {
   Banknote,
   CreditCard,
@@ -13,10 +14,18 @@ import {
   MessageSquare,
   Store,
 } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
-import KpiCard from "@/components/dashboard/KpiCard";
-import { createClient } from "@/utils/supabase/client";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Kpi } from "@/components/ds/kpi";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { useChargement } from "@/hooks/useChargement";
 import { useProfile } from "@/hooks/useProfile";
+import { createClient } from "@/utils/supabase/client";
+import { fadeUp, stagger } from "@/lib/motion";
 
 /**
  * Espace Propriétaire — vue personnelle d'un ayant-droit / acquéreur sur ses
@@ -34,13 +43,15 @@ const QUALITE_LABELS: Record<string, string> = {
   reservataire: "Réservataire",
 };
 
-const STATUT_LOT: Record<string, { badge: "disponible" | "attribue" | "en_validation" | "litige"; label: string }> = {
-  attribue: { badge: "attribue", label: "Attribué" },
-  occupe: { badge: "attribue", label: "Occupé" },
-  vendu: { badge: "attribue", label: "Vendu" },
-  libre: { badge: "disponible", label: "Libre" },
-  en_litige: { badge: "litige", label: "Litige" },
-  reserve_equipement: { badge: "en_validation", label: "Réservé" },
+type Ton = "neutral" | "accent" | "success" | "warning" | "danger";
+
+const STATUT_LOT: Record<string, { ton: Ton; label: string }> = {
+  attribue: { ton: "accent", label: "Attribué" },
+  occupe: { ton: "accent", label: "Occupé" },
+  vendu: { ton: "accent", label: "Vendu" },
+  libre: { ton: "success", label: "Libre" },
+  en_litige: { ton: "danger", label: "Litige" },
+  reserve_equipement: { ton: "warning", label: "Réservé" },
 };
 
 type AttributionRow = {
@@ -93,47 +104,62 @@ const fmtDate = (d: string | null) =>
 const fcfa = (n: number | null) =>
   n == null ? "—" : `${new Intl.NumberFormat("fr-FR").format(n)} FCFA`;
 
+/**
+ * Défilement interne des quatre listes.
+ *
+ * L'écran est pensé pour un propriétaire, qui a quelques lots. Mais le RLS
+ * ouvre tout à un administrateur, et la page mesurait alors 101 520 px de haut
+ * — les blocs du bas devenaient inatteignables. Chaque liste défile chez elle ;
+ * les quatre titres restent visibles.
+ */
+const BORNE = "max-h-[58vh] overflow-auto";
+
+/** Une attestation révoquée n'est pas « en cours » : elle se lit en rouge,
+ *  pas en orange, sans quoi le propriétaire la croit encore valable. */
+const tonAttestation = (statut: string | null): Ton =>
+  statut === "delivree" ? "success" : statut === "revoquee" || statut === "annulee" ? "danger" : "warning";
+
 export default function EspaceProprietairePage() {
   const supabase = useMemo(() => createClient(), []);
   const { profile } = useProfile();
+  const { counts } = useBadgeCounts();
 
   const [attributions, setAttributions] = useState<AttributionRow[]>([]);
   const [attestations, setAttestations] = useState<AttestationRow[]>([]);
   const [paiements, setPaiements] = useState<PaiementRow[]>([]);
   const [demarches, setDemarches] = useState<DemarcheRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [dlState, setDlState] = useState<Record<string, "idle" | "loading" | "error">>({});
   const [payingId, setPayingId] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      const [attr, att, pai, dem] = await Promise.all([
-        supabase
-          .from("attributions")
-          .select(
-            "lot_id, qualite, actuel, lots(numero_lot, statut, ilots(numero, lotissements(nom, village, commune)))"
-          )
-          .eq("actuel", true),
-        supabase
-          .from("attestations_cession")
-          .select("reference, statut, date_emission, lot_id, cession_id"),
-        supabase
-          .from("paiements")
-          .select("id, montant_total, statut, moyen, cree_le, cession_id, acquereur_id")
-          .order("cree_le", { ascending: false }),
-        supabase
-          .from("demarches")
-          .select("id, type, statut, description, ouverte_le, terminee_le, montant_honoraires")
-          .order("ouverte_le", { ascending: false }),
-      ]);
+  // `useChargement` porte l'état de chargement : au premier rendu il n'écrit
+  // rien de façon synchrone (pas de cascade de rendus), et `recharger` sert le
+  // bouton de rafraîchissement de la coquille.
+  const { isLoading: loading, recharger } = useChargement(async () => {
+    const [attr, att, pai, dem] = await Promise.all([
+      supabase
+        .from("attributions")
+        .select(
+          "lot_id, qualite, actuel, lots(numero_lot, statut, ilots(numero, lotissements(nom, village, commune)))"
+        )
+        .eq("actuel", true),
+      supabase
+        .from("attestations_cession")
+        .select("reference, statut, date_emission, lot_id, cession_id"),
+      supabase
+        .from("paiements")
+        .select("id, montant_total, statut, moyen, cree_le, cession_id, acquereur_id")
+        .order("cree_le", { ascending: false }),
+      supabase
+        .from("demarches")
+        .select("id, type, statut, description, ouverte_le, terminee_le, montant_honoraires")
+        .order("ouverte_le", { ascending: false }),
+    ]);
 
-      setAttributions(((attr.data ?? []) as unknown as AttributionRow[]).filter((a) => a.lots));
-      setAttestations((att.data ?? []) as unknown as AttestationRow[]);
-      setPaiements((pai.data ?? []) as unknown as PaiementRow[]);
-      setDemarches((dem.data ?? []) as unknown as DemarcheRow[]);
-      setLoading(false);
-    })();
+    setAttributions(((attr.data ?? []) as unknown as AttributionRow[]).filter((a) => a.lots));
+    setAttestations((att.data ?? []) as unknown as AttestationRow[]);
+    setPaiements((pai.data ?? []) as unknown as PaiementRow[]);
+    setDemarches((dem.data ?? []) as unknown as DemarcheRow[]);
   }, [supabase]);
 
   const telecharger = async (reference: string) => {
@@ -212,261 +238,298 @@ export default function EspaceProprietairePage() {
     (p) => p.statut === "en_attente" && p.acquereur_id === profile?.attributaire_id
   );
 
-  const kpis: { label: string; value: string | number; icon: typeof Landmark; gradient: [string, string] }[] = [
-    { label: "Lots détenus", value: lotsUniques.length, icon: Landmark, gradient: ["#1E6091", "#4FA8D8"] },
-    { label: "Attestations délivrées", value: nbAttDelivrees, icon: FileCheck2, gradient: ["#16A34A", "#4ADE80"] },
-    { label: "Démarches en cours", value: nbDemarchesOuvertes, icon: ListChecks, gradient: ["#D97706", "#FBBF24"] },
-    { label: "Total payé", value: fcfa(totalPaye), icon: Banknote, gradient: ["#2D8F5A", "#5FBF8A"] },
-  ];
-
   const prenom = profile?.nom_complet?.split(" ")[0] ?? "";
 
   return (
-    <div className="mx-auto max-w-5xl">
-      {/* En-tête */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <AppShell loading={loading} counts={counts} onRefresh={() => void recharger()}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-brand-primary">
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Mon patrimoine</p>
+          <h1 className="mt-1 font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
             Espace Propriétaire{prenom && ` — ${prenom}`}
           </h1>
-          <p className="mt-1.5 text-sm sm:text-base text-slate-500">
+          <p className="mt-1 text-[13.5px] text-muted-foreground">
             Suivez vos lots, attestations, paiements et démarches foncières.
           </p>
           {paiementsAPayer.length > 0 && (
             <a
               href="#mes-paiements"
-              className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#FEF3C7] px-3 py-1.5 text-xs font-semibold text-[#92400E] transition-colors hover:bg-[#FDE68A]"
+              className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-warning-subtle px-3 py-1.5 text-xs font-semibold text-warning transition-opacity hover:opacity-80"
             >
-              <Banknote className="h-3.5 w-3.5" />
+              <Banknote className="size-3.5" aria-hidden />
               {paiementsAPayer.length} paiement{paiementsAPayer.length > 1 ? "s" : ""} en attente de votre part
             </a>
           )}
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Link
-            href="/dashboard/mettre-en-vente"
-            className="inline-flex items-center gap-2 rounded-full bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#1E6091]"
-          >
-            <Store className="h-4 w-4" />
-            Mettre en vente
-          </Link>
-          <Link
-            href="/dashboard/messages"
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200/60 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
-          >
-            <MessageSquare className="h-4 w-4 text-[#0D3B66]" />
-            Mes messages
-          </Link>
+          <Button asChild variant="primary">
+            <Link href="/dashboard/mettre-en-vente">
+              <Store />
+              Mettre en vente
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/dashboard/messages">
+              <MessageSquare />
+              Mes messages
+            </Link>
+          </Button>
         </div>
       </div>
 
-      {/* KPI */}
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {kpis.map((k) => (
-          <KpiCard key={k.label} label={k.label} value={loading ? "…" : k.value} icon={k.icon} gradient={k.gradient} />
-        ))}
-      </div>
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      >
+        <Kpi
+          icon={Landmark}
+          label="Lots détenus"
+          loading={loading}
+          value={lotsUniques.length}
+          legende={<>Attributions en cours</>}
+        />
+        <Kpi
+          icon={FileCheck2}
+          label="Attestations délivrées"
+          loading={loading}
+          value={nbAttDelivrees}
+          legende={<>Sur {attestations.length} document{attestations.length > 1 ? "s" : ""} à votre nom</>}
+        />
+        <Kpi
+          icon={ListChecks}
+          label="Démarches en cours"
+          loading={loading}
+          value={nbDemarchesOuvertes}
+          tone={nbDemarchesOuvertes > 0 ? "warning" : "neutral"}
+          legende={<>Dossiers non clôturés</>}
+        />
+        <Kpi
+          icon={Banknote}
+          label="Total payé"
+          loading={loading}
+          value={totalPaye}
+          format={(n) => fcfa(n)}
+          legende={<>Versements confirmés</>}
+        />
+      </motion.section>
 
-      {/* Mes lots */}
-      <Section title="Mes lots" hint="Lots dont vous êtes le propriétaire terrien ou l'acquéreur actuel">
-        {loading ? (
-          <Empty>Chargement…</Empty>
-        ) : lotsUniques.length === 0 ? (
-          <Empty>Aucun lot rattaché à votre profil pour l&apos;instant.</Empty>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
-            {lotsUniques.map((u) => {
-              const l = u.lots!;
-              const lo = l.ilots?.lotissements;
-              const st = STATUT_LOT[l.statut ?? "libre"] ?? STATUT_LOT.libre;
-              const att = attestations.find((x) => x.lot_id === u.lot_id);
-              return (
-                <div key={u.lot_id} className="rounded-xl border border-slate-200/60 bg-white p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-mono text-xs text-slate-400">
-                        Îlot {l.ilots?.numero} · Lot {l.numero_lot}
-                      </p>
-                      <p className="mt-0.5 text-sm font-semibold text-slate-800">{lo?.nom ?? "Lotissement"}</p>
+      <motion.div variants={stagger(0.05, 0.06)} initial="hidden" animate="show" className="flex flex-col gap-5">
+        {/* Mes lots */}
+        <Bloc titre="Mes lots" hint="Lots dont vous êtes le propriétaire terrien ou l'acquéreur actuel">
+          {loading ? null : lotsUniques.length === 0 ? (
+            <EmptyState
+              icon={Landmark}
+              title="Aucun lot rattaché à votre profil"
+              description="Dès qu'une attribution vous sera enregistrée, elle apparaîtra ici."
+            />
+          ) : (
+            <div className={`grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 ${BORNE}`}>
+              {lotsUniques.map((u) => {
+                const l = u.lots!;
+                const lo = l.ilots?.lotissements;
+                const st = STATUT_LOT[l.statut ?? "libre"] ?? STATUT_LOT.libre;
+                const att = attestations.find((x) => x.lot_id === u.lot_id);
+                const delivree = att?.statut === "delivree";
+                return (
+                  <div key={u.lot_id} className="rounded-xl border border-border bg-card p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-mono text-xs text-muted-2">
+                          Îlot {l.ilots?.numero} · Lot {l.numero_lot}
+                        </p>
+                        <p className="mt-0.5 truncate text-sm font-semibold text-foreground">
+                          {lo?.nom ?? "Lotissement"}
+                        </p>
+                      </div>
+                      <Badge tone={st.ton}>{st.label}</Badge>
                     </div>
-                    <Badge status={st.badge}>{st.label}</Badge>
+                    <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <MapPin className="size-3" aria-hidden />
+                      {lo?.village ?? "—"} · {lo?.commune ?? "—"}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {u.qualites.length > 1 ? "Vos qualités" : "Votre qualité"} :{" "}
+                      <span className="font-semibold text-foreground">
+                        {u.qualites.length > 0 ? u.qualites.join(", ") : "—"}
+                      </span>
+                    </p>
+                    <div className="mt-3 flex items-center gap-2 border-t border-border pt-3 text-xs">
+                      <span
+                        aria-hidden
+                        className={`size-1.5 rounded-full ${delivree ? "bg-success" : "bg-warning"}`}
+                      />
+                      <span className="font-medium text-foreground">
+                        {att ? att.reference : "Pas encore d'attestation"}
+                      </span>
+                      {att && <span className="ml-auto text-muted-2">{att.statut}</span>}
+                    </div>
                   </div>
-                  <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
-                    <MapPin className="h-3 w-3" />
-                    {lo?.village ?? "—"} · {lo?.commune ?? "—"}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {u.qualites.length > 1 ? "Vos qualités" : "Votre qualité"} :{" "}
-                    <span className="font-semibold text-slate-700">
-                      {u.qualites.length > 0 ? u.qualites.join(", ") : "—"}
-                    </span>
-                  </p>
-                  <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3 text-xs">
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${
-                        att && att.statut === "delivree" ? "bg-[#2D8F5A]" : "bg-[#F39C12]"
-                      }`}
-                    />
-                    <span className="font-medium text-slate-600">
-                      {att ? att.reference : "Pas encore d'attestation"}
-                    </span>
-                    {att && <span className="ml-auto text-slate-400">{att.statut}</span>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Section>
+                );
+              })}
+            </div>
+          )}
+        </Bloc>
 
-      {/* Mes attestations */}
-      <Section title="Mes attestations" hint={`${attestations.length} document(s) à votre nom`}>
-        {loading ? (
-          <Empty>Chargement…</Empty>
-        ) : attestations.length === 0 ? (
-          <Empty>Aucune attestation pour le moment.</Empty>
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {attestations.map((a) => {
-              const state = dlState[a.reference] ?? "idle";
-              const paiementLie = a.cession_id
-                ? paiements.find((p) => p.cession_id === a.cession_id)
-                : null;
-              const paiementRequis = !!a.cession_id && paiementLie?.statut !== "confirme";
-              return (
-                <li key={a.reference} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
-                  <Badge status={a.statut === "delivree" ? "attribue" : "en_validation"}>
-                    {a.statut ?? "—"}
-                  </Badge>
+        {/* Mes attestations */}
+        <Bloc titre="Mes attestations" hint={`${attestations.length} document(s) à votre nom`}>
+          {loading ? null : attestations.length === 0 ? (
+            <EmptyState
+              icon={FileCheck2}
+              title="Aucune attestation pour le moment"
+              description="Les documents fonciers émis à votre nom se retrouveront ici, téléchargeables."
+            />
+          ) : (
+            <ul className={`divide-y divide-border ${BORNE}`}>
+              {attestations.map((a) => {
+                const state = dlState[a.reference] ?? "idle";
+                const paiementLie = a.cession_id
+                  ? paiements.find((p) => p.cession_id === a.cession_id)
+                  : null;
+                const paiementRequis = !!a.cession_id && paiementLie?.statut !== "confirme";
+                return (
+                  <li key={a.reference} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
+                    <Badge tone={tonAttestation(a.statut)}>{a.statut ?? "—"}</Badge>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-foreground">{a.reference}</p>
+                      {!a.cession_id ? (
+                        <p className="text-xs text-muted-2">gratuite — 1er propriétaire terrien</p>
+                      ) : paiementRequis ? (
+                        <p className="text-xs font-medium text-warning">
+                          Paiement requis — voir « Mes paiements »
+                        </p>
+                      ) : null}
+                    </div>
+                    <span className="ml-auto text-xs text-muted-2">{fmtDate(a.date_emission)}</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={state === "error" ? "danger" : "primary"}
+                      onClick={() => void telecharger(a.reference)}
+                      loading={state === "loading"}
+                    >
+                      <Download />
+                      {state === "loading" ? "Préparation…" : state === "error" ? "Erreur" : "Télécharger"}
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Bloc>
+
+        {/* Mes paiements */}
+        <Bloc id="mes-paiements" titre="Mes paiements" hint={`${paiements.length} versement(s) enregistré(s)`}>
+          {payError && (
+            <p role="alert" className="border-b border-danger/25 bg-danger-subtle px-5 py-2.5 text-xs font-medium text-danger">
+              {payError}
+            </p>
+          )}
+          {loading ? null : paiements.length === 0 ? (
+            <EmptyState
+              icon={Banknote}
+              tone="positive"
+              title="Aucun paiement enregistré"
+              description="C'est le cas normal d'une reconnaissance de propriétaire terrien d'origine, qui est gratuite."
+            />
+          ) : (
+            <ul className={`divide-y divide-border ${BORNE}`}>
+              {paiements.map((p) => {
+                const canPay = p.statut === "en_attente" && p.acquereur_id === profile?.attributaire_id;
+                return (
+                  <li key={p.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
+                    <Banknote className="size-4 text-success" aria-hidden />
+                    <span className="tabular text-sm font-semibold text-foreground">{fcfa(p.montant_total)}</span>
+                    <span className="text-xs text-muted-2">
+                      {p.moyen ?? "—"} · {fmtDate(p.cree_le)}
+                    </span>
+                    <span className="ml-auto flex items-center gap-2">
+                      <Badge tone={p.statut === "confirme" ? "success" : "warning"}>{p.statut ?? "—"}</Badge>
+                      {canPay && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="primary"
+                          onClick={() => void handlePayer(p)}
+                          loading={payingId === p.id}
+                        >
+                          <CreditCard />
+                          Payer
+                        </Button>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Bloc>
+
+        {/* Mes démarches */}
+        <Bloc titre="Mes démarches" hint={`${demarches.length} dossier(s) suivi(s)`}>
+          {loading ? null : demarches.length === 0 ? (
+            <EmptyState
+              icon={ListChecks}
+              tone="positive"
+              title="Aucune démarche en cours"
+              description="Rien ne requiert votre attention côté dossiers."
+            />
+          ) : (
+            <ul className={`divide-y divide-border ${BORNE}`}>
+              {demarches.map((d) => (
+                <li key={d.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-800">{a.reference}</p>
-                    {!a.cession_id ? (
-                      <p className="text-xs text-slate-400">gratuite — 1er propriétaire terrien</p>
-                    ) : paiementRequis ? (
-                      <p className="text-xs font-medium text-[#F39C12]">Paiement requis — voir « Mes paiements »</p>
-                    ) : null}
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {d.type ?? "Démarche"}
+                      {d.description && <span className="text-muted-foreground"> — {d.description}</span>}
+                    </p>
+                    <p className="text-xs text-muted-2">
+                      ouverte le {fmtDate(d.ouverte_le)}
+                      {d.montant_honoraires != null && ` · honoraires ${fcfa(d.montant_honoraires)}`}
+                    </p>
                   </div>
-                  <span className="ml-auto text-xs text-slate-400">{fmtDate(a.date_emission)}</span>
-                  <button
-                    type="button"
-                    onClick={() => void telecharger(a.reference)}
-                    disabled={state === "loading"}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white transition-colors disabled:opacity-60 ${
-                      state === "error" ? "bg-[#EF4444]" : "bg-[#0D3B66] hover:bg-[#0a2f52]"
-                    }`}
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    {state === "loading" ? "Préparation…" : state === "error" ? "Erreur" : "Télécharger"}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Section>
-
-      {/* Mes paiements */}
-      <Section id="mes-paiements" title="Mes paiements" hint={`${paiements.length} versement(s) enregistré(s)`}>
-        {payError && (
-          <p className="border-b border-red-100 bg-red-50 px-5 py-2.5 text-xs text-red-700">{payError}</p>
-        )}
-        {loading ? (
-          <Empty>Chargement…</Empty>
-        ) : paiements.length === 0 ? (
-          <Empty>
-            Aucun paiement enregistré — généralement le cas pour une reconnaissance de propriétaire terrien
-            d&apos;origine (gratuite).
-          </Empty>
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {paiements.map((p) => {
-              const canPay = p.statut === "en_attente" && p.acquereur_id === profile?.attributaire_id;
-              return (
-                <li key={p.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
-                  <Banknote className="h-4 w-4 text-[#2D8F5A]" />
-                  <span className="text-sm font-semibold tabular-nums text-slate-800">{fcfa(p.montant_total)}</span>
-                  <span className="text-xs text-slate-400">{p.moyen ?? "—"} · {fmtDate(p.cree_le)}</span>
-                  <span className="ml-auto flex items-center gap-2">
-                    <Badge status={p.statut === "confirme" ? "attribue" : "en_validation"}>
-                      {p.statut ?? "—"}
+                  <span className="ml-auto">
+                    <Badge tone={d.terminee_le ? "success" : "warning"}>
+                      {d.terminee_le ? "terminée" : d.statut ?? "en cours"}
                     </Badge>
-                    {canPay && (
-                      <button
-                        type="button"
-                        onClick={() => void handlePayer(p)}
-                        disabled={payingId === p.id}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#0D3B66] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1E6091] disabled:opacity-60"
-                      >
-                        <CreditCard className="h-3.5 w-3.5" />
-                        {payingId === p.id ? "…" : "Payer"}
-                      </button>
-                    )}
                   </span>
                 </li>
-              );
-            })}
-          </ul>
-        )}
-      </Section>
-
-      {/* Mes démarches */}
-      <Section title="Mes démarches" hint={`${demarches.length} dossier(s) suivi(s)`}>
-        {loading ? (
-          <Empty>Chargement…</Empty>
-        ) : demarches.length === 0 ? (
-          <Empty>Aucune démarche en cours.</Empty>
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {demarches.map((d) => (
-              <li key={d.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-800">
-                    {d.type ?? "Démarche"}
-                    {d.description && <span className="text-slate-500"> — {d.description}</span>}
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    ouverte le {fmtDate(d.ouverte_le)}
-                    {d.montant_honoraires != null && ` · honoraires ${fcfa(d.montant_honoraires)}`}
-                  </p>
-                </div>
-                <span className="ml-auto">
-                  <Badge status={d.terminee_le ? "attribue" : "en_validation"}>
-                    {d.terminee_le ? "terminée" : d.statut ?? "en cours"}
-                  </Badge>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Section>
-    </div>
+              ))}
+            </ul>
+          )}
+        </Bloc>
+      </motion.div>
+    </AppShell>
   );
 }
 
 // ─── Sous-composants ──────────────────────────────────────────────────────────
 
-function Section({
-  title,
+/** Section de l'espace : titre, sous-titre et corps sans marge (listes à bords
+ *  perdus). `scroll-mt` garde l'ancre « Mes paiements » sous l'en-tête collant. */
+function Bloc({
+  titre,
   hint,
   id,
   children,
 }: {
-  title: string;
+  titre: string;
   hint?: string;
   id?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="mb-5 overflow-hidden rounded-xl border border-slate-200/60 bg-white scroll-mt-4">
-      <div className="border-b border-slate-200/60 bg-slate-50/50 px-5 py-3">
-        <p className="text-sm font-semibold text-slate-800">{title}</p>
-        {hint && <p className="text-xs text-slate-400">{hint}</p>}
-      </div>
-      {children}
-    </section>
+    <motion.section variants={fadeUp} id={id} className="scroll-mt-24">
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>{titre}</CardTitle>
+            {hint && <CardDescription>{hint}</CardDescription>}
+          </div>
+        </CardHeader>
+        {children}
+      </Card>
+    </motion.section>
   );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return <div className="px-5 py-8 text-center text-sm text-slate-500">{children}</div>;
 }

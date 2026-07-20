@@ -1,22 +1,35 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { motion } from "framer-motion";
 import {
-  Loader2, MapPin, Eye, Tag, CheckCircle2, AlertTriangle, Store, Info,
+  CheckCircle2, Eye, FileCheck2, Info, Loader2, MapPin, PencilLine, Store, Tag,
 } from "lucide-react";
-import { createClient } from "@/utils/supabase/client";
-import { useProfile } from "@/hooks/useProfile";
 
-// Leaflet a besoin des APIs browser → import dynamique ssr:false
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Button } from "@/components/ds/button";
+import { Card, CardHeader, CardTitle } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Input, Textarea } from "@/components/ds/input";
+import { Kpi } from "@/components/ds/kpi";
+import { Field } from "@/components/ds/label";
+import { SelectItem } from "@/components/ds/select";
+import { ChampSelect } from "@/components/dashboard/ModaleFormulaire";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { useChargement } from "@/hooks/useChargement";
+import { createClient } from "@/utils/supabase/client";
+import { fadeUp, stagger } from "@/lib/motion";
+
 import PhotosAnnonce from "./_PhotosAnnonce";
 
+// Leaflet a besoin des APIs browser → import dynamique ssr:false
 const VenteMap = dynamic(() => import("./_VenteMap"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-full items-center justify-center bg-slate-100">
-      <Loader2 className="h-6 w-6 animate-spin text-[#0D3B66]" />
+    <div className="flex h-full items-center justify-center bg-inset">
+      <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden />
     </div>
   ),
 });
@@ -82,14 +95,13 @@ function valeursPour(lot: LotEligible | undefined, existante: AnnonceExistante |
 
 function MettreEnVenteForm() {
   const supabase = useMemo(() => createClient(), []);
-  const { profile } = useProfile();
+  const { counts } = useBadgeCounts();
   // Lot ciblé par le bouton « Mettre en vente » d'un espace propriétaire.
   const lotDemande = useSearchParams().get("lot");
   const lotDemandeApplique = useRef(false);
 
   const [lots, setLots] = useState<LotEligible[]>([]);
   const [annonces, setAnnonces] = useState<Record<string, AnnonceExistante>>({});
-  const [loading, setLoading] = useState(true);
 
   // Formulaire
   const [lotId, setLotId] = useState("");
@@ -120,69 +132,69 @@ function MettreEnVenteForm() {
     []
   );
 
-  // Chargement des lots éligibles + annonces existantes
-  useEffect(() => {
-    (async () => {
-      const [att, cert] = await Promise.all([
-        supabase.from("attestations_cession").select("lot_id").eq("statut", "delivree"),
-        supabase.from("certificats_vente").select("lot_id").eq("statut", "delivree"),
-      ]);
+  // Chargement des lots éligibles + annonces existantes. `useChargement` évite
+  // d'écrire l'état de chargement de façon synchrone dans l'effet (cascade de
+  // rendus) et donne le `recharger` du bouton de rafraîchissement.
+  const { isLoading: loading, recharger } = useChargement(async () => {
+    const [att, cert] = await Promise.all([
+      supabase.from("attestations_cession").select("lot_id").eq("statut", "delivree"),
+      supabase.from("certificats_vente").select("lot_id").eq("statut", "delivree"),
+    ]);
 
-      const docType = new Map<string, "attestation_cession" | "certificat_vente">();
-      (att.data ?? []).forEach((r: { lot_id: string }) => docType.set(r.lot_id, "attestation_cession"));
-      (cert.data ?? []).forEach((r: { lot_id: string }) => docType.set(r.lot_id, "certificat_vente"));
+    const docType = new Map<string, "attestation_cession" | "certificat_vente">();
+    (att.data ?? []).forEach((r: { lot_id: string }) => docType.set(r.lot_id, "attestation_cession"));
+    (cert.data ?? []).forEach((r: { lot_id: string }) => docType.set(r.lot_id, "certificat_vente"));
 
-      const lotIds = [...docType.keys()];
-      if (lotIds.length === 0) {
-        setLoading(false);
-        return;
-      }
+    const lotIds = [...docType.keys()];
+    if (lotIds.length === 0) {
+      setLots([]);
+      setAnnonces({});
+      return;
+    }
 
-      const [lotsRes, annRes] = await Promise.all([
-        supabase
-          .from("lots")
-          .select("id, numero_lot, superficie_m2, latitude, longitude, ilots(numero, lotissements(nom, village, commune))")
-          .in("id", lotIds),
-        supabase
-          .from("annonces_marketplace")
-          .select("id, lot_id, titre, prix, usage, zone, description, statut")
-          .in("lot_id", lotIds),
-      ]);
+    const [lotsRes, annRes] = await Promise.all([
+      supabase
+        .from("lots")
+        .select("id, numero_lot, superficie_m2, latitude, longitude, ilots(numero, lotissements(nom, village, commune))")
+        .in("id", lotIds),
+      supabase
+        .from("annonces_marketplace")
+        .select("id, lot_id, titre, prix, usage, zone, description, statut")
+        .in("lot_id", lotIds),
+    ]);
 
-      type LotRow = {
-        id: string; numero_lot: string | null; superficie_m2: number | null;
-        latitude: number | null; longitude: number | null;
-        ilots: { lotissements: { nom: string | null; village: string | null; commune: string | null } | null } | null;
-      };
+    type LotRow = {
+      id: string; numero_lot: string | null; superficie_m2: number | null;
+      latitude: number | null; longitude: number | null;
+      ilots: { lotissements: { nom: string | null; village: string | null; commune: string | null } | null } | null;
+    };
 
-      const mapped: LotEligible[] = ((lotsRes.data ?? []) as unknown as LotRow[]).map((l) => ({
-        id: l.id,
-        numero_lot: l.numero_lot,
-        superficie_m2: l.superficie_m2,
-        latitude: l.latitude,
-        longitude: l.longitude,
-        village: l.ilots?.lotissements?.village ?? null,
-        commune: l.ilots?.lotissements?.commune ?? null,
-        lotissement: l.ilots?.lotissements?.nom ?? null,
-        documentType: docType.get(l.id)!,
-      }));
+    const mapped: LotEligible[] = ((lotsRes.data ?? []) as unknown as LotRow[]).map((l) => ({
+      id: l.id,
+      numero_lot: l.numero_lot,
+      superficie_m2: l.superficie_m2,
+      latitude: l.latitude,
+      longitude: l.longitude,
+      village: l.ilots?.lotissements?.village ?? null,
+      commune: l.ilots?.lotissements?.commune ?? null,
+      lotissement: l.ilots?.lotissements?.nom ?? null,
+      documentType: docType.get(l.id)!,
+    }));
 
-      const annMap: Record<string, AnnonceExistante> = {};
-      ((annRes.data ?? []) as unknown as AnnonceExistante[]).forEach((a) => { annMap[a.lot_id] = a; });
+    const annMap: Record<string, AnnonceExistante> = {};
+    ((annRes.data ?? []) as unknown as AnnonceExistante[]).forEach((a) => { annMap[a.lot_id] = a; });
 
-      setLots(mapped);
-      setAnnonces(annMap);
-      setLoading(false);
+    setLots(mapped);
+    setAnnonces(annMap);
 
-      // Le lot passé en ?lot= n'est retenu que s'il est réellement éligible :
-      // une URL forgée ne doit pas ouvrir le formulaire sur le lot d'autrui
-      // (`publier-annonce` refuserait de toute façon en 403).
-      if (lotDemande && !lotDemandeApplique.current) {
-        lotDemandeApplique.current = true;
-        const lot = mapped.find((l) => l.id === lotDemande);
-        if (lot) appliquer(lot, annMap[lotDemande]);
-      }
-    })();
+    // Le lot passé en ?lot= n'est retenu que s'il est réellement éligible :
+    // une URL forgée ne doit pas ouvrir le formulaire sur le lot d'autrui
+    // (`publier-annonce` refuserait de toute façon en 403).
+    if (lotDemande && !lotDemandeApplique.current) {
+      lotDemandeApplique.current = true;
+      const lot = mapped.find((l) => l.id === lotDemande);
+      if (lot) appliquer(lot, annMap[lotDemande]);
+    }
   }, [supabase, lotDemande, appliquer]);
 
   // Sélection d'un lot → préremplissage
@@ -193,7 +205,7 @@ function MettreEnVenteForm() {
 
   const previewPoint: [number, number] | null = point ? [round3(point[0]), round3(point[1])] : null;
 
-  const canSubmit = lotId && titre.trim() && Number(prix) >= 0 && prix !== "" && !submitting;
+  const canSubmit = !!lotId && !!titre.trim() && Number(prix) >= 0 && prix !== "" && !submitting;
 
   const submit = async () => {
     setSubmitting(true);
@@ -230,181 +242,220 @@ function MettreEnVenteForm() {
   };
 
   const selectedLot = lots.find((l) => l.id === lotId) ?? null;
+  const enVente = Object.values(annonces).filter((a) => a.statut !== "brouillon").length;
+  const brouillons = Object.values(annonces).filter((a) => a.statut === "brouillon").length;
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <div className="mb-6">
-        <h1 className="flex items-center gap-2 font-display text-2xl font-bold text-brand-primary sm:text-3xl">
-          <Store className="h-6 w-6 text-[#0D3B66]" />
+    <AppShell loading={loading} counts={counts} onRefresh={() => void recharger()}>
+      <div>
+        <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">TerraCI Market</p>
+        <h1 className="mt-1 font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
           Mettre un terrain en vente
         </h1>
-        <p className="mt-1.5 text-sm text-slate-500">
-          Seuls vos lots avec une attestation ou un certificat <strong>délivré</strong> sont éligibles à TerraCI Market.
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
+          Seuls vos lots dont l&apos;attestation ou le certificat est <strong className="font-semibold text-foreground">délivré</strong>{" "}
+          sont éligibles à la place de marché.
         </p>
       </div>
 
-      {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-[#0D3B66]" />
-        </div>
-      ) : lots.length === 0 ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center text-sm text-amber-700">
-          <AlertTriangle className="mx-auto mb-2 h-6 w-6" />
-          Aucun lot éligible pour le moment. Un document foncier doit être au statut « délivré » pour pouvoir être mis en vente.
-        </div>
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+      >
+        <Kpi
+          icon={FileCheck2}
+          label="Lots éligibles"
+          loading={loading}
+          value={lots.length}
+          legende={<>Document foncier délivré</>}
+        />
+        <Kpi
+          icon={Store}
+          label="Déjà publiés"
+          loading={loading}
+          value={enVente}
+          legende={<>Visibles des acheteurs</>}
+        />
+        <Kpi
+          icon={PencilLine}
+          label="Brouillons"
+          loading={loading}
+          value={brouillons}
+          tone={brouillons > 0 ? "warning" : "neutral"}
+          legende={<>Enregistrés, non publiés</>}
+        />
+      </motion.section>
+
+      {loading ? null : lots.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={FileCheck2}
+            tone="pending"
+            title="Aucun lot éligible pour le moment"
+            description="Un document foncier doit être au statut « délivré » pour qu'un lot puisse être mis en vente."
+          />
+        </Card>
       ) : (
-        <div className="space-y-5">
+        <motion.div variants={stagger(0.05, 0.06)} initial="hidden" animate="show" className="flex flex-col gap-5">
           {/* 1 — Lot */}
-          <Section n={1} title="Lot concerné">
-            <select
+          <Etape n={1} titre="Lot concerné">
+            <ChampSelect
+              id="lot"
+              label="Lot à mettre en vente"
               value={lotId}
-              onChange={(e) => selectLot(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]"
+              onChange={selectLot}
+              placeholder="— Choisir un lot —"
+              required
             >
-              <option value="">— Choisir un lot —</option>
               {lots.map((l) => (
-                <option key={l.id} value={l.id}>
+                <SelectItem key={l.id} value={l.id}>
                   Lot {l.numero_lot ?? "?"} · {l.lotissement ?? l.commune ?? "—"}
                   {l.superficie_m2 ? ` · ${l.superficie_m2} m²` : ""}
                   {annonces[l.id] ? "  (déjà en vente)" : ""}
-                </option>
+                </SelectItem>
               ))}
-            </select>
+            </ChampSelect>
             {selectedLot && (
-              <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-600">
-                <CheckCircle2 className="h-3.5 w-3.5" />
+              <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-success">
+                <CheckCircle2 className="size-3.5" aria-hidden />
                 {selectedLot.documentType === "attestation_cession"
                   ? "Attestation de cession délivrée"
                   : "Certificat de vente délivré"}{" "}
                 — éligible
               </p>
             )}
-          </Section>
+          </Etape>
 
           {lotId && (
             <>
               {/* 2 — Description */}
-              <Section n={2} title="Description de l'annonce">
+              <Etape n={2} titre="Description de l'annonce">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Titre" full>
-                    <input
+                  <Field label="Titre" htmlFor="titre" required className="sm:col-span-2">
+                    <Input
+                      id="titre"
                       value={titre}
                       onChange={(e) => setTitre(e.target.value)}
                       placeholder="Ex. Lot résidentiel viabilisé — Bingerville"
-                      className={inputCls}
                     />
                   </Field>
-                  <Field label="Usage">
-                    <select value={usage} onChange={(e) => setUsage(e.target.value)} className={inputCls}>
-                      {USAGES.map((u) => (
-                        <option key={u.value} value={u.value}>{u.label}</option>
-                      ))}
-                    </select>
+                  <ChampSelect id="usage" label="Usage" value={usage} onChange={setUsage}>
+                    {USAGES.map((u) => (
+                      <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+                    ))}
+                  </ChampSelect>
+                  <Field label="Zone (commune / localité)" htmlFor="zone">
+                    <Input id="zone" value={zone} onChange={(e) => setZone(e.target.value)} placeholder="Ex. Bingerville" />
                   </Field>
-                  <Field label="Zone (commune / localité)">
-                    <input value={zone} onChange={(e) => setZone(e.target.value)} placeholder="Ex. Bingerville" className={inputCls} />
-                  </Field>
-                  <Field label="Prix (FCFA)" full>
-                    <input
+                  <Field label="Prix (FCFA)" htmlFor="prix" required className="sm:col-span-2">
+                    <Input
+                      id="prix"
                       type="number"
                       min={0}
                       value={prix}
                       onChange={(e) => setPrix(e.target.value)}
                       placeholder="12 000 000"
-                      className={inputCls}
                     />
                   </Field>
-                  <Field label="Description" full>
-                    <textarea
+                  <Field label="Description" htmlFor="description" className="sm:col-span-2">
+                    <Textarea
+                      id="description"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       rows={3}
                       placeholder="Viabilisation, environnement, atouts du terrain…"
-                      className={inputCls}
                     />
                   </Field>
                 </div>
-              </Section>
+              </Etape>
 
               {/* 3 — Localisation */}
-              <Section n={3} title="Localisation">
-                <p className="mb-3 flex items-start gap-1.5 text-xs text-slate-500">
-                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#0D3B66]" />
-                  Cliquez (ou glissez le repère) pour poser le point exact. Il reste <strong>privé</strong> :
-                  l&apos;acheteur ne verra qu&apos;un cercle flou d&apos;environ 500 m.
+              <Etape n={3} titre="Localisation">
+                <p className="mb-3 flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <Info className="mt-0.5 size-3.5 shrink-0 text-accent" aria-hidden />
+                  Cliquez (ou glissez le repère) pour poser le point exact. Il reste{" "}
+                  <strong className="font-semibold text-foreground">privé</strong> : l&apos;acheteur ne verra
+                  qu&apos;un cercle flou d&apos;environ 500 m.
                 </p>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
-                    <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-                      <MapPin className="h-3.5 w-3.5 text-[#0D3B66]" /> Point exact (privé)
+                    <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                      <MapPin className="size-3.5 text-accent" aria-hidden /> Point exact (privé)
                     </p>
-                    <div className="h-64 overflow-hidden rounded-xl border border-slate-200">
+                    <div className="h-64 overflow-hidden rounded-xl border border-border">
                       <VenteMap mode="exact" point={point} onPick={(lat, lng) => setPoint([lat, lng])} />
                     </div>
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="tabular mt-1 text-xs text-muted-2">
                       {point ? `${point[0].toFixed(5)}, ${point[1].toFixed(5)}` : "Aucun point posé"}
                     </p>
                   </div>
                   <div>
-                    <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-                      <Eye className="h-3.5 w-3.5 text-[#b45309]" /> Aperçu acheteur (flou 500 m)
+                    <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                      <Eye className="size-3.5 text-warning" aria-hidden /> Aperçu acheteur (flou 500 m)
                     </p>
-                    <div className="h-64 overflow-hidden rounded-xl border border-slate-200">
+                    <div className="h-64 overflow-hidden rounded-xl border border-border">
                       <VenteMap mode="preview" point={previewPoint} />
                     </div>
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-xs text-muted-2">
                       {previewPoint ? "Zone approximative telle que vue par l'acheteur" : "Posez un point à gauche"}
                     </p>
                   </div>
                 </div>
-              </Section>
+              </Etape>
 
               {/* 4 — Photos */}
-              <Section n={4} title="Photos">
+              <Etape n={4} titre="Photos">
                 {annonces[lotId]?.id ? (
                   <PhotosAnnonce annonceId={annonces[lotId].id} />
                 ) : (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted-foreground">
                     Enregistrez d&apos;abord l&apos;annonce (brouillon ou publication) pour pouvoir ajouter des photos.
                   </p>
                 )}
-              </Section>
+              </Etape>
 
               {/* Actions */}
-              <div className="flex flex-col gap-3 rounded-xl border border-slate-200/60 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
-                <label className="flex items-center gap-4 text-sm">
-                  <span className="font-medium text-slate-600">Statut :</span>
-                  <span className="flex items-center gap-1.5">
-                    <input type="radio" checked={statut === "brouillon"} onChange={() => setStatut("brouillon")} />
-                    Brouillon
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <input type="radio" checked={statut === "active"} onChange={() => setStatut("active")} />
-                    Publier maintenant
-                  </span>
-                </label>
-                <div className="flex items-center gap-3">
-                  {message && (
-                    <span className={`text-xs font-medium ${message.type === "ok" ? "text-emerald-600" : "text-red-600"}`}>
-                      {message.text}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => void submit()}
-                    disabled={!canSubmit}
-                    className="inline-flex items-center gap-2 rounded-lg bg-[#0D3B66] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1E6091] disabled:opacity-50"
-                  >
-                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Tag className="h-4 w-4" />}
-                    {statut === "active" ? "Publier l'annonce" : "Enregistrer le brouillon"}
-                  </button>
-                </div>
-              </div>
+              <motion.div variants={fadeUp}>
+                <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+                  <fieldset className="flex flex-wrap items-center gap-4 text-sm">
+                    <legend className="sr-only">Statut de l&apos;annonce</legend>
+                    <span className="font-medium text-muted-foreground">Statut :</span>
+                    <ChoixStatut
+                      valeur="brouillon" actuel={statut} onChange={setStatut} libelle="Brouillon"
+                    />
+                    <ChoixStatut
+                      valeur="active" actuel={statut} onChange={setStatut} libelle="Publier maintenant"
+                    />
+                  </fieldset>
+                  <div className="flex flex-wrap items-center justify-end gap-3">
+                    {message && (
+                      <span
+                        role="status"
+                        className={`text-xs font-medium ${message.type === "ok" ? "text-success" : "text-danger"}`}
+                      >
+                        {message.text}
+                      </span>
+                    )}
+                    <Button
+                      type="button"
+                      variant="primary"
+                      onClick={() => void submit()}
+                      loading={submitting}
+                      disabled={!canSubmit}
+                    >
+                      <Tag />
+                      {statut === "active" ? "Publier l'annonce" : "Enregistrer le brouillon"}
+                    </Button>
+                  </div>
+                </Card>
+              </motion.div>
             </>
           )}
-        </div>
+        </motion.div>
       )}
-    </div>
+    </AppShell>
   );
 }
 
@@ -415,7 +466,7 @@ export default function MettreEnVentePage() {
     <Suspense
       fallback={
         <div className="flex justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-[#0D3B66]" />
+          <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden />
         </div>
       }
     >
@@ -424,28 +475,46 @@ export default function MettreEnVentePage() {
   );
 }
 
-const inputCls =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-[#0D3B66] focus:outline-none focus:ring-1 focus:ring-[#0D3B66]";
-
-function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+/** Carte numérotée d'une étape du formulaire — la structure en 4 temps est
+ *  conservée de l'écran historique : elle porte le déroulé métier. */
+function Etape({ n, titre, children }: { n: number; titre: string; children: React.ReactNode }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200/60 bg-white">
-      <div className="border-b border-slate-200/60 bg-slate-50/50 px-5 py-3">
-        <p className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#0D3B66] text-xs text-white">{n}</span>
-          {title}
-        </p>
-      </div>
-      <div className="p-5">{children}</div>
-    </section>
+    <motion.div variants={fadeUp}>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2.5">
+            <span className="tabular flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
+              {n}
+            </span>
+            {titre}
+          </CardTitle>
+        </CardHeader>
+        <div className="px-5 pb-5">{children}</div>
+      </Card>
+    </motion.div>
   );
 }
 
-function Field({ label, full, children }: { label: string; full?: boolean; children: React.ReactNode }) {
+/** Bouton radio de statut : la case native suit le thème via `accent-color`. */
+function ChoixStatut({
+  valeur, actuel, onChange, libelle,
+}: {
+  valeur: "active" | "brouillon";
+  actuel: "active" | "brouillon";
+  onChange: (v: "active" | "brouillon") => void;
+  libelle: string;
+}) {
   return (
-    <label className={`block ${full ? "sm:col-span-2" : ""}`}>
-      <span className="mb-1 block text-xs font-medium text-slate-600">{label}</span>
-      {children}
+    <label className="flex cursor-pointer items-center gap-1.5 text-foreground">
+      <input
+        type="radio"
+        name="statut-annonce"
+        checked={actuel === valeur}
+        onChange={() => onChange(valeur)}
+        className="size-4"
+        style={{ accentColor: "var(--primary)" }}
+      />
+      {libelle}
     </label>
   );
 }

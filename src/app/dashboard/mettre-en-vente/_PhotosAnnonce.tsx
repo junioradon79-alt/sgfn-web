@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ImagePlus, Loader2, Trash2, ImageOff } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { useChargement } from "@/hooks/useChargement";
@@ -103,18 +103,18 @@ export default function PhotosAnnonce({ annonceId }: { annonceId: string }) {
 
   return (
     <div>
-      <p className="mb-3 text-xs text-slate-500">
+      <p className="mb-3 text-xs text-muted-foreground">
         {photos.length} / {MAX_PHOTOS} photos — la première sert de photo de couverture sur TerraCI Market.
       </p>
 
       {loading ? (
         <div className="flex justify-center py-6">
-          <Loader2 className="h-5 w-5 animate-spin text-[#0D3B66]" />
+          <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden />
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
           {photos.map((photo) => (
-            <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200">
+            <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-xl border border-border">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={publicUrl(photo.chemin)} alt="" className="h-full w-full object-cover" />
               <button
@@ -129,14 +129,14 @@ export default function PhotosAnnonce({ annonceId }: { annonceId: string }) {
           ))}
 
           {photos.length === 0 && (
-            <div className="col-span-3 flex aspect-[3/1] items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 text-xs text-slate-400 sm:col-span-4">
-              <ImageOff className="h-4 w-4" /> Aucune photo pour le moment
+            <div className="col-span-3 flex aspect-[3/1] items-center justify-center gap-2 rounded-xl border border-dashed border-border text-xs text-muted-2 sm:col-span-4">
+              <ImageOff className="size-4" aria-hidden /> Aucune photo pour le moment
             </div>
           )}
 
           {photos.length < MAX_PHOTOS && (
-            <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300 text-xs font-medium text-slate-500 transition hover:border-[#0D3B66] hover:text-[#0D3B66]">
-              {envoi ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImagePlus className="h-5 w-5" />}
+            <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border text-xs font-medium text-muted-foreground transition hover:border-accent hover:text-accent">
+              {envoi ? <Loader2 className="size-5 animate-spin" aria-hidden /> : <ImagePlus className="size-5" aria-hidden />}
               Ajouter
               <input
                 type="file"
@@ -151,7 +151,7 @@ export default function PhotosAnnonce({ annonceId }: { annonceId: string }) {
         </div>
       )}
 
-      {erreur && <p className="mt-2 text-xs font-medium text-red-600">{erreur}</p>}
+      {erreur && <p role="alert" className="mt-2 text-xs font-medium text-danger">{erreur}</p>}
     </div>
   );
 }

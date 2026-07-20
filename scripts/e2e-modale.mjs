@@ -85,7 +85,14 @@ const luminance = (rgb) => {
 let echecs = 0;
 
 for (const motif of ouvrir) {
-  const declencheur = page.getByRole("button", { name: new RegExp(motif) }).first();
+  const nom_ = new RegExp(motif);
+  // Le déclencheur d'une liste déroulante Radix porte le rôle `combobox`, pas
+  // `button` : ne chercher que des boutons rendait les `Select` invisibles à
+  // l'outil, donc jamais vérifiés — exactement le trou qu'il est censé boucher.
+  const declencheur = page
+    .getByRole("button", { name: nom_ })
+    .or(page.getByRole("combobox", { name: nom_ }))
+    .first();
   if (!(await declencheur.count())) {
     console.log(`${motif.padEnd(34)} ⚠️ déclencheur introuvable`);
     echecs++;
