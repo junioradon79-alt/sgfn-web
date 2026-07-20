@@ -1,21 +1,29 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
-import { useChargement } from "@/hooks/useChargement";
-import { Badge } from "@/components/ui/Badge";
-import KpiCard from "@/components/dashboard/KpiCard";
-import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
-import { createClient } from "@/utils/supabase/client";
-import { useProfile } from "@/hooks/useProfile";
+import { type FormEvent, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { CheckCircle2, FileText, Gavel, Plus, Scale } from "lucide-react";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
 import {
-  AlertTriangle,
-  CheckCircle2,
-  FileText,
-  Gavel,
-  Plus,
-  Scale,
-  X,
-} from "lucide-react";
+  Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ds/dialog";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Input, Textarea } from "@/components/ds/input";
+import { Kpi } from "@/components/ds/kpi";
+import { Field } from "@/components/ds/label";
+import { ScrollArea } from "@/components/ds/scroll-area";
+import { SelectItem } from "@/components/ds/select";
+import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
+import { Avertissement, ChampSelect, ModaleFormulaire } from "@/components/dashboard/ModaleFormulaire";
+import { createClient } from "@/utils/supabase/client";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { useChargement } from "@/hooks/useChargement";
+import { useProfile } from "@/hooks/useProfile";
+import { fadeUp, stagger } from "@/lib/motion";
 
 type LitigeRecord = {
   id: string;
@@ -39,18 +47,22 @@ type SuiviRow = {
   profiles: { nom_complet: string | null } | null;
 };
 
-const STATUT_CONFIG: Record<string, { badge: "disponible" | "attribue" | "en_validation" | "litige"; label: string }> = {
-  ouvert: { badge: "litige", label: "Ouvert" },
-  en_mediation: { badge: "en_validation", label: "En médiation" },
-  tranche: { badge: "attribue", label: "Tranché" },
-  clos: { badge: "disponible", label: "Clos" },
+const STATUT_CONFIG: Record<string, { tone: "danger" | "warning" | "accent" | "success"; label: string }> = {
+  ouvert: { tone: "danger", label: "Ouvert" },
+  en_mediation: { tone: "warning", label: "En médiation" },
+  tranche: { tone: "accent", label: "Tranché" },
+  clos: { tone: "success", label: "Clos" },
 };
 
 const TABLE_HEADERS = ["Réf.", "Lot concerné", "Objet", "Statut", "Date d'ouverture", "Actions"] as const;
 
+const fmtDate = (v: string) =>
+  new Date(v).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+
 export default function LitigesPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const { isAdmin, isChefferie } = useProfile();
+  const { counts } = useBadgeCounts();
 
   const [litiges, setLitiges] = useState<LitigeRecord[]>([]);
   const [lotsOptions, setLotsOptions] = useState<LotOption[]>([]);
@@ -80,6 +92,7 @@ export default function LitigesPage() {
 
   const openDetail = (litige: LitigeRecord) => {
     setDetailLitige(litige);
+    setSuivi([]);
     setNoteText("");
     setNoteError(null);
     void loadSuivi(litige.id);
@@ -126,7 +139,7 @@ export default function LitigesPage() {
   const clos = litiges.filter((l) => l.statut === "tranche" || l.statut === "clos").length;
   const taux = litiges.length > 0 ? Math.round((clos / litiges.length) * 100) : 0;
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!form.objet.trim()) {
       setErrorMessage("L'objet du litige est obligatoire.");
@@ -169,329 +182,265 @@ export default function LitigesPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl">
-      {/* En-tête */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <AppShell loading={dataLoading} counts={counts} onRefresh={recharger}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-brand-primary">
-            Gestion des Litiges
+          <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+            Litiges fonciers
           </h1>
-          <p className="mt-1.5 text-sm text-slate-500">
-            Registre des réclamations, arbitrages coutumiers et résolutions juridiques.{" "}
-            <span className={ouverts > 0 ? "font-medium text-[#EF4444]" : "font-medium text-[#2D8F5A]"}>
-              {ouverts} litige{ouverts !== 1 ? "s" : ""} actif{ouverts !== 1 ? "s" : ""}.
-            </span>
+          <p className="mt-1 text-[13.5px] text-muted-foreground">
+            Registre des réclamations, arbitrages coutumiers et résolutions juridiques.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <BoutonImprimer />
           {isAdmin && (
-            <button
+            <Button
               type="button"
+              variant="danger"
+              className="print:hidden"
               onClick={() => { setIsModalOpen(true); setErrorMessage(null); }}
-              className="print:hidden inline-flex items-center gap-2 rounded-full bg-[#EF4444] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#DC2626] active:scale-[0.98]"
             >
-              <Plus className="h-4 w-4" />
-              Ouvrir un dossier de litige
-            </button>
+              <Plus />
+              Ouvrir un dossier
+            </Button>
           )}
         </div>
       </div>
 
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-3"
+        aria-label="Indicateurs des litiges"
+      >
+        <Kpi
+          icon={Gavel}
+          label="En cours d'arbitrage"
+          loading={dataLoading}
+          value={ouverts}
+          tone={ouverts > 0 ? "warning" : "neutral"}
+          legende={<>ouverts ou en médiation</>}
+        />
+        <Kpi
+          icon={CheckCircle2}
+          label="Dossiers résolus"
+          loading={dataLoading}
+          value={clos}
+          legende={<>tranchés ou clos</>}
+        />
+        <Kpi
+          icon={Scale}
+          label="Taux de résolution"
+          loading={dataLoading}
+          value={taux}
+          format={(n) => `${n} %`}
+          legende={<>sur {litiges.length} dossier{litiges.length > 1 ? "s" : ""} enregistré{litiges.length > 1 ? "s" : ""}</>}
+        />
+      </motion.section>
+
       {successMessage && (
-        <div className="mb-4 rounded-2xl border border-emerald-200/80 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+        <p role="status" className="rounded-xl border border-success/25 bg-success-subtle px-4 py-3 text-sm font-medium text-success">
           {successMessage}
-        </div>
+        </p>
       )}
 
-      {/* KPI */}
-      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {(
-          [
-            { label: "Dossiers résolus", value: String(clos), icon: CheckCircle2, gradient: ["#16A34A", "#4ADE80"] },
-            { label: "En cours d'arbitrage", value: String(ouverts), icon: Gavel, gradient: ["#D97706", "#FBBF24"] },
-            { label: "Taux de résolution", value: `${taux}%`, icon: Scale, gradient: ["#1E6091", "#4FA8D8"] },
-          ] as { label: string; value: string; icon: typeof CheckCircle2; gradient: [string, string] }[]
-        ).map((metric) => (
-          <KpiCard
-            key={metric.label}
-            label={metric.label}
-            value={dataLoading ? "…" : metric.value}
-            icon={metric.icon}
-            gradient={metric.gradient}
-          />
-        ))}
-      </div>
+      <motion.div variants={fadeUp} initial="hidden" animate="show">
+        <Card className="overflow-hidden print:border-none print:shadow-none">
+          {dataLoading ? (
+            <p className="px-5 py-10 text-center text-sm text-muted-foreground">Chargement des litiges…</p>
+          ) : litiges.length === 0 ? (
+            <EmptyState
+              icon={Scale}
+              tone="positive"
+              title="Aucun litige enregistré"
+              description="Aucune réclamation n'a été ouverte sur votre périmètre."
+            />
+          ) : (
+            <div className="max-h-[62vh] overflow-auto print:max-h-none print:overflow-visible">
+              <table className="w-full min-w-[760px] border-collapse text-left">
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-border bg-inset">
+                    {TABLE_HEADERS.map((header) => (
+                      <th
+                        key={header}
+                        scope="col"
+                        className="bg-inset px-5 py-3 text-[10.5px] font-bold tracking-wider text-muted-foreground uppercase last:text-right print:last:hidden"
+                      >
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {litiges.map((litige) => {
+                    const cfg = STATUT_CONFIG[litige.statut ?? "ouvert"] ?? STATUT_CONFIG.ouvert;
+                    return (
+                      <tr key={litige.id} className="transition-colors hover:bg-inset/70">
+                        <td className="px-5 py-3.5 font-mono text-xs font-medium text-muted-foreground">
+                          {litige.id.slice(0, 8).toUpperCase()}
+                        </td>
+                        <td className="px-5 py-3.5 text-[13px] font-semibold text-foreground">
+                          {litige.lots?.numero_lot ? `Lot ${litige.lots.numero_lot}` : "N/A"}
+                        </td>
+                        <td className="max-w-[220px] truncate px-5 py-3.5 text-[13px] text-muted-foreground">
+                          {litige.objet || "—"}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <Badge tone={cfg.tone}>{cfg.label}</Badge>
+                        </td>
+                        <td className="px-5 py-3.5 text-[13px] text-muted-2">
+                          {litige.ouvert_le ? fmtDate(litige.ouvert_le) : "—"}
+                        </td>
+                        <td className="px-5 py-3.5 text-right print:hidden">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openDetail(litige)}
+                            aria-label={`Ouvrir le dossier ${litige.id.slice(0, 8).toUpperCase()}`}
+                          >
+                            <FileText />
+                            Dossier
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </motion.div>
 
-      {/* Tableau */}
-      <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white print:overflow-visible print:rounded-none print:border-none">
-        <div className="border-b border-slate-200/60 bg-slate-50/50 px-5 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Registre des litiges
-          </p>
-        </div>
-        <div className="overflow-x-auto print:overflow-visible">
-          <table className="w-full min-w-[760px] border-collapse text-left">
-            <thead>
-              <tr className="border-b border-slate-200/60 bg-slate-50/50">
-                {TABLE_HEADERS.map((header) => (
-                  <th
-                    key={header}
-                    scope="col"
-                    className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-slate-500 last:text-right print:last:hidden"
-                  >
-                    {header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200/60">
-              {dataLoading ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-500">
-                    Chargement des litiges…
-                  </td>
-                </tr>
-              ) : litiges.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-500">
-                    Aucun dossier de litige enregistré.
-                  </td>
-                </tr>
-              ) : (
-                litiges.map((litige) => {
-                  const cfg = STATUT_CONFIG[litige.statut ?? "ouvert"] ?? STATUT_CONFIG.ouvert;
-                  return (
-                    <tr key={litige.id} className="transition-colors hover:bg-slate-50/60">
-                      <td className="px-5 py-4 font-mono text-xs font-medium text-[#0D3B66]">
-                        {litige.id.slice(0, 8).toUpperCase()}
-                      </td>
-                      <td className="px-5 py-4 text-sm text-slate-700">
-                        {litige.lots?.numero_lot ? `Lot ${litige.lots.numero_lot}` : "N/A"}
-                      </td>
-                      <td className="max-w-[220px] truncate px-5 py-4 text-sm text-slate-700">
-                        {litige.objet || "—"}
-                      </td>
-                      <td className="px-5 py-4">
-                        <Badge status={cfg.badge}>{cfg.label}</Badge>
-                      </td>
-                      <td className="px-5 py-4 text-sm text-slate-500">
-                        {litige.ouvert_le
-                          ? new Date(litige.ouvert_le).toLocaleDateString("fr-FR", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })
-                          : "—"}
-                      </td>
-                      <td className="px-5 py-4 text-right print:hidden">
-                        <button
-                          type="button"
-                          onClick={() => openDetail(litige)}
-                          className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#0D3B66]"
-                        >
-                          <FileText className="h-3.5 w-3.5" />
-                          Dossier
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Modal d'ouverture de litige */}
+      {/* Ouverture d'un dossier */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-2xl sm:p-8">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#EF4444]">
-                  Nouveau dossier
-                </p>
-                <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">
-                  Ouvrir un dossier de litige
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-                aria-label="Fermer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-              {/* Lot concerné */}
-              <div className="space-y-1.5">
-                <label htmlFor="litige-lot" className="text-sm font-medium text-slate-700">
-                  Lot concerné
-                </label>
-                <select
-                  id="litige-lot"
-                  value={form.lot_id}
-                  onChange={(e) => setForm((f) => ({ ...f, lot_id: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-                >
-                  <option value="">— Sélectionner un lot —</option>
-                  {lotsOptions.map((lot) => (
-                    <option key={lot.id} value={lot.id}>
-                      Lot {lot.numero_lot}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Objet */}
-              <div className="space-y-1.5">
-                <label htmlFor="litige-objet" className="text-sm font-medium text-slate-700">
-                  Objet du litige <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="litige-objet"
-                  type="text"
-                  value={form.objet}
-                  onChange={(e) => setForm((f) => ({ ...f, objet: e.target.value }))}
-                  placeholder="Ex. Contestation de limites de parcelle"
-                  required
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-                />
-              </div>
-
-              {/* Notes */}
-              <div className="space-y-1.5">
-                <label htmlFor="litige-notes" className="text-sm font-medium text-slate-700">
-                  Notes
-                </label>
-                <textarea
-                  id="litige-notes"
-                  value={form.notes}
-                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                  placeholder="Détails, contexte, parties impliquées…"
-                  rows={3}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10 resize-none"
-                />
-              </div>
-
-              <div className="flex items-start gap-3 rounded-2xl border border-amber-200/70 bg-amber-50 p-3">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                <p className="text-xs text-amber-700">
-                  L&apos;ouverture d&apos;un dossier de litige est enregistrée dans le journal d&apos;audit et notifiée aux parties concernées.
-                </p>
-              </div>
-
-              {errorMessage && (
-                <div className="rounded-2xl border border-red-200/70 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {errorMessage}
-                </div>
-              )}
-
-              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="rounded-full bg-[#EF4444] px-4 py-2 text-sm font-medium text-white transition-all hover:bg-[#DC2626] disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {isSubmitting ? "Ouverture…" : "Ouvrir le dossier"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Détail d'un dossier de litige — historique + notes de suivi */}
-      {detailLitige && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm"
-          onClick={() => setDetailLitige(null)}
+        <ModaleFormulaire
+          surTitre="Nouveau dossier"
+          surTitreTon="danger"
+          titre="Ouvrir un dossier de litige"
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handleSubmit}
+          error={errorMessage}
+          isSubmitting={isSubmitting}
+          variante="danger"
+          libelleAction="Ouvrir le dossier"
+          libelleEnCours="Ouverture…"
         >
-          <div
-            className="w-full max-w-lg rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-2xl sm:p-8"
-            onClick={(e) => e.stopPropagation()}
+          <ChampSelect
+            id="litige-lot"
+            label="Lot concerné"
+            required
+            placeholder="— Sélectionner un lot —"
+            value={form.lot_id}
+            onChange={(v) => setForm((f) => ({ ...f, lot_id: v }))}
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
-                  {detailLitige.lots?.numero_lot ? `Lot ${detailLitige.lots.numero_lot}` : "Dossier"}
-                </p>
-                <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">
-                  {detailLitige.objet || "Litige"}
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setDetailLitige(null)}
-                className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-                aria-label="Fermer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+            {lotsOptions.map((lot) => (
+              <SelectItem key={lot.id} value={lot.id}>Lot {lot.numero_lot}</SelectItem>
+            ))}
+          </ChampSelect>
 
-            <div className="mt-5 max-h-80 space-y-3 overflow-y-auto pr-1">
-              {suiviLoading ? (
-                <p className="text-sm text-slate-400">Chargement…</p>
-              ) : suivi.length === 0 ? (
-                <p className="text-sm text-slate-400">Aucun suivi enregistré pour ce dossier.</p>
-              ) : (
-                suivi.map((s) => (
-                  <div key={s.id} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3.5 py-2.5">
-                    {s.type === "statut" ? (
-                      <p className="text-xs text-slate-500">
-                        Statut : <span className="font-medium text-slate-700">{STATUT_CONFIG[s.statut_avant ?? ""]?.label ?? s.statut_avant ?? "—"}</span>
-                        {" → "}
-                        <span className="font-medium text-slate-700">{STATUT_CONFIG[s.statut_apres ?? ""]?.label ?? s.statut_apres ?? "—"}</span>
-                      </p>
-                    ) : (
-                      <p className="text-sm text-slate-700">{s.corps}</p>
-                    )}
-                    <p className="mt-1 text-[11px] text-slate-400">
-                      {s.profiles?.nom_complet ?? "Équipe SGNF"} ·{" "}
-                      {new Date(s.cree_le).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
+          <Field label="Objet du litige" htmlFor="litige-objet" required>
+            <Input
+              id="litige-objet"
+              type="text"
+              value={form.objet}
+              required
+              placeholder="Ex. Contestation de limites de parcelle"
+              onChange={(e) => setForm((f) => ({ ...f, objet: e.target.value }))}
+            />
+          </Field>
 
-            {(isAdmin || isChefferie) && (
-              <div className="mt-4 space-y-2">
-                <textarea
-                  value={noteText}
-                  onChange={(e) => setNoteText(e.target.value)}
-                  placeholder="Ajouter une note de suivi…"
-                  rows={2}
-                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-                />
-                {noteError && <p className="text-xs text-red-600">{noteError}</p>}
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={ajouterNote}
-                    disabled={noteSubmitting || !noteText.trim()}
-                    className="rounded-full bg-[#0D3B66] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#1E6091] disabled:opacity-60"
-                  >
-                    {noteSubmitting ? "…" : "Ajouter la note"}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+          <Field label="Notes" htmlFor="litige-notes">
+            <Textarea
+              id="litige-notes"
+              value={form.notes}
+              rows={3}
+              placeholder="Détails, contexte, parties impliquées…"
+              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+            />
+          </Field>
+
+          <Avertissement>
+            L&apos;ouverture d&apos;un dossier de litige est enregistrée dans le journal d&apos;audit et
+            notifiée aux parties concernées.
+          </Avertissement>
+        </ModaleFormulaire>
       )}
-    </div>
+
+      {/* Détail d'un dossier — historique + notes de suivi */}
+      {detailLitige && (
+        <Dialog open onOpenChange={(ouvert) => { if (!ouvert) setDetailLitige(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">
+                {detailLitige.lots?.numero_lot ? `Lot ${detailLitige.lots.numero_lot}` : "Dossier"}
+              </p>
+              <DialogTitle>{detailLitige.objet || "Litige"}</DialogTitle>
+            </DialogHeader>
+
+            <DialogBody className="space-y-4">
+              {suiviLoading ? (
+                <p className="text-[13px] text-muted-2">Chargement…</p>
+              ) : suivi.length === 0 ? (
+                <p className="text-[13px] text-muted-2">Aucun suivi enregistré pour ce dossier.</p>
+              ) : (
+                <ScrollArea className="max-h-80">
+                  <div className="space-y-3 pr-1">
+                    {suivi.map((s) => (
+                      <div key={s.id} className="rounded-xl border border-border bg-inset px-3.5 py-2.5">
+                        {s.type === "statut" ? (
+                          <p className="text-xs text-muted-foreground">
+                            Statut :{" "}
+                            <span className="font-medium text-foreground">
+                              {STATUT_CONFIG[s.statut_avant ?? ""]?.label ?? s.statut_avant ?? "—"}
+                            </span>
+                            {" → "}
+                            <span className="font-medium text-foreground">
+                              {STATUT_CONFIG[s.statut_apres ?? ""]?.label ?? s.statut_apres ?? "—"}
+                            </span>
+                          </p>
+                        ) : (
+                          <p className="text-[13px] text-foreground">{s.corps}</p>
+                        )}
+                        <p className="mt-1 text-[11px] text-muted-2">
+                          {s.profiles?.nom_complet ?? "Équipe SGNF"} · {fmtDate(s.cree_le)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+
+              {(isAdmin || isChefferie) && (
+                <div className="space-y-2">
+                  <Textarea
+                    value={noteText}
+                    rows={2}
+                    placeholder="Ajouter une note de suivi…"
+                    aria-label="Note de suivi"
+                    onChange={(e) => setNoteText(e.target.value)}
+                  />
+                  {noteError && <p role="alert" className="text-xs font-medium text-danger">{noteError}</p>}
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      loading={noteSubmitting}
+                      disabled={!noteText.trim()}
+                      onClick={ajouterNote}
+                    >
+                      Ajouter la note
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogBody>
+          </DialogContent>
+        </Dialog>
+      )}
+    </AppShell>
   );
 }
