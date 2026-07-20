@@ -120,11 +120,14 @@ export function AppSidebar({
         onClick={onNavigate}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "group relative flex items-center gap-2.5 rounded-[9px] px-2.5 py-[9px] text-[13px] outline-none transition-colors",
+          "group relative flex items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-[13px] outline-none transition-colors",
           "focus-visible:ring-2 focus-visible:ring-ring/50",
           active
             ? "bg-accent-subtle font-semibold text-primary"
             : "font-medium text-muted-foreground hover:bg-inset hover:text-foreground",
+          // Un favori est un choix de l'utilisateur : le handoff le pose en
+          // couleur de texte pleine, un cran au-dessus des liens de rubrique.
+          enFavori && !active && "py-[7px] text-foreground",
           collapsed && "justify-center px-0",
           // Gouttière réservée à l'étoile : elle ne recouvre jamais la pastille.
           avecFavoris && "pr-8",
@@ -149,7 +152,7 @@ export function AppSidebar({
           <>
             <span className="truncate">{item.label}</span>
             {badge > 0 && (
-              <span className="ml-auto inline-flex min-w-[18px] items-center justify-center rounded-full bg-danger px-1.5 py-0.5 text-[10.5px] font-bold leading-none text-white tabular">
+              <span className="ml-auto inline-flex h-[18px] min-w-[19px] items-center justify-center rounded-[9px] bg-danger px-[5px] text-[10.5px] font-bold leading-none text-white tabular">
                 {badge}
               </span>
             )}
@@ -180,7 +183,10 @@ export function AppSidebar({
             aria-label={favori ? `Retirer « ${item.label} » des favoris` : `Épingler « ${item.label} » aux favoris`}
             className={cn(
               "absolute top-1/2 right-1.5 -translate-y-1/2 rounded-md p-1 outline-none transition focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50",
-              favori
+              // Dans la rubrique Favoris, l'étoile ambre est déjà l'icône de la
+              // ligne : garder le bouton en ambre le doublerait. Il s'y fait
+              // discret et ne se montre qu'au survol, pour désépingler.
+              favori && !enFavori
                 ? "text-amber-500 opacity-100"
                 : "text-muted-2 opacity-0 group-hover/item:opacity-100 hover:text-amber-500",
             )}
@@ -241,8 +247,10 @@ export function AppSidebar({
             {/* Favoris — épinglés par l'utilisateur. Rubrique absente tant que
                 rien n'est épinglé : un intitulé vide n'apprend rien. */}
             {avecFavoris && itemsFavoris.length > 0 && !filtreActif && (
-              <div className="mb-3">
-                <p className="mb-1 px-2 py-1 text-[10px] font-bold tracking-wider text-muted-2 uppercase">Favoris</p>
+              <div className="mb-4">
+                <p className="mt-2 mb-1.5 px-2 text-[10px] font-bold tracking-[.09em] text-muted-2 uppercase">
+                  Favoris
+                </p>
                 <ul className="flex flex-col gap-0.5">{itemsFavoris.map((item) => renderItem(item, true))}</ul>
               </div>
             )}
@@ -259,9 +267,20 @@ export function AppSidebar({
               if (sectionItems.length === 0) return null;
 
               if (collapsed) {
+                const IconeRail = SECTION_ICONS[section];
                 return (
-                  <div key={section} className="mb-4 last:mb-0">
-                    <div className="mx-2 mb-2 h-px bg-border" aria-hidden />
+                  <div key={section} className="mb-3.5 last:mb-0">
+                    {/* En rail, le handoff garde l'icône de rubrique en tête de
+                        groupe — elle situe là où un filet nu ne nomme rien.
+                        On lui adjoint tout de même le filet : la maquette
+                        n'exposait qu'une dizaine d'icônes, le registre réel en
+                        aligne vingt-cinq, où l'icône seule ne se distingue plus
+                        de celles des liens. */}
+                    <div className="mx-2.5 h-px bg-border" aria-hidden />
+                    <p className="flex items-center justify-center pt-2 pb-1 text-muted-2">
+                      <IconeRail className="size-4 opacity-[.85]" aria-hidden />
+                      <span className="sr-only">{libelleSection(section)}</span>
+                    </p>
                     <ul className="flex flex-col gap-0.5">{sectionItems.map((item) => renderItem(item))}</ul>
                   </div>
                 );
@@ -274,25 +293,33 @@ export function AppSidebar({
               const IconeSection = SECTION_ICONS[section];
 
               return (
-                <div key={section} className="mb-1.5 last:mb-0">
+                <div key={section} className="mb-1 last:mb-0">
+                  {/* L'intitulé de rubrique est un repère, pas une destination :
+                      il se tient en retrait (10,5 px, gris atténué, icône à
+                      85 %) pour que les liens restent l'élément le plus lourd
+                      de la colonne. */}
                   <button
                     type="button"
                     onClick={() => setRepliees((r) => ({ ...r, [section]: !r[section] }))}
                     aria-expanded={ouverte}
-                    className="mb-1 flex w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-[12px] font-bold tracking-wide text-foreground uppercase outline-none transition-colors hover:bg-inset focus-visible:ring-2 focus-visible:ring-ring/50"
+                    className="flex w-full items-center gap-[9px] rounded-lg px-2 py-1.5 text-left text-muted-foreground outline-none transition-colors hover:bg-inset hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
                   >
-                    <IconeSection className="size-[17px] shrink-0 text-primary" aria-hidden />
-                    <span className="truncate">{libelleSection(section)}</span>
+                    <IconeSection className="size-4 shrink-0 opacity-[.85]" aria-hidden />
+                    <span className="flex-1 truncate text-[10.5px] font-bold tracking-[.08em] uppercase">
+                      {libelleSection(section)}
+                    </span>
                     <ChevronDown
                       className={cn(
-                        "ml-auto size-3.5 shrink-0 text-muted-2 transition-transform",
+                        "size-[15px] shrink-0 opacity-60 transition-transform",
                         !ouverte && "-rotate-90",
                       )}
                       aria-hidden
                     />
                   </button>
                   {ouverte && (
-                    <ul className="flex flex-col gap-0.5">{sectionItems.map((item) => renderItem(item))}</ul>
+                    <ul className="flex flex-col gap-0.5 pt-[3px] pb-2">
+                      {sectionItems.map((item) => renderItem(item))}
+                    </ul>
                   )}
                 </div>
               );
