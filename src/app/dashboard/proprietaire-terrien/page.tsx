@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { Home } from "lucide-react";
 import type { Profile } from "@/components/dashboard/chefferie/types";
-import { LoadingScreen } from "@/components/dashboard/chefferie/SharedUI";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { AppShell } from "@/components/pilotage/AppShell";
+import { EmptyState } from "@/components/ds/empty-state";
 import { ProprietaireTerrienView } from "@/components/dashboard/proprietaire-terrien/ProprietaireTerrienView";
 
 // ─── Espace Propriétaire terrien ──────────────────────────────────────────────
@@ -21,6 +23,7 @@ export default function ProprietaireTerrienPage() {
   const supabase = createClient();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const { counts } = useBadgeCounts();
 
   useEffect(() => {
     void (async () => {
@@ -43,26 +46,26 @@ export default function ProprietaireTerrienPage() {
     })();
   }, []);
 
-  if (loading) return <LoadingScreen />;
-
-  if (!profile?.famille_id && !profile?.attributaire_id) {
+  // Le profil n'est pas encore lu, ou le compte n'est rattaché à aucun
+  // patrimoine : dans les deux cas c'est la page qui porte la coquille, la vue
+  // n'ayant rien à afficher.
+  if (loading || (!profile?.famille_id && !profile?.attributaire_id)) {
     return (
-      <div className="flex min-h-[300px] items-center justify-center px-4">
-        <div className="max-w-sm text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-50">
-            <Home className="h-6 w-6 text-teal-600" />
+      <AppShell loading={loading} counts={counts} onRefresh={() => window.location.reload()}>
+        {loading ? (
+          <div className="flex min-h-[320px] items-center justify-center">
+            <span className="text-[13px] font-medium text-muted-2">Chargement de votre patrimoine…</span>
           </div>
-          <p className="text-sm font-semibold text-slate-800">
-            Compte en cours de provisionnement
-          </p>
-          <p className="mt-2 text-sm leading-relaxed text-slate-400">
-            Votre compte n&apos;est encore rattaché à aucun patrimoine foncier.
-            Contactez l&apos;administration SGNF pour finaliser le provisionnement.
-          </p>
-        </div>
-      </div>
+        ) : (
+          <EmptyState
+            icon={Home}
+            title="Compte en cours de provisionnement"
+            description="Votre compte n'est encore rattaché à aucun patrimoine foncier. Contactez l'administration SGNF pour finaliser le provisionnement."
+          />
+        )}
+      </AppShell>
     );
   }
 
-  return <ProprietaireTerrienView profile={profile} />;
+  return <ProprietaireTerrienView profile={profile} counts={counts} />;
 }

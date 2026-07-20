@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useChargement } from "@/hooks/useChargement";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { createClient } from "@/utils/supabase/client";
 import Link from "next/link";
 import {
@@ -153,6 +154,10 @@ export default function ChefferiePage() {
   const supabase = createClient();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  // Un compte `chefferie` rattaché à une famille voit l'espace Propriétaire
+  // terrien : cette vue porte désormais sa propre coquille, qui a besoin des
+  // pastilles. Cet écran sera migré à son tour.
+  const { counts } = useBadgeCounts();
 
   useEffect(() => {
     void (async () => {
@@ -187,7 +192,7 @@ export default function ChefferiePage() {
     );
   }
 
-  if (profile.famille_id) return <ProprietaireTerrienView profile={profile} />;
+  if (profile.famille_id) return <ProprietaireTerrienView profile={profile} counts={counts} />;
   if (profile.autorite_coutumiere_id)
     return <ChefVillageView profile={profile} />;
 

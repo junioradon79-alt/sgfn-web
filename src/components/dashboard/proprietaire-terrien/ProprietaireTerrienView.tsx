@@ -2,7 +2,16 @@
 
 import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { useChargement } from "@/hooks/useChargement";
+import { stagger } from "@/lib/motion";
+import type { BadgeKey } from "@/lib/navigation";
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Kpi } from "@/components/ds/kpi";
 import { createClient } from "@/utils/supabase/client";
 import {
   Building2, ChevronDown, ChevronRight, FileText, CheckCircle2, Clock, PenLine,
@@ -10,7 +19,7 @@ import {
 } from "lucide-react";
 import type { Profile, AttestationCoutumiere, PvReunion } from "@/components/dashboard/chefferie/types";
 import {
-  PV_STATUT_LABELS, PV_STATUT_COLORS, SignaturesBadges, ProgressBar, LoadingScreen, StatCard,
+  PV_STATUT_LABELS, PV_STATUT_COLORS, SignaturesBadges, ProgressBar,
 } from "@/components/dashboard/chefferie/SharedUI";
 import {
   LotDetailModal, QUALITE_LABELS,
@@ -87,7 +96,13 @@ const SANS_LOTISSEMENT = "Lotissement non renseigné";
 
 // ─── Vue ──────────────────────────────────────────────────────────────────────
 
-export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
+export function ProprietaireTerrienView({
+  profile,
+  counts,
+}: {
+  profile: Profile;
+  counts: Partial<Record<BadgeKey, number>>;
+}) {
   const supabase = createClient();
   const [famille, setFamille] = useState<Famille | null>(null);
   const [mesLots, setMesLots] = useState<AttributionRow[]>([]);
@@ -238,7 +253,7 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
     }
   }, [profile.famille_id, profile.attributaire_id, profile.id]);
 
-  const { isLoading: loading } = useChargement(fetchData, [fetchData]);
+  const { isLoading: loading, recharger } = useChargement(fetchData, [fetchData]);
 
   const signerApfc = async (apfcId: string) => {
     setSigning(apfcId);
@@ -311,7 +326,17 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
       .sort((a, b) => b.lots.length - a.lots.length);
   }, [mesLots, lotsCollectifs]);
 
-  if (loading) return <LoadingScreen />;
+  // Le retour anticipé garde la coquille : sans elle, l'écran perdrait sa barre
+  // latérale et son en-tête le temps du chargement, puis les retrouverait.
+  if (loading) {
+    return (
+      <AppShell loading counts={counts} onRefresh={recharger}>
+        <div className="flex min-h-[320px] items-center justify-center">
+          <span className="text-[13px] font-medium text-muted-2">Chargement de votre patrimoine…</span>
+        </div>
+      </AppShell>
+    );
+  }
 
   const pvAFournir = pvs.filter((p) => p.statut === "a_fournir").length;
   const apfcNonSignees = apfc.filter((a) => !a.sig_chef_famille_le).length;
@@ -330,103 +355,165 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
   // Un seul lotissement : replier n'apporte rien, on l'ouvre d'emblée.
   const estOuvert = (nom: string) => ouverts[nom] ?? groupes.length === 1;
 
-  const cartes = [
-    ...(estChefDeFamille
-      ? [
-          { href: "#apfc", icon: PenLine, label: "APFC à signer", value: apfcNonSignees, subtitle: apfcNonSignees > 0 ? "En attente de votre signature" : "À jour", alerte: apfcNonSignees },
-          { href: "#pv", icon: FileText, label: "PV de famille", value: pvs.length, subtitle: pvAFournir > 0 ? `${pvAFournir} à régulariser` : "À jour", alerte: pvAFournir },
-        ]
-      : []),
-    { href: "#lots", icon: Store, label: "TerraCI Market", value: annoncesActives, subtitle: enAttenteTotal > 0 ? `${enAttenteTotal} acquéreur${enAttenteTotal > 1 ? "s" : ""} en attente` : vendables > 0 ? `${vendables} lot${vendables > 1 ? "s" : ""} vendable${vendables > 1 ? "s" : ""}` : "Aucun lot vendable", alerte: enAttenteTotal },
-    { href: "/dashboard/litiges", icon: FileWarning, label: "Litiges", value: litigesActifsCount, subtitle: litigesActifsCount > 0 ? "Sur vos parcelles" : "Aucun litige actif", alerte: litigesActifsCount },
-    { href: "/dashboard/concertation", icon: Handshake, label: "Concertation", value: concertationCount, subtitle: "Échanges en cours", alerte: 0 },
-  ];
-
   return (
-    <div className="space-y-6">
+    <AppShell loading={loading} counts={counts} onRefresh={recharger}>
       {/* En-tête — l'identité affichée est la PERSONNE connectée, jamais la lignée
           (Ako Djebe est la lignée, pas le propriétaire). Un seul cadrage pour tous :
           « Propriétaire terrien ». Il n'y a plus de dashboard « chef de famille »
           distinct — être chef de famille n'ajoute que des rubriques (APFC, PV),
           jamais une identité d'écran séparée. La lignée reste en contexte. */}
       <div className="flex flex-col gap-1">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
-          Propriétaire terrien
+        <p className="text-[11px] font-bold tracking-[0.22em] text-primary uppercase">
+          Propriétaire terrien{estChefDeFamille && " · Patrimoine familial"}
         </p>
-        <h1 className="text-2xl font-bold text-[#0D3B66]">{profile.nom_complet}</h1>
-        <p className="text-sm text-slate-500">
-          {estChefDeFamille && `Lignée ${famille?.lignee?.nom ?? famille?.nom ?? "—"} · `}
-          {lotsTotal} lot{lotsTotal > 1 ? "s" : ""} · {groupes.length} lotissement
-          {groupes.length > 1 ? "s" : ""}
+        <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+          Mon patrimoine foncier
+        </h1>
+        <p className="text-[13.5px] text-muted-foreground">
+          {profile.nom_complet}
+          {estChefDeFamille && ` · Lignée ${famille?.lignee?.nom ?? famille?.nom ?? "—"}`} · {lotsTotal} lot
+          {lotsTotal > 1 ? "s" : ""} · {groupes.length} lotissement{groupes.length > 1 ? "s" : ""}
+        </p>
+        <p className="mt-1 max-w-2xl text-[13px] text-muted-2">
+          Consultez vos titres, suivez vos attestations coutumières et mettez un lot en vente sur TerraCI
+          Market.
         </p>
       </div>
 
       {signError && (
-        <div className="rounded-2xl border border-red-200/70 bg-red-50 px-4 py-3 text-sm text-red-700">{signError}</div>
+        <p role="alert" className="rounded-lg border border-danger/30 bg-danger-subtle px-4 py-2.5 text-[13px] text-danger">
+          {signError}
+        </p>
       )}
 
-      {/* Carte principale — patrimoine */}
-      <a
-        href="#lots"
-        className="group flex items-center justify-between gap-4 rounded-3xl border border-[#0D3B66]/15 bg-gradient-to-br from-[#0D3B66] to-[#1E6091] p-6 text-white shadow-sm transition hover:shadow-md sm:p-8"
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+        aria-label="Indicateurs de mon patrimoine"
       >
-        <div>
-          <div className="flex items-center gap-2 text-white/70">
-            <Building2 className="h-5 w-5" />
-            {/* « Mes lots » même pour un chef de famille : ses lots viennent de son
-                attributaire personnel, pas du collectif (familles.attributaire_id
-                est NULL pour Ako Djebe). Les lots réellement collectifs, s'il y en
-                a un jour, restent signalés ligne par ligne. */}
-            <span className="text-xs font-semibold uppercase tracking-[0.2em]">Mes lots</span>
-          </div>
-          <p className="mt-3 text-5xl font-bold leading-none">{lotsTotal}</p>
-          <p className="mt-2 max-w-md text-sm text-white/70">
-            Cliquez un lot pour ouvrir son dossier, ou mettez-le en vente sur TerraCI Market.
-          </p>
-        </div>
-        <ChevronRight className="h-6 w-6 shrink-0 text-white/60 transition group-hover:translate-x-1" />
-      </a>
+        <Kpi
+          icon={Building2}
+          label="Lots détenus"
+          href="#lots"
+          loading={loading}
+          value={lotsTotal}
+          legende={
+            <>
+              répartis sur {groupes.length} lotissement{groupes.length > 1 ? "s" : ""}
+            </>
+          }
+        />
 
-      {/* Autres rubriques */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {cartes.map((c) => (
-          <StatCard key={c.label} {...c} />
-        ))}
-      </div>
+        {estChefDeFamille && (
+          <Kpi
+            icon={PenLine}
+            label="APFC à signer"
+            href="#apfc"
+            loading={loading}
+            value={apfcNonSignees}
+            tone={apfcNonSignees > 0 ? "warning" : "neutral"}
+            legende={
+              apfcNonSignees > 0 ? (
+                <>en attente de votre signature</>
+              ) : (
+                <>toutes vos attestations sont signées</>
+              )
+            }
+          />
+        )}
+
+        {estChefDeFamille && (
+          <Kpi
+            icon={FileText}
+            label="PV de famille"
+            href="#pv"
+            loading={loading}
+            value={pvs.length}
+            tone={pvAFournir > 0 ? "warning" : "neutral"}
+            legende={pvAFournir > 0 ? <>{pvAFournir} à régulariser</> : <>aucun PV à régulariser</>}
+          />
+        )}
+
+        <Kpi
+          icon={Store}
+          label="TerraCI Market"
+          href="#lots"
+          loading={loading}
+          value={annoncesActives}
+          legende={
+            enAttenteTotal > 0 ? (
+              <>
+                {enAttenteTotal} acquéreur{enAttenteTotal > 1 ? "s" : ""} en attente sur vos lots
+              </>
+            ) : vendables > 0 ? (
+              <>
+                {vendables} lot{vendables > 1 ? "s" : ""} vendable{vendables > 1 ? "s" : ""}
+              </>
+            ) : (
+              <>aucun lot vendable pour l&apos;instant</>
+            )
+          }
+        />
+
+        <Kpi
+          icon={FileWarning}
+          label="Litiges actifs"
+          href="/dashboard/litiges"
+          loading={loading}
+          value={litigesActifsCount}
+          tone={litigesActifsCount > 0 ? "warning" : "neutral"}
+          legende={litigesActifsCount > 0 ? <>sur vos parcelles</> : <>aucun litige en cours</>}
+        />
+
+        <Kpi
+          icon={Handshake}
+          label="Concertation"
+          href="/dashboard/concertation"
+          loading={loading}
+          value={concertationCount}
+          legende={<>échanges en cours avec la chefferie</>}
+        />
+      </motion.section>
 
       {/* Lots regroupés par lotissement — cible de l'ancre #lots */}
       <div id="lots" className="scroll-mt-6 space-y-3">
         {lotsTotal === 0 ? (
-          <section className="rounded-2xl border border-slate-200/60 bg-white px-5 py-6 text-sm text-slate-400 shadow-sm">
-            Aucun lot rattaché à votre compte pour le moment.
-          </section>
+          <Card className="p-5">
+            <EmptyState
+              icon={Building2}
+              title="Aucun lot rattaché"
+              description="Aucun lot n'est rattaché à votre compte pour le moment."
+            />
+          </Card>
         ) : (
           groupes.map((g) => {
             const ouvert = estOuvert(g.nom);
             const enVente = g.lots.filter((l) => annonces[l.lotId]?.statut === "active").length;
             return (
-              <section key={g.nom} className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
+              <Card key={g.nom} className="overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setOuverts((p) => ({ ...p, [g.nom]: !ouvert }))}
                   aria-expanded={ouvert}
-                  className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-slate-50"
+                  className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-inset"
                 >
                   <div className="min-w-0">
-                    <h2 className="truncate text-sm font-semibold text-[#0D3B66]">{g.nom}</h2>
-                    <p className="mt-0.5 text-xs text-slate-400">
+                    <h2 className="truncate text-[13.5px] font-semibold text-foreground">{g.nom}</h2>
+                    <p className="mt-0.5 text-[11.5px] text-muted-2">
                       {g.lots.length} lot{g.lots.length > 1 ? "s" : ""}
                       {enVente > 0 ? ` · ${enVente} en vente` : ""}
                     </p>
                   </div>
                   {ouvert ? (
-                    <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+                    <ChevronDown className="size-4 shrink-0 text-muted-2" />
                   ) : (
-                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                    <ChevronRight className="size-4 shrink-0 text-muted-2" />
                   )}
                 </button>
                 {ouvert && (
-                  <div className="divide-y divide-slate-100 border-t border-slate-100">
+                  <div className="divide-y divide-border border-t border-border">
                     {g.lots.map((l) => (
                       <LotRow
                         key={l.lotId}
@@ -440,7 +527,7 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
                     ))}
                   </div>
                 )}
-              </section>
+              </Card>
             );
           })
         )}
@@ -448,22 +535,22 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
 
       {/* APFC — réservé au chef de famille (document de la lignée) */}
       {estChefDeFamille && (
-        <section id="apfc" className="scroll-mt-6 overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="text-sm font-semibold text-[#0D3B66]">
+        <Card id="apfc" className="scroll-mt-6 overflow-hidden">
+          <div className="border-b border-border px-5 py-4">
+            <h2 className="text-[13.5px] font-semibold text-foreground">
               Attestation de Propriété Foncière Coutumière (APFC)
             </h2>
-            <p className="mt-0.5 text-xs text-slate-400">
+            <p className="mt-0.5 text-[11.5px] text-muted-2">
               Document cosigné par la famille et la Chefferie du village
             </p>
           </div>
           {apfc.length === 0 ? (
-            <div className="flex items-center gap-2 px-5 py-6 text-sm text-slate-400">
-              <Clock className="h-4 w-4 shrink-0" />
+            <div className="flex items-center gap-2 px-5 py-6 text-[13px] text-muted-2">
+              <Clock className="size-4 shrink-0" />
               Aucune APFC initiée pour votre famille.
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-border">
               {apfc.map((a) => {
                 const sig1 = !!a.sig_chef_famille_le;
                 const sig2 = !!a.sig_chef_village_le;
@@ -473,10 +560,10 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
                   <div key={a.id} className="px-5 py-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-slate-800">
+                        <p className="text-[13.5px] font-semibold text-foreground">
                           {a.numero ?? a.reference ?? "APFC sans référence"}
                         </p>
-                        <p className="mt-0.5 text-xs text-slate-400">
+                        <p className="mt-0.5 text-[11.5px] text-muted-2">
                           Chef : {a.chef_de_famille ?? "—"}
                         </p>
                         <SignaturesBadges
@@ -489,18 +576,21 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
                         <ProgressBar value={pct} max={3} />
                       </div>
                       {!sig1 && (
-                        <button
+                        <Button
+                          size="sm"
+                          variant="primary"
                           onClick={() => signerApfc(a.id)}
+                          loading={signing === a.id}
                           disabled={signing === a.id}
-                          className="shrink-0 rounded-xl bg-[#0D3B66] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#1E6091] disabled:opacity-60"
+                          className="shrink-0"
                         >
-                          {signing === a.id ? "…" : "Valider"}
-                        </button>
+                          Valider
+                        </Button>
                       )}
                       {sig1 && (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> Validé
-                        </span>
+                        <Badge tone="success" className="shrink-0">
+                          <CheckCircle2 className="size-3.5" /> Validé
+                        </Badge>
                       )}
                     </div>
                   </div>
@@ -508,27 +598,27 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
               })}
             </div>
           )}
-        </section>
+        </Card>
       )}
 
       {/* PV de réunion de famille — réservé au chef de famille */}
       {estChefDeFamille && (
-        <section id="pv" className="scroll-mt-6 overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="text-sm font-semibold text-[#0D3B66]">PV de réunion de famille</h2>
-            <p className="mt-0.5 text-xs text-slate-400">
+        <Card id="pv" className="scroll-mt-6 overflow-hidden">
+          <div className="border-b border-border px-5 py-4">
+            <h2 className="text-[13.5px] font-semibold text-foreground">PV de réunion de famille</h2>
+            <p className="mt-0.5 text-[11.5px] text-muted-2">
               Habilitation des ayants-droit à céder ou transmettre les parcelles · Lecture seule
             </p>
           </div>
           {pvs.length === 0 ? (
-            <div className="px-5 py-6 text-sm text-slate-400">Aucun PV enregistré.</div>
+            <div className="px-5 py-6 text-[13px] text-muted-2">Aucun PV enregistré.</div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-border">
               {pvs.map((pv) => (
                 <div key={pv.id} className="flex items-center justify-between px-5 py-3.5">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-800">{pv.collectif_nom}</p>
-                    <p className="mt-0.5 text-xs text-slate-400">
+                    <p className="truncate text-[13.5px] font-semibold text-foreground">{pv.collectif_nom}</p>
+                    <p className="mt-0.5 text-[11.5px] text-muted-2">
                       {pv.reference} · {pv.nb_lots} lot{pv.nb_lots !== 1 ? "s" : ""}
                     </p>
                   </div>
@@ -543,7 +633,7 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
               ))}
             </div>
           )}
-        </section>
+        </Card>
       )}
 
       {dossierLot && (
@@ -555,7 +645,7 @@ export function ProprietaireTerrienView({ profile }: { profile: Profile }) {
           onClose={() => setDossierLot(null)}
         />
       )}
-    </div>
+    </AppShell>
   );
 }
 
