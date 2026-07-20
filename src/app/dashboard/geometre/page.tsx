@@ -337,7 +337,7 @@ export default function EspaceGeometrePage() {
   }
 
   return (
-    <AppShell title="Espace Géomètre" loading={loading} counts={counts} onRefresh={rafraichir}>
+    <AppShell loading={loading} counts={counts} onRefresh={rafraichir}>
       {/* Bandeau identité */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <Card>

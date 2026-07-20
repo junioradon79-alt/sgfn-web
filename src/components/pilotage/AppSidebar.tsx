@@ -305,6 +305,15 @@ export function AppSidebar({
         ) : (
           <ul className="flex flex-col gap-0.5">{retenus.map((item) => renderItem(item))}</ul>
         )}
+
+        {/* Un menu réduit à une seule entrée ressemble à une navigation cassée.
+            Le handoff (écran Saisie) l'explique au lieu de laisser deviner. */}
+        {!collapsed && retenus.length === 1 && (
+          <p className="mt-3 rounded-[9px] bg-inset px-2.5 py-2.5 text-[11.5px] leading-relaxed text-muted-2">
+            Votre accès est cantonné à ce module. Contactez l&apos;administration pour toute autre
+            demande.
+          </p>
+        )}
       </nav>
 
       {/* Repli — bouton nommé en pied, comme le handoff, plutôt qu'une icône

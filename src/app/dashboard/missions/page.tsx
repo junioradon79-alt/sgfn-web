@@ -402,7 +402,7 @@ export default function MissionsPage() {
 
   if (!profileLoading && !profile?.geometre_id) {
     return (
-      <AppShell title="Mes missions" loading={false} counts={counts} onRefresh={rafraichir}>
+      <AppShell loading={false} counts={counts} onRefresh={rafraichir}>
         <div className="flex min-h-[300px] items-center justify-center px-4">
           <div className="max-w-sm text-center">
             <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-accent-subtle">
@@ -423,7 +423,7 @@ export default function MissionsPage() {
   const toutesSignatures = pv ? !!(pv.sig_demandeur_le && pv.sig_geometre_le && pv.sig_autorite_le) : false;
 
   return (
-    <AppShell title="Mes missions" loading={loading} counts={counts} onRefresh={rafraichir}>
+    <AppShell loading={loading} counts={counts} onRefresh={rafraichir}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-xl font-bold tracking-tight text-foreground">Mes missions</h1>

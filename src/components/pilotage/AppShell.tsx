@@ -37,9 +37,6 @@ export function AppShell({
   wide = false,
 }: {
   children: React.ReactNode;
-  /** Accepté pour compat (des pages le passent encore) mais non affiché :
-   *  l'en-tête handoff montre la salutation, plus le fil d'Ariane. */
-  title?: string;
   loading: boolean;
   majLe?: Date | null;
   /** Pastilles « à faire » — fournies par la page (cf. `useBadgeCounts`), pour

@@ -17,6 +17,9 @@ import {
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Button } from "@/components/ds/button";
 import { fetchAllPages } from "@/lib/supabase-pagination";
 import { FileValidation } from "@/components/dashboard/saisie/FileValidation";
 import { ImportExcel } from "@/components/dashboard/saisie/ImportExcel";
@@ -78,6 +81,7 @@ export default function SaisiePage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const { profile, loading: profileLoading } = useProfile();
+  const { counts } = useBadgeCounts();
 
   const isAdmin = profile?.groupe === "admin";
   const autorise =
@@ -428,42 +432,42 @@ export default function SaisiePage() {
 
   if (profileLoading || !autorise) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-slate-400">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <span className="text-sm font-medium">Ouverture du module de saisie…</span>
+      <AppShell loading counts={counts} onRefresh={() => window.location.reload()}>
+        <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 text-muted-2">
+          <Loader2 className="size-6 animate-spin" />
+          <span className="text-[13px] font-medium">Ouverture du module de saisie…</span>
         </div>
-      </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <AppShell loading={false} counts={counts} onRefresh={() => window.location.reload()}>
       {/* En-tête */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
-            <ClipboardEdit className="h-4 w-4" />
+          <p className="flex items-center gap-2 text-[11px] font-bold tracking-[0.22em] text-primary uppercase">
+            <ClipboardEdit className="size-3.5" />
             Saisie foncière
-          </div>
-          <h1 className="mt-2 text-2xl font-bold text-[#0D3B66]">Mise à jour de la base</h1>
-          <p className="mt-1.5 text-sm text-slate-500">
+          </p>
+          <h1 className="mt-1.5 font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+            Mise à jour de la base
+          </h1>
+          <p className="mt-1 max-w-2xl text-[13.5px] text-muted-foreground">
             Renseignez les attributions puis soumettez pour validation. Rien n&apos;est appliqué avant
             l&apos;approbation d&apos;un administrateur.
           </p>
         </div>
-        <Link
-          href="/mode-emploi-saisie"
-          target="_blank"
-          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-[#1E6091] shadow-sm transition hover:bg-slate-50"
-        >
-          <HelpCircle className="h-4 w-4" />
-          Mode d&apos;emploi
-        </Link>
+        <Button asChild variant="outline" className="shrink-0">
+          <Link href="/mode-emploi-saisie" target="_blank">
+            <HelpCircle />
+            Mode d&apos;emploi
+          </Link>
+        </Button>
       </div>
 
       {/* Onglets */}
-      <div className="mb-6 flex gap-1 rounded-full border border-slate-200/70 bg-white p-1 text-sm shadow-sm w-fit">
+      <div className="mb-6 flex gap-1 rounded-full border border-border bg-card p-1 text-sm shadow-sm w-fit">
         {[
           { key: "saisie" as const, label: "Nouvelle saisie" },
           { key: "soumissions" as const, label: isAdmin ? "File de validation" : "Mes soumissions" },
@@ -476,7 +480,7 @@ export default function SaisiePage() {
               setTab(t.key);
             }}
             className={`rounded-full px-4 py-1.5 font-medium transition ${
-              tab === t.key ? "bg-[#0D3B66] text-white shadow-sm" : "text-slate-500 hover:text-[#0D3B66]"
+              tab === t.key ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-primary"
             }`}
           >
             {t.label}
@@ -488,8 +492,8 @@ export default function SaisiePage() {
         <div
           className={`mb-4 rounded-2xl border px-4 py-3 text-sm font-medium ${
             message.kind === "ok"
-              ? "border-emerald-200/80 bg-emerald-50 text-emerald-700"
-              : "border-red-200/70 bg-red-50 text-red-700"
+              ? "border-success/30/80 bg-success-subtle text-success"
+              : "border-danger/30/70 bg-danger-subtle text-danger"
           }`}
         >
           {message.text}
@@ -499,7 +503,7 @@ export default function SaisiePage() {
       {tab === "saisie" ? (
         <div className="space-y-6">
           {/* Bascule Mettre à jour un lotissement existant / Créer un nouveau */}
-          <div className="flex gap-1 rounded-full border border-slate-200/70 bg-white p-1 text-sm shadow-sm w-fit">
+          <div className="flex gap-1 rounded-full border border-border bg-card p-1 text-sm shadow-sm w-fit">
             {[
               { key: "maj" as const, label: "Mettre à jour un lotissement" },
               { key: "creation" as const, label: "Créer un nouveau lotissement" },
@@ -509,7 +513,7 @@ export default function SaisiePage() {
                 type="button"
                 onClick={() => setModeType(m.key)}
                 className={`rounded-full px-4 py-1.5 font-medium transition ${
-                  modeType === m.key ? "bg-[#0D3B66] text-white shadow-sm" : "text-slate-500 hover:text-[#0D3B66]"
+                  modeType === m.key ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-primary"
                 }`}
               >
                 {m.label}
@@ -522,12 +526,12 @@ export default function SaisiePage() {
           ) : (
             <>
           {/* Sélection lotissement */}
-          <div className="rounded-2xl border border-slate-200/60 bg-white p-5 shadow-sm sm:p-6">
-            <label className="text-sm font-medium text-slate-700">Lotissement à mettre à jour</label>
+          <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm sm:p-6">
+            <label className="text-sm font-medium text-foreground">Lotissement à mettre à jour</label>
             <select
               value={lotissementId}
               onChange={(e) => onSelectLotissement(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10 sm:max-w-md"
+              className="mt-1.5 w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40 sm:max-w-md"
             >
               <option value="">— Sélectionner un lotissement —</option>
               {lotissements.map((l) => (
@@ -542,7 +546,7 @@ export default function SaisiePage() {
           {lotissementId && (
             <>
               {/* Bascule Manuel / Import Excel */}
-              <div className="flex gap-1 rounded-full border border-slate-200/70 bg-white p-1 text-sm shadow-sm w-fit">
+              <div className="flex gap-1 rounded-full border border-border bg-card p-1 text-sm shadow-sm w-fit">
                 {[
                   { key: "manuel" as const, label: "Ligne par ligne" },
                   { key: "import" as const, label: "Import Excel" },
@@ -552,7 +556,7 @@ export default function SaisiePage() {
                     type="button"
                     onClick={() => setModeSaisie(m.key)}
                     className={`rounded-full px-4 py-1.5 font-medium transition ${
-                      modeSaisie === m.key ? "bg-[#0D3B66] text-white shadow-sm" : "text-slate-500 hover:text-[#0D3B66]"
+                      modeSaisie === m.key ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-primary"
                     }`}
                   >
                     {m.label}
@@ -576,19 +580,19 @@ export default function SaisiePage() {
 
               {/* Éditeur de lot */}
               {modeSaisie === "manuel" && (
-              <div className="rounded-2xl border border-slate-200/60 bg-white p-5 shadow-sm sm:p-6">
-                <h2 className="text-sm font-semibold text-[#0D3B66]">Ajouter une modification</h2>
+              <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm sm:p-6">
+                <h2 className="text-sm font-semibold text-primary">Ajouter une modification</h2>
                 {etatsLoading ? (
-                  <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
+                  <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" /> Chargement des lots…
                   </div>
                 ) : (
                   <div className="mt-4 space-y-4">
                     {/* Recherche lot */}
                     <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-slate-700">Lot concerné</label>
+                      <label className="text-sm font-medium text-foreground">Lot concerné</label>
                       <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-2" />
                         <input
                           value={lotSel ? "" : lotFiltre}
                           onChange={(e) => {
@@ -596,13 +600,13 @@ export default function SaisiePage() {
                             setLotSelId(null);
                           }}
                           placeholder="Rechercher un lot (n° lot, îlot, titulaire actuel)…"
-                          className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
+                          className="w-full rounded-xl border border-border bg-card py-2.5 pl-9 pr-4 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
                         />
                       </div>
                       {lotSel ? (
-                        <div className="mt-2 flex items-center justify-between rounded-xl border border-[#0D3B66]/20 bg-[#0D3B66]/5 px-3 py-2 text-sm">
-                          <span className="text-slate-700">
-                            <span className="font-semibold text-[#0D3B66]">
+                        <div className="mt-2 flex items-center justify-between rounded-xl border border-primary/20 bg-accent-subtle px-3 py-2 text-sm">
+                          <span className="text-foreground">
+                            <span className="font-semibold text-primary">
                               Îlot {lotSel.ilot} · Lot {lotSel.numero_lot}
                             </span>{" "}
                             — actuel :{" "}
@@ -613,16 +617,16 @@ export default function SaisiePage() {
                           <button
                             type="button"
                             onClick={() => setLotSelId(null)}
-                            className="rounded-full p-1 text-slate-400 hover:bg-white hover:text-slate-600"
+                            className="rounded-full p-1 text-muted-2 hover:bg-card hover:text-muted-foreground"
                           >
                             <X className="h-4 w-4" />
                           </button>
                         </div>
                       ) : (
                         lotFiltre.trim() && (
-                          <div className="mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+                          <div className="mt-1 max-h-56 overflow-y-auto rounded-xl border border-border bg-card shadow-sm">
                             {lotsFiltres.length === 0 ? (
-                              <div className="px-3 py-3 text-sm text-slate-400">Aucun lot trouvé.</div>
+                              <div className="px-3 py-3 text-sm text-muted-2">Aucun lot trouvé.</div>
                             ) : (
                               lotsFiltres.map((e) => (
                                 <button
@@ -632,12 +636,12 @@ export default function SaisiePage() {
                                     setLotSelId(e.lot_id);
                                     setLotFiltre("");
                                   }}
-                                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-inset"
                                 >
-                                  <span className="font-medium text-slate-700">
+                                  <span className="font-medium text-foreground">
                                     Îlot {e.ilot} · Lot {e.numero_lot}
                                   </span>
-                                  <span className="truncate text-xs text-slate-400">
+                                  <span className="truncate text-xs text-muted-2">
                                     {e.attributaire_nom ?? "libre"}
                                     {mods[e.lot_id] ? " · déjà modifié" : ""}
                                   </span>
@@ -663,8 +667,8 @@ export default function SaisiePage() {
                               onClick={() => setAction(a.key)}
                               className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
                                 action === a.key
-                                  ? "border-[#0D3B66] bg-[#0D3B66] text-white"
-                                  : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                                  ? "border-primary bg-primary text-white"
+                                  : "border-border text-muted-foreground hover:bg-inset"
                               }`}
                             >
                               {a.label}
@@ -676,17 +680,17 @@ export default function SaisiePage() {
                           <div className="grid gap-4 sm:grid-cols-2">
                             {/* Attributaire */}
                             <div className="space-y-1.5">
-                              <label className="text-sm font-medium text-slate-700">Attributaire</label>
+                              <label className="text-sm font-medium text-foreground">Attributaire</label>
                               {attSel ? (
-                                <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
-                                  <span className="font-medium text-emerald-800">
+                                <div className="flex items-center justify-between rounded-xl border border-success/30 bg-success-subtle px-3 py-2 text-sm">
+                                  <span className="font-medium text-success">
                                     {attSel.nom}
                                     {attSel.kind === "nouveau" ? " · nouveau" : ""}
                                   </span>
                                   <button
                                     type="button"
                                     onClick={() => setAttSel(null)}
-                                    className="rounded-full p-1 text-emerald-600 hover:bg-white"
+                                    className="rounded-full p-1 text-success hover:bg-card"
                                   >
                                     <X className="h-4 w-4" />
                                   </button>
@@ -694,16 +698,16 @@ export default function SaisiePage() {
                               ) : (
                                 <>
                                   <div className="relative">
-                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-2" />
                                     <input
                                       value={attQuery}
                                       onChange={(e) => setAttQuery(e.target.value)}
                                       placeholder="Rechercher un attributaire…"
-                                      className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
+                                      className="w-full rounded-xl border border-border bg-card py-2.5 pl-9 pr-4 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
                                     />
                                   </div>
                                   {(attResults.length > 0 || nouveaux.length > 0) && attQuery.trim().length >= 2 && (
-                                    <div className="mt-1 max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+                                    <div className="mt-1 max-h-48 overflow-y-auto rounded-xl border border-border bg-card shadow-sm">
                                       {nouveaux
                                         .filter((n) => n.nom.toLowerCase().includes(attQuery.trim().toLowerCase()))
                                         .map((n) => (
@@ -714,10 +718,10 @@ export default function SaisiePage() {
                                               setAttSel({ kind: "nouveau", ref: n.ref, nom: n.nom });
                                               setAttQuery("");
                                             }}
-                                            className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50"
+                                            className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-inset"
                                           >
-                                            <span className="font-medium text-slate-700">{n.nom}</span>
-                                            <span className="text-xs text-emerald-600">nouveau</span>
+                                            <span className="font-medium text-foreground">{n.nom}</span>
+                                            <span className="text-xs text-success">nouveau</span>
                                           </button>
                                         ))}
                                       {attResults.map((a) => (
@@ -728,10 +732,10 @@ export default function SaisiePage() {
                                             setAttSel({ kind: "existant", id: a.id, nom: a.nom ?? "—" });
                                             setAttQuery("");
                                           }}
-                                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-inset"
                                         >
-                                          <span className="font-medium text-slate-700">{a.nom}</span>
-                                          <span className="truncate text-xs text-slate-400">
+                                          <span className="font-medium text-foreground">{a.nom}</span>
+                                          <span className="truncate text-xs text-muted-2">
                                             {a.piece_num ?? ""}
                                           </span>
                                         </button>
@@ -741,7 +745,7 @@ export default function SaisiePage() {
                                   <button
                                     type="button"
                                     onClick={() => setShowNouveauForm(true)}
-                                    className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-[#1E6091] hover:underline"
+                                    className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
                                   >
                                     <UserPlus className="h-3.5 w-3.5" />
                                     Créer un nouvel attributaire
@@ -752,11 +756,11 @@ export default function SaisiePage() {
 
                             {/* Qualité */}
                             <div className="space-y-1.5">
-                              <label className="text-sm font-medium text-slate-700">Qualité</label>
+                              <label className="text-sm font-medium text-foreground">Qualité</label>
                               <select
                                 value={qualite}
                                 onChange={(e) => setQualite(e.target.value as Qualite)}
-                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
+                                className="w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
                               >
                                 {QUALITE_OPTIONS.map((o) => (
                                   <option key={o.value} value={o.value}>
@@ -772,7 +776,7 @@ export default function SaisiePage() {
                           <button
                             type="button"
                             onClick={appliquerAuLot}
-                            className="inline-flex items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#1E6091]"
+                            className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-medium text-white transition hover:bg-primary-700"
                           >
                             <Plus className="h-4 w-4" />
                             Ajouter à la liste
@@ -786,24 +790,24 @@ export default function SaisiePage() {
               )}
 
               {/* Liste des modifications + aperçu */}
-              <div className="rounded-2xl border border-slate-200/60 bg-white p-5 shadow-sm sm:p-6">
+              <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm sm:p-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-semibold text-[#0D3B66]">
+                  <h2 className="text-sm font-semibold text-primary">
                     Aperçu des changements ({changements.length})
                   </h2>
                   {changements.length > 0 && (
                     <div className="flex flex-wrap gap-2 text-xs">
-                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">
+                      <span className="rounded-full bg-success-subtle px-2.5 py-1 font-medium text-success">
                         {resume.nouvelles_attributions} nouvelle(s)
                       </span>
-                      <span className="rounded-full bg-amber-50 px-2.5 py-1 font-medium text-amber-700">
+                      <span className="rounded-full bg-warning-subtle px-2.5 py-1 font-medium text-warning">
                         {resume.reassignations} réassignation(s)
                       </span>
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+                      <span className="rounded-full bg-inset px-2.5 py-1 font-medium text-muted-foreground">
                         {resume.remises_libre} remise(s) libre
                       </span>
                       {resume.inchanges > 0 && (
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-500">
+                        <span className="rounded-full bg-inset px-2.5 py-1 font-medium text-muted-foreground">
                           {resume.inchanges} sans effet
                         </span>
                       )}
@@ -812,36 +816,36 @@ export default function SaisiePage() {
                 </div>
 
                 {changements.length === 0 ? (
-                  <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-5 text-sm text-slate-500">
+                  <div className="mt-4 rounded-2xl border border-dashed border-border bg-inset/70 p-5 text-sm text-muted-foreground">
                     Aucune modification pour l&apos;instant. Utilisez le panneau ci-dessus pour en ajouter.
                   </div>
                 ) : (
                   <div className="mt-4 overflow-x-auto">
                     <table className="w-full min-w-[640px] border-collapse text-left">
                       <thead>
-                        <tr className="border-b border-slate-200/70">
+                        <tr className="border-b border-border">
                           {["Lot", "Avant", "Après", "Changement", ""].map((h) => (
                             <th
                               key={h}
-                              className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500"
+                              className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                             >
                               {h}
                             </th>
                           ))}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-border">
                         {changements.map((c) => (
-                          <tr key={c.lotId} className="hover:bg-slate-50/60">
-                            <td className="px-3 py-3 text-sm font-semibold text-[#0D3B66]">
+                          <tr key={c.lotId} className="hover:bg-inset/60">
+                            <td className="px-3 py-3 text-sm font-semibold text-primary">
                               Îlot {c.etat.ilot} · Lot {c.etat.numero_lot}
                             </td>
-                            <td className="px-3 py-3 text-sm text-slate-600">
+                            <td className="px-3 py-3 text-sm text-muted-foreground">
                               {c.etat.attributaire_nom
                                 ? `${c.etat.attributaire_nom} (${labelQualite(c.etat.qualite)})`
                                 : "libre"}
                             </td>
-                            <td className="px-3 py-3 text-sm text-slate-800">
+                            <td className="px-3 py-3 text-sm text-foreground">
                               {c.cible.type === "libre"
                                 ? "libre"
                                 : `${c.cible.attributaire_nom} (${labelQualite(c.cible.qualite)})`}
@@ -853,7 +857,7 @@ export default function SaisiePage() {
                               <button
                                 type="button"
                                 onClick={() => retirerMod(c.lotId)}
-                                className="rounded-full p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                                className="rounded-full p-1.5 text-muted-2 hover:bg-danger-subtle hover:text-danger"
                                 aria-label="Retirer"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -867,25 +871,25 @@ export default function SaisiePage() {
                 )}
 
                 {changements.length > 0 && (
-                  <div className="mt-5 space-y-3 border-t border-slate-100 pt-5">
+                  <div className="mt-5 space-y-3 border-t border-border pt-5">
                     <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-slate-700">Titre de la soumission (optionnel)</label>
+                      <label className="text-sm font-medium text-foreground">Titre de la soumission (optionnel)</label>
                       <input
                         value={titre}
                         onChange={(e) => setTitre(e.target.value)}
                         placeholder="Ex. Actualisation ACTU1A — Brignan Kakodji"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10 sm:max-w-md"
+                        className="w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40 sm:max-w-md"
                       />
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-muted-foreground">
                         {nbEffectifs} changement(s) effectif(s) seront soumis pour validation.
                       </p>
                       <button
                         type="button"
                         onClick={soumettre}
                         disabled={submitting || nbEffectifs === 0}
-                        className="inline-flex items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#1E6091] disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                         Soumettre pour validation
@@ -904,13 +908,13 @@ export default function SaisiePage() {
         <FileValidation />
       ) : (
         /* ── Onglet Mes soumissions (opérateur) ── */
-        <div className="rounded-2xl border border-slate-200/60 bg-white p-5 shadow-sm sm:p-6">
+        <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm sm:p-6">
           {soumissionsLoading ? (
-            <div className="flex items-center gap-2 text-sm text-slate-500">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
             </div>
           ) : soumissions.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-5 text-sm text-slate-500">
+            <div className="rounded-2xl border border-dashed border-border bg-inset/70 p-5 text-sm text-muted-foreground">
               Aucune soumission pour l&apos;instant.
             </div>
           ) : (
@@ -918,13 +922,13 @@ export default function SaisiePage() {
               {soumissions.map((s) => {
                 const b = STATUT_BADGE[s.statut];
                 return (
-                  <div key={s.id} className="rounded-2xl border border-slate-200/60 bg-slate-50/60 p-4">
+                  <div key={s.id} className="rounded-2xl border border-border/60 bg-inset/60 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-800">
+                        <p className="truncate text-sm font-semibold text-foreground">
                           {s.titre ?? (s.type === "maj_attributions" ? "Mise à jour d'attributions" : "Création de structure")}
                         </p>
-                        <p className="mt-0.5 text-xs text-slate-400">
+                        <p className="mt-0.5 text-xs text-muted-2">
                           {s.cree_le ? new Date(s.cree_le).toLocaleString("fr-FR") : ""}
                           {s.resume && s.type === "maj_attributions" &&
                             ` · ${(s.resume as ResumeMaj).nouvelles_attributions} nouvelle(s), ${(s.resume as ResumeMaj).reassignations} réassign., ${(s.resume as ResumeMaj).remises_libre} libre`}
@@ -932,7 +936,7 @@ export default function SaisiePage() {
                             ` · ${(s.resume as ResumeCreation).nb_ilots} îlot(s), ${(s.resume as ResumeCreation).nb_lots} lot(s)`}
                         </p>
                         {s.statut === "rejetee" && s.commentaire_admin && (
-                          <p className="mt-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-700">
+                          <p className="mt-1.5 rounded-lg bg-danger-subtle px-2.5 py-1.5 text-xs text-danger">
                             Motif : {s.commentaire_admin}
                           </p>
                         )}
@@ -949,37 +953,37 @@ export default function SaisiePage() {
 
       {/* ── Modale nouvel attributaire ── */}
       {showNouveauForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4 py-8 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[1.75rem] border border-border bg-card p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
-              <h2 className="text-lg font-semibold text-[#0D3B66]">Nouvel attributaire</h2>
+              <h2 className="text-lg font-semibold text-primary">Nouvel attributaire</h2>
               <button
                 type="button"
                 onClick={() => setShowNouveauForm(false)}
-                className="rounded-full p-2 text-slate-400 hover:bg-slate-100"
+                className="rounded-full p-2 text-muted-2 hover:bg-inset"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="mt-5 space-y-3">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-700">
-                  Nom complet <span className="text-red-500">*</span>
+                <label className="text-sm font-medium text-foreground">
+                  Nom complet <span className="text-danger">*</span>
                 </label>
                 <input
                   value={nouveauForm.nom}
                   onChange={(e) => setNouveauForm((f) => ({ ...f, nom: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
+                  className="w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-700">Type</label>
+                <label className="text-sm font-medium text-foreground">Type</label>
                 <select
                   value={nouveauForm.type}
                   onChange={(e) =>
                     setNouveauForm((f) => ({ ...f, type: e.target.value as NouvelAttributaire["type"] }))
                   }
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
+                  className="w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none"
                 >
                   <option value="personne_physique">Personne physique</option>
                   <option value="collectif_ayants_droit">Collectif d&apos;ayants droit</option>
@@ -988,29 +992,29 @@ export default function SaisiePage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700">Nature pièce</label>
+                  <label className="text-sm font-medium text-foreground">Nature pièce</label>
                   <input
                     value={nouveauForm.piece_nature}
                     onChange={(e) => setNouveauForm((f) => ({ ...f, piece_nature: e.target.value }))}
                     placeholder="CNI…"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
+                    className="w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700">N° pièce</label>
+                  <label className="text-sm font-medium text-foreground">N° pièce</label>
                   <input
                     value={nouveauForm.piece_num}
                     onChange={(e) => setNouveauForm((f) => ({ ...f, piece_num: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
+                    className="w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none"
                   />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-700">Téléphone</label>
+                <label className="text-sm font-medium text-foreground">Téléphone</label>
                 <input
                   value={nouveauForm.telephone}
                   onChange={(e) => setNouveauForm((f) => ({ ...f, telephone: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
+                  className="w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none"
                 />
               </div>
             </div>
@@ -1018,7 +1022,7 @@ export default function SaisiePage() {
               <button
                 type="button"
                 onClick={() => setShowNouveauForm(false)}
-                className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                className="rounded-full border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-inset"
               >
                 Annuler
               </button>
@@ -1026,7 +1030,7 @@ export default function SaisiePage() {
                 type="button"
                 onClick={creerNouveau}
                 disabled={!nouveauForm.nom.trim()}
-                className="rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E6091] disabled:opacity-60"
+                className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-60"
               >
                 Ajouter cet attributaire
               </button>
@@ -1034,6 +1038,6 @@ export default function SaisiePage() {
           </div>
         </div>
       )}
-    </div>
+    </AppShell>
   );
 }

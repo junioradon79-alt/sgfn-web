@@ -291,7 +291,7 @@ export default function DemarchesPage() {
   ];
 
   return (
-    <AppShell title="Démarches" loading={loading} counts={counts} onRefresh={rafraichir}>
+    <AppShell loading={loading} counts={counts} onRefresh={rafraichir}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-xl font-bold tracking-tight text-foreground">Démarches</h1>

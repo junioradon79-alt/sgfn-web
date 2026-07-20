@@ -301,6 +301,10 @@ const ROLE_NAV_ORDER: Partial<Record<string, string[]>> = {
   // « registre » génériques (Lots, Attributaires, Attributions) redondantes avec
   // son dashboard de supervision. Le VÉRIFICATEUR, lui, garde une vue nationale
   // (pas d'ordre personnalisé pour ce rôle).
+  // Agent de saisie : une seule entrée. Liste plate — un intitulé de rubrique
+  // au-dessus d'un unique lien n'ajoute qu'un étage de hiérarchie vide, et le
+  // handoff ne l'affiche pas.
+  operateur_saisie: ["/dashboard/saisie"],
   commissaire: [
     "/dashboard/commissaire",
     "/dashboard/litiges",
