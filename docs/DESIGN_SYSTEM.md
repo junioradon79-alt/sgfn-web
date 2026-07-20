@@ -102,11 +102,19 @@ Chargées via Google Fonts. Les chiffres comparés utilisent `.tabular`
 
 ### Mode sombre : scopé, pas global
 
-La classe `.dark` est posée **sur la racine de `AppShell`**, jamais sur `<html>`.
+La classe `.dark` est posée **sur la racine de chaque écran migré** — `AppShell`
+pour les dashboards, `VitrineShell` pour la page publique, la racine de
+`LoginPage` pour la connexion — jamais sur `<html>`.
 
 C'est ce qui permet de livrer le mode sombre aujourd'hui sans auditer les 25
 autres pages : elles restent en clair, quoi que choisisse l'utilisateur.
 Vérifié au navigateur — aucune fuite de thème sur `/dashboard/lots`.
+
+⚠️ **Conséquence pour les tests.** Ouvrir Playwright avec `colorScheme: "dark"`
+ne noircit **pas** `document.body` : le fond de page reste celui du thème clair,
+puisque la classe est plus bas dans l'arbre. Mesurer la racine de l'écran
+(`main`, le shell), jamais `body` — sinon on conclut à tort que le mode sombre
+ne marche pas.
 
 Quand les autres pages auront migré, il suffira de remonter la classe d'un cran.
 
@@ -229,9 +237,24 @@ jouer**, jamais « on attend le client ».
    étirement, les colonnes prennent la hauteur de leur contenu, et la hauteur
    en `%` des barres se résout contre 0. → `items-stretch` + `h-full`.
 3. Espace mangée par une coupure de ligne JSX dans le bandeau de couverture.
+4. **Débordement de 13 px sur la vitrine à 390 px** (20/07). Le groupe d'actions
+   de l'en-tête ne cédait jamais de place : le bouton « Demander une démo »
+   restait affiché à toute largeur. Les media queries du handoff tranchaient
+   déjà — **liens de nav et « Se connecter » masqués ≤ 1180 px, appel à
+   l'action ≤ 480 px**. Quand une maquette porte des media queries, les lire :
+   elles répondent aux questions responsive qu'on croit devoir trancher soi-même.
 
 *(La carte semblait aussi cassée — 0 tuile chargée. C'était le DNS à froid du
 réseau NAT64 du poste, pas le code : dès le 2ᵉ chargement, 15 tuiles peintes.)*
+
+**Deux faux positifs de test, coûteux en temps :**
+
+- Un `<div role="alert">` **vide** est présent en permanence — c'est
+  l'annonceur de route de Next.js. Un `waitForSelector('[role="alert"]')` rend
+  la main immédiatement et `.first()` attrape ce div, jamais le vrai message.
+  → cibler le nœud réel (`p[role="alert"]`).
+- `trailingSlash: true` fait rendre les `<Link>` en `/contact/` : un sélecteur
+  `a[href="/contact"]` ne matche rien. → `a[href^="/contact"]`.
 
 ---
 
@@ -248,6 +271,7 @@ débordement horizontal.
 ### Suite
 
 - Migrer les autres pages `/dashboard/*` sur le DS, puis remonter `.dark` sur `<html>`.
+  *(Surfaces publiques faites : Site Vitrine et `/login` sont sur les jetons depuis le 20/07 — il ne reste que les `/dashboard/*` legacy.)*
 - Brancher les recettes quand CinetPay sera activé (le KPI et l'onglet Paiements
   sont prêts et se remplissent seuls).
 - Géolocaliser les 897 lots restants — c'est ce que l'écran réclame en premier.
