@@ -1,23 +1,38 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import type { Database } from "../../../../database.types";
-import { useChargement } from "@/hooks/useChargement";
-import { useProfile } from "@/hooks/useProfile";
+import { motion } from "framer-motion";
 import {
+  CheckCircle2,
   ChevronRight,
+  Clock,
   FileText,
-  Filter,
-  Loader2,
   Pencil,
   Plus,
   Ruler,
   Search,
-  X,
+  XCircle,
 } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
-import { Input } from "@/components/ui/Input";
+
+import type { Database } from "../../../../database.types";
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
+import {
+  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ds/dialog";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Input, Textarea } from "@/components/ds/input";
+import { Kpi } from "@/components/ds/kpi";
+import { Field } from "@/components/ds/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ds/select";
+import { ChampSelect, ModaleFormulaire } from "@/components/dashboard/ModaleFormulaire";
 import { createClient } from "@/utils/supabase/client";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { useChargement } from "@/hooks/useChargement";
+import { useProfile } from "@/hooks/useProfile";
+import { fadeUp, stagger } from "@/lib/motion";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -71,15 +86,22 @@ const STATUT_ADU_OPTIONS = Object.entries(STATUT_ADU_LABELS).map(
   ([value, label]) => ({ value, label })
 );
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+const STATUT_ADU_TONE: Record<string, "neutral" | "accent" | "success" | "warning" | "danger"> = {
+  en_preparation: "neutral",
+  piece_manquante: "warning",
+  depose: "accent",
+  en_instruction: "accent",
+  adu_delivree: "success",
+  acd_obtenu: "success",
+  rejete: "danger",
+};
 
-function badgeStatus(s: string | null | undefined): "attribue" | "en_validation" | "litige" | "disponible" {
-  const st = s ?? "";
-  if (st === "adu_delivree" || st === "acd_obtenu") return "attribue";
-  if (st === "en_instruction" || st === "depose") return "en_validation";
-  if (st === "rejete") return "litige";
-  return "disponible";
-}
+// Radix Select refuse la chaîne vide comme valeur : sentinelles pour « tous les
+// statuts » (filtre) et « aucun géomètre » (édition).
+const TOUS = "tous";
+const AUCUN_GEOMETRE = "aucun";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function lotLabel(d: DossierAdu): string {
   const num = d.lots?.numero_lot != null ? `Lot ${d.lots.numero_lot}` : "Lot —";
@@ -88,16 +110,20 @@ function lotLabel(d: DossierAdu): string {
   return `${num}${ilot}${loti}`;
 }
 
+const fmtDate = (v: string | null | undefined) =>
+  v ? new Date(v).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DossiersAduPage() {
   const supabase = createClient();
   const { isAdmin, isChefferie } = useProfile();
+  const { counts } = useBadgeCounts();
 
   const [dossiers, setDossiers] = useState<DossierAdu[]>([]);
 
   const [search, setSearch] = useState("");
-  const [statutFilter, setStatutFilter] = useState("");
+  const [statutFilter, setStatutFilter] = useState(TOUS);
   const [selected, setSelected] = useState<DossierAdu | null>(null);
 
   // Édition du dossier sélectionné — seul point d'entrée pour faire progresser
@@ -110,7 +136,7 @@ export default function DossiersAduPage() {
     adu_date: "",
     acd_reference: "",
     notes: "",
-    geometre_id: "",
+    geometre_id: AUCUN_GEOMETRE,
   });
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -128,7 +154,7 @@ export default function DossiersAduPage() {
       adu_date: d.adu_date ? d.adu_date.slice(0, 10) : "",
       acd_reference: d.acd_reference ?? "",
       notes: d.notes ?? "",
-      geometre_id: d.geometre_id ?? "",
+      geometre_id: d.geometre_id ?? AUCUN_GEOMETRE,
     });
     setEditError(null);
     setEditing(true);
@@ -146,7 +172,7 @@ export default function DossiersAduPage() {
       adu_date: editForm.adu_date || null,
       acd_reference: editForm.acd_reference.trim() || null,
       notes: editForm.notes.trim() || null,
-      geometre_id: editForm.geometre_id || null,
+      geometre_id: editForm.geometre_id === AUCUN_GEOMETRE ? null : editForm.geometre_id,
     };
     const { error } = await supabase.from("dossiers_adu").update(payload).eq("id", selected.id);
     setSavingEdit(false);
@@ -178,7 +204,6 @@ export default function DossiersAduPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const load = async () => {
-
     const { data } = await supabase
       .from("dossiers_adu")
       .select(
@@ -186,13 +211,12 @@ export default function DossiersAduPage() {
       )
       .order("cree_le", { ascending: false });
     setDossiers((data ?? []) as unknown as DossierAdu[]);
-
   };
 
   const { isLoading: loading, recharger } = useChargement(load);
 
   const filtered = dossiers.filter((d) => {
-    if (statutFilter && d.statut !== statutFilter) return false;
+    if (statutFilter !== TOUS && d.statut !== statutFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       const numAdu = (d.adu_numero ?? "").toLowerCase();
@@ -202,24 +226,12 @@ export default function DossiersAduPage() {
     return true;
   });
 
-  const kpis = [
-    { label: "Total", value: dossiers.length, color: "text-[#0D3B66]" },
-    {
-      label: "En cours",
-      value: dossiers.filter((d) => ["depose", "en_instruction"].includes(d.statut ?? "")).length,
-      color: "text-[#1E6091]",
-    },
-    {
-      label: "Délivrés / ACD",
-      value: dossiers.filter((d) => ["adu_delivree", "acd_obtenu"].includes(d.statut ?? "")).length,
-      color: "text-[#2D8F5A]",
-    },
-    {
-      label: "Rejetés",
-      value: dossiers.filter((d) => d.statut === "rejete").length,
-      color: "text-red-500",
-    },
-  ];
+  const nbTotal = dossiers.length;
+  const nbEnCours = dossiers.filter((d) => ["depose", "en_instruction"].includes(d.statut ?? "")).length;
+  const nbDelivres = dossiers.filter((d) => ["adu_delivree", "acd_obtenu"].includes(d.statut ?? "")).length;
+  const nbRejetes = dossiers.filter((d) => d.statut === "rejete").length;
+
+  const filtreActif = search !== "" || statutFilter !== TOUS;
 
   const openCreate = async () => {
     if (lotOptions.length === 0) {
@@ -258,454 +270,359 @@ export default function DossiersAduPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 sm:p-8">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <AppShell loading={loading} counts={counts} onRefresh={recharger}>
+      {/* En-tête */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
-            Instruction foncière
-          </p>
-          <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-[#0D3B66]">Dossiers ADU & ACD</h1>
-          <p className="mt-1 text-sm sm:text-base text-slate-400">
-            Suivi des autorisations de droits urbains et arrêtés de concession définitive
+          <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+            Dossiers ADU &amp; ACD
+          </h1>
+          <p className="mt-1 text-[13.5px] text-muted-foreground">
+            Suivi des autorisations de droits urbains et arrêtés de concession définitive.
           </p>
         </div>
         {!isChefferie && (
-          <button
-            type="button"
-            onClick={openCreate}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#1E6091]"
-          >
-            <Plus className="h-3.5 w-3.5" />
+          <Button type="button" variant="primary" className="shrink-0" onClick={openCreate}>
+            <Plus />
             Nouveau dossier
-          </button>
+          </Button>
         )}
       </div>
 
       {/* KPIs */}
-      <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {kpis.map((kpi) => (
-          <div
-            key={kpi.label}
-            className="rounded-2xl border border-slate-200/60 bg-white p-5 shadow-sm"
-          >
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              {kpi.label}
-            </p>
-            <p className={`mt-2 text-3xl font-bold ${kpi.color}`}>
-              {loading ? <Loader2 className="h-6 w-6 animate-spin opacity-40" /> : kpi.value}
-            </p>
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        aria-label="Indicateurs des dossiers"
+      >
+        <Kpi icon={FileText} label="Total" loading={loading} value={nbTotal} legende={<>dossiers enregistrés</>} />
+        <Kpi icon={Clock} label="En cours" loading={loading} value={nbEnCours} legende={<>déposés ou en instruction</>} />
+        <Kpi icon={CheckCircle2} label="Délivrés / ACD" loading={loading} value={nbDelivres} legende={<>ADU délivrée ou ACD obtenu</>} />
+        <Kpi
+          icon={XCircle}
+          label="Rejetés"
+          loading={loading}
+          value={nbRejetes}
+          tone={nbRejetes > 0 ? "warning" : "neutral"}
+          legende={<>à réexaminer</>}
+        />
+      </motion.section>
+
+      {/* Barre de recherche + filtre */}
+      <motion.div variants={fadeUp} initial="hidden" animate="show">
+        <Card className="flex-row flex-wrap items-center gap-3 p-3">
+          <div className="relative min-w-0 flex-1 sm:max-w-md">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <Input
+              type="search"
+              placeholder="Rechercher par n° ADU ou n° lot…"
+              className="pl-9"
+              aria-label="Rechercher un dossier"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
-        ))}
-      </div>
+          <Select value={statutFilter} onValueChange={setStatutFilter}>
+            <SelectTrigger className="w-full sm:w-56" aria-label="Filtrer par statut">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TOUS}>Tous les statuts</SelectItem>
+              {STATUT_ADU_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {filtreActif && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => { setSearch(""); setStatutFilter(TOUS); }}
+            >
+              Réinitialiser
+            </Button>
+          )}
+        </Card>
+      </motion.div>
 
-      {/* Filters */}
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <Input
-            placeholder="Rechercher par n° ADU ou n° lot…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Filter className="h-4 w-4 text-slate-400" />
-          <select
-            value={statutFilter}
-            onChange={(e) => setStatutFilter(e.target.value)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
-          >
-            <option value="">Tous les statuts</option>
-            {STATUT_ADU_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </div>
-        {(search || statutFilter) && (
-          <button
-            type="button"
-            onClick={() => { setSearch(""); setStatutFilter(""); }}
-            className="text-sm text-slate-400 hover:text-slate-600 shrink-0"
-          >
-            Réinitialiser
-          </button>
-        )}
-      </div>
-
-      {/* List */}
-      <div className="mt-4 space-y-2">
+      {/* Liste */}
+      <div className="flex flex-col gap-2">
         {loading ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-10 text-center text-sm text-slate-400">
-            Chargement…
-          </div>
+          <Card className="items-center px-6 py-10 text-center text-sm text-muted-foreground">Chargement…</Card>
         ) : filtered.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-10 text-center text-sm text-slate-500">
-            {dossiers.length === 0
-              ? "Aucun dossier ADU enregistré. Cliquez sur « Nouveau dossier » pour commencer."
-              : "Aucun résultat pour ces filtres."}
-          </div>
+          <Card>
+            <EmptyState
+              icon={FileText}
+              tone={dossiers.length === 0 ? "pending" : "neutral"}
+              title={dossiers.length === 0 ? "Aucun dossier ADU enregistré" : "Aucun résultat"}
+              description={
+                dossiers.length === 0
+                  ? "Cliquez sur « Nouveau dossier » pour ouvrir un premier dossier d'instruction."
+                  : "Aucun dossier ne correspond à ces critères. Élargissez la recherche ou le filtre."
+              }
+            />
+          </Card>
         ) : (
           filtered.map((d) => (
-            <button
+            <motion.button
               key={d.id}
+              variants={fadeUp}
+              initial="hidden"
+              animate="show"
               type="button"
               onClick={() => setSelected(d)}
-              className="w-full rounded-2xl border border-slate-200/60 bg-white px-5 py-4 text-left shadow-sm transition hover:border-[#1E6091]/30 hover:shadow-md"
+              className="w-full rounded-xl border border-border bg-card px-5 py-4 text-left shadow-panel transition hover:border-accent/40"
             >
               <div className="flex items-center justify-between gap-4">
                 <div className="flex min-w-0 items-center gap-3">
-                  <FileText className="h-4 w-4 shrink-0 text-[#1E6091]" />
+                  <FileText className="h-4 w-4 shrink-0 text-accent" />
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-800">
+                    <p className="truncate text-sm font-semibold text-foreground">
                       {d.adu_numero || "Dossier sans numéro"}
                     </p>
-                    <p className="truncate text-xs text-slate-400">{lotLabel(d)}</p>
+                    <p className="truncate text-xs text-muted-2">{lotLabel(d)}</p>
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
-                  <Badge status={badgeStatus(d.statut)}>
+                  <Badge tone={STATUT_ADU_TONE[d.statut ?? ""] ?? "neutral"}>
                     {STATUT_ADU_LABELS[d.statut ?? ""] ?? d.statut}
                   </Badge>
-                  <ChevronRight className="h-4 w-4 text-slate-300" />
+                  <ChevronRight className="h-4 w-4 text-muted-2" />
                 </div>
               </div>
               {d.depose_le && (
-                <p className="mt-1.5 text-xs text-slate-400">
-                  Déposé le {new Date(d.depose_le).toLocaleDateString("fr-FR")}
-                </p>
+                <p className="mt-1.5 text-xs text-muted-2">Déposé le {fmtDate(d.depose_le)}</p>
               )}
               {d.geometres_experts?.nom && (
-                <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-[#0D3B66]">
+                <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-accent">
                   <Ruler className="h-3 w-3" /> {d.geometres_experts.nom}
                 </p>
               )}
-            </button>
+            </motion.button>
           ))
         )}
       </div>
 
       {/* ── Panneau détail ────────────────────────────────────────────────── */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-          <div
-            className="w-full max-w-lg overflow-y-auto rounded-[1.75rem] border border-slate-200/70 bg-white shadow-2xl"
-            style={{ maxHeight: "90vh" }}
-          >
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
-                  Instruction foncière
-                </p>
-                <h2 className="mt-1 text-lg font-semibold text-[#0D3B66]">
-                  {selected.adu_numero || "Dossier sans numéro"}
-                </h2>
-                <p className="mt-0.5 text-sm text-slate-500">{lotLabel(selected)}</p>
-                {selected.geometres_experts?.nom && (
-                  <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-[#0D3B66]">
-                    <Ruler className="h-3 w-3" />
-                    {selected.geometres_experts.nom}
-                    {selected.geometres_experts.cabinet ? ` · ${selected.geometres_experts.cabinet}` : ""}
-                  </p>
-                )}
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                {isAdmin && !editing && (
-                  <button
-                    type="button"
-                    onClick={() => startEdit(selected)}
-                    title="Modifier le dossier"
-                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Modifier
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => { setSelected(null); setEditing(false); }}
-                  className="rounded-full p-2 text-slate-400 hover:bg-slate-100"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
+        <Dialog open onOpenChange={(ouvert) => { if (!ouvert) { setSelected(null); setEditing(false); } }}>
+          <DialogContent>
+            <DialogHeader>
+              <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Instruction foncière</p>
+              <DialogTitle>{selected.adu_numero || "Dossier sans numéro"}</DialogTitle>
+              <DialogDescription>{lotLabel(selected)}</DialogDescription>
+            </DialogHeader>
+
             {editing ? (
-              <form className="space-y-4 p-6" onSubmit={saveEdit}>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700">Statut</label>
-                  <select
+              <form onSubmit={saveEdit}>
+                <DialogBody className="space-y-4">
+                  <ChampSelect
+                    id="adu-edit-statut"
+                    label="Statut"
                     value={editForm.statut}
-                    onChange={(e) => setEditForm((f) => ({ ...f, statut: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
+                    onChange={(v) => setEditForm((f) => ({ ...f, statut: v }))}
                   >
-                    {STATUT_ADU_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700">Géomètre-expert assigné</label>
-                  <select
+                    {STATUT_ADU_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </ChampSelect>
+
+                  <ChampSelect
+                    id="adu-edit-geometre"
+                    label="Géomètre-expert assigné"
                     value={editForm.geometre_id}
-                    onChange={(e) => setEditForm((f) => ({ ...f, geometre_id: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
+                    onChange={(v) => setEditForm((f) => ({ ...f, geometre_id: v }))}
                   >
-                    <option value="">Aucun</option>
+                    <SelectItem value={AUCUN_GEOMETRE}>Aucun</SelectItem>
                     {geometreOptions.map((g) => (
-                      <option key={g.id} value={g.id}>
+                      <SelectItem key={g.id} value={g.id}>
                         {g.nom}{g.cabinet ? ` · ${g.cabinet}` : ""}
-                      </option>
+                      </SelectItem>
                     ))}
-                  </select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700">Numéro ADU</label>
-                    <input
-                      type="text"
-                      value={editForm.adu_numero}
-                      onChange={(e) => setEditForm((f) => ({ ...f, adu_numero: e.target.value }))}
-                      placeholder="Ex. ADU-2026-001"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
+                  </ChampSelect>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Numéro ADU" htmlFor="adu-edit-numero">
+                      <Input
+                        id="adu-edit-numero"
+                        type="text"
+                        value={editForm.adu_numero}
+                        placeholder="Ex. ADU-2026-001"
+                        onChange={(e) => setEditForm((f) => ({ ...f, adu_numero: e.target.value }))}
+                      />
+                    </Field>
+                    <Field label="Référence ACD" htmlFor="adu-edit-acd">
+                      <Input
+                        id="adu-edit-acd"
+                        type="text"
+                        value={editForm.acd_reference}
+                        onChange={(e) => setEditForm((f) => ({ ...f, acd_reference: e.target.value }))}
+                      />
+                    </Field>
+                    <Field label="Date de dépôt" htmlFor="adu-edit-depose">
+                      <Input
+                        id="adu-edit-depose"
+                        type="date"
+                        value={editForm.depose_le}
+                        onChange={(e) => setEditForm((f) => ({ ...f, depose_le: e.target.value }))}
+                      />
+                    </Field>
+                    <Field label="Date ADU" htmlFor="adu-edit-date">
+                      <Input
+                        id="adu-edit-date"
+                        type="date"
+                        value={editForm.adu_date}
+                        onChange={(e) => setEditForm((f) => ({ ...f, adu_date: e.target.value }))}
+                      />
+                    </Field>
+                  </div>
+
+                  <Field label="Notes" htmlFor="adu-edit-notes">
+                    <Textarea
+                      id="adu-edit-notes"
+                      rows={3}
+                      value={editForm.notes}
+                      onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
                     />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700">Référence ACD</label>
-                    <input
-                      type="text"
-                      value={editForm.acd_reference}
-                      onChange={(e) => setEditForm((f) => ({ ...f, acd_reference: e.target.value }))}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700">Date de dépôt</label>
-                    <input
-                      type="date"
-                      value={editForm.depose_le}
-                      onChange={(e) => setEditForm((f) => ({ ...f, depose_le: e.target.value }))}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700">Date ADU</label>
-                    <input
-                      type="date"
-                      value={editForm.adu_date}
-                      onChange={(e) => setEditForm((f) => ({ ...f, adu_date: e.target.value }))}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700">Notes</label>
-                  <textarea
-                    rows={3}
-                    value={editForm.notes}
-                    onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
-                    className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-[#0D3B66] focus:outline-none"
-                  />
-                </div>
-                {editError && (
-                  <div className="rounded-2xl border border-red-200/70 bg-red-50 px-3 py-2 text-sm text-red-700">
-                    {editError}
-                  </div>
-                )}
-                <div className="flex justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => { setEditing(false); setEditError(null); }}
-                    className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-                  >
+                  </Field>
+
+                  {editError && (
+                    <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-3 py-2 text-sm font-medium text-danger">
+                      {editError}
+                    </p>
+                  )}
+                </DialogBody>
+
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => { setEditing(false); setEditError(null); }}>
                     Annuler
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={savingEdit}
-                    className="rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E6091] disabled:opacity-70"
-                  >
+                  </Button>
+                  <Button type="submit" variant="primary" loading={savingEdit}>
                     {savingEdit ? "Enregistrement…" : "Enregistrer"}
-                  </button>
-                </div>
+                  </Button>
+                </DialogFooter>
               </form>
             ) : (
-            <div className="space-y-4 p-6">
-              <div className="mb-2">
-                <Badge status={badgeStatus(selected.statut)}>
-                  {STATUT_ADU_LABELS[selected.statut ?? ""] ?? selected.statut ?? "Statut inconnu"}
-                </Badge>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  {
-                    label: "Date de dépôt",
-                    value: selected.depose_le
-                      ? new Date(selected.depose_le).toLocaleDateString("fr-FR")
-                      : "—",
-                  },
-                  {
-                    label: "Date ADU",
-                    value: selected.adu_date
-                      ? new Date(selected.adu_date).toLocaleDateString("fr-FR")
-                      : "—",
-                  },
-                  { label: "Référence ACD", value: selected.acd_reference ?? "—" },
-                  {
-                    label: "Enregistré le",
-                    value: selected.cree_le
-                      ? new Date(selected.cree_le).toLocaleDateString("fr-FR")
-                      : "—",
-                  },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-xl bg-slate-50 p-3">
-                    <p className="text-xs text-slate-400">{item.label}</p>
-                    <p className="mt-0.5 text-sm font-semibold text-slate-700">{item.value}</p>
+              <>
+                <DialogBody className="space-y-4">
+                  {selected.geometres_experts?.nom && (
+                    <p className="inline-flex items-center gap-1 text-xs font-medium text-accent">
+                      <Ruler className="h-3 w-3" />
+                      {selected.geometres_experts.nom}
+                      {selected.geometres_experts.cabinet ? ` · ${selected.geometres_experts.cabinet}` : ""}
+                    </p>
+                  )}
+
+                  <Badge tone={STATUT_ADU_TONE[selected.statut ?? ""] ?? "neutral"}>
+                    {STATUT_ADU_LABELS[selected.statut ?? ""] ?? selected.statut ?? "Statut inconnu"}
+                  </Badge>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: "Date de dépôt", value: fmtDate(selected.depose_le) },
+                      { label: "Date ADU", value: fmtDate(selected.adu_date) },
+                      { label: "Référence ACD", value: selected.acd_reference ?? "—" },
+                      { label: "Enregistré le", value: fmtDate(selected.cree_le) },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-xl bg-inset p-3">
+                        <p className="text-xs text-muted-2">{item.label}</p>
+                        <p className="mt-0.5 text-sm font-semibold text-foreground">{item.value}</p>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              {selected.notes && (
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-slate-400">
-                    Notes
-                  </p>
-                  <p className="whitespace-pre-wrap rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                    {selected.notes}
-                  </p>
-                </div>
-              )}
-              <div className="flex justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={() => setSelected(null)}
-                  className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-                >
-                  Fermer
-                </button>
-              </div>
-            </div>
+
+                  {selected.notes && (
+                    <div>
+                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-muted-2">Notes</p>
+                      <p className="whitespace-pre-wrap rounded-xl bg-inset px-4 py-3 text-sm text-foreground">
+                        {selected.notes}
+                      </p>
+                    </div>
+                  )}
+                </DialogBody>
+
+                <DialogFooter>
+                  {isAdmin && (
+                    <Button type="button" variant="outline" onClick={() => startEdit(selected)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                      Modifier
+                    </Button>
+                  )}
+                  <Button type="button" variant="primary" onClick={() => setSelected(null)}>Fermer</Button>
+                </DialogFooter>
+              </>
             )}
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ── Modale création ───────────────────────────────────────────────── */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-          <div
-            className="w-full max-w-lg overflow-y-auto rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-2xl sm:p-8"
-            style={{ maxHeight: "92vh" }}
+        <ModaleFormulaire
+          surTitre="Instruction foncière"
+          titre="Nouveau dossier ADU"
+          onClose={() => setShowCreate(false)}
+          onSubmit={handleCreate}
+          error={formError}
+          isSubmitting={submitting}
+          libelleAction="Créer le dossier"
+          libelleEnCours="Enregistrement…"
+        >
+          <ChampSelect
+            id="adu-lot"
+            label="Lot concerné"
+            required
+            placeholder="— Sélectionner un lot —"
+            value={form.lot_id}
+            onChange={(v) => setForm((f) => ({ ...f, lot_id: v }))}
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
-                  Instruction foncière
-                </p>
-                <h2 className="mt-2 text-xl font-semibold text-[#0D3B66]">Nouveau dossier ADU</h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCreate(false)}
-                className="rounded-full p-2 text-slate-400 hover:bg-slate-100"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+            {lotOptions.map((l) => (
+              <SelectItem key={l.id} value={l.id}>
+                Lot {l.numero_lot ?? "—"}
+                {l.ilots?.numero ? ` · Îlot ${l.ilots.numero}` : ""}
+                {l.ilots?.lotissements?.nom ? ` — ${l.ilots.lotissements.nom}` : ""}
+              </SelectItem>
+            ))}
+          </ChampSelect>
 
-            <form className="mt-6 space-y-4" onSubmit={handleCreate}>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-700">
-                  Lot concerné <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={form.lot_id}
-                  onChange={(e) => setForm((f) => ({ ...f, lot_id: e.target.value }))}
-                  required
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-                >
-                  <option value="">— Sélectionner un lot —</option>
-                  {lotOptions.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      Lot {l.numero_lot ?? "—"}
-                      {l.ilots?.numero ? ` · Îlot ${l.ilots.numero}` : ""}
-                      {l.ilots?.lotissements?.nom ? ` — ${l.ilots.lotissements.nom}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          <ChampSelect
+            id="adu-statut"
+            label="Statut"
+            value={form.statut}
+            onChange={(v) => setForm((f) => ({ ...f, statut: v }))}
+          >
+            {STATUT_ADU_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+          </ChampSelect>
 
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-700">Statut</label>
-                <select
-                  value={form.statut}
-                  onChange={(e) => setForm((f) => ({ ...f, statut: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
-                >
-                  {STATUT_ADU_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-              </div>
+          <Field label="Numéro ADU" htmlFor="adu-numero">
+            <Input
+              id="adu-numero"
+              type="text"
+              value={form.adu_numero}
+              placeholder="Ex. ADU-2026-001"
+              onChange={(e) => setForm((f) => ({ ...f, adu_numero: e.target.value }))}
+            />
+          </Field>
 
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-700">Numéro ADU</label>
-                <input
-                  type="text"
-                  value={form.adu_numero}
-                  onChange={(e) => setForm((f) => ({ ...f, adu_numero: e.target.value }))}
-                  placeholder="Ex. ADU-2026-001"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
-                />
-              </div>
+          <Field label="Date de dépôt" htmlFor="adu-depose">
+            <Input
+              id="adu-depose"
+              type="date"
+              value={form.depose_le}
+              onChange={(e) => setForm((f) => ({ ...f, depose_le: e.target.value }))}
+            />
+          </Field>
 
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-700">Date de dépôt</label>
-                <input
-                  type="date"
-                  value={form.depose_le}
-                  onChange={(e) => setForm((f) => ({ ...f, depose_le: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-700">Notes</label>
-                <textarea
-                  rows={3}
-                  value={form.notes}
-                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                  placeholder="Observations, documents manquants…"
-                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-[#0D3B66] focus:outline-none"
-                />
-              </div>
-
-              {formError && (
-                <div className="rounded-2xl border border-red-200/70 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {formError}
-                </div>
-              )}
-
-              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowCreate(false)}
-                  className="rounded-full border border-slate-200/70 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="rounded-full bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white hover:bg-[#1E6091] disabled:opacity-70"
-                >
-                  {submitting ? "Enregistrement…" : "Créer le dossier"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+          <Field label="Notes" htmlFor="adu-notes">
+            <Textarea
+              id="adu-notes"
+              rows={3}
+              value={form.notes}
+              placeholder="Observations, documents manquants…"
+              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+            />
+          </Field>
+        </ModaleFormulaire>
       )}
-    </div>
+    </AppShell>
   );
 }
