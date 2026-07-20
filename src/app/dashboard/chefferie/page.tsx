@@ -5,11 +5,19 @@ import { useChargement } from "@/hooks/useChargement";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { createClient } from "@/utils/supabase/client";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import {
-  Banknote, ChevronRight, ClipboardList, Crown, FileWarning, Handshake, Map, MessageSquare, ShieldCheck,
+  Banknote, ClipboardList, Crown, FileWarning, Handshake, Map, ShieldCheck,
+  type LucideIcon,
 } from "lucide-react";
+
+import { fadeUp, stagger } from "@/lib/motion";
 import type { Profile } from "@/components/dashboard/chefferie/types";
-import { LoadingScreen, StatCard } from "@/components/dashboard/chefferie/SharedUI";
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Button } from "@/components/ds/button";
+import { Card, CardAction, CardDescription, CardHeader, CardTitle } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Kpi } from "@/components/ds/kpi";
 import { ProprietaireTerrienView } from "@/components/dashboard/proprietaire-terrien/ProprietaireTerrienView";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -63,88 +71,228 @@ function ChefVillageView({ profile }: { profile: Profile }) {
     setConcertationCount(concertationRes.count ?? 0);
   }, [profile.autorite_coutumiere_id, profile.id]);
 
-  const { isLoading: loading } = useChargement(fetchData, [fetchData]);
+  const { isLoading: loading, recharger } = useChargement(fetchData, [fetchData]);
+  const { counts } = useBadgeCounts();
 
-  if (loading) return <LoadingScreen />;
+  // « À traiter en priorité » (handoff). Chaque ligne naît d'un compteur réel :
+  // rien ne s'affiche qui ne corresponde pas à un dossier effectivement en
+  // attente. Le handoff nomme des parcelles précises — on ne les invente pas.
+  type Priorite = {
+    cle: string;
+    titre: string;
+    detail: string;
+    action: string;
+    href: string;
+    icon: LucideIcon;
+  };
+
+  const priorites: Priorite[] = [
+    apfcPending > 0 && {
+      cle: "apfc",
+      titre: `${apfcPending} attestation${apfcPending > 1 ? "s" : ""} coutumière${apfcPending > 1 ? "s" : ""} en attente de votre signature`,
+      detail: "APFC · co-signature chef de village",
+      action: "Signer",
+      href: "/dashboard/validations",
+      icon: ShieldCheck,
+    },
+    cessionsPending > 0 && {
+      cle: "cessions",
+      titre: `${cessionsPending} cession${cessionsPending > 1 ? "s" : ""} à valider`,
+      detail: "En attente de validation de la chefferie",
+      action: "Examiner",
+      href: "/dashboard/validations",
+      icon: Banknote,
+    },
+    litigesActifsCount > 0 && {
+      cle: "litiges",
+      titre: `${litigesActifsCount} litige${litigesActifsCount > 1 ? "s" : ""} actif${litigesActifsCount > 1 ? "s" : ""} sur votre juridiction`,
+      detail: "En attente de médiation",
+      action: "Médier",
+      href: "/dashboard/litiges",
+      icon: FileWarning,
+    },
+  ].filter((p): p is Priorite => p !== false);
+
+  if (loading) {
+    return (
+      <AppShell loading counts={counts} onRefresh={recharger}>
+        <div className="flex min-h-[320px] items-center justify-center">
+          <span className="text-[13px] font-medium text-muted-2">Chargement de votre juridiction…</span>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
-    <div className="space-y-6">
+    <AppShell loading={loading} counts={counts} onRefresh={recharger}>
       {/* En-tête */}
       <div className="flex flex-col gap-1">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
+        <p className="text-[11px] font-bold tracking-[0.22em] text-primary uppercase">
           Chef de village · Chefferie
         </p>
-        <h1 className="text-2xl font-bold text-[#0D3B66]">
+        <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
           {autorite?.nom ?? "Mon autorité coutumière"}
         </h1>
         {autorite?.village && (
-          <p className="text-sm text-slate-500">Village : {autorite.village}</p>
+          <p className="text-[13.5px] text-muted-foreground">Village : {autorite.village}</p>
         )}
+        <p className="mt-1 max-w-2xl text-[13px] text-muted-2">
+          Consultez le détail de vos lotissements (îlots, lots, attributaires) ou proposez une création ou
+          une correction, soumise à l&apos;approbation du Super Admin.
+        </p>
       </div>
 
-      {/* Carte principale — Lotissements (page dédiée du chef de village) */}
-      <Link
-        href="/lotissements"
-        className="group flex items-center justify-between gap-4 rounded-3xl border border-[#0D3B66]/15 bg-gradient-to-br from-[#0D3B66] to-[#1E6091] p-6 text-white shadow-sm transition hover:shadow-md sm:p-8"
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+        aria-label="Indicateurs de ma juridiction"
       >
-        <div>
-          <div className="flex items-center gap-2 text-white/70">
-            <Map className="h-5 w-5" />
-            <span className="text-xs font-semibold uppercase tracking-[0.2em]">
-              Lotissements sous votre juridiction
-            </span>
-          </div>
-          <p className="mt-3 text-5xl font-bold leading-none">{lotissementsCount}</p>
-          <p className="mt-2 max-w-md text-sm text-white/70">
-            Consulter le détail (îlots, lots, attributaires) ou proposer une création / correction,
-            soumise à l&apos;approbation du Super Admin.
-          </p>
-        </div>
-        <ChevronRight className="h-6 w-6 shrink-0 text-white/60 transition group-hover:translate-x-1" />
-      </Link>
-
-      {/* Autres rubriques */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <StatCard
-          href="/dashboard/validations"
+        <Kpi
+          icon={Map}
+          label="Lotissements"
+          href="/lotissements"
+          loading={loading}
+          value={lotissementsCount}
+          legende={<>sous votre juridiction</>}
+        />
+        <Kpi
           icon={ShieldCheck}
           label="APFC"
-          value={apfcTotal}
-          subtitle={apfcPending > 0 ? `${apfcPending} à co-signer` : "À jour"}
-          alerte={apfcPending}
-        />
-        <StatCard
           href="/dashboard/validations"
+          loading={loading}
+          value={apfcTotal}
+          tone={apfcPending > 0 ? "warning" : "neutral"}
+          legende={apfcPending > 0 ? <>{apfcPending} à co-signer</> : <>toutes co-signées</>}
+        />
+        <Kpi
           icon={Banknote}
           label="Cessions à valider"
+          href="/dashboard/validations"
+          loading={loading}
           value={cessionsPending}
-          subtitle={cessionsPending > 0 ? "En attente de validation" : "À jour"}
-          alerte={cessionsPending}
+          tone={cessionsPending > 0 ? "warning" : "neutral"}
+          legende={cessionsPending > 0 ? <>en attente de votre validation</> : <>aucune cession en attente</>}
         />
-        <StatCard
-          href="/dashboard/dossiers-adu"
+        <Kpi
           icon={ClipboardList}
           label="Dossiers ADU"
+          href="/dashboard/dossiers-adu"
+          loading={loading}
           value={dossiersAduCount}
-          subtitle="Sur votre juridiction"
+          legende={<>sur votre juridiction</>}
         />
-        <StatCard
-          href="/dashboard/litiges"
+        <Kpi
           icon={FileWarning}
           label="Litiges"
+          href="/dashboard/litiges"
+          loading={loading}
           value={litigesActifsCount}
-          subtitle={litigesActifsCount > 0 ? "Actifs" : "Aucun litige actif"}
-          alerte={litigesActifsCount}
+          tone={litigesActifsCount > 0 ? "warning" : "neutral"}
+          legende={litigesActifsCount > 0 ? <>actifs sur votre juridiction</> : <>aucun litige actif</>}
         />
-        <StatCard
-          href="/dashboard/concertation"
+        <Kpi
           icon={Handshake}
           label="Concertation"
+          href="/dashboard/concertation"
+          loading={loading}
           value={concertationCount}
-          subtitle="Concertations en cours"
+          legende={<>échanges en cours</>}
         />
+      </motion.section>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)] xl:items-start">
+        <motion.div variants={fadeUp} initial="hidden" animate="show" className="min-w-0">
+          <Card className="h-full">
+            <CardHeader>
+              <div>
+                <CardTitle>À traiter en priorité</CardTitle>
+                <CardDescription>Ce qui attend une décision de la chefferie</CardDescription>
+              </div>
+              {priorites.length > 0 && (
+                <CardAction>
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href="/dashboard/validations">Tout voir</Link>
+                  </Button>
+                </CardAction>
+              )}
+            </CardHeader>
+
+            <div className="px-5 pb-5">
+              {priorites.length === 0 ? (
+                <EmptyState
+                  icon={ShieldCheck}
+                  title="Rien en attente"
+                  description="Aucune signature, aucune cession et aucun litige ne requiert votre intervention."
+                />
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {priorites.map((p) => {
+                    const Icone = p.icon;
+                    return (
+                      <li key={p.cle}>
+                        <Link
+                          href={p.href}
+                          className="group flex items-center gap-3 rounded-xl border border-border p-3 transition-all hover:-translate-y-0.5 hover:border-primary/40"
+                        >
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-warning-subtle text-warning">
+                            <Icone className="size-[18px]" aria-hidden />
+                          </span>
+                          <span className="flex min-w-0 flex-col">
+                            <span className="text-[13px] font-semibold text-foreground">{p.titre}</span>
+                            <span className="truncate text-[11.5px] text-muted-2">{p.detail}</span>
+                          </span>
+                          <span className="ml-auto shrink-0 text-[12px] font-semibold text-primary">
+                            {p.action} →
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </Card>
+        </motion.div>
+
+        <motion.div variants={fadeUp} initial="hidden" animate="show" className="min-w-0">
+          <Card className="h-full">
+            <CardHeader>
+              <div>
+                <CardTitle>Actions rapides</CardTitle>
+                <CardDescription>Ce que vous pouvez engager depuis ici</CardDescription>
+              </div>
+            </CardHeader>
+
+            <div className="flex flex-col gap-2.5 px-5 pb-5">
+              {[
+                { icon: Handshake, titre: "Nouvelle concertation", desc: "Convoquer les parties", href: "/dashboard/concertation" },
+                { icon: FileWarning, titre: "Signaler un litige", desc: "Ouvrir un dossier", href: "/dashboard/litiges" },
+                { icon: Map, titre: "Consulter les lotissements", desc: "Îlots, lots, attributaires", href: "/lotissements" },
+              ].map((a) => {
+                const Icone = a.icon;
+                return (
+                  <Link
+                    key={a.titre}
+                    href={a.href}
+                    className="group flex items-center gap-3 rounded-xl border border-border p-3 transition-all hover:-translate-y-0.5 hover:border-primary/40"
+                  >
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-inset text-primary transition-colors group-hover:bg-accent-subtle">
+                      <Icone className="size-[18px]" aria-hidden />
+                    </span>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate text-[13px] font-semibold text-foreground">{a.titre}</span>
+                      <span className="truncate text-[11.5px] text-muted-2">{a.desc}</span>
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          </Card>
+        </motion.div>
       </div>
-    </div>
+    </AppShell>
   );
 }
 
@@ -180,15 +328,23 @@ export default function ChefferiePage() {
     })();
   }, []);
 
-  if (loading) return <LoadingScreen />;
-
-  if (!profile) {
+  // Chargement et impasses de rattachement gardent la coquille.
+  if (loading || !profile) {
     return (
-      <div className="flex min-h-[300px] items-center justify-center">
-        <p className="text-sm text-slate-400">
-          Profil introuvable. Contactez l&apos;administration.
-        </p>
-      </div>
+      <AppShell loading={loading} counts={counts} onRefresh={() => window.location.reload()}>
+        {loading ? (
+          <div className="flex min-h-[320px] items-center justify-center">
+            <span className="text-[13px] font-medium text-muted-2">Chargement de votre espace…</span>
+          </div>
+        ) : (
+          <EmptyState
+            icon={Crown}
+            title="Profil introuvable"
+            description="Votre profil n'a pas pu être chargé. Contactez l'administration SGNF."
+            action={{ label: "Contacter l'administration", href: "/dashboard/messages" }}
+          />
+        )}
+      </AppShell>
     );
   }
 
@@ -197,27 +353,13 @@ export default function ChefferiePage() {
     return <ChefVillageView profile={profile} />;
 
   return (
-    <div className="flex min-h-[300px] items-center justify-center px-4">
-      <div className="max-w-sm text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50">
-          <Crown className="h-6 w-6 text-amber-600" />
-        </div>
-        <p className="text-sm font-semibold text-slate-800">
-          Compte en cours de provisionnement
-        </p>
-        <p className="mt-2 text-sm leading-relaxed text-slate-400">
-          Votre compte n&apos;est pas encore rattaché à une famille ou une autorité
-          coutumière. Contactez l&apos;administration SGNF pour finaliser le
-          provisionnement.
-        </p>
-        <Link
-          href="/dashboard/messages"
-          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1E6091]"
-        >
-          <MessageSquare className="h-4 w-4" />
-          Contacter l&apos;administration
-        </Link>
-      </div>
-    </div>
+    <AppShell loading={false} counts={counts} onRefresh={() => window.location.reload()}>
+      <EmptyState
+        icon={Crown}
+        title="Compte en cours de provisionnement"
+        description="Votre compte n'est pas encore rattaché à une famille ou une autorité coutumière. Contactez l'administration SGNF pour finaliser le provisionnement."
+        action={{ label: "Contacter l'administration", href: "/dashboard/messages" }}
+      />
+    </AppShell>
   );
 }
