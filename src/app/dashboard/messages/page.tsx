@@ -2,7 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, MessageSquare, Plus, Search, Send, X } from "lucide-react";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Button } from "@/components/ds/button";
+import {
+  Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ds/dialog";
+import { Field } from "@/components/ds/label";
+import { Input, Textarea } from "@/components/ds/input";
 import { createClient } from "@/utils/supabase/client";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 
 /**
  * Messagerie SGNF — fil de discussion entre l'agence (admin/agent) et les
@@ -67,7 +76,7 @@ function NouvelleConversationModal({
   onClose: () => void;
   onCreated: (convId: string) => void;
 }) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [search, setSearch] = useState("");
   const [profiles, setProfiles] = useState<ProfileLite[]>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
@@ -87,7 +96,7 @@ function NouvelleConversationModal({
       setProfiles((data ?? []) as ProfileLite[]);
       setLoadingProfiles(false);
     })();
-  }, [myId]);
+  }, [myId, supabase]);
 
   const filtered = profiles.filter((p) => {
     const q = search.toLowerCase();
@@ -131,131 +140,115 @@ function NouvelleConversationModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-[1.75rem] border border-slate-200/70 bg-white shadow-2xl" style={{ maxHeight: "90vh" }}>
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Messagerie</p>
-            <h2 className="mt-0.5 text-lg font-semibold text-[#0D3B66]">Nouvelle conversation</h2>
-          </div>
-          <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Messagerie</p>
+          <DialogTitle>Nouvelle conversation</DialogTitle>
+        </DialogHeader>
 
-        <div className="overflow-y-auto p-6 space-y-5" style={{ maxHeight: "75vh" }}>
-          {/* Sélection destinataire */}
-          {!destinataire ? (
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-slate-700">Destinataire</label>
+        {!destinataire ? (
+          <DialogBody className="space-y-3">
+            <Field label="Destinataire" htmlFor="dest-search">
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-2" />
+                <Input
+                  id="dest-search"
                   autoFocus
                   placeholder="Rechercher un utilisateur…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 pl-9 pr-4 py-2.5 text-sm text-slate-700 focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
+                  className="pl-9"
                 />
               </div>
-              <div className="max-h-52 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100">
-                {loadingProfiles ? (
-                  <p className="px-4 py-6 text-center text-sm text-slate-400">Chargement…</p>
-                ) : filtered.length === 0 ? (
-                  <p className="px-4 py-6 text-center text-sm text-slate-400">Aucun utilisateur trouvé.</p>
-                ) : (
-                  filtered.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => setDestinataire(p)}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-slate-50"
-                    >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0D3B66]/10 text-xs font-bold text-[#0D3B66]">
-                        {initiales(p.nom_complet)}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-slate-800">{p.nom_complet ?? "—"}</p>
-                        <p className="text-xs text-slate-400">{GROUPE_LABELS[p.groupe ?? ""] ?? p.groupe ?? "—"}</p>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
+            </Field>
+            <div className="max-h-52 divide-y divide-border overflow-y-auto rounded-md border border-border">
+              {loadingProfiles ? (
+                <p className="px-4 py-6 text-center text-sm text-muted-2">Chargement…</p>
+              ) : filtered.length === 0 ? (
+                <p className="px-4 py-6 text-center text-sm text-muted-2">Aucun utilisateur trouvé.</p>
+              ) : (
+                filtered.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setDestinataire(p)}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-inset"
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">
+                      {initiales(p.nom_complet)}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">{p.nom_complet ?? "—"}</p>
+                      <p className="text-xs text-muted-2">{GROUPE_LABELS[p.groupe ?? ""] ?? p.groupe ?? "—"}</p>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
-          ) : (
-            <>
+          </DialogBody>
+        ) : (
+          <>
+            <DialogBody className="space-y-4">
               {/* Destinataire sélectionné */}
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5">
+              <div className="flex items-center justify-between rounded-md border border-border bg-inset px-4 py-2.5">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0D3B66]/10 text-xs font-bold text-[#0D3B66]">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">
                     {initiales(destinataire.nom_complet)}
                   </span>
                   <div>
-                    <p className="text-sm font-medium text-slate-800">{destinataire.nom_complet}</p>
-                    <p className="text-xs text-slate-400">{GROUPE_LABELS[destinataire.groupe ?? ""] ?? destinataire.groupe}</p>
+                    <p className="text-sm font-medium text-foreground">{destinataire.nom_complet}</p>
+                    <p className="text-xs text-muted-2">{GROUPE_LABELS[destinataire.groupe ?? ""] ?? destinataire.groupe}</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => { setDestinataire(null); setSearch(""); }}
-                  className="rounded-full p-1 text-slate-400 hover:bg-slate-200"
+                  className="rounded-full p-1 text-muted-2 transition-colors hover:bg-border/60 hover:text-foreground"
+                  aria-label="Changer de destinataire"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
 
-              {/* Sujet */}
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-700">Sujet <span className="text-slate-400 font-normal">(optionnel)</span></label>
-                <input
+              <Field label="Sujet" htmlFor="conv-sujet" hint="Optionnel">
+                <Input
+                  id="conv-sujet"
                   type="text"
                   placeholder="Ex. : Demande de renseignement lot 42"
                   value={sujet}
                   onChange={(e) => setSujet(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-700 focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
                 />
-              </div>
+              </Field>
 
-              {/* Message */}
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-700">Message <span className="text-red-500">*</span></label>
-                <textarea
+              <Field label="Message" htmlFor="conv-message" required error={error || undefined}>
+                <Textarea
+                  id="conv-message"
                   autoFocus
                   rows={4}
                   placeholder="Votre message…"
                   value={corps}
                   onChange={(e) => setCorps(e.target.value)}
-                  className="w-full resize-none rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
                 />
-              </div>
+              </Field>
+            </DialogBody>
 
-              {error && <p className="text-sm text-red-600">{error}</p>}
-
-              <div className="flex justify-end gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="button"
-                  onClick={handleEnvoyer}
-                  disabled={sending || !corps.trim()}
-                  className="inline-flex items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#1E6091] disabled:opacity-50"
-                >
-                  <Send className="h-3.5 w-3.5" />
-                  {sending ? "Envoi…" : "Envoyer"}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+              <Button
+                type="button"
+                variant="primary"
+                disabled={sending || !corps.trim()}
+                onClick={handleEnvoyer}
+              >
+                <Send className="h-3.5 w-3.5" />
+                {sending ? "Envoi…" : "Envoyer"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -284,6 +277,7 @@ const messagesTries = (c: ConversationRow) =>
 
 export default function MessagesPage() {
   const supabase = useMemo(() => createClient(), []);
+  const { counts } = useBadgeCounts();
 
   const [myId, setMyId] = useState<string | null>(null);
   const [convos, setConvos] = useState<ConversationRow[]>([]);
@@ -335,6 +329,10 @@ export default function MessagesPage() {
       setLoading(false);
     })();
   }, [supabase, chargerConversations]);
+
+  const rafraichir = useCallback(() => {
+    if (myId) void chargerConversations(myId);
+  }, [myId, chargerConversations]);
 
   const autrePartenaire = useCallback(
     (c: ConversationRow): ProfileLite | null => {
@@ -410,7 +408,7 @@ export default function MessagesPage() {
   const nbNonLusTotal = convos.reduce((n, c) => n + nbNonLus(c), 0);
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <AppShell loading={loading} counts={counts} onRefresh={rafraichir}>
       {showCompose && myId && (
         <NouvelleConversationModal
           myId={myId}
@@ -423,15 +421,15 @@ export default function MessagesPage() {
         />
       )}
       {/* En-tête */}
-      <div className="mb-6">
-        <h1 className="font-display text-2xl sm:text-3xl font-bold text-brand-primary">
+      <div>
+        <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
           Messagerie
         </h1>
-        <p className="mt-1.5 text-sm sm:text-base text-slate-500">
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
           Échanges avec les propriétaires, aménageurs et partenaires de la
           plateforme.{" "}
           {nbNonLusTotal > 0 && (
-            <span className="font-medium text-[#F39C12]">
+            <span className="font-medium text-warning">
               {nbNonLusTotal} message{nbNonLusTotal > 1 ? "s" : ""} non lu
               {nbNonLusTotal > 1 ? "s" : ""}.
             </span>
@@ -439,35 +437,36 @@ export default function MessagesPage() {
         </p>
       </div>
 
-      <div className="grid min-h-[560px] grid-cols-1 overflow-hidden rounded-xl border border-slate-200/60 bg-white md:grid-cols-[320px_1fr]">
+      <div className="grid min-h-[560px] grid-cols-1 overflow-hidden rounded-xl border border-border bg-card shadow-panel md:grid-cols-[320px_1fr]">
         {/* Liste des conversations */}
         <div
-          className={`border-slate-200/60 md:border-r ${
+          className={`border-border md:border-r ${
             openConvo ? "hidden md:block" : "block"
           } overflow-y-auto`}
         >
-          <div className="flex items-center justify-between border-b border-slate-200/60 bg-slate-50/50 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <div className="flex items-center justify-between border-b border-border bg-inset px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Conversations
             </p>
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="sm"
               onClick={() => setShowCompose(true)}
               title="Nouvelle conversation"
-              className="flex items-center gap-1.5 rounded-lg bg-[#0D3B66] px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#1E6091]"
             >
               <Plus className="h-3.5 w-3.5" />
               Nouveau
-            </button>
+            </Button>
           </div>
 
           {loading ? (
-            <div className="px-5 py-10 text-center text-sm text-slate-500">
+            <div className="px-5 py-10 text-center text-sm text-muted-foreground">
               Chargement…
             </div>
           ) : convosTriees.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 px-5 py-10 text-center text-sm text-slate-500">
-              <MessageSquare className="h-6 w-6 text-slate-300" />
+            <div className="flex flex-col items-center gap-2 px-5 py-10 text-center text-sm text-muted-foreground">
+              <MessageSquare className="h-6 w-6 text-muted-2" />
               Aucune conversation pour l&apos;instant.
             </div>
           ) : (
@@ -482,29 +481,29 @@ export default function MessagesPage() {
                   key={c.id}
                   type="button"
                   onClick={() => ouvrir(c)}
-                  className={`flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left transition-colors hover:bg-slate-50/60 ${
-                    active ? "bg-[#0D3B66]/5" : ""
+                  className={`flex w-full items-start gap-3 border-b border-border px-4 py-3 text-left transition-colors hover:bg-inset ${
+                    active ? "bg-accent/5" : ""
                   }`}
                 >
-                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0D3B66]/10 text-xs font-bold text-[#0D3B66]">
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">
                     {initiales(autre?.nom_complet)}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-semibold text-slate-800">
+                      <span className="truncate text-sm font-semibold text-foreground">
                         {autre?.nom_complet || "Interlocuteur"}
                       </span>
                       {n > 0 && (
-                        <span className="shrink-0 rounded-full bg-[#F39C12] px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        <span className="shrink-0 rounded-full bg-warning px-1.5 py-0.5 text-[10px] font-bold text-white">
                           {n}
                         </span>
                       )}
                     </span>
-                    <span className="mt-0.5 block truncate text-xs text-slate-400">
+                    <span className="mt-0.5 block truncate text-xs text-muted-2">
                       {c.sujet || "Sans sujet"}
                     </span>
                     {last && (
-                      <span className="mt-1 block truncate text-xs text-slate-500">
+                      <span className="mt-1 block truncate text-xs text-muted-foreground">
                         {last.corps}
                       </span>
                     )}
@@ -522,26 +521,26 @@ export default function MessagesPage() {
           }`}
         >
           {!openConvo ? (
-            <div className="m-auto flex flex-col items-center gap-2 p-8 text-center text-sm text-slate-400">
-              <MessageSquare className="h-7 w-7 text-slate-300" />
+            <div className="m-auto flex flex-col items-center gap-2 p-8 text-center text-sm text-muted-2">
+              <MessageSquare className="h-7 w-7 text-muted-2" />
               Sélectionnez une conversation.
             </div>
           ) : (
             <>
-              <div className="flex items-center gap-3 border-b border-slate-200/60 bg-slate-50/50 px-5 py-3">
+              <div className="flex items-center gap-3 border-b border-border bg-inset px-5 py-3">
                 <button
                   type="button"
                   onClick={() => setOpenId(null)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-200/60 md:hidden"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-border/60 md:hidden"
                   aria-label="Retour"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </button>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-800">
+                  <p className="truncate text-sm font-semibold text-foreground">
                     {autrePartenaire(openConvo)?.nom_complet || "Interlocuteur"}
                   </p>
-                  <p className="truncate text-xs text-slate-400">
+                  <p className="truncate text-xs text-muted-2">
                     {openConvo.sujet || "Sans sujet"}
                   </p>
                 </div>
@@ -555,14 +554,14 @@ export default function MessagesPage() {
                       key={m.id}
                       className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm ${
                         mine
-                          ? "self-end bg-[#0D3B66] text-white"
-                          : "self-start bg-slate-100 text-slate-800"
+                          ? "self-end bg-primary text-primary-foreground"
+                          : "self-start bg-inset text-foreground"
                       }`}
                     >
                       {m.corps}
                       <div
                         className={`mt-1 text-[10px] ${
-                          mine ? "text-white/70" : "text-slate-400"
+                          mine ? "text-primary-foreground/70" : "text-muted-2"
                         }`}
                       >
                         {fmtHeure(m.envoye_le)}
@@ -573,8 +572,8 @@ export default function MessagesPage() {
                 <div ref={threadEndRef} />
               </div>
 
-              <div className="flex items-end gap-2 border-t border-slate-200/60 px-4 py-3">
-                <textarea
+              <div className="flex items-end gap-2 border-t border-border px-4 py-3">
+                <Textarea
                   rows={1}
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
@@ -585,24 +584,24 @@ export default function MessagesPage() {
                     }
                   }}
                   placeholder="Écrire une réponse…"
-                  className="max-h-32 flex-1 resize-none rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#0D3B66]"
+                  className="max-h-32 flex-1"
                 />
-                <button
+                <Button
                   type="button"
+                  variant="primary"
                   onClick={() => void envoyer()}
                   disabled={sending || !draft.trim()}
-                  className="flex h-10 items-center gap-1.5 rounded-lg bg-[#0D3B66] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#0a2f52] disabled:opacity-50"
                 >
                   <Send className="h-4 w-4" />
                   <span className="hidden sm:inline">
                     {sending ? "…" : "Envoyer"}
                   </span>
-                </button>
+                </Button>
               </div>
             </>
           )}
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
