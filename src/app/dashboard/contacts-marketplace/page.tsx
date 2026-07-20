@@ -1,22 +1,24 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { useChargement } from "@/hooks/useChargement";
-import { Badge } from "@/components/ui/Badge";
-import { createClient } from "@/utils/supabase/client";
-import { useProfile } from "@/hooks/useProfile";
+import { useCallback, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import {
-  Copy,
-  Handshake,
-  Loader2,
-  Mail,
-  MessageCircle,
-  MessageSquareText,
-  Phone,
-  RefreshCw,
-  ShieldAlert,
-  User,
+  Copy, Handshake, Inbox, Mail, MessageCircle, MessageSquareText, Phone, RefreshCw,
+  ShieldAlert, Sparkles, User,
 } from "lucide-react";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Kpi } from "@/components/ds/kpi";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ds/select";
+import { createClient } from "@/utils/supabase/client";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { useChargement } from "@/hooks/useChargement";
+import { useProfile } from "@/hooks/useProfile";
+import { fadeUp, stagger } from "@/lib/motion";
 
 type DemandeContactRecord = {
   id: string;
@@ -38,11 +40,11 @@ type DemandeContactRecord = {
   } | null;
 };
 
-const STATUT_CONFIG: Record<string, { badge: "en_validation" | "attribue" | "disponible" | "neutre"; label: string }> = {
-  nouvelle: { badge: "en_validation", label: "Nouvelle" },
-  traitee: { badge: "attribue", label: "Traitée" },
-  transmise: { badge: "disponible", label: "Transmise" },
-  close: { badge: "neutre", label: "Close" },
+const STATUT_CONFIG: Record<string, { tone: "warning" | "accent" | "success" | "neutral"; label: string }> = {
+  nouvelle: { tone: "warning", label: "Nouvelle" },
+  traitee: { tone: "accent", label: "Traitée" },
+  transmise: { tone: "success", label: "Transmise" },
+  close: { tone: "neutral", label: "Close" },
 };
 
 const STATUT_OPTIONS = ["nouvelle", "traitee", "transmise", "close"] as const;
@@ -74,11 +76,11 @@ function lienWhatsApp(telephone: string, d: DemandeContactRecord): string {
 }
 
 export default function ContactsMarketplacePage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const { loading: profilLoading, isAdmin } = useProfile();
+  const { counts } = useBadgeCounts();
 
   const [demandes, setDemandes] = useState<DemandeContactRecord[]>([]);
-
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -118,7 +120,7 @@ export default function ContactsMarketplacePage() {
     setSiteAJour(!dernierePublication || (!!derniereReconstruction && dernierePublication <= derniereReconstruction));
   }, [supabase]);
 
-  const { isLoading: dataLoading } = useChargement(
+  const { isLoading: dataLoading, recharger } = useChargement(
     async () => {
       await Promise.all([loadDemandes(), loadEtatSite()]);
     },
@@ -162,185 +164,232 @@ export default function ContactsMarketplacePage() {
   };
 
   const nouvelles = demandes.filter((d) => d.statut === "nouvelle").length;
+  const transmises = demandes.filter((d) => d.statut === "transmise").length;
+  const chargement = profilLoading || (dataLoading && isAdmin);
 
-  if (profilLoading || (dataLoading && isAdmin)) {
-    return <div className="py-20 text-center text-sm text-slate-500">Chargement…</div>;
-  }
-
-  if (!isAdmin) {
+  if (!profilLoading && !isAdmin) {
     return (
-      <div className="mx-auto max-w-lg py-20 text-center">
-        <ShieldAlert className="mx-auto h-10 w-10 text-amber-500" />
-        <p className="mt-4 text-sm text-slate-600">
-          Cette page est réservée aux administrateurs SGNF.
-        </p>
-      </div>
+      <AppShell loading={false} counts={counts} onRefresh={recharger}>
+        <EmptyState
+          icon={ShieldAlert}
+          tone="pending"
+          title="Accès réservé"
+          description="Cette page est réservée aux administrateurs SGNF."
+        />
+      </AppShell>
     );
   }
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <div className="mb-8">
-        <h1 className="font-display text-2xl font-bold text-brand-primary">
+    <AppShell loading={chargement} counts={counts} onRefresh={recharger}>
+      <div>
+        <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
           Demandes de contact — TerraCI Market
         </h1>
-        <p className="mt-1.5 text-sm text-slate-500">
-          Mise en relation entre acheteurs (porteurs de pass) et propriétaires de lots.{" "}
-          <span className={nouvelles > 0 ? "font-medium text-[#F39C12]" : "font-medium text-[#2D8F5A]"}>
-            {nouvelles} nouvelle{nouvelles !== 1 ? "s" : ""} demande{nouvelles !== 1 ? "s" : ""}.
-          </span>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
+          Mise en relation entre acheteurs porteurs de pass et propriétaires de lots.
         </p>
       </div>
 
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-3"
+        aria-label="Indicateurs des demandes de contact"
+      >
+        <Kpi
+          icon={Inbox}
+          label="Demandes reçues"
+          loading={chargement}
+          value={demandes.length}
+          legende={<>depuis l&apos;ouverture de la place de marché</>}
+        />
+        <Kpi
+          icon={Sparkles}
+          label="Nouvelles"
+          loading={chargement}
+          value={nouvelles}
+          tone={nouvelles > 0 ? "warning" : "neutral"}
+          legende={<>en attente de mise en relation</>}
+        />
+        <Kpi
+          icon={Handshake}
+          label="Transmises"
+          loading={chargement}
+          value={transmises}
+          legende={<>acheteur et vendeur mis en contact</>}
+        />
+      </motion.section>
+
       {!siteAJour && (
-        <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-amber-200/70 bg-amber-50 px-4 py-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-xl border border-warning/25 bg-warning-subtle px-4 py-3 text-sm text-warning sm:flex-row sm:items-center sm:justify-between">
           <p>
             Une annonce a été publiée ou modifiée depuis le dernier déploiement du site. Pensez à
             reconstruire et redéployer <strong>monterrain-web</strong> (export statique, aucune mise à
             jour automatique).
           </p>
-          <button
+          <Button
             type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0"
+            loading={marquantReconstruit}
             onClick={() => void marquerReconstruit()}
-            disabled={marquantReconstruit}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-700 disabled:opacity-60"
           >
-            {marquantReconstruit ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            <RefreshCw />
             Marquer comme reconstruit
-          </button>
+          </Button>
         </div>
       )}
 
       {errorMessage && (
-        <div className="mb-4 rounded-2xl border border-red-200/70 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
           {errorMessage}
-        </div>
+        </p>
       )}
 
       {demandes.length === 0 ? (
-        <div className="rounded-xl border border-slate-200/60 bg-white px-5 py-16 text-center text-sm text-slate-500">
-          Aucune demande de contact pour le moment.
-        </div>
+        <Card>
+          <EmptyState
+            icon={Inbox}
+            tone="positive"
+            title="Aucune demande de contact"
+            description="Aucun acheteur n'a encore demandé à être mis en relation avec un propriétaire."
+          />
+        </Card>
       ) : (
-        <div className="space-y-4">
+        <motion.div variants={stagger(0.05, 0.04)} initial="hidden" animate="show" className="flex flex-col gap-3">
           {demandes.map((d) => {
             const cfg = STATUT_CONFIG[d.statut] ?? STATUT_CONFIG.nouvelle;
             const proprietaire = d.annonces_marketplace?.profiles;
             return (
-              <div
-                key={d.id}
-                className="rounded-xl border border-slate-200/60 bg-white p-5 shadow-sm"
-              >
-                <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="font-semibold text-[#0D3B66]">
-                      {d.annonces_marketplace?.titre ?? "Annonce supprimée"}
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {d.annonces_marketplace?.zone ?? "—"} ·{" "}
-                      {d.annonces_marketplace ? fmtPrix(d.annonces_marketplace.prix) : "—"} ·{" "}
-                      {fmtDate(d.cree_le)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge status={cfg.badge}>{cfg.label}</Badge>
-                    <select
-                      value={d.statut}
-                      disabled={updatingId === d.id}
-                      onChange={(e) => handleStatutChange(d.id, e.target.value)}
-                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10 disabled:opacity-50"
-                    >
-                      {STATUT_OPTIONS.map((s) => (
-                        <option key={s} value={s}>
-                          {STATUT_CONFIG[s].label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-lg bg-slate-50/70 p-3.5">
-                    <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      <User className="h-3.5 w-3.5" /> Acheteur (pass {d.jetons_marketplace?.reference ?? "—"})
-                    </p>
-                    <p className="text-sm font-medium text-slate-800">
-                      {d.jetons_marketplace?.acheteur_nom ?? "—"}
-                    </p>
-                    <div className="mt-1.5 flex flex-col gap-1 text-sm text-slate-600">
-                      {d.jetons_marketplace?.acheteur_telephone && (
-                        <button
-                          type="button"
-                          onClick={() => copier(d.jetons_marketplace!.acheteur_telephone, `tel-${d.id}`)}
-                          className="flex items-center gap-1.5 text-left hover:text-[#1E6091]"
-                        >
-                          <Phone className="h-3.5 w-3.5 shrink-0" />
-                          {d.jetons_marketplace.acheteur_telephone}
-                          <Copy className="h-3 w-3 text-slate-400" />
-                          {copiedField === `tel-${d.id}` && <span className="text-xs text-emerald-600">copié</span>}
-                        </button>
-                      )}
-                      {d.jetons_marketplace?.acheteur_email && (
-                        <button
-                          type="button"
-                          onClick={() => copier(d.jetons_marketplace!.acheteur_email, `email-${d.id}`)}
-                          className="flex items-center gap-1.5 text-left hover:text-[#1E6091]"
-                        >
-                          <Mail className="h-3.5 w-3.5 shrink-0" />
-                          {d.jetons_marketplace.acheteur_email}
-                          <Copy className="h-3 w-3 text-slate-400" />
-                          {copiedField === `email-${d.id}` && <span className="text-xs text-emerald-600">copié</span>}
-                        </button>
-                      )}
+              <motion.div key={d.id} variants={fadeUp}>
+                <Card className="p-5">
+                  <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-[13.5px] font-semibold text-foreground">
+                        {d.annonces_marketplace?.titre ?? "Annonce supprimée"}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {d.annonces_marketplace?.zone ?? "—"} ·{" "}
+                        {d.annonces_marketplace ? fmtPrix(d.annonces_marketplace.prix) : "—"} ·{" "}
+                        {fmtDate(d.cree_le)}
+                      </p>
                     </div>
-                  </div>
-
-                  <div className="rounded-lg bg-slate-50/70 p-3.5">
-                    <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      <Handshake className="h-3.5 w-3.5" /> Propriétaire (vendeur)
-                    </p>
-                    <p className="text-sm font-medium text-slate-800">
-                      {proprietaire?.nom_complet ?? "—"}
-                    </p>
-                    <div className="mt-1.5 flex flex-col gap-1 text-sm text-slate-600">
-                      {proprietaire?.telephone && (
-                        <button
-                          type="button"
-                          onClick={() => copier(proprietaire.telephone!, `tel-prop-${d.id}`)}
-                          className="flex items-center gap-1.5 text-left hover:text-[#1E6091]"
-                        >
-                          <Phone className="h-3.5 w-3.5 shrink-0" />
-                          {proprietaire.telephone}
-                          <Copy className="h-3 w-3 text-slate-400" />
-                          {copiedField === `tel-prop-${d.id}` && <span className="text-xs text-emerald-600">copié</span>}
-                        </button>
-                      )}
-                    </div>
-                    {proprietaire?.telephone && (
-                      <a
-                        href={lienWhatsApp(proprietaire.telephone, d)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-[#25D366]/10 px-3 py-1.5 text-xs font-semibold text-[#128C4A] transition hover:bg-[#25D366]/20"
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge tone={cfg.tone}>{cfg.label}</Badge>
+                      <Select
+                        value={d.statut}
+                        onValueChange={(v) => handleStatutChange(d.id, v)}
+                        disabled={updatingId === d.id}
                       >
-                        <MessageCircle className="h-3.5 w-3.5" />
-                        Contacter via WhatsApp
-                      </a>
-                    )}
+                        <SelectTrigger className="h-8 w-36" aria-label="Changer le statut de la demande">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {STATUT_OPTIONS.map((s) => (
+                            <SelectItem key={s} value={s}>{STATUT_CONFIG[s].label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
 
-                {d.message && (
-                  <div className="mt-4 flex items-start gap-2 rounded-lg border border-slate-100 bg-white p-3.5 text-sm text-slate-700">
-                    <MessageSquareText className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                    <p>{d.message}</p>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div className="min-w-0 rounded-lg bg-inset p-3.5">
+                      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                        <User className="size-3.5" aria-hidden /> Acheteur (pass {d.jetons_marketplace?.reference ?? "—"})
+                      </p>
+                      <p className="text-[13px] font-medium text-foreground">
+                        {d.jetons_marketplace?.acheteur_nom ?? "—"}
+                      </p>
+                      <div className="mt-1.5 flex flex-col gap-1 text-[13px] text-muted-foreground">
+                        {d.jetons_marketplace?.acheteur_telephone && (
+                          <BoutonCopie
+                            icone={Phone}
+                            valeur={d.jetons_marketplace.acheteur_telephone}
+                            copie={copiedField === `tel-${d.id}`}
+                            onCopier={() => copier(d.jetons_marketplace!.acheteur_telephone, `tel-${d.id}`)}
+                          />
+                        )}
+                        {d.jetons_marketplace?.acheteur_email && (
+                          <BoutonCopie
+                            icone={Mail}
+                            valeur={d.jetons_marketplace.acheteur_email}
+                            copie={copiedField === `email-${d.id}`}
+                            onCopier={() => copier(d.jetons_marketplace!.acheteur_email, `email-${d.id}`)}
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="min-w-0 rounded-lg bg-inset p-3.5">
+                      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                        <Handshake className="size-3.5" aria-hidden /> Propriétaire (vendeur)
+                      </p>
+                      <p className="text-[13px] font-medium text-foreground">
+                        {proprietaire?.nom_complet ?? "—"}
+                      </p>
+                      <div className="mt-1.5 flex flex-col gap-1 text-[13px] text-muted-foreground">
+                        {proprietaire?.telephone && (
+                          <BoutonCopie
+                            icone={Phone}
+                            valeur={proprietaire.telephone}
+                            copie={copiedField === `tel-prop-${d.id}`}
+                            onCopier={() => copier(proprietaire.telephone!, `tel-prop-${d.id}`)}
+                          />
+                        )}
+                      </div>
+                      {proprietaire?.telephone && (
+                        // Ton `success` plutôt que le vert de marque WhatsApp :
+                        // #128C4A ne tient pas le contraste sur fond sombre, et
+                        // l'icône suffit à identifier le canal.
+                        <Button asChild size="sm" variant="ghost" className="mt-2.5 text-success hover:bg-success-subtle hover:text-success">
+                          <a href={lienWhatsApp(proprietaire.telephone, d)} target="_blank" rel="noopener noreferrer">
+                            <MessageCircle />
+                            Contacter via WhatsApp
+                          </a>
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
+
+                  {d.message && (
+                    <div className="mt-4 flex items-start gap-2 rounded-lg border border-border p-3.5 text-[13px] text-foreground">
+                      <MessageSquareText className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+                      <p>{d.message}</p>
+                    </div>
+                  )}
+                </Card>
+              </motion.div>
             );
           })}
-        </div>
+        </motion.div>
       )}
-    </div>
+    </AppShell>
+  );
+}
+
+/** Coordonnée cliquable : un clic copie la valeur dans le presse-papiers. */
+function BoutonCopie({
+  icone: Icone, valeur, copie, onCopier,
+}: {
+  icone: typeof Phone;
+  valeur: string;
+  copie: boolean;
+  onCopier: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onCopier}
+      className="flex min-w-0 items-center gap-1.5 text-left transition-colors hover:text-accent"
+    >
+      <Icone className="size-3.5 shrink-0" aria-hidden />
+      <span className="truncate">{valeur}</span>
+      <Copy className="size-3 shrink-0 text-muted-2" aria-hidden />
+      {copie && <span className="shrink-0 text-xs text-success">copié</span>}
+    </button>
   );
 }

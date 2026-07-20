@@ -47,12 +47,10 @@ export function AppShell({
   /** Action « Nouveau dossier ADU » — propre au Centre de pilotage admin.
    *  Omise sur les autres écrans : la palette masque alors l'entrée. */
   onNouveauDossier?: () => void;
-  /** Contenu large (1480 px) pour le Centre de pilotage et sa carte ; sinon
-   *  1200 px, la largeur des dashboards persona du handoff.
-   *  Sert aussi à choisir le vocabulaire des rubriques de la barre latérale :
-   *  seul le Centre de pilotage passe `wide`, et c'est lui qui parle national
-   *  (« Cadastre », « Dossiers ») là où les dashboards métier disent
-   *  « Registre foncier » et « Instruction ». */
+  /** Contenu large (1480 px) pour les écrans dont le contenu EST la surface
+   *  (centre de pilotage, carte) ; sinon 1200 px, la largeur des dashboards
+   *  persona du handoff. Largeur seulement — cf. `vueNationale` plus bas pour
+   *  le vocabulaire des rubriques. */
   wide?: boolean;
 }) {
   const { profile, loading: profileLoading } = useProfile();
@@ -69,6 +67,15 @@ export function AppShell({
   // Un rôle avec un ordre de nav personnalisé veut une liste plate, lue dans
   // cet ordre précis — le regroupement par section le shufflerait.
   const grouped = !hasCustomNavOrder(groupe);
+
+  // Le handoff est volontairement bilingue : l'écran national dit « Cadastre »
+  // et « Dossiers », l'écran métier dit « Registre foncier » et « Instruction ».
+  // C'est une affaire de POINT DE VUE, donc de rôle — pas d'écran. Auparavant
+  // le choix était accroché à la prop `wide`, si bien qu'un même administrateur
+  // voyait ses rubriques se renommer en passant du pilotage au registre des
+  // lots. On le dérive du rôle : la nomenclature ne bouge plus sous l'oeil de
+  // l'utilisateur.
+  const vueNationale = groupe === "admin" || groupe === "verificateur";
 
   const toggleCollapsed = React.useCallback(() => setRepli(collapsed ? "0" : "1"), [collapsed, setRepli]);
 
@@ -110,7 +117,7 @@ export function AppShell({
                   counts={counts}
                   collapsed={collapsed}
                   grouped={grouped}
-                  pilotage={wide}
+                  pilotage={vueNationale}
                   sousTitre={libelleEspace(groupe)}
                   onToggleCollapsed={toggleCollapsed}
                 />
@@ -126,7 +133,7 @@ export function AppShell({
                   counts={counts}
                   collapsed={false}
                   grouped={grouped}
-                  pilotage={wide}
+                  pilotage={vueNationale}
                   sousTitre={libelleEspace(groupe)}
                   onNavigate={() => setMobileOpen(false)}
                 />
