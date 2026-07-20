@@ -49,7 +49,11 @@ export function VitrineHeader() {
             <span className="font-display text-[17px] font-extrabold tracking-tight text-foreground">SGNF</span>
           </Link>
 
-          <nav className="hidden flex-wrap items-center gap-6 min-[1100px]:flex" aria-label="Sections">
+          {/* Points de rupture repris du handoff : liens et « Se connecter »
+              cèdent la place au menu sous 1181 px, et l'appel à l'action
+              disparaît sous 481 px — sans quoi le groupe d'actions déborde
+              de 13 px sur un écran de 390. Le tiroir les propose tous deux. */}
+          <nav className="hidden flex-wrap items-center gap-6 min-[1181px]:flex" aria-label="Sections">
             {NAV.map((l) => (
               <a
                 key={l.href}
@@ -72,13 +76,13 @@ export function VitrineHeader() {
             </button>
             <Link
               href="/login"
-              className="hidden px-3.5 py-2 text-[13.5px] font-semibold text-foreground transition-colors hover:text-primary sm:inline-block"
+              className="hidden px-3.5 py-2 text-[13.5px] font-semibold text-foreground transition-colors hover:text-primary min-[1181px]:inline-block"
             >
               Se connecter
             </Link>
             <Link
               href="/contact"
-              className="inline-flex items-center gap-1.5 rounded-[11px] bg-primary px-4 py-2.5 text-[13.5px] font-bold text-primary-foreground shadow-[0_4px_14px_rgba(11,77,136,.26)] transition-colors hover:bg-primary-700"
+              className="hidden items-center gap-1.5 rounded-[11px] bg-primary px-4 py-2.5 text-[13.5px] font-bold text-primary-foreground shadow-[0_4px_14px_rgba(11,77,136,.26)] transition-colors hover:bg-primary-700 min-[481px]:inline-flex"
             >
               Demander une démo
             </Link>
@@ -87,7 +91,7 @@ export function VitrineHeader() {
               onClick={() => setMenuOpen((o) => !o)}
               aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
               aria-expanded={menuOpen}
-              className="flex size-[38px] items-center justify-center rounded-[11px] border border-border-strong bg-card text-foreground min-[1100px]:hidden"
+              className="flex size-[38px] items-center justify-center rounded-[11px] border border-border-strong bg-card text-foreground min-[1181px]:hidden"
             >
               {menuOpen ? <X className="size-[18px]" /> : <Menu className="size-[18px]" />}
             </button>
@@ -96,7 +100,7 @@ export function VitrineHeader() {
       </header>
 
       {menuOpen && (
-        <div className="sticky top-[76px] z-[99] flex flex-col border-b border-border bg-card px-5 pb-4 pt-2 shadow-[0_16px_32px_rgba(15,23,42,.12)] min-[1100px]:hidden">
+        <div className="sticky top-[76px] z-[99] flex flex-col border-b border-border bg-card px-5 pb-4 pt-2 shadow-[0_16px_32px_rgba(15,23,42,.12)] min-[1181px]:hidden">
           {NAV.map((l, i) => (
             <a
               key={l.href}
