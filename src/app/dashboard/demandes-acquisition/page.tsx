@@ -4,21 +4,29 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
-  ClipboardCheck,
   Coins,
   FileCheck2,
   HandCoins,
   Landmark,
-  Loader2,
   MapPin,
   MessageSquare,
   Phone,
   ScrollText,
   ShieldAlert,
   ShieldCheck,
-  X,
 } from "lucide-react";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
+import {
+  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ds/dialog";
+import { Field } from "@/components/ds/label";
+import { Input } from "@/components/ds/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ds/select";
 import { createClient } from "@/utils/supabase/client";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useProfile } from "@/hooks/useProfile";
 import { actionAgenceRequise, libelleActionAgence } from "@/lib/agence-actions";
 
@@ -34,6 +42,8 @@ import { actionAgenceRequise, libelleActionAgence } from "@/lib/agence-actions";
  *   3. « Facturer l'attestation » de cession (UNIQUEMENT après la vente soldée),
  *      puis l'encaisser — l'attestation (Chefferie + Commission SGNF) est générée.
  */
+
+type BadgeTone = "neutral" | "accent" | "success" | "warning" | "danger";
 
 type DemandeAgence = {
   id: string;
@@ -72,12 +82,12 @@ type DemandeAgence = {
   attestation_qr_token: string | null;
 };
 
-const STATUT_META: Record<string, { label: string; cls: string }> = {
-  nouvelle: { label: "Nouvelle", cls: "bg-[#0D3B66]/10 text-[#0D3B66]" },
-  en_discussion: { label: "En discussion", cls: "bg-[#F39C12]/10 text-[#F39C12]" },
-  accord: { label: "Accord de principe", cls: "bg-[#2D8F5A]/10 text-[#2D8F5A]" },
-  refusee: { label: "Non retenue", cls: "bg-[#EF4444]/10 text-[#EF4444]" },
-  annulee: { label: "Annulée", cls: "bg-slate-100 text-slate-500" },
+const STATUT_META: Record<string, { label: string; tone: BadgeTone }> = {
+  nouvelle: { label: "Nouvelle", tone: "accent" },
+  en_discussion: { label: "En discussion", tone: "warning" },
+  accord: { label: "Accord de principe", tone: "success" },
+  refusee: { label: "Non retenue", tone: "danger" },
+  annulee: { label: "Annulée", tone: "neutral" },
 };
 
 const MOYENS: { value: string; label: string }[] = [
@@ -100,18 +110,19 @@ const OUVERTES = ["nouvelle", "en_discussion", "accord"];
 
 // Badge de phase : au statut 'convertie', on reflète l'avancée réelle (vente en
 // cours / soldée / attestation) plutôt que le simple libellé d'enum.
-function phaseBadge(d: DemandeAgence): { label: string; cls: string } {
+function phaseBadge(d: DemandeAgence): { label: string; tone: BadgeTone } {
   if (d.statut === "convertie") {
-    if (d.attestation_reference) return { label: "Attestation émise", cls: "bg-[#2D8F5A]/15 text-[#2D8F5A]" };
-    if (d.vente_statut === "soldee") return { label: "Vendu — certificat émis", cls: "bg-[#2D8F5A]/10 text-[#2D8F5A]" };
-    return { label: "Vente en cours", cls: "bg-[#F39C12]/10 text-[#F39C12]" };
+    if (d.attestation_reference) return { label: "Attestation émise", tone: "success" };
+    if (d.vente_statut === "soldee") return { label: "Vendu — certificat émis", tone: "success" };
+    return { label: "Vente en cours", tone: "warning" };
   }
-  return STATUT_META[d.statut] ?? { label: d.statut, cls: "bg-slate-100 text-slate-500" };
+  return STATUT_META[d.statut] ?? { label: d.statut, tone: "neutral" };
 }
 
 export default function DemandesAcquisitionPage() {
   const supabase = useMemo(() => createClient(), []);
   const { profile } = useProfile();
+  const { counts } = useBadgeCounts();
   const peutAgir = profile?.groupe === "admin" || profile?.groupe === "operateur";
 
   const [demandes, setDemandes] = useState<DemandeAgence[]>([]);
@@ -242,7 +253,7 @@ export default function DemandesAcquisitionPage() {
   const nbAFaire = demandes.filter(actionAgenceRequise).length;
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <AppShell loading={loading} counts={counts} onRefresh={load}>
       {vente && (
         <VenteModal
           demande={vente}
@@ -255,12 +266,11 @@ export default function DemandesAcquisitionPage() {
         />
       )}
 
-      <div className="mb-6">
-        <h1 className="flex items-center gap-2 font-display text-2xl font-bold text-brand-primary sm:text-3xl">
-          <ClipboardCheck className="h-6 w-6 text-[#0D3B66]" />
+      <div>
+        <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
           Demandes d&apos;acquisition
         </h1>
-        <p className="mt-1.5 text-sm text-slate-500 sm:text-base">
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
           Les acquéreurs engagés sur un lot vérifié. Faites évoluer le statut, créez la vente, encaissez le
           prix du lot (certificat automatique au solde), puis facturez l&apos;attestation de cession.
         </p>
@@ -269,46 +279,44 @@ export default function DemandesAcquisitionPage() {
       {/* Compteur d'actions à faire — bandeau très visible pour ne rien rater. */}
       {!loading && (
         <div
-          className={`mb-5 flex items-center gap-3 rounded-xl border px-4 py-3 ${
-            nbAFaire > 0
-              ? "border-[#EF4444]/30 bg-[#EF4444]/5"
-              : "border-emerald-200/70 bg-emerald-50"
+          className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
+            nbAFaire > 0 ? "border-danger/30 bg-danger-subtle" : "border-success/30 bg-success-subtle"
           }`}
         >
           {nbAFaire > 0 ? (
             <>
               <span className="relative flex h-2.5 w-2.5 shrink-0">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#EF4444] opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#EF4444]" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-danger opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-danger" />
               </span>
-              <span className="text-sm font-semibold text-[#EF4444]">
+              <span className="text-sm font-semibold text-danger">
                 {nbAFaire} action{nbAFaire > 1 ? "s" : ""} à faire
               </span>
-              <span className="text-sm text-slate-500">— traitez les cartes marquées en rouge ci-dessous.</span>
+              <span className="text-sm text-muted-foreground">— traitez les cartes marquées en rouge ci-dessous.</span>
             </>
           ) : (
             <>
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-[#2D8F5A]" />
-              <span className="text-sm font-medium text-emerald-800">Tout est à jour — aucune action en attente.</span>
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+              <span className="text-sm font-medium text-success">Tout est à jour — aucune action en attente.</span>
             </>
           )}
         </div>
       )}
 
       {flash && (
-        <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#2D8F5A]" />
+        <div className="flex items-start gap-2.5 rounded-xl border border-success/25 bg-success-subtle px-4 py-3 text-sm text-success">
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{flash}</span>
         </div>
       )}
       {error && (
-        <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-[#EF4444]/30 bg-[#EF4444]/5 px-4 py-3 text-sm text-[#EF4444]">
+        <div className="flex items-start gap-2.5 rounded-xl border border-danger/30 bg-danger-subtle px-4 py-3 text-sm text-danger">
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
         <Chip active={filter === "ouvertes"} onClick={() => setFilter("ouvertes")}>
           En cours ({nbOuvertes})
         </Chip>
@@ -318,11 +326,11 @@ export default function DemandesAcquisitionPage() {
       </div>
 
       {loading ? (
-        <div className="rounded-xl border border-slate-200/60 bg-white px-5 py-10 text-center text-sm text-slate-500">
+        <div className="rounded-xl border border-border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-panel">
           Chargement…
         </div>
       ) : shown.length === 0 ? (
-        <div className="rounded-xl border border-slate-200/60 bg-white px-5 py-10 text-center text-sm text-slate-500">
+        <div className="rounded-xl border border-border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-panel">
           Aucune demande {filter === "ouvertes" ? "en cours" : ""}.
         </div>
       ) : (
@@ -336,24 +344,24 @@ export default function DemandesAcquisitionPage() {
             return (
               <div
                 key={d.id}
-                className={`rounded-xl border bg-white p-5 shadow-sm ${
-                  action ? "border-[#EF4444]/40 ring-1 ring-[#EF4444]/20" : "border-slate-200/60"
+                className={`rounded-xl border bg-card p-5 shadow-panel ${
+                  action ? "border-danger/40 ring-1 ring-danger/20" : "border-border"
                 }`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <p className="flex items-center gap-1.5 text-base font-semibold text-slate-800">
-                      <Landmark className="h-4 w-4 text-[#0D3B66]" />
+                    <p className="flex items-center gap-1.5 text-base font-semibold text-foreground">
+                      <Landmark className="h-4 w-4 text-accent" />
                       {d.lotissement ?? "—"} — Îlot {d.ilot_numero ?? "?"} · Lot {d.numero_lot ?? "?"}
                     </p>
-                    <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+                    <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                       <MapPin className="h-3 w-3" />
                       {[d.village, d.commune].filter(Boolean).join(" · ") || "—"}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1.5">
                     {action && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EF4444] px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-danger px-2.5 py-1 text-xs font-bold text-white shadow-panel">
                         <span className="relative flex h-1.5 w-1.5">
                           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
                           <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
@@ -361,9 +369,7 @@ export default function DemandesAcquisitionPage() {
                         À faire : {action}
                       </span>
                     )}
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${meta.cls}`}>
-                      {meta.label}
-                    </span>
+                    <Badge tone={meta.tone}>{meta.label}</Badge>
                   </div>
                 </div>
 
@@ -372,7 +378,7 @@ export default function DemandesAcquisitionPage() {
                   <Fact label="Téléphone">
                     {d.acquereur_telephone ? (
                       <span className="inline-flex items-center gap-1">
-                        <Phone className="h-3 w-3 text-slate-400" />
+                        <Phone className="h-3 w-3 text-muted-2" />
                         {d.acquereur_telephone}
                       </span>
                     ) : (
@@ -386,26 +392,26 @@ export default function DemandesAcquisitionPage() {
 
                 {/* Suivi de la vente (dès qu'elle existe) */}
                 {d.vente_id && (
-                  <div className="mt-3 rounded-lg border border-slate-200/60 bg-slate-50/60 px-3 py-2.5">
+                  <div className="mt-3 rounded-lg border border-border bg-inset px-3 py-2.5">
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <span className="inline-flex items-center gap-1.5 font-semibold text-slate-700">
-                        <Coins className="h-3.5 w-3.5 text-[#9C6406]" />
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
+                        <Coins className="h-3.5 w-3.5 text-warning" />
                         Vente {d.vente_type === "echelonne" ? "échelonnée" : "au comptant"}
                       </span>
-                      <span className="text-slate-500">
+                      <span className="text-muted-foreground">
                         Payé {fcfa(d.vente_montant_paye)} / {fcfa(d.vente_prix_total)}
                         {!venteSoldee && d.vente_solde != null && ` · reste ${fcfa(d.vente_solde)}`}
                       </span>
                     </div>
                     {d.certificat_reference && (
-                      <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-[#2D8F5A]">
+                      <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-success">
                         <FileCheck2 className="h-3.5 w-3.5" />
                         Certificat de vente {d.certificat_reference}
                         <a
                           href={`/verifier?ref=${encodeURIComponent(d.certificat_reference)}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="ml-1 font-medium text-[#0D3B66] underline decoration-dotted hover:no-underline"
+                          className="ml-1 font-medium text-accent underline decoration-dotted hover:no-underline"
                         >
                           Vérifier
                         </a>
@@ -415,23 +421,22 @@ export default function DemandesAcquisitionPage() {
                 )}
 
                 {d.message && !d.vente_id && (
-                  <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-600">
+                  <p className="mt-3 rounded-lg bg-inset px-3 py-2 text-xs leading-relaxed text-muted-foreground">
                     « {d.message} »
                   </p>
                 )}
                 {d.note_agence && (
-                  <p className="mt-2 text-xs text-slate-400">Note agence : {d.note_agence}</p>
+                  <p className="mt-2 text-xs text-muted-2">Note agence : {d.note_agence}</p>
                 )}
 
-                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-                  <span className="mr-auto text-[11px] text-slate-400">Reçue le {fmtDate(d.cree_le)}</span>
-                  <Link
-                    href="/dashboard/messages"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                  >
-                    <MessageSquare className="h-3.5 w-3.5 text-[#0D3B66]" />
-                    Échanger
-                  </Link>
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                  <span className="mr-auto text-[11px] text-muted-2">Reçue le {fmtDate(d.cree_le)}</span>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/dashboard/messages">
+                      <MessageSquare className="h-3.5 w-3.5 text-accent" />
+                      Échanger
+                    </Link>
+                  </Button>
 
                   {/* Phase 1 — demande ouverte : statuts + créer la vente */}
                   {peutAgir && ouverte && (
@@ -449,33 +454,30 @@ export default function DemandesAcquisitionPage() {
                       <ActionBtn onClick={() => void majStatut(d, "refusee")} busy={busy === d.id} danger>
                         Ne pas retenir
                       </ActionBtn>
-                      <button
-                        type="button"
-                        onClick={() => setVente(d)}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#0D3B66] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0a2f52]"
-                      >
+                      <Button type="button" variant="primary" size="sm" onClick={() => setVente(d)}>
                         <Coins className="h-3.5 w-3.5" />
                         Créer la vente
-                      </button>
+                      </Button>
                     </>
                   )}
 
                   {/* Phase 2 — vente créée, pas encore soldée : encaisser le lot */}
                   {d.statut === "convertie" && !venteSoldee && peutAgir && (
-                    <button
+                    <Button
                       type="button"
+                      variant="accent"
+                      size="sm"
+                      loading={busy === d.id}
                       onClick={() => void encaisserLot(d)}
-                      disabled={busy === d.id}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#9C6406] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#7d5005] disabled:opacity-60"
                     >
-                      {busy === d.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <HandCoins className="h-3.5 w-3.5" />}
+                      {busy === d.id ? null : <HandCoins className="h-3.5 w-3.5" />}
                       {d.vente_paiement_id ? "Encaisser le lot (guichet)" : "Encaisser la prochaine échéance"}
                       {d.vente_paiement_montant ? ` · ${fcfa(d.vente_paiement_montant)}` : ""}
-                    </button>
+                    </Button>
                   )}
                   {d.statut === "convertie" && !venteSoldee && d.vente_paiement_statut &&
                     ["en_attente", "initie"].includes(d.vente_paiement_statut) && (
-                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#0D3B66]/5 px-2.5 py-1.5 text-[11px] font-medium text-[#0D3B66]">
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-accent-subtle px-2.5 py-1.5 text-[11px] font-medium text-accent">
                         L&apos;acquéreur peut aussi régler en ligne
                       </span>
                     )}
@@ -484,29 +486,31 @@ export default function DemandesAcquisitionPage() {
                   {d.statut === "convertie" && venteSoldee && !attestationEmise && (
                     !d.cession_id ? (
                       peutAgir && (
-                        <button
+                        <Button
                           type="button"
+                          variant="primary"
+                          size="sm"
+                          loading={busy === d.id}
                           onClick={() => void facturer(d)}
-                          disabled={busy === d.id}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#0D3B66] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0a2f52] disabled:opacity-60"
                         >
-                          {busy === d.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScrollText className="h-3.5 w-3.5" />}
+                          {busy === d.id ? null : <ScrollText className="h-3.5 w-3.5" />}
                           Facturer l&apos;attestation
-                        </button>
+                        </Button>
                       )
                     ) : peutAgir ? (
-                      <button
+                      <Button
                         type="button"
+                        variant="accent"
+                        size="sm"
+                        loading={busy === d.id}
                         onClick={() => void encaisserAttestation(d)}
-                        disabled={busy === d.id}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#2D8F5A] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#24794c] disabled:opacity-60"
                       >
-                        {busy === d.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <HandCoins className="h-3.5 w-3.5" />}
+                        {busy === d.id ? null : <HandCoins className="h-3.5 w-3.5" />}
                         Encaisser l&apos;attestation (guichet)
                         {d.paiement_montant ? ` · ${fcfa(d.paiement_montant)}` : ""}
-                      </button>
+                      </Button>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#F39C12]/10 px-3 py-1.5 text-xs font-semibold text-[#F39C12]">
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-warning-subtle px-3 py-1.5 text-xs font-semibold text-warning">
                         Attestation en attente de paiement
                       </span>
                     )
@@ -514,19 +518,20 @@ export default function DemandesAcquisitionPage() {
 
                   {attestationEmise && (
                     <>
-                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-[#2D8F5A]/40 bg-[#2D8F5A]/5 px-3 py-1.5 text-xs font-semibold text-[#2D8F5A]">
+                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-success/40 bg-success-subtle px-3 py-1.5 text-xs font-semibold text-success">
                         <ScrollText className="h-3.5 w-3.5" />
                         Attestation {d.attestation_reference}
                       </span>
-                      <a
-                        href={`/verifier?ref=${encodeURIComponent(d.attestation_reference!)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#0D3B66]/30 px-3 py-1.5 text-xs font-semibold text-[#0D3B66] hover:bg-[#0D3B66]/5"
-                      >
-                        <ShieldCheck className="h-3.5 w-3.5" />
-                        Vérifier
-                      </a>
+                      <Button asChild variant="outline" size="sm">
+                        <a
+                          href={`/verifier?ref=${encodeURIComponent(d.attestation_reference!)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                          Vérifier
+                        </a>
+                      </Button>
                     </>
                   )}
                 </div>
@@ -535,7 +540,7 @@ export default function DemandesAcquisitionPage() {
           })}
         </div>
       )}
-    </div>
+    </AppShell>
   );
 }
 
@@ -589,61 +594,46 @@ function VenteModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200/60 px-6 py-4">
-          <div>
-            <h2 className="flex items-center gap-1.5 text-base font-bold text-[#0D3B66]">
-              <Coins className="h-4 w-4" />
-              Créer la vente du lot
-            </h2>
-            <p className="mt-0.5 text-xs text-slate-500">
-              {demande.lotissement} — Lot {demande.numero_lot} · Acquéreur : {demande.acquereur_nom ?? "—"}
-            </p>
-          </div>
-          <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100">
-            <X className="h-5 w-5 text-slate-500" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Vente du lot</p>
+          <DialogTitle>Créer la vente du lot</DialogTitle>
+          <DialogDescription>
+            {demande.lotissement} — Lot {demande.numero_lot} · Acquéreur : {demande.acquereur_nom ?? "—"}
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="space-y-4 px-6 py-5">
-          <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-500">
-            Le prix du lot revient au <span className="font-semibold">propriétaire actuel</span> (le vendeur).
-            Au paiement intégral, le <span className="font-semibold">Certificat de vente</span> est émis et la
+        <DialogBody className="space-y-4">
+          <p className="rounded-lg bg-inset px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+            Le prix du lot revient au <span className="font-semibold text-foreground">propriétaire actuel</span> (le vendeur).
+            Au paiement intégral, le <span className="font-semibold text-foreground">Certificat de vente</span> est émis et la
             propriété bascule à l&apos;acquéreur. L&apos;attestation de cession (Chefferie + Commission SGNF)
             se facture ensuite, séparément.
           </p>
 
-          <div>
-            <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
-              Prix de vente (FCFA)
-            </label>
-            <input
+          <Field label="Prix de vente (FCFA)" htmlFor="vente-prix">
+            <Input
+              id="vente-prix"
               inputMode="numeric"
               value={prix}
               onChange={(e) => setPrix(e.target.value)}
               placeholder="Ex. 5 000 000"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#0D3B66] focus:outline-none"
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
-              Modalité
-            </label>
+          <div className="space-y-1.5">
+            <p className="text-[13px] font-semibold text-foreground">Modalité</p>
             <div className="flex gap-2">
               {(["comptant", "echelonne"] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => setType(t)}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                  className={`flex-1 rounded-md border px-3 py-2 text-xs font-semibold transition-colors ${
                     type === t
-                      ? "border-[#0D3B66] bg-[#0D3B66]/5 text-[#0D3B66]"
-                      : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      ? "border-accent bg-accent-subtle text-accent"
+                      : "border-border text-muted-foreground hover:bg-inset"
                   }`}
                 >
                   {t === "comptant" ? "Au comptant" : "Échelonné"}
@@ -653,80 +643,64 @@ function VenteModal({
           </div>
 
           {type === "echelonne" && (
-            <div>
-              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                Nombre d&apos;échéances (mensuelles)
-              </label>
-              <input
+            <Field
+              label="Nombre d'échéances (mensuelles)"
+              htmlFor="vente-echeances"
+              hint="Le certificat n'est émis qu'au règlement de la dernière échéance."
+            >
+              <Input
+                id="vente-echeances"
                 inputMode="numeric"
                 value={nbEcheances}
                 onChange={(e) => setNbEcheances(e.target.value.replace(/[^\d]/g, ""))}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#0D3B66] focus:outline-none"
               />
-              <p className="mt-1 text-[11px] text-slate-400">
-                Le certificat n&apos;est émis qu&apos;au règlement de la dernière échéance.
-              </p>
-            </div>
+            </Field>
           )}
 
-          <div>
-            <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
-              Moyen de règlement (1re échéance)
-            </label>
-            <select
-              value={moyen}
-              onChange={(e) => setMoyen(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#0D3B66] focus:outline-none"
-            >
-              {MOYENS.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-[11px] text-slate-400">
-              <span className="font-semibold">Espèces / Virement</span> → encaissement au guichet ici même.{" "}
-              <span className="font-semibold">Mobile money</span> → l&apos;acquéreur règle en ligne.
-            </p>
-          </div>
+          <Field
+            label="Moyen de règlement (1re échéance)"
+            htmlFor="vente-moyen"
+            hint="Espèces / Virement → encaissement au guichet. Mobile money → l'acquéreur règle en ligne."
+          >
+            <Select value={moyen} onValueChange={setMoyen}>
+              <SelectTrigger id="vente-moyen">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MOYENS.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
 
           {err && (
-            <p className="flex items-start gap-1.5 rounded-lg bg-[#EF4444]/5 px-3 py-2 text-xs text-[#EF4444]">
+            <p role="alert" className="flex items-start gap-1.5 rounded-lg bg-danger-subtle px-3 py-2 text-xs text-danger">
               <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               {err}
             </p>
           )}
-        </div>
+        </DialogBody>
 
-        <div className="flex flex-col gap-2 border-t border-slate-200/60 px-6 py-4 sm:flex-row">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={submitting}
-            className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-70 sm:flex-1"
-          >
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
             Annuler
-          </button>
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={submitting || !valide}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0D3B66] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0a2f52] disabled:opacity-50 sm:flex-[2]"
-          >
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Coins className="h-4 w-4" />}
+          </Button>
+          <Button type="button" variant="primary" loading={submitting} disabled={!valide} onClick={() => void submit()}>
+            {submitting ? null : <Coins className="h-4 w-4" />}
             {submitting ? "Création…" : "Créer la vente"}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-slate-200/60 bg-slate-50/60 px-3 py-2">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-0.5 text-sm font-semibold text-slate-800">{children}</p>
+    <div className="rounded-lg border border-border bg-inset px-3 py-2">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-2">{label}</p>
+      <p className="mt-0.5 text-sm font-semibold text-foreground">{children}</p>
     </div>
   );
 }
@@ -743,18 +717,16 @@ function ActionBtn({
   children: React.ReactNode;
 }) {
   return (
-    <button
+    <Button
       type="button"
-      onClick={onClick}
+      variant="outline"
+      size="sm"
       disabled={busy}
-      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-60 ${
-        danger
-          ? "border-[#EF4444]/30 text-[#EF4444] hover:bg-[#EF4444]/5"
-          : "border-[#0D3B66]/30 text-[#0D3B66] hover:bg-[#0D3B66]/5"
-      }`}
+      onClick={onClick}
+      className={danger ? "text-danger hover:bg-danger-subtle hover:text-danger" : undefined}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -773,8 +745,8 @@ function Chip({
       onClick={onClick}
       className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
         active
-          ? "border-[#0D3B66] bg-[#0D3B66] text-white"
-          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border bg-card text-muted-foreground hover:border-border-strong"
       }`}
     >
       {children}
