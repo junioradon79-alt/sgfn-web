@@ -21,8 +21,11 @@ import { chromium } from "playwright";
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((a) => {
-    const [k, v] = a.replace(/^--/, "").split("=");
-    return [k, v ?? true];
+    // Découpe sur le PREMIER « = » seulement : une route peut porter un
+    // paramètre (`--route=/dashboard/administration?volet=roles`).
+    const bare = a.replace(/^--/, "");
+    const i = bare.indexOf("=");
+    return i === -1 ? [bare, true] : [bare.slice(0, i), bare.slice(i + 1)];
   }),
 );
 

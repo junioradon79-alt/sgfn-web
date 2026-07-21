@@ -1,5 +1,8 @@
 import {
+  Activity,
+  ArrowLeftRight,
   BarChart3,
+  Bell,
   Boxes,
   Briefcase,
   ClipboardCheck,
@@ -14,6 +17,7 @@ import {
   HandCoins,
   Handshake,
   Home,
+  KeyRound,
   Landmark,
   LayoutDashboard,
   LayoutGrid,
@@ -21,13 +25,17 @@ import {
   MailOpen,
   Map,
   MapPinned,
+  Megaphone,
   MessageSquare,
   QrCode,
+  Receipt,
   Ruler,
+  ScrollText,
   Settings,
   ShieldCheck,
   Sparkles,
   Store,
+  TrendingUp,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -71,6 +79,22 @@ export interface NavItem {
   href: string;
   icon: LucideIcon;
   section: NavSection;
+  /**
+   * Libellé dans un dashboard de rôle, quand il diffère du libellé national.
+   * Même logique que `sectionRole` : « /dashboard » est la « Vue nationale » de
+   * l'administrateur, mais reste le « Centre de pilotage » d'un géomètre qui n'a
+   * pas de vue nationale. Absent = `label` pour tout le monde.
+   */
+  labelRole?: string;
+  /**
+   * Sous-entrée pointant vers un onglet/section d'une page déjà existante, via
+   * un paramètre d'URL (le handoff éclate certaines rubriques — Administration,
+   * Paiements… — en plusieurs liens alors que c'est une seule page à onglets).
+   * `key` = nom du paramètre ; `value` = valeur qui active cette entrée ;
+   * `default` = entrée active quand le paramètre est absent. La page lit ce même
+   * paramètre pour ouvrir le bon onglet ; la barre s'y surligne en miroir.
+   */
+  deepLink?: { key: string; value?: string; default?: boolean };
   /**
    * Rubrique dans un dashboard de rôle, quand elle diffère de la rubrique
    * nationale. Le handoff range « Attributaires » sous Utilisateurs côté
@@ -182,9 +206,14 @@ export const SECTION_ORDER: NavSection[] = [
  */
 export const NAV_ITEMS: NavItem[] = [
   // ── Pilotage ──
-  // Le handoff ne montre cette entrée que sur Pilotage et Géomètre. `roles: []`
-  // = admin ; le géomètre la garde via sa liste fermée ROLE_NAV_ORDER.
-  { label: "Centre de pilotage", href: "/dashboard", icon: LayoutDashboard, section: "pilotage", roles: [], keywords: "accueil tableau de bord home" },
+  // Le handoff éclate le Centre de pilotage en trois liens : Vue nationale (la
+  // carte + les KPI), Centre d'alertes et Activité temps réel — trois sections
+  // d'une même page, atteintes par `?focus=`. Le géomètre, lui, ne voit que la
+  // première (via sa liste fermée ROLE_NAV_ORDER) : « Vue nationale » n'a pas de
+  // sens pour lui, d'où `labelRole`. `roles: []` = admin.
+  { label: "Vue nationale", labelRole: "Centre de pilotage", href: "/dashboard", icon: LayoutDashboard, section: "pilotage", roles: [], deepLink: { key: "focus", default: true }, keywords: "accueil tableau de bord home vue nationale carte" },
+  { label: "Centre d'alertes", href: "/dashboard?focus=alertes", icon: Bell, section: "pilotage", roles: [], deepLink: { key: "focus", value: "alertes" }, keywords: "alertes signaux urgences à traiter ce qui brûle" },
+  { label: "Activité temps réel", href: "/dashboard?focus=activite", icon: Activity, section: "pilotage", roles: [], deepLink: { key: "focus", value: "activite" }, keywords: "activité récente journal flux temps réel" },
   { label: "Supervision", href: "/dashboard/commissaire", icon: ShieldCheck, section: "pilotage", roles: ["commissaire", "verificateur"] },
   // Le handoff range la carte sous Cadastre et l'IA sous Intelligence.
   { label: "Carte foncière", href: "/dashboard/carte", icon: MapPinned, section: "cadastre", roles: ["geometre", "commissaire", "verificateur"], keywords: "gps parcelles géolocalisation" },
@@ -193,11 +222,11 @@ export const NAV_ITEMS: NavItem[] = [
   // ── Cadastre (« Registre foncier » côté métier) ──
   { label: "Lotissements", href: "/lotissements", icon: Map, section: "cadastre", roles: ["operateur", "amenageur", "geometre", "chefferie", "verificateur", "proprietaire_terrien"], ordreRole: 1 },
   { label: "Îlots", href: "/dashboard/ilots", icon: LayoutGrid, section: "cadastre", roles: [], keywords: "blocs découpage périmètre" },
-  { label: "Lots", href: "/dashboard/lots", icon: Boxes, section: "cadastre", roles: ["operateur", "amenageur", "geometre", "verificateur", "commissaire", "proprietaire_terrien"], keywords: "parcelles terrains", ordreRole: 2 },
+  { label: "Lots & parcelles", href: "/dashboard/lots", icon: Boxes, section: "cadastre", roles: ["operateur", "amenageur", "geometre", "verificateur", "commissaire", "proprietaire_terrien"], keywords: "parcelles terrains lots", ordreRole: 2 },
   { label: "Géomètres-experts", href: "/dashboard/geometres", icon: Ruler, section: "cadastre", roles: [], keywords: "bornage numéro d'ordre cabinet" },
 
   // ── Dossiers (« Instruction » côté métier) ──
-  { label: "Dossiers ADU", href: "/dashboard/dossiers-adu", icon: ClipboardList, section: "dossiers", roles: ["geometre", "commissaire", "verificateur", "chefferie", "proprietaire_terrien"], keywords: "acd instruction urbanisme" },
+  { label: "Dossiers ADU / ACD", href: "/dashboard/dossiers-adu", icon: ClipboardList, section: "dossiers", roles: ["geometre", "commissaire", "verificateur", "chefferie", "proprietaire_terrien"], keywords: "acd adu instruction urbanisme dossiers" },
   { label: "Litiges", href: "/dashboard/litiges", icon: FileWarning, section: "dossiers", roles: ["commissaire", "verificateur", "chefferie", "proprietaire_terrien"], badgeKey: "litigesActifs", keywords: "conflits contentieux" },
   { label: "Demandes d'acquisition", href: "/dashboard/demandes-acquisition", icon: ClipboardCheck, section: "dossiers", roles: ["operateur"], badgeKey: "demandes", keywords: "ventes tunnel acquéreur", ordreRole: 1 },
   { label: "Attributions", href: "/dashboard/attributions", icon: Link2, section: "dossiers", sectionRole: "cadastre", roles: ["operateur", "amenageur", "verificateur", "commissaire", "proprietaire_terrien"], ordreRole: 4 },
@@ -206,24 +235,38 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Démarches", href: "/dashboard/demarches", icon: Ruler, section: "dossiers", roles: ["geometre"], keywords: "bornage honoraires transmission mutation" },
 
   // ── Marketplace ──
-  { label: "Contacts TerraCI Market", href: "/dashboard/contacts-marketplace", icon: Store, section: "marketplace", roles: ["admin"], badgeKey: "marketplace", keywords: "marketplace annonces mon terrain" },
+  { label: "Annonces publiées", href: "/dashboard/annonces", icon: Megaphone, section: "marketplace", roles: ["admin"], keywords: "marketplace terraci market annonces publiées ventes en ligne mon terrain" },
+  { label: "Contacts TerraCI Market", href: "/dashboard/contacts-marketplace", icon: Store, section: "marketplace", roles: ["admin"], badgeKey: "marketplace", keywords: "marketplace annonces mon terrain contacts acheteurs" },
 
   // ── Utilisateurs ──
   { label: "Attributaires", href: "/dashboard/attributaires", icon: Users, section: "utilisateurs", sectionRole: "cadastre", roles: ["operateur", "amenageur", "verificateur", "commissaire", "proprietaire_terrien"], keywords: "bénéficiaires", ordreRole: 3 },
-  { label: "Familles", href: "/dashboard/familles", icon: Home, section: "utilisateurs", roles: [], keywords: "chefferies lignages" },
+  { label: "Familles & chefferies", href: "/dashboard/familles", icon: Home, section: "utilisateurs", roles: [], keywords: "familles chefferies lignages autorités" },
   { label: "Invitations", href: "/dashboard/invitations", icon: MailOpen, section: "utilisateurs", sectionRole: "dossiers", roles: ["operateur", "amenageur", "proprietaire_terrien"], ordreRole: 2 },
 
   // ── Paiements ──
-  { label: "Paiements", href: "/dashboard/paiements", icon: CreditCard, section: "paiements", roles: [], keywords: "transactions encaissements recettes quittances" },
+  // Une seule page (`/dashboard/paiements`) à deux vues, éclatée en deux liens
+  // par le handoff : le registre (Transactions) et la file de validation
+  // manuelle (Réconciliation), atteinte par `?vue=reconciliation`.
+  { label: "Transactions", href: "/dashboard/paiements", icon: Receipt, section: "paiements", roles: [], deepLink: { key: "vue", default: true }, keywords: "transactions encaissements recettes quittances registre paiements" },
+  { label: "Réconciliation", href: "/dashboard/paiements?vue=reconciliation", icon: ArrowLeftRight, section: "paiements", roles: [], deepLink: { key: "vue", value: "reconciliation" }, keywords: "réconciliation validation manuelle paiements à valider rapprochement" },
 
   // ── Statistiques ──
-  { label: "Statistiques", href: "/dashboard/statistiques", icon: BarChart3, section: "statistiques", roles: [], keywords: "rapports performance régionale analyse" },
+  // Page unique à deux sections (handoff) : les séries mensuelles (Rapports) et
+  // les classements territoriaux (Performance régionale), atteinte par `?focus=`.
+  { label: "Rapports", href: "/dashboard/statistiques", icon: BarChart3, section: "statistiques", roles: [], deepLink: { key: "focus", default: true }, keywords: "rapports statistiques séries mensuelles cadastre actes analyse" },
+  { label: "Performance régionale", href: "/dashboard/statistiques?focus=performance", icon: TrendingUp, section: "statistiques", roles: [], deepLink: { key: "focus", value: "performance" }, keywords: "performance régionale classement districts territoires occupation" },
 
   // ── Intelligence ──
-  { label: "Saisie foncière", href: "/dashboard/saisie", icon: ClipboardEdit, section: "intelligence", roles: ["operateur_saisie"], badgeKey: "saisie", keywords: "import excel validation saisie assistée" },
+  { label: "Saisie assistée", href: "/dashboard/saisie", icon: ClipboardEdit, section: "intelligence", roles: ["operateur_saisie"], badgeKey: "saisie", keywords: "import excel validation saisie assistée foncière" },
 
   // ── Administration ──
-  { label: "Administration", href: "/dashboard/administration", icon: Settings, section: "administration", roles: [], keywords: "utilisateurs système rôles permissions journal audit paramètres" },
+  // Le handoff éclate l'écran Administration en ses quatre onglets. Une seule
+  // page (`/dashboard/administration`), quatre liens vers ses volets via
+  // `?volet=` ; « Utilisateurs système » (onglet comptes) est l'onglet par défaut.
+  { label: "Utilisateurs système", href: "/dashboard/administration", icon: Users, section: "administration", roles: [], deepLink: { key: "volet", default: true }, keywords: "utilisateurs système comptes administration accès" },
+  { label: "Rôles & permissions", href: "/dashboard/administration?volet=roles", icon: KeyRound, section: "administration", roles: [], deepLink: { key: "volet", value: "roles" }, keywords: "rôles permissions droits accès habilitations" },
+  { label: "Journal d'audit", href: "/dashboard/administration?volet=audit", icon: ScrollText, section: "administration", roles: [], deepLink: { key: "volet", value: "audit" }, keywords: "journal audit traçabilité historique événements" },
+  { label: "Paramètres", href: "/dashboard/administration?volet=parametres", icon: Settings, section: "administration", roles: [], deepLink: { key: "volet", value: "parametres" }, keywords: "paramètres réglages configuration tarifs" },
 
   // ── Espaces dédiés (masqués pour l'admin) ──
   { label: "Mon espace", href: "/dashboard/mon-achat", icon: ClipboardCheck, section: "espaces", roles: ["acquereur"], adminHide: true, keywords: "acquéreur suivi terrains achat" },
@@ -237,7 +280,9 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Mes missions", href: "/dashboard/missions", icon: Briefcase, section: "espaces", roles: ["geometre"], adminHide: true },
 
   // ── Documents ──
-  { label: "Documents", href: "/dashboard/documents", icon: FileText, section: "documents", sectionRole: "general", keywords: "registre documentaire actes attestations" },
+  // « Registre documentaire » côté national (handoff) ; « Documents », plus
+  // sobre, pour un acquéreur ou un géomètre qui y range ses propres pièces.
+  { label: "Registre documentaire", labelRole: "Documents", href: "/dashboard/documents", icon: FileText, section: "documents", sectionRole: "general", keywords: "registre documentaire documents actes attestations pv" },
   { label: "Consultations QR", href: "/dashboard/consultations-qr", icon: QrCode, section: "documents", roles: ["admin"], keywords: "vérification qr code" },
 
   // ── Général ──

@@ -8,6 +8,7 @@ import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import { useAdminOverview } from "@/hooks/useAdminOverview";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { useAncreFocus } from "@/hooks/useAncreFocus";
 import { stagger } from "@/lib/motion";
 
 import { AppShell } from "@/components/pilotage/AppShell";
@@ -26,6 +27,9 @@ import { AduDialog } from "@/components/pilotage/AduDialog";
  * son espace. Les groupes absents de cette table (admin, agent_ia…)
  * restent sur le Centre de pilotage ci-dessous.
  */
+/** Ancres des sous-entrées « Pilotage » de la barre latérale (cf. `?focus=`). */
+const ANCRES = ["alertes", "activite"] as const;
+
 const ROLE_HOME: Record<string, string> = {
   // « Propriétaire » (par achat) déprécié → fondu dans proprietaire_terrien ;
   // filet de sécurité si un compte legacy subsiste.
@@ -74,6 +78,9 @@ export default function CentrePilotagePage() {
   const overview = useAdminOverview(actif);
   const { counts, refresh: refreshBadges } = useBadgeCounts();
   const supabase = useMemo(() => createClient(), []);
+  // Sous-entrées « Centre d'alertes » / « Activité temps réel » : amène la
+  // section visée à l'écran quand on arrive via `?focus=`.
+  useAncreFocus(ANCRES);
 
   const [aduOuvert, setAduOuvert] = useState(false);
   const [genererEnCours, setGenererEnCours] = useState(false);
@@ -136,18 +143,22 @@ export default function CentrePilotagePage() {
               totalLots={overview.patrimoine.lots}
               loading={overview.loading}
             />
-            <AlertCenter
-              files={overview.files}
-              recettes={overview.recettes}
-              marketplaceARebuild={(counts.marketplace ?? 0) > 0}
-              loading={overview.loading}
-              onGenererAttestations={genererAttestations}
-              genererAttestationsEnCours={genererEnCours}
-            />
+            <div id="alertes" className="scroll-mt-24">
+              <AlertCenter
+                files={overview.files}
+                recettes={overview.recettes}
+                marketplaceARebuild={(counts.marketplace ?? 0) > 0}
+                loading={overview.loading}
+                onGenererAttestations={genererAttestations}
+                genererAttestationsEnCours={genererEnCours}
+              />
+            </div>
           </div>
 
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)] xl:items-start">
-            <ActivityCenter activite={overview.activite} loading={overview.loading} />
+            <div id="activite" className="scroll-mt-24">
+              <ActivityCenter activite={overview.activite} loading={overview.loading} />
+            </div>
             <QuickActions onNouveauDossier={() => setAduOuvert(true)} />
           </div>
 

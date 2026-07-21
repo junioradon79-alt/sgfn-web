@@ -1,9 +1,10 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  Banknote, CheckCircle2, Clock, CreditCard, Download, Plus, Receipt, ShieldCheck, TrendingUp, X,
+  Banknote, CheckCircle2, Clock, CreditCard, Download, Loader2, Plus, Receipt, ShieldCheck, TrendingUp, X,
 } from "lucide-react";
 
 import { AppShell } from "@/components/pilotage/AppShell";
@@ -792,9 +793,12 @@ function FraisAgregateurConfig() {
   );
 }
 
-export default function PaiementsPage() {
+function PaiementsContenu() {
   const supabase = useMemo(() => createClient(), []);
   const { counts } = useBadgeCounts();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [paiements, setPaiements] = useState<PaiementRecord[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -806,12 +810,24 @@ export default function PaiementsPage() {
   const [payError, setPayError] = useState<string | null>(null);
   const [validatingId, setValidatingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [vue, setVue] = useState<"registre" | "a_valider">("registre");
   const [openRepart, setOpenRepart] = useState<string | null>(null);
   const [repartitions, setRepartitions] = useState<Record<string, RepartLigne[]>>({});
 
   const canCreate = groupe === "admin" || groupe === "operateur";
   const isAdmin = groupe === "admin";
+
+  // La vue est dérivée de l'URL : la sous-entrée « Réconciliation » de la barre
+  // (`?vue=reconciliation`) ouvre la file de validation manuelle, « Transactions »
+  // le registre. Toute bascule ici reflète l'URL en miroir (barre resurlignée).
+  const vue: "registre" | "a_valider" =
+    searchParams.get("vue") === "reconciliation" ? "a_valider" : "registre";
+
+  const changerVue = useCallback(
+    (v: "registre" | "a_valider") => {
+      router.replace(v === "a_valider" ? `${pathname}?vue=reconciliation` : pathname, { scroll: false });
+    },
+    [router, pathname],
+  );
 
   const loadPaiements = useCallback(async () => {
     setDataLoading(true);
@@ -961,13 +977,13 @@ export default function PaiementsPage() {
       {isAdmin && (
         <div className="flex gap-2">
           <button
-            onClick={() => setVue("registre")}
+            onClick={() => changerVue("registre")}
             className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${vue === "registre" ? "bg-primary text-primary-foreground" : "border border-border bg-card text-muted-foreground hover:bg-inset"}`}
           >
             Registre
           </button>
           <button
-            onClick={() => setVue("a_valider")}
+            onClick={() => changerVue("a_valider")}
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${vue === "a_valider" ? "bg-primary text-primary-foreground" : "border border-border bg-card text-muted-foreground hover:bg-inset"}`}
           >
             <ShieldCheck className="h-3.5 w-3.5" />
@@ -1171,5 +1187,21 @@ export default function PaiementsPage() {
         Wave · Orange Money · MTN Money · Moov Money · Visa / Mastercard
       </p>
     </AppShell>
+  );
+}
+
+// `useSearchParams` (vue Transactions/Réconciliation) impose une borne Suspense
+// en export statique (output: export).
+export default function PaiementsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-16">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden />
+        </div>
+      }
+    >
+      <PaiementsContenu />
+    </Suspense>
   );
 }

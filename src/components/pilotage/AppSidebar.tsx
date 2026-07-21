@@ -51,6 +51,7 @@ export function AppSidebar({
   grouped = true,
   pilotage = false,
   sousTitre = "Espace de travail",
+  activeParams = null,
   onToggleCollapsed,
   onNavigate,
 }: {
@@ -65,6 +66,10 @@ export function AppSidebar({
   pilotage?: boolean;
   /** Intitulé sous « SGNF » — le handoff en donne un par écran. */
   sousTitre?: string;
+  /** Paramètres d'URL courants — sert à surligner la bonne sous-entrée d'une
+   *  rubrique éclatée en onglets (cf. `NavItem.deepLink`). Fourni par le pont
+   *  `useSearchParams` d'AppShell (sous Suspense) ; `null` au prérendu statique. */
+  activeParams?: Pick<URLSearchParams, "get"> | null;
   onToggleCollapsed?: () => void;
   onNavigate?: () => void;
 }) {
@@ -105,10 +110,27 @@ export function AppSidebar({
   const avecFavoris = !collapsed && grouped && items.length > SEUIL_FILTRE;
 
   const renderItem = (item: NavItem, enFavori = false) => {
-    // La racine « /dashboard » est préfixe de tous les sous-écrans : sans
-    // l'exclure du match par préfixe, elle resterait surlignée partout.
-    const active =
-      normalized === item.href || (item.href !== "/dashboard" && normalized.startsWith(item.href + "/"));
+    // Libellé selon le point de vue : « Vue nationale » pour l'admin,
+    // « Centre de pilotage » pour un rôle (cf. NavItem.labelRole).
+    const libelle = pilotage ? item.label : item.labelRole ?? item.label;
+    // Chemin nu de l'entrée (sans le `?param=` d'une sous-entrée deep-link).
+    const base = item.href.split("?")[0];
+    let active: boolean;
+    if (item.deepLink) {
+      // Sous-entrée d'onglet : même page, on distingue par le paramètre d'URL.
+      // L'entrée « par défaut » gagne quand le paramètre est absent, sinon c'est
+      // la valeur exacte qui tranche — jamais deux sœurs surlignées à la fois.
+      const cur = activeParams?.get(item.deepLink.key) ?? null;
+      active =
+        normalized === base &&
+        ((item.deepLink.value != null && cur === item.deepLink.value) ||
+          (!!item.deepLink.default && cur == null));
+    } else {
+      // La racine « /dashboard » est préfixe de tous les sous-écrans : sans
+      // l'exclure du match par préfixe, elle resterait surlignée partout.
+      active =
+        normalized === item.href || (item.href !== "/dashboard" && normalized.startsWith(item.href + "/"));
+    }
     const badge = item.badgeKey ? counts[item.badgeKey] ?? 0 : 0;
     // Dans la rubrique Favoris, l'étoile ambre remplace l'icône métier (handoff).
     const Icon = enFavori ? Star : item.icon;
@@ -150,7 +172,7 @@ export function AppSidebar({
         </span>
         {!collapsed && (
           <>
-            <span className="truncate">{item.label}</span>
+            <span className="truncate">{libelle}</span>
             {badge > 0 && (
               <span className="ml-auto inline-flex h-[18px] min-w-[19px] items-center justify-center rounded-[9px] bg-danger px-[5px] text-[10.5px] font-bold leading-none text-white tabular">
                 {badge}
@@ -167,7 +189,7 @@ export function AppSidebar({
           <Tooltip>
             <TooltipTrigger asChild>{link}</TooltipTrigger>
             <TooltipContent side="right">
-              {item.label}
+              {libelle}
               {badge > 0 && ` · ${badge} à traiter`}
             </TooltipContent>
           </Tooltip>
@@ -180,7 +202,7 @@ export function AppSidebar({
             type="button"
             onClick={() => basculer(item.href)}
             aria-pressed={favori}
-            aria-label={favori ? `Retirer « ${item.label} » des favoris` : `Épingler « ${item.label} » aux favoris`}
+            aria-label={favori ? `Retirer « ${libelle} » des favoris` : `Épingler « ${libelle} » aux favoris`}
             className={cn(
               "absolute top-1/2 right-1.5 -translate-y-1/2 rounded-md p-1 outline-none transition focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50",
               // Dans la rubrique Favoris, l'étoile ambre est déjà l'icône de la

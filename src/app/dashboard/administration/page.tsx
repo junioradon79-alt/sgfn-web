@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { KeyRound, ScrollText, Settings, ShieldCheck, Users } from "lucide-react";
+import { KeyRound, Loader2, ScrollText, Settings, ShieldCheck, Users } from "lucide-react";
 
 import { fadeUp } from "@/lib/motion";
 import { NAV_ITEMS, SECTION_LABELS, visibleNavItems } from "@/lib/navigation";
@@ -17,6 +18,9 @@ import { Skeleton } from "@/components/ds/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ds/tabs";
 
 const nf = new Intl.NumberFormat("fr-FR");
+
+/** Volets pilotés par `?volet=` — miroir des sous-entrées « Administration » de la barre. */
+const VOLETS = ["comptes", "roles", "audit", "parametres"] as const;
 
 /** Libellés métier des groupes — le nom technique ne se montre pas à l'écran. */
 const GROUPES: Record<string, string> = {
@@ -60,14 +64,32 @@ function dateHeure(iso: string | null) {
  * par la RLS et par `@/lib/navigation`, et cet écran les *donne à lire* au lieu
  * de les dupliquer dans une interface qui divergerait.
  */
-export default function AdministrationPage() {
+function AdministrationContenu() {
   const admin = useAdministration();
   const { counts } = useBadgeCounts();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Onglet actif dérivé de l'URL (?volet=) : les sous-entrées « Rôles &
+  // permissions »… de la barre latérale ouvrent directement le bon volet, et la
+  // barre se resurligne quand on change d'onglet ici. `comptes` = onglet par défaut.
+  const paramVolet = searchParams.get("volet");
+  const volet = paramVolet && (VOLETS as readonly string[]).includes(paramVolet) ? paramVolet : "comptes";
+
+  const changerVolet = React.useCallback(
+    (v: string) => {
+      // `comptes` = URL nue ; les autres portent `?volet=`. `scroll: false` pour
+      // ne pas remonter la page à chaque changement d'onglet.
+      router.replace(v === "comptes" ? pathname : `${pathname}?volet=${v}`, { scroll: false });
+    },
+    [router, pathname],
+  );
 
   return (
     <AppShell wide loading={admin.loading} counts={counts} onRefresh={admin.refresh}>
       <motion.div variants={fadeUp} initial="hidden" animate="show">
-        <Tabs defaultValue="comptes" className="flex flex-col gap-5">
+        <Tabs value={volet} onValueChange={changerVolet} className="flex flex-col gap-5">
           <TabsList>
             <TabsTrigger value="comptes">
               <Users className="size-4" /> Utilisateurs système
@@ -114,6 +136,21 @@ export default function AdministrationPage() {
         )}
       </motion.div>
     </AppShell>
+  );
+}
+
+// `useSearchParams` (onglet actif) impose une borne Suspense en export statique.
+export default function AdministrationPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex justify-center py-16">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden />
+        </div>
+      }
+    >
+      <AdministrationContenu />
+    </React.Suspense>
   );
 }
 

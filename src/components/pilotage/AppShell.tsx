@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { MotionConfig } from "framer-motion";
 
 import { cn } from "@/lib/utils";
@@ -16,6 +17,20 @@ import { AppHeader } from "./AppHeader";
 import { CommandPalette } from "./CommandPalette";
 
 const CLE_REPLI = "sgnf:nav-collapsed";
+
+/**
+ * Pont `useSearchParams` pour la barre latérale.
+ *
+ * La barre surligne la sous-entrée d'onglet active (Administration → Rôles…) à
+ * partir des paramètres d'URL — mais `useSearchParams` exige un `<Suspense>` en
+ * export statique. On l'isole ici : AppShell l'enveloppe d'un `<Suspense>` dont
+ * le fallback rend la même barre sans surlignage d'onglet (`activeParams=null`),
+ * puis le client réhydrate avec les vrais paramètres.
+ */
+function SidebarAvecRecherche(props: React.ComponentProps<typeof AppSidebar>) {
+  const activeParams = useSearchParams();
+  return <AppSidebar {...props} activeParams={activeParams} />;
+}
 
 /**
  * Coquille du Centre de pilotage : navigation, en-tête, palette ⌘K, thème.
@@ -77,6 +92,16 @@ export function AppShell({
   // l'utilisateur.
   const vueNationale = groupe === "admin" || groupe === "verificateur";
 
+  // Propriétés communes aux deux barres (colonne fixe + tiroir mobile) et à leurs
+  // fallbacks Suspense — factorisées pour ne pas les tenir à jour en quatre exemplaires.
+  const sidebarProps = {
+    items,
+    counts,
+    grouped,
+    pilotage: vueNationale,
+    sousTitre: libelleEspace(groupe),
+  };
+
   const toggleCollapsed = React.useCallback(() => setRepli(collapsed ? "0" : "1"), [collapsed, setRepli]);
 
   // ⌘K / Ctrl+K — ignoré quand la frappe part d'un champ de saisie.
@@ -112,15 +137,13 @@ export function AppShell({
               )}
             >
               <div className="sticky top-0 h-screen">
-                <AppSidebar
-                  items={items}
-                  counts={counts}
-                  collapsed={collapsed}
-                  grouped={grouped}
-                  pilotage={vueNationale}
-                  sousTitre={libelleEspace(groupe)}
-                  onToggleCollapsed={toggleCollapsed}
-                />
+                <React.Suspense
+                  fallback={
+                    <AppSidebar {...sidebarProps} collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
+                  }
+                >
+                  <SidebarAvecRecherche {...sidebarProps} collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
+                </React.Suspense>
               </div>
             </aside>
 
@@ -128,15 +151,17 @@ export function AppShell({
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetContent side="left" className="p-0">
                 <SheetTitle className="sr-only">Navigation principale</SheetTitle>
-                <AppSidebar
-                  items={items}
-                  counts={counts}
-                  collapsed={false}
-                  grouped={grouped}
-                  pilotage={vueNationale}
-                  sousTitre={libelleEspace(groupe)}
-                  onNavigate={() => setMobileOpen(false)}
-                />
+                <React.Suspense
+                  fallback={
+                    <AppSidebar {...sidebarProps} collapsed={false} onNavigate={() => setMobileOpen(false)} />
+                  }
+                >
+                  <SidebarAvecRecherche
+                    {...sidebarProps}
+                    collapsed={false}
+                    onNavigate={() => setMobileOpen(false)}
+                  />
+                </React.Suspense>
               </SheetContent>
             </Sheet>
 

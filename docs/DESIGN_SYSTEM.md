@@ -221,6 +221,22 @@ jouer**, jamais « on attend le client ».
   qu'à **un seul endroit**. Périmètre d'accès **identique** à l'existant : mêmes
   `href`, `roles`, `adminHide`, `badgeKey`. Seul le regroupement en sections est
   nouveau.
+- **Sous-entrées d'onglet (`deepLink`)** — depuis le 21/07, une rubrique du
+  handoff peut exposer plusieurs liens qui pointent tous vers **la même page**,
+  un onglet ou une section différents (Administration → Utilisateurs/Rôles/Audit/
+  Paramètres, Paiements → Transactions/Réconciliation, Statistiques → Rapports/
+  Performance, Pilotage → Vue nationale/Alertes/Activité). Chaque `NavItem` porte
+  un descripteur `deepLink {key, value, default}` : `key` = paramètre d'URL,
+  `value` = valeur qui active l'entrée, `default` = entrée active quand le
+  paramètre est absent. La page **lit ce paramètre** pour ouvrir le bon volet
+  (`?volet=`, `?vue=`) ou défiler vers l'ancre (`?focus=`, hook `useAncreFocus`)
+  et le **reflète** via `router.replace(..., {scroll:false})` ; `AppSidebar` s'y
+  resurligne (prop `activeParams`). ⚠️ `useSearchParams` impose une borne
+  `<Suspense>` en export statique : la barre le lit dans un **pont** enveloppé de
+  `<Suspense>` côté `AppShell` (fallback = barre sans surlignage d'onglet), et
+  les pages concernées passent sous `<Suspense>` (patron déjà utilisé sur
+  `mon-achat`). Un champ `labelRole` (jumeau de `sectionRole`) donne un libellé
+  différent côté rôle (« Centre de pilotage » vs « Vue nationale »).
 - **Redirection par rôle** (`ROLE_HOME`) : inchangée.
 - **Création de dossier ADU** : mêmes champs, même insertion, même `cree_par`.
 - **Journal d'audit** : le détail avant/après reste accessible au clic — c'est
@@ -273,6 +289,14 @@ débordement horizontal.
 
 ### Suite
 
+- ✅ **Barre latérale rendue fidèle au handoff (21/07).** Les rubriques que la
+  maquette Pilotage montre éclatées en plusieurs liens (Pilotage, Paiements,
+  Statistiques, Administration, Marketplace) exposent désormais leurs
+  sous-entrées via `deepLink` (cf. §8) plutôt qu'un lien unique. **Un écran neuf**
+  faute d'exister : `/dashboard/annonces` (« Annonces publiées », registre des
+  annonces TerraCI Market publiées). Relabels de fidélité (« Lots & parcelles »,
+  « Dossiers ADU / ACD », « Familles & chefferies », « Saisie assistée »).
+  Marque **SGNF conservée** (la maquette dit « SGFN AI » — non repris).
 - ✅ **Migration `/dashboard/*` terminée (20/07).** Les 35 écrans rendent leur
   chrome via `AppShell` ; `DashboardShell` réduit à sa garde d'auth ; `KpiCard`
   supprimé (remplacé par `Kpi`) ; `ui/Badge` passé sur les jetons DS (API

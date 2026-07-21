@@ -7,6 +7,7 @@ import { BarChart3, FileCheck2, Layers3, MapPin, Receipt, type LucideIcon } from
 import { stagger, fadeUp } from "@/lib/motion";
 import { useStatistiques, type PointMois, type RangTerritoire } from "@/hooks/useStatistiques";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { useAncreFocus } from "@/hooks/useAncreFocus";
 
 import { AppShell } from "@/components/pilotage/AppShell";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ds/card";
@@ -16,6 +17,9 @@ import { BarSeries } from "@/components/ds/spark";
 
 const nf = new Intl.NumberFormat("fr-FR");
 const pct = (n: number) => `${n < 10 ? n.toFixed(1).replace(".", ",") : Math.round(n)} %`;
+
+/** Ancres des sous-entrées « Statistiques » de la barre latérale (cf. `?focus=`). */
+const ANCRES = ["rapports", "performance"] as const;
 
 /**
  * Statistiques nationales — rubrique « Statistiques » du handoff (Rapports et
@@ -28,10 +32,12 @@ const pct = (n: number) => `${n < 10 ? n.toFixed(1).replace(".", ",") : Math.rou
 export default function StatistiquesPage() {
   const stats = useStatistiques();
   const { counts } = useBadgeCounts();
+  useAncreFocus(ANCRES);
 
   return (
     <AppShell wide loading={stats.loading} counts={counts} onRefresh={stats.refresh}>
       <motion.div variants={stagger(0, 0.05)} initial="hidden" animate="show" className="flex flex-col gap-5">
+        <div id="rapports" className="flex scroll-mt-24 flex-col gap-5">
         <SerieCard
           icon={Layers3}
           titre="Activité cadastrale"
@@ -70,8 +76,9 @@ export default function StatistiquesPage() {
             }}
           />
         </div>
+        </div>
 
-        <div className="grid gap-5 xl:grid-cols-2">
+        <div id="performance" className="grid scroll-mt-24 gap-5 xl:grid-cols-2">
           <ClassementCard
             titre="Performance par district"
             description="Classement par taux d'occupation des lots"
