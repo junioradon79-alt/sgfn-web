@@ -6,14 +6,10 @@ import {
   ArrowRight,
   BarChart3,
   Boxes,
-  Building,
-  Building2,
   CheckCircle2,
   ClipboardCheck,
   Crown,
   Database,
-  FileText,
-  Landmark,
   LayoutGrid,
   Link2,
   Lock,
@@ -28,12 +24,15 @@ import {
   Sparkles,
   Store,
   Users,
-  Warehouse,
   Workflow,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { usePublicStats } from "@/hooks/usePublicStats";
+import { METIERS_VITRINE, getMetier } from "@/lib/metiers";
+
+/** Site public TerraCI Market — toute référence à la marketplace y renvoie. */
+const TERRACI_MARKET_URL = "https://monterrain.sgfn.ci";
 
 const fmt = (n?: number | null) => (typeof n === "number" ? n.toLocaleString("fr-FR") : "—");
 
@@ -61,10 +60,10 @@ export function VitrineMain() {
         <div className="relative mx-auto grid max-w-[1280px] items-center gap-10 lg:grid-cols-[1.05fr_1fr] lg:gap-14">
           <div className="reveal">
             <span className="inline-flex items-center gap-2 rounded-full border border-border-strong bg-card px-3.5 py-1.5 text-[12.5px] font-bold text-primary">
-              <ShieldCheck className="size-3.5" /> Plateforme nationale de gouvernance foncière
+              <ShieldCheck className="size-3.5" /> Plateforme de gouvernance
             </span>
             <h1 className="mt-5 text-[clamp(32px,6vw,56px)] font-extrabold leading-[1.05] tracking-[-0.03em] text-foreground">
-              Le foncier ivoirien,
+              Le foncier,
               <br />
               gouverné avec précision.
             </h1>
@@ -142,21 +141,35 @@ export function VitrineMain() {
           </div>
         </div>
 
-        <div className="reveal mx-auto mt-16 max-w-[1280px]" style={{ animationDelay: "0.2s" }}>
-          <p className="text-center text-[12px] font-bold uppercase tracking-[0.1em] text-muted-2">
-            Conçu pour les acteurs du foncier ivoirien
+        {/* Section agrandie de 25 % par rapport aux pastilles d'origine, et
+            chaque métier renvoie désormais vers sa page descriptive. */}
+        <div className="reveal mx-auto mt-20 max-w-[1280px]" style={{ animationDelay: "0.2s" }}>
+          <p className="text-center text-[15px] font-bold uppercase tracking-[0.1em] text-muted-2">
+            Conçu pour les acteurs du foncier
           </p>
-          <div className="mt-4 flex flex-wrap justify-center gap-3">
-            {["Collectivités territoriales", "Notaires", "Géomètres-experts", "Banques", "Aménageurs fonciers", "Chefferies"].map(
-              (a) => (
-                <span
-                  key={a}
-                  className="rounded-full border border-border bg-card px-4.5 py-2 text-[13px] font-semibold text-muted-foreground"
+          {/* Largeur bornée pour que les six cartes se répartissent 3 + 3
+              plutôt que 4 + 2, qui déséquilibrait la rangée. */}
+          <div className="mx-auto mt-5 flex max-w-[920px] flex-wrap justify-center gap-4">
+            {METIERS_VITRINE.map((slug) => {
+              const m = getMetier(slug);
+              if (!m) return null;
+              return (
+                <Link
+                  key={m.slug}
+                  href={`/metiers/${m.slug}`}
+                  className={cn(
+                    "group inline-flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-3.5 text-[16px] font-semibold text-muted-foreground hover:text-foreground",
+                    CARD_HOVER,
+                  )}
                 >
-                  {a}
-                </span>
-              ),
-            )}
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-[11px] bg-accent-subtle text-primary">
+                    <m.icon className="size-[18px]" />
+                  </span>
+                  {m.nom}
+                  <ArrowRight className="size-4 text-accent opacity-0 transition-opacity group-hover:opacity-100" />
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -202,7 +215,7 @@ export function VitrineMain() {
               { icon: ClipboardCheck, t: "Dossiers ADU / ACD", d: "Instruction des titres et actes, de la saisie à la délivrance." },
               { icon: Scale, t: "Litiges & concertation", d: "Suivi des contentieux et médiation avec les chefferies." },
               { icon: Link2, t: "Attributions", d: "Traçabilité des ayants droit, qualités et rangs d'attribution." },
-              { icon: Store, t: "Marketplace Mon Terrain", d: "Mise en vente et découverte de parcelles vérifiées." },
+              { icon: Store, t: "TerraCI Market", d: "Mise en vente et découverte de parcelles vérifiées." },
               { icon: BarChart3, t: "Statistiques & rapports", d: "Performance régionale, classements et exports." },
               { icon: Sparkles, t: "SGNF AI", d: "Saisie assistée et analyse documentaire par intelligence artificielle." },
             ].map((m) => (
@@ -233,7 +246,7 @@ export function VitrineMain() {
               { icon: Ruler, t: "Géomètre-expert", d: "Bornage, levés et dépôt des plans directement rattachés au dossier cadastral." },
               { icon: Workflow, t: "Opérateur", d: "Instruction des dossiers et saisie assistée par intelligence artificielle." },
               { icon: Crown, t: "Chefferie", d: "Concertation coutumière, avis sur les attributions et suivi des litiges locaux." },
-              { icon: MapPin, t: "Propriétaire terrien", d: "Suivi de son titre, mise en vente sur Mon Terrain et vérification de ses documents." },
+              { icon: MapPin, t: "Propriétaire terrien", d: "Suivi de son titre, mise en vente sur TerraCI Market et vérification de ses documents." },
               { icon: PenLine, t: "Agent de saisie", d: "Saisie assistée par IA des dossiers, pièces justificatives et demandes entrantes." },
               { icon: LayoutGrid, t: "Administration nationale", d: "Vue nationale consolidée, alertes et pilotage de la couverture cadastrale." },
             ].map((r) => (
@@ -333,20 +346,22 @@ export function VitrineMain() {
             </div>
           </div>
           <div className="reveal" style={{ animationDelay: "0.1s" }}>
-            <Eyebrow>Marketplace</Eyebrow>
+            <Eyebrow>TerraCI Market</Eyebrow>
             <h2 className="mt-3 text-[34px] font-extrabold leading-[1.15] tracking-[-0.02em] text-foreground">
-              Mon Terrain — le marché foncier vérifié.
+              TerraCI Market — le marché foncier vérifié.
             </h2>
             <p className="mt-4 max-w-[460px] text-[15px] leading-[1.7] text-muted-foreground">
               Propriétaires et opérateurs publient leurs parcelles disponibles ; acquéreurs et investisseurs consultent
               des annonces adossées au registre officiel. Chaque parcelle affichée est déjà dans le cadastre.
             </p>
-            <Link
-              href="/services#parcelles"
+            <a
+              href={TERRACI_MARKET_URL}
+              target="_blank"
+              rel="noopener noreferrer"
               className="mt-6 inline-flex h-[46px] items-center gap-2 rounded-[11px] border border-border-strong bg-background px-5 text-[13.5px] font-bold text-foreground transition-colors hover:bg-inset"
             >
-              Explorer la marketplace <ArrowRight className="size-[15px]" />
-            </Link>
+              Explorer TerraCI Market <ArrowRight className="size-[15px]" />
+            </a>
           </div>
         </div>
       </section>
@@ -365,7 +380,7 @@ export function VitrineMain() {
           <div className="reveal text-center">
             <p className="text-[12.5px] font-bold uppercase tracking-[0.09em] text-white/70">En chiffres</p>
             <h2 className="mt-3 text-[32px] font-extrabold tracking-[-0.02em] text-white">
-              Le foncier ivoirien, mesuré au national.
+              Le foncier, mesuré à l&apos;échelle nationale.
             </h2>
           </div>
           <div className="mt-13 grid grid-cols-2 gap-5 sm:grid-cols-4">
@@ -424,26 +439,27 @@ export function VitrineMain() {
             </h2>
           </div>
           <div className="mt-10 grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { icon: Building2, t: "Collectivités territoriales" },
-              { icon: Warehouse, t: "Aménageurs fonciers" },
-              { icon: Building, t: "Promoteurs immobiliers" },
-              { icon: Ruler, t: "Géomètres-experts" },
-              { icon: FileText, t: "Notaires" },
-              { icon: ShieldCheck, t: "Cabinets juridiques" },
-              { icon: Landmark, t: "Banques" },
-              { icon: Crown, t: "Chefferies" },
-            ].map((p) => (
-              <div
-                key={p.t}
-                className={cn("flex items-center gap-3 rounded-[13px] border border-border bg-background p-4", CARD_HOVER)}
-              >
-                <span className="flex size-[34px] shrink-0 items-center justify-center rounded-[9px] bg-accent-subtle text-primary">
-                  <p.icon className="size-4" />
-                </span>
-                <span className="text-[13px] font-semibold text-foreground">{p.t}</span>
-              </div>
-            ))}
+            {["collectivite", "amenageur", "promoteur", "geometre", "notaire", "cabinet-juridique", "banque", "chefferie"].map(
+              (slug) => {
+                const p = getMetier(slug);
+                if (!p) return null;
+                return (
+                  <Link
+                    key={p.slug}
+                    href={`/metiers/${p.slug}`}
+                    className={cn(
+                      "flex items-center gap-3 rounded-[13px] border border-border bg-background p-4",
+                      CARD_HOVER,
+                    )}
+                  >
+                    <span className="flex size-[34px] shrink-0 items-center justify-center rounded-[9px] bg-accent-subtle text-primary">
+                      <p.icon className="size-4" />
+                    </span>
+                    <span className="text-[13px] font-semibold text-foreground">{p.nom}</span>
+                  </Link>
+                );
+              },
+            )}
           </div>
         </div>
       </section>

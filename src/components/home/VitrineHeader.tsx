@@ -8,12 +8,13 @@ import { ArrowRight, Menu, Moon, Sun, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/useTheme";
 
-const NAV = [
+const NAV: { href: string; label: string; external?: boolean }[] = [
   { href: "#produit", label: "Produit" },
   { href: "#modules", label: "Modules" },
   { href: "#roles", label: "Rôles" },
   { href: "#cartographie", label: "Cartographie" },
-  { href: "#marketplace", label: "Marketplace" },
+  // La marketplace est un site public distinct : le lien sort du site vitrine.
+  { href: "https://monterrain.sgfn.ci", label: "TerraCI Market", external: true },
   { href: "#securite", label: "Sécurité" },
   { href: "#partenaires", label: "Partenaires" },
   { href: "#faq", label: "FAQ" },
@@ -58,6 +59,7 @@ export function VitrineHeader() {
               <a
                 key={l.href}
                 href={l.href}
+                {...(l.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                 className="text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
               >
                 {l.label}
@@ -105,6 +107,7 @@ export function VitrineHeader() {
             <a
               key={l.href}
               href={l.href}
+              {...(l.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
               onClick={() => setMenuOpen(false)}
               className={cn(
                 "px-1.5 py-3 text-[14.5px] font-semibold text-foreground",

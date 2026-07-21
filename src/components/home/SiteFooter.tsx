@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-type FooterColumn = { title: string; links: { label: string; href: string }[] };
+type FooterColumn = { title: string; links: { label: string; href: string; external?: boolean }[] };
 
 const columns: FooterColumn[] = [
   {
@@ -9,7 +9,8 @@ const columns: FooterColumn[] = [
     links: [
       { label: "Modules", href: "/#modules" },
       { label: "Cartographie", href: "/#cartographie" },
-      { label: "Marketplace", href: "/#marketplace" },
+      // Site public distinct, hors export statique de sgfn.ci.
+      { label: "TerraCI Market", href: "https://monterrain.sgfn.ci", external: true },
       { label: "Sécurité", href: "/#securite" },
     ],
   },
@@ -67,9 +68,20 @@ export function SiteFooter() {
               <ul className="mt-3.5 flex flex-col gap-2.5">
                 {col.links.map((l) => (
                   <li key={l.href + l.label}>
-                    <Link href={l.href} className="text-[13.5px] text-muted-foreground transition-colors hover:text-foreground">
-                      {l.label}
-                    </Link>
+                    {l.external ? (
+                      <a
+                        href={l.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[13.5px] text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        {l.label}
+                      </a>
+                    ) : (
+                      <Link href={l.href} className="text-[13.5px] text-muted-foreground transition-colors hover:text-foreground">
+                        {l.label}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>

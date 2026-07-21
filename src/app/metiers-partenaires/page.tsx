@@ -43,10 +43,10 @@ export default function MetiersPartenairesPage() {
               {m.description}
             </p>
             <Link
-              href={`/contact?profil=${m.slug}`}
+              href={`/metiers/${m.slug}`}
               className="inline-flex items-center justify-center gap-1.5 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1E6091]"
             >
-              {m.cta} →
+              Découvrir →
             </Link>
           </article>
         ))}
