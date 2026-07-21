@@ -207,10 +207,33 @@ Le chargement/dérivation vit dans `chargerOverview()`, fonction **pure de
 module** (hors React) : testable sans monter un arbre.
 
 `useBadgeCounts` — les pastilles rouges « à faire ». Un seul appel alimente la
-barre latérale **et** l'`AlertCenter` : le même chiffre ne peut pas diverger
-selon l'endroit où il s'affiche. Règle inchangée
+barre latérale, l'`AlertCenter` **et le compteur de la cloche** : le même chiffre
+ne peut pas diverger selon l'endroit où il s'affiche. Règle inchangée
 (`lib/agence-actions.ts::actionAgenceRequise`) : **rouge = c'est à nous de
 jouer**, jamais « on attend le client ».
+
+`fetchBadgeCounts(supabase, groupe)` (dans `lib/navigation.ts`) calcule les
+compteurs **par rôle**, en `switch`. Chaque compteur = une requête `head:true`
+scopée par la RLS du rôle (aucun filtre client). Clés (`BadgeKey`) :
+
+- `messagesNonLus` — **universel** (tous rôles) : `messages` où `lu=false` et
+  `expediteur≠moi`. Alimente la **cloche** de l'en-tête (prop `messagesNonLus`
+  d'`AppHeader`, plafonnée à `9+`) et la pastille de l'entrée « Messages ».
+- `dossiersAdu` — ADU « en cours » = statut hors `(adu_delivree, acd_obtenu,
+  rejete)` (cf. `ADU_TERMINE`). Géomètre, commissaire, vérificateur, chefferie,
+  PT, admin.
+- `missionsGeometre` — missions hors `(terminee, annulee)`. `acquereurAction` —
+  paiement `en_attente` (son tour) sur ses ventes/cessions. `alertesAdmin` —
+  Centre d'alertes = somme des files foncières admin. `litigesActifs` (`≠clos`)
+  étendu à admin/commissaire/vérificateur ; agent de saisie = ses soumissions
+  `rejetee`.
+
+🔴 **Les valeurs de statut se vérifient contre le schéma réel**, pas contre le
+souvenir : `soumissions_saisie.statut` est un **texte** valant `rejetee` (pas
+`rejete`), et `statut_paiement` distingue `en_attente` (tour du client) de
+`en_attente_validation` (tour de l'agence) — d'où le filtre `en_attente` seul
+pour `acquereurAction`. Validé par requête SQL de management (hors RLS) avant de
+livrer.
 
 ---
 

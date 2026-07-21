@@ -171,6 +171,7 @@ export function AppShell({
                 role={role}
                 majLe={majLe}
                 loading={loading}
+                messagesNonLus={counts.messagesNonLus ?? 0}
                 onOpenSearch={() => setPaletteOpen(true)}
                 onOpenMobileNav={() => setMobileOpen(true)}
                 onRefresh={onRefresh}

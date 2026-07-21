@@ -51,7 +51,18 @@ import { actionAgenceRequise, type AgenceDemande } from "./agence-actions";
  * règles d'accès. Une permission ne doit exister qu'à un seul endroit.
  */
 
-export type BadgeKey = "demandes" | "saisie" | "marketplace" | "chefferieValidations" | "litigesActifs" | "ptAValider";
+export type BadgeKey =
+  | "demandes"
+  | "saisie"
+  | "marketplace"
+  | "chefferieValidations"
+  | "litigesActifs"
+  | "ptAValider"
+  | "messagesNonLus"
+  | "dossiersAdu"
+  | "missionsGeometre"
+  | "acquereurAction"
+  | "alertesAdmin";
 
 /**
  * Regroupement affiché en rubriques dans la barre latérale.
@@ -212,7 +223,7 @@ export const NAV_ITEMS: NavItem[] = [
   // première (via sa liste fermée ROLE_NAV_ORDER) : « Vue nationale » n'a pas de
   // sens pour lui, d'où `labelRole`. `roles: []` = admin.
   { label: "Vue nationale", labelRole: "Centre de pilotage", href: "/dashboard", icon: LayoutDashboard, section: "pilotage", roles: [], deepLink: { key: "focus", default: true }, keywords: "accueil tableau de bord home vue nationale carte" },
-  { label: "Centre d'alertes", href: "/dashboard?focus=alertes", icon: Bell, section: "pilotage", roles: [], deepLink: { key: "focus", value: "alertes" }, keywords: "alertes signaux urgences à traiter ce qui brûle" },
+  { label: "Centre d'alertes", href: "/dashboard?focus=alertes", icon: Bell, section: "pilotage", roles: [], deepLink: { key: "focus", value: "alertes" }, badgeKey: "alertesAdmin", keywords: "alertes signaux urgences à traiter ce qui brûle" },
   { label: "Activité temps réel", href: "/dashboard?focus=activite", icon: Activity, section: "pilotage", roles: [], deepLink: { key: "focus", value: "activite" }, keywords: "activité récente journal flux temps réel" },
   { label: "Supervision", href: "/dashboard/commissaire", icon: ShieldCheck, section: "pilotage", roles: ["commissaire", "verificateur"] },
   // Le handoff range la carte sous Cadastre et l'IA sous Intelligence.
@@ -226,7 +237,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Géomètres-experts", href: "/dashboard/geometres", icon: Ruler, section: "cadastre", roles: [], keywords: "bornage numéro d'ordre cabinet" },
 
   // ── Dossiers (« Instruction » côté métier) ──
-  { label: "Dossiers ADU / ACD", href: "/dashboard/dossiers-adu", icon: ClipboardList, section: "dossiers", roles: ["geometre", "commissaire", "verificateur", "chefferie", "proprietaire_terrien"], keywords: "acd adu instruction urbanisme dossiers" },
+  { label: "Dossiers ADU / ACD", href: "/dashboard/dossiers-adu", icon: ClipboardList, section: "dossiers", roles: ["geometre", "commissaire", "verificateur", "chefferie", "proprietaire_terrien"], badgeKey: "dossiersAdu", keywords: "acd adu instruction urbanisme dossiers" },
   { label: "Litiges", href: "/dashboard/litiges", icon: FileWarning, section: "dossiers", roles: ["commissaire", "verificateur", "chefferie", "proprietaire_terrien"], badgeKey: "litigesActifs", keywords: "conflits contentieux" },
   { label: "Demandes d'acquisition", href: "/dashboard/demandes-acquisition", icon: ClipboardCheck, section: "dossiers", roles: ["operateur"], badgeKey: "demandes", keywords: "ventes tunnel acquéreur", ordreRole: 1 },
   { label: "Attributions", href: "/dashboard/attributions", icon: Link2, section: "dossiers", sectionRole: "cadastre", roles: ["operateur", "amenageur", "verificateur", "commissaire", "proprietaire_terrien"], ordreRole: 4 },
@@ -269,7 +280,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Paramètres", href: "/dashboard/administration?volet=parametres", icon: Settings, section: "administration", roles: [], deepLink: { key: "volet", value: "parametres" }, keywords: "paramètres réglages configuration tarifs" },
 
   // ── Espaces dédiés (masqués pour l'admin) ──
-  { label: "Mon espace", href: "/dashboard/mon-achat", icon: ClipboardCheck, section: "espaces", roles: ["acquereur"], adminHide: true, keywords: "acquéreur suivi terrains achat" },
+  { label: "Mon espace", href: "/dashboard/mon-achat", icon: ClipboardCheck, section: "espaces", roles: ["acquereur"], adminHide: true, badgeKey: "acquereurAction", keywords: "acquéreur suivi terrains achat" },
   { label: "Trouver un terrain", href: "/dashboard/acquisition", icon: Compass, section: "espaces", roles: ["acquereur", "amenageur", "operateur"], adminHide: true },
   { label: "Mon espace", href: "/dashboard/proprietaire", icon: Landmark, section: "espaces", roles: ["proprietaire", "acquereur"], adminHide: true },
   { label: "Mettre en vente", href: "/dashboard/mettre-en-vente", icon: Store, section: "espaces", roles: ["proprietaire", "proprietaire_terrien"], adminHide: true, keywords: "marketplace annonce terraci market vendre terrain" },
@@ -277,7 +288,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Espace Chefferie", href: "/dashboard/chefferie", icon: Crown, section: "espaces", roles: ["chefferie"], adminHide: true, badgeKey: "chefferieValidations" },
   { label: "Propriétaire terrien", href: "/dashboard/proprietaire-terrien", icon: Home, section: "espaces", roles: ["proprietaire_terrien"], adminHide: true, badgeKey: "ptAValider" },
   { label: "Espace Géomètre", href: "/dashboard/geometre", icon: Ruler, section: "espaces", roles: ["geometre"], adminHide: true },
-  { label: "Mes missions", href: "/dashboard/missions", icon: Briefcase, section: "espaces", roles: ["geometre"], adminHide: true },
+  { label: "Mes missions", href: "/dashboard/missions", icon: Briefcase, section: "espaces", roles: ["geometre"], adminHide: true, badgeKey: "missionsGeometre" },
 
   // ── Documents ──
   // « Registre documentaire » côté national (handoff) ; « Documents », plus
@@ -286,7 +297,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Consultations QR", href: "/dashboard/consultations-qr", icon: QrCode, section: "documents", roles: ["admin"], keywords: "vérification qr code" },
 
   // ── Général ──
-  { label: "Messages", href: "/dashboard/messages", icon: MessageSquare, section: "general" },
+  { label: "Messages", href: "/dashboard/messages", icon: MessageSquare, section: "general", badgeKey: "messagesNonLus", keywords: "messagerie conversations non lus" },
 ];
 
 /**
@@ -395,76 +406,201 @@ export function visibleNavItems(groupe: string | null, loading: boolean): NavIte
   });
 }
 
+/** Dossiers ADU « en cours » = ni délivré, ni ACD obtenu, ni rejeté (cf. `ADU_TERMINE`
+ *  dans useAdminOverview). RLS scope le périmètre du rôle — aucun filtre client. */
+async function compterDossiersAdu(supabase: SupabaseClient): Promise<number> {
+  const { count } = await supabase
+    .from("dossiers_adu")
+    .select("id", { count: "exact", head: true })
+    .not("statut", "in", "(adu_delivree,acd_obtenu,rejete)");
+  return count ?? 0;
+}
+
+/** Litiges non clos, scopés RLS au périmètre du rôle. */
+async function compterLitiges(supabase: SupabaseClient): Promise<number> {
+  const { count } = await supabase
+    .from("litiges")
+    .select("id", { count: "exact", head: true })
+    .neq("statut", "clos");
+  return count ?? 0;
+}
+
+/** Demandes d'acquisition où l'agence doit jouer (cf. `actionAgenceRequise`). */
+async function compterDemandesAgence(supabase: SupabaseClient): Promise<number> {
+  const { data } = await supabase
+    .from("demandes_acquisition_agence")
+    .select("statut,vente_id,vente_statut,vente_paiement_statut,cession_id,paiement_statut,attestation_reference");
+  return ((data ?? []) as AgenceDemande[]).filter(actionAgenceRequise).length;
+}
+
+/** « Site TerraCI Market à reconstruire » : une annonce publiée depuis le dernier
+ *  déploiement cPanel connu (1 = à refaire, 0 = à jour). */
+async function compterMarketplaceARebuild(supabase: SupabaseClient): Promise<number> {
+  const [{ data: etat }, { data: derniere }] = await Promise.all([
+    supabase.from("marketplace_etat_site").select("derniere_reconstruction").maybeSingle(),
+    supabase
+      .from("annonces_marketplace")
+      .select("publiee_le")
+      .eq("statut", "active")
+      .order("publiee_le", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  const dr = (etat as { derniere_reconstruction: string | null } | null)?.derniere_reconstruction ?? null;
+  const dp = (derniere as { publiee_le: string | null } | null)?.publiee_le ?? null;
+  return dp && (!dr || dp > dr) ? 1 : 0;
+}
+
+/** Action acquéreur = un paiement EN ATTENTE (son tour de payer) rattaché à une de
+ *  ses demandes (vente ou cession). On ne compte QUE `en_attente` : `confirme` est
+ *  soldé, `echoue`/`rembourse` sont clos, et `en_attente_validation` est le tour de
+ *  l'agence, pas de l'acquéreur (rouge = « à nous de jouer »). RLS borne
+ *  demandes/paiements à l'acquéreur. */
+async function compterAcquereurAction(supabase: SupabaseClient): Promise<number> {
+  const { data } = await supabase.from("demandes_acquisition").select("vente_id,cession_id");
+  const rows = (data ?? []) as { vente_id: string | null; cession_id: string | null }[];
+  const venteIds = [...new Set(rows.map((r) => r.vente_id).filter((v): v is string => !!v))];
+  const cessionIds = [...new Set(rows.map((r) => r.cession_id).filter((v): v is string => !!v))];
+  let n = 0;
+  if (venteIds.length) {
+    const { count } = await supabase
+      .from("paiements")
+      .select("id", { count: "exact", head: true })
+      .in("vente_id", venteIds)
+      .eq("statut", "en_attente");
+    n += count ?? 0;
+  }
+  if (cessionIds.length) {
+    const { count } = await supabase
+      .from("paiements")
+      .select("id", { count: "exact", head: true })
+      .in("cession_id", cessionIds)
+      .eq("statut", "en_attente");
+    n += count ?? 0;
+  }
+  return n;
+}
+
 /**
- * Compteurs d'actions à faire (pastilles rouges). Agence uniquement.
- * Rouge = « c'est à nous de jouer », jamais « on attend le client ».
+ * Compteurs d'actions à faire — pastilles rouges de la barre latérale ET compteur
+ * de la cloche (messages non lus).
+ *
+ * Principe : rouge = « c'est à nous de jouer », jamais « on attend le client ».
+ * Chaque compteur = une requête `head:true` scopée par la RLS du rôle. Les
+ * messages non lus sont universels (tous les rôles) ; les autres files dépendent
+ * des actions propres à chaque rôle.
  */
 export async function fetchBadgeCounts(
   supabase: SupabaseClient,
   groupe: string | null,
 ): Promise<Partial<Record<BadgeKey, number>>> {
   const next: Partial<Record<BadgeKey, number>> = {};
+  if (!groupe) return next;
 
-  // Chefferie (chef de village) : signaux "à valider" — RLS déjà scopée par juridiction
-  // (ma_chefferie_id()), aucun filtre manuel nécessaire côté client.
-  if (groupe === "chefferie") {
-    const [{ count: cessions }, { count: apfcs }, { count: litiges }] = await Promise.all([
-      supabase.from("attestations_cession").select("id", { count: "exact", head: true }).is("sig_chefferie_le", null),
-      supabase.from("attestations_coutumieres").select("id", { count: "exact", head: true }).is("sig_chef_village_le", null),
-      supabase.from("litiges").select("id", { count: "exact", head: true }).neq("statut", "clos"),
-    ]);
-    next.chefferieValidations = (cessions ?? 0) + (apfcs ?? 0);
-    next.litigesActifs = litiges ?? 0;
-    return next;
-  }
-
-  // Propriétaire terrien (chef de famille) : « à valider » = APFC en attente de sa
-  // signature + PV à régulariser ; litiges actifs sur ses parcelles. RLS déjà
-  // scopée à sa famille (cf. 20260716160000_proprietaire_terrien_scope_rls.sql),
-  // aucun filtre manuel nécessaire côté client.
-  if (groupe === "proprietaire_terrien") {
-    const [{ count: apfcs }, { count: pvs }, { count: litiges }] = await Promise.all([
-      supabase.from("attestations_coutumieres").select("id", { count: "exact", head: true }).is("sig_chef_famille_le", null),
-      supabase.from("pv_reunions_famille").select("id", { count: "exact", head: true }).eq("statut", "a_fournir"),
-      supabase.from("litiges").select("id", { count: "exact", head: true }).neq("statut", "clos"),
-    ]);
-    next.ptAValider = (apfcs ?? 0) + (pvs ?? 0);
-    next.litigesActifs = litiges ?? 0;
-    return next;
-  }
-
-  const estAgence = groupe === "admin" || groupe === "operateur";
-  if (!estAgence) return next;
-
-  const { data } = await supabase
-    .from("demandes_acquisition_agence")
-    .select("statut,vente_id,vente_statut,vente_paiement_statut,cession_id,paiement_statut,attestation_reference");
-  next.demandes = ((data ?? []) as AgenceDemande[]).filter(actionAgenceRequise).length;
-
-  // La file de validation de la saisie est réservée à l'admin (le checker).
-  if (groupe === "admin") {
+  // ── Messages non lus — universel (cloche de l'en-tête + entrée « Messages ») ──
+  // La RLS borne déjà `messages` aux conversations dont je suis participant ; on
+  // exclut mes propres envois pour ne compter que le « reçu non lu ». `getSession`
+  // est local (pas d'appel réseau).
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const myId = session?.user?.id ?? null;
+  if (myId) {
     const { count } = await supabase
-      .from("soumissions_saisie")
+      .from("messages")
       .select("id", { count: "exact", head: true })
-      .eq("statut", "en_attente");
-    next.saisie = count ?? 0;
+      .eq("lu", false)
+      .neq("expediteur", myId);
+    next.messagesNonLus = count ?? 0;
+  }
 
-    // « Site TerraCI Market à reconstruire » : une annonce a été publiée depuis le
-    // dernier déploiement cPanel connu.
-    const [{ data: etat }, { data: derniere }] = await Promise.all([
-      supabase.from("marketplace_etat_site").select("derniere_reconstruction").maybeSingle(),
-      supabase
-        .from("annonces_marketplace")
-        .select("publiee_le")
-        .eq("statut", "active")
-        .order("publiee_le", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
-    const derniereReconstruction = (etat as { derniere_reconstruction: string | null } | null)?.derniere_reconstruction ?? null;
-    const dernierePublication = (derniere as { publiee_le: string | null } | null)?.publiee_le ?? null;
-    next.marketplace =
-      dernierePublication && (!derniereReconstruction || dernierePublication > derniereReconstruction) ? 1 : 0;
+  switch (groupe) {
+    // ── Chefferie (chef de village) — RLS scopée par juridiction (ma_chefferie_id()). ──
+    case "chefferie": {
+      const [{ count: cessions }, { count: apfcs }, litiges, adu] = await Promise.all([
+        supabase.from("attestations_cession").select("id", { count: "exact", head: true }).is("sig_chefferie_le", null),
+        supabase.from("attestations_coutumieres").select("id", { count: "exact", head: true }).is("sig_chef_village_le", null),
+        compterLitiges(supabase),
+        compterDossiersAdu(supabase),
+      ]);
+      next.chefferieValidations = (cessions ?? 0) + (apfcs ?? 0);
+      next.litigesActifs = litiges;
+      next.dossiersAdu = adu;
+      break;
+    }
+
+    // ── Propriétaire terrien (chef de famille) — RLS scopée à sa famille. ──
+    case "proprietaire_terrien": {
+      const [{ count: apfcs }, { count: pvs }, litiges, adu] = await Promise.all([
+        supabase.from("attestations_coutumieres").select("id", { count: "exact", head: true }).is("sig_chef_famille_le", null),
+        supabase.from("pv_reunions_famille").select("id", { count: "exact", head: true }).eq("statut", "a_fournir"),
+        compterLitiges(supabase),
+        compterDossiersAdu(supabase),
+      ]);
+      next.ptAValider = (apfcs ?? 0) + (pvs ?? 0);
+      next.litigesActifs = litiges;
+      next.dossiersAdu = adu;
+      break;
+    }
+
+    // ── Géomètre-expert — ses missions en cours + les dossiers ADU qui le concernent. ──
+    case "geometre": {
+      const [{ count: missions }, adu] = await Promise.all([
+        supabase.from("missions_geometre").select("id", { count: "exact", head: true }).not("statut", "in", "(terminee,annulee)"),
+        compterDossiersAdu(supabase),
+      ]);
+      next.missionsGeometre = missions ?? 0;
+      next.dossiersAdu = adu;
+      break;
+    }
+
+    // ── Commissaire / Vérificateur — supervision, RLS scopée. ──
+    case "commissaire":
+    case "verificateur": {
+      const [litiges, adu] = await Promise.all([compterLitiges(supabase), compterDossiersAdu(supabase)]);
+      next.litigesActifs = litiges;
+      next.dossiersAdu = adu;
+      break;
+    }
+
+    // ── Agent de saisie — « à nous de jouer » = ses soumissions rejetées, à corriger.
+    //    `soumissions_saisie.statut` est un texte libre : la valeur est « rejetee ». ──
+    case "operateur_saisie": {
+      const { count } = await supabase.from("soumissions_saisie").select("id", { count: "exact", head: true }).eq("statut", "rejetee");
+      next.saisie = count ?? 0;
+      break;
+    }
+
+    // ── Acquéreur — un paiement à régler sur son achat. ──
+    case "acquereur": {
+      next.acquereurAction = await compterAcquereurAction(supabase);
+      break;
+    }
+
+    // ── Opérateur (agence scopée) — sa file de demandes. ──
+    case "operateur": {
+      next.demandes = await compterDemandesAgence(supabase);
+      break;
+    }
+
+    // ── Administration nationale — toutes les files ; « Centre d'alertes » = leur somme. ──
+    case "admin": {
+      const [demandes, { count: saisie }, litiges, adu, marketplace] = await Promise.all([
+        compterDemandesAgence(supabase),
+        supabase.from("soumissions_saisie").select("id", { count: "exact", head: true }).eq("statut", "en_attente"),
+        compterLitiges(supabase),
+        compterDossiersAdu(supabase),
+        compterMarketplaceARebuild(supabase),
+      ]);
+      next.demandes = demandes;
+      next.saisie = saisie ?? 0;
+      next.litigesActifs = litiges;
+      next.dossiersAdu = adu;
+      next.marketplace = marketplace;
+      // Centre d'alertes = somme des files foncières à traiter (hors messages).
+      next.alertesAdmin = demandes + (saisie ?? 0) + litiges + adu;
+      break;
+    }
   }
 
   return next;

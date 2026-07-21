@@ -42,6 +42,7 @@ export function AppHeader({
   role,
   majLe,
   loading,
+  messagesNonLus = 0,
   onOpenSearch,
   onOpenMobileNav,
   onRefresh,
@@ -52,6 +53,8 @@ export function AppHeader({
   role: string;
   majLe: Date | null;
   loading: boolean;
+  /** Messages reçus non lus — compteur de la cloche (cf. `fetchBadgeCounts`). */
+  messagesNonLus?: number;
   onOpenSearch: () => void;
   onOpenMobileNav: () => void;
   onRefresh: () => void;
@@ -140,14 +143,28 @@ export function AppHeader({
           </TooltipContent>
         </Tooltip>
 
-        <Button
-          variant="outline"
-          className={cn(ICON_BTN)}
-          onClick={() => router.push("/dashboard/messages")}
-          aria-label="Notifications et messages"
-        >
-          <Bell />
-        </Button>
+        <div className="relative">
+          <Button
+            variant="outline"
+            className={cn(ICON_BTN)}
+            onClick={() => router.push("/dashboard/messages")}
+            aria-label={
+              messagesNonLus > 0
+                ? `Notifications — ${messagesNonLus} message${messagesNonLus > 1 ? "s" : ""} non lu${messagesNonLus > 1 ? "s" : ""}`
+                : "Notifications et messages"
+            }
+          >
+            <Bell />
+          </Button>
+          {messagesNonLus > 0 && (
+            <span
+              className="pointer-events-none absolute -top-1 -right-1 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-danger px-1 text-[10.5px] font-bold leading-none text-white ring-2 ring-card tabular"
+              aria-hidden
+            >
+              {messagesNonLus > 9 ? "9+" : messagesNonLus}
+            </span>
+          )}
+        </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
