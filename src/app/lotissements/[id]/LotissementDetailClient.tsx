@@ -5,6 +5,10 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Map as MapIcon, Boxes, Users } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Card } from "@/components/ds/card";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
 import { fetchAllPages } from "@/lib/supabase-pagination";
 import { LotDetailModal, type LotRecord, type LitigeRow, type ScoreConfiance } from "@/components/dashboard/lots/LotDetailModal";
@@ -149,7 +153,8 @@ export default function LotissementDetailClient() {
     );
   }, [params.id, supabase]);
 
-  const { isLoading: loading } = useChargement(fetchData, [fetchData]);
+  const { isLoading: loading, recharger } = useChargement(fetchData, [fetchData]);
+  const { counts } = useBadgeCounts();
 
   // Charge le dossier complet du lot (attributions, cession, litiges, score de
   // confiance) à la demande, puis affiche le modal partagé en lecture seule.
@@ -173,17 +178,23 @@ export default function LotissementDetailClient() {
   };
 
   if (loading) {
-    return <div className="py-16 text-center text-sm text-slate-400">Chargement…</div>;
+    return (
+      <AppShell loading counts={counts} onRefresh={recharger}>
+        <p className="py-16 text-center text-sm text-muted-foreground">Chargement…</p>
+      </AppShell>
+    );
   }
 
   if (erreur || !lotissement) {
     return (
-      <div className="py-16 text-center">
-        <p className="text-sm text-red-600">{erreur ?? "Lotissement introuvable."}</p>
-        <Link href="/lotissements" className="mt-3 inline-block text-sm font-medium text-[#0D3B66] hover:underline">
-          ← Retour aux lotissements
-        </Link>
-      </div>
+      <AppShell loading={false} counts={counts} onRefresh={recharger}>
+        <div className="py-16 text-center">
+          <p className="text-sm text-danger">{erreur ?? "Lotissement introuvable."}</p>
+          <Link href="/lotissements" className="mt-3 inline-block text-sm font-medium text-accent hover:underline">
+            ← Retour aux lotissements
+          </Link>
+        </div>
+      </AppShell>
     );
   }
 
@@ -213,81 +224,86 @@ export default function LotissementDetailClient() {
   ].filter((it) => it.value != null && it.value !== "");
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <Link href="/lotissements" className="inline-flex items-center gap-1.5 text-sm font-medium text-[#0D3B66] hover:underline">
+    <AppShell loading={false} counts={counts} onRefresh={recharger}>
+      <Link
+        href="/lotissements"
+        className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-accent hover:underline"
+      >
         <ArrowLeft className="h-4 w-4" /> Retour aux lotissements
       </Link>
 
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1E6091]">Lotissement · Vue détaillée</p>
-        <h1 className="mt-1 text-2xl font-bold text-[#0D3B66]">{lotissement.nom}</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="text-xs font-semibold tracking-[0.3em] text-accent uppercase">Lotissement · Vue détaillée</p>
+        <h1 className="font-display mt-1 text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+          {lotissement.nom}
+        </h1>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
           {[lotissement.village, lotissement.commune, lotissement.district].filter(Boolean).join(" · ") || "—"}
         </p>
       </div>
 
       {identite.length > 0 && (
-        <section className="rounded-2xl border border-slate-200/60 bg-white p-5 shadow-sm">
+        <Card className="p-5">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             {identite.map((it) => (
-              <div key={it.label}>
-                <p className="text-xs text-slate-400">{it.label}</p>
-                <p className="mt-0.5 text-sm font-semibold text-slate-700">{it.value}</p>
+              <div key={it.label} className="min-w-0">
+                <p className="text-xs text-muted-foreground">{it.label}</p>
+                <p className="mt-0.5 text-sm font-semibold break-words text-foreground">{it.value}</p>
               </div>
             ))}
           </div>
-        </section>
+        </Card>
       )}
 
       {/* Îlots */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-        <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4">
-          <MapIcon className="h-4 w-4 text-[#0D3B66]" />
-          <h2 className="text-sm font-semibold text-[#0D3B66]">Îlots ({ilots.length})</h2>
+      <Card className="overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-border px-5 py-4">
+          <MapIcon className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-semibold text-foreground">Îlots ({ilots.length})</h2>
         </div>
         {ilots.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-slate-400">Aucun îlot enregistré.</p>
+          <p className="px-5 py-6 text-sm text-muted-foreground">Aucun îlot enregistré.</p>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-border">
             {ilots.map((ilot) => {
               const lotsIlot = lotsParIlot.get(ilot.id) ?? [];
               return (
-                <div key={ilot.id} className="px-5 py-3.5">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-slate-800">Îlot {ilot.numero ?? "—"}</p>
-                    <span className="text-xs text-slate-400">{lotsIlot.length} lot{lotsIlot.length !== 1 ? "s" : ""}</span>
-                  </div>
+                <div key={ilot.id} className="flex items-center justify-between px-5 py-3.5">
+                  <p className="text-sm font-semibold text-foreground">Îlot {ilot.numero ?? "—"}</p>
+                  <span className="text-xs text-muted-foreground">
+                    {lotsIlot.length} lot{lotsIlot.length !== 1 ? "s" : ""}
+                  </span>
                 </div>
               );
             })}
           </div>
         )}
-      </section>
+      </Card>
 
       {/* Lots */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-        <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4">
-          <Boxes className="h-4 w-4 text-[#0D3B66]" />
-          <h2 className="text-sm font-semibold text-[#0D3B66]">Lots ({lots.length})</h2>
+      <Card className="overflow-hidden">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-5 py-4">
+          <Boxes className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-semibold text-foreground">Lots ({lots.length})</h2>
           {lots.length > 0 && (
-            <span className="ml-auto text-xs text-slate-400">Cliquez un lot pour ouvrir son dossier</span>
+            <span className="text-xs text-muted-foreground sm:ml-auto">Touchez un lot pour ouvrir son dossier</span>
           )}
         </div>
         {lots.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-slate-400">Aucun lot enregistré.</p>
+          <p className="px-5 py-6 text-sm text-muted-foreground">Aucun lot enregistré.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[600px] border-collapse text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50 text-xs uppercase tracking-wide text-slate-500">
-                  <th className="px-5 py-2.5">Lot</th>
-                  <th className="px-5 py-2.5">Îlot</th>
-                  <th className="px-5 py-2.5">Statut</th>
-                  <th className="px-5 py-2.5">Superficie</th>
-                  <th className="px-5 py-2.5">Attributaire</th>
+                <tr className="border-b border-border bg-inset text-[10.5px] font-bold tracking-wider text-muted-foreground uppercase">
+                  <th scope="col" className="px-5 py-2.5">Lot</th>
+                  <th scope="col" className="px-5 py-2.5">Îlot</th>
+                  <th scope="col" className="px-5 py-2.5">Statut</th>
+                  <th scope="col" className="px-5 py-2.5">Superficie</th>
+                  <th scope="col" className="px-5 py-2.5">Attributaire</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-border">
                 {lots.map((lot) => {
                   const ilotNum = ilots.find((i) => i.id === lot.ilot_id)?.numero ?? "—";
                   const attribs = attribParLot.get(lot.id) ?? [];
@@ -296,19 +312,19 @@ export default function LotissementDetailClient() {
                       key={lot.id}
                       onClick={() => ouvrirDossier(lot.id)}
                       title="Voir le dossier foncier du lot"
-                      className={`cursor-pointer transition-colors hover:bg-slate-50 ${dossierEnCours === lot.id ? "opacity-60" : ""}`}
+                      className={`cursor-pointer transition-colors hover:bg-inset/70 ${dossierEnCours === lot.id ? "opacity-60" : ""}`}
                     >
-                      <td className="px-5 py-3 font-medium text-[#0D3B66] underline-offset-2 hover:underline">{lot.numero_lot ?? "—"}</td>
-                      <td className="px-5 py-3 text-slate-500">{ilotNum}</td>
-                      <td className="px-5 py-3">
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
-                          {STATUT_LOT_LABELS[lot.statut ?? ""] ?? lot.statut ?? "—"}
-                        </span>
+                      <td className="px-5 py-3 font-medium text-accent underline-offset-2 hover:underline">
+                        {lot.numero_lot ?? "—"}
                       </td>
-                      <td className="px-5 py-3 text-slate-500">
+                      <td className="px-5 py-3 text-muted-foreground">{ilotNum}</td>
+                      <td className="px-5 py-3">
+                        <Badge>{STATUT_LOT_LABELS[lot.statut ?? ""] ?? lot.statut ?? "—"}</Badge>
+                      </td>
+                      <td className="px-5 py-3 text-muted-foreground">
                         {lot.superficie_m2 ? `${lot.superficie_m2.toLocaleString("fr-FR")} m²` : "—"}
                       </td>
-                      <td className="px-5 py-3 text-slate-500">
+                      <td className="px-5 py-3 text-muted-foreground">
                         {attribs.length > 0
                           ? attribs.map((a) => `${a.nom}${a.qualite ? ` (${QUALITE_LABELS[a.qualite] ?? a.qualite})` : ""}`).join(", ")
                           : "—"}
@@ -320,27 +336,29 @@ export default function LotissementDetailClient() {
             </table>
           </div>
         )}
-      </section>
+      </Card>
 
       {/* Attributaires */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-        <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4">
-          <Users className="h-4 w-4 text-[#0D3B66]" />
-          <h2 className="text-sm font-semibold text-[#0D3B66]">Attributaires ({attributaires.length})</h2>
+      <Card className="overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-border px-5 py-4">
+          <Users className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-semibold text-foreground">Attributaires ({attributaires.length})</h2>
         </div>
         {attributaires.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-slate-400">Aucun attributaire actuel sur ce lotissement.</p>
+          <p className="px-5 py-6 text-sm text-muted-foreground">Aucun attributaire actuel sur ce lotissement.</p>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-border">
             {attributaires.map((a, idx) => (
-              <div key={`${a.lot_id}-${idx}`} className="flex items-center justify-between px-5 py-3.5">
-                <p className="text-sm font-semibold text-slate-800">{a.nom}</p>
-                <p className="text-xs text-slate-400">{a.qualite ? QUALITE_LABELS[a.qualite] ?? a.qualite : "—"}</p>
+              <div key={`${a.lot_id}-${idx}`} className="flex items-center justify-between gap-3 px-5 py-3.5">
+                <p className="min-w-0 truncate text-sm font-semibold text-foreground">{a.nom}</p>
+                <p className="shrink-0 text-xs text-muted-foreground">
+                  {a.qualite ? QUALITE_LABELS[a.qualite] ?? a.qualite : "—"}
+                </p>
               </div>
             ))}
           </div>
         )}
-      </section>
+      </Card>
 
       {dossierLot && (
         <LotDetailModal
@@ -351,6 +369,6 @@ export default function LotissementDetailClient() {
           onClose={() => setDossierLot(null)}
         />
       )}
-    </div>
+    </AppShell>
   );
 }

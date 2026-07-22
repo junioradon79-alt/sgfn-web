@@ -1,9 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Map, Plus, Search } from "lucide-react";
-import { Input } from "@/components/ui/Input";
+import { motion } from "framer-motion";
+import { Building2, Layers3, Map, MapPin, Plus, Search } from "lucide-react";
+
+import { AppShell } from "@/components/pilotage/AppShell";
+import { Badge } from "@/components/ds/badge";
+import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Input } from "@/components/ds/input";
+import { Kpi } from "@/components/ds/kpi";
+import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useProfile } from "@/hooks/useProfile";
+import { fadeUp, stagger } from "@/lib/motion";
 import { useLotissements } from "../hooks/useLotissements";
 import LotissementTable from "../components/LotissementTable";
 import LotissementForm from "../components/LotissementForm";
@@ -22,15 +32,27 @@ const STATUT_SOUMISSION_LABELS: Record<string, string> = {
   rejetee: "Rejetée",
 };
 
-const STATUT_SOUMISSION_COLORS: Record<string, string> = {
-  en_attente: "border-amber-200 bg-amber-50 text-amber-700",
-  approuvee: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  rejetee: "border-red-200 bg-red-50 text-red-700",
+/** Tons du Design System — les couleurs vivent dans les jetons, pas ici. */
+const STATUT_SOUMISSION_TONES: Record<string, "warning" | "success" | "danger"> = {
+  en_attente: "warning",
+  approuvee: "success",
+  rejetee: "danger",
 };
 
+/**
+ * Registre des lotissements.
+ *
+ * Écran migré sous `AppShell` le 22/07 : il était resté le dernier à porter la
+ * coquille legacy (`src/app/lotissements/layout.tsx`), avec une barre latérale
+ * `w-64` sans point de rupture. Sur téléphone elle occupait les deux tiers de
+ * l'écran et le `overflow-hidden` de la coquille *coupait* le reste au lieu de
+ * le laisser défiler : le contenu n'était pas seulement décalé, il était
+ * inatteignable.
+ */
 export default function LotissementsPage() {
   const { profile, isAdmin, isChefferie } = useProfile();
-  const { lotissements, loading, error, create, update, remove } = useLotissements();
+  const { counts } = useBadgeCounts();
+  const { lotissements, loading, error, create, update, remove, refresh } = useLotissements();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selected, setSelected] = useState<Lotissement | null>(null);
@@ -109,167 +131,198 @@ export default function LotissementsPage() {
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <AppShell loading={loading} counts={counts} onRefresh={refresh}>
       {/* En-tête */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-brand-primary">
-            Gestion des Lotissements
+          <h1 className="font-display text-[26px] leading-tight font-extrabold tracking-tight text-foreground">
+            Gestion des lotissements
           </h1>
-          <p className="mt-1.5 text-sm text-slate-500">
+          <p className="mt-1 text-[13.5px] text-muted-foreground">
             {isChefferie
               ? "Lotissements sous votre juridiction — créations et corrections soumises à l'approbation du Super Admin."
               : "Périmètres fonciers enregistrés, coordonnés et validés dans le système."}
           </p>
         </div>
         {(isAdmin || isChefferie) && (
-          <button
-            type="button"
-            onClick={openCreate}
-            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#0D3B66] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#1E6091] active:scale-[0.98]"
-          >
-            <Plus className="h-4 w-4" />
+          <Button type="button" variant="primary" className="shrink-0" onClick={openCreate}>
+            <Plus />
             Nouveau lotissement
-          </button>
+          </Button>
         )}
       </div>
 
-      {/* Mes propositions (chefferie) */}
+      {/* Propositions en cours (chefferie) */}
       {isChefferie && mesSoumissions.length > 0 && (
-        <div className="mb-6 overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-5 py-3">
-            <h2 className="text-sm font-semibold text-[#0D3B66]">Mes propositions</h2>
+        <Card className="overflow-hidden">
+          <div className="border-b border-border px-5 py-3">
+            <h2 className="text-sm font-semibold text-foreground">Mes propositions</h2>
           </div>
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-border">
             {mesSoumissions.map((s) => (
               <div key={s.id} className="flex items-center justify-between gap-4 px-5 py-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-700">{s.titre ?? s.payload?.nom ?? "Proposition"}</p>
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {s.titre ?? s.payload?.nom ?? "Proposition"}
+                  </p>
                   {s.statut === "rejetee" && s.commentaire_admin && (
-                    <p className="mt-0.5 text-xs text-red-600">Motif : {s.commentaire_admin}</p>
+                    <p className="mt-0.5 text-xs text-danger">Motif : {s.commentaire_admin}</p>
                   )}
                 </div>
-                <span
-                  className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${
-                    STATUT_SOUMISSION_COLORS[s.statut] ?? "border-slate-200 bg-slate-50 text-slate-500"
-                  }`}
-                >
+                <Badge tone={STATUT_SOUMISSION_TONES[s.statut] ?? "neutral"} className="shrink-0">
                   {STATUT_SOUMISSION_LABELS[s.statut] ?? s.statut}
-                </span>
+                </Badge>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
-      {/* Métriques rapides */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { label: "Lotissements", value: lotissements.length },
-          { label: "Lots totaux", value: lotissements.reduce((s, l) => s + (l.nb_lots ?? 0), 0) },
-          { label: "Îlots totaux", value: lotissements.reduce((s, l) => s + (l.nb_ilots ?? 0), 0) },
-          { label: "Communes couvertes", value: new Set(lotissements.map((l) => l.commune).filter(Boolean)).size },
-        ].map((m) => (
-          <div key={m.label} className="rounded-xl border border-slate-200/60 bg-white px-4 py-4 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{m.label}</p>
-            <p className="mt-1.5 text-2xl font-bold tabular-nums text-[#0D3B66]">
-              {loading ? "…" : m.value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* Barre de recherche */}
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full max-w-sm">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <Input
-            type="search"
-            placeholder="Rechercher par nom, commune, village…"
-            className="pl-9"
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            aria-label="Rechercher un lotissement"
-          />
-        </div>
-        <p className="text-sm text-slate-500">
-          {filtered.length} résultat{filtered.length !== 1 ? "s" : ""}
-        </p>
-      </div>
-
-      {/* Erreur */}
-      {error && (
-        <div className="mb-4 rounded-2xl border border-red-200/80 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {/* État vide (chargement) */}
-      {loading ? (
-        <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white">
-          <div className="flex flex-col items-center justify-center gap-3 py-16">
-            <Map className="h-8 w-8 animate-pulse text-slate-300" />
-            <p className="text-sm text-slate-500">Chargement des lotissements…</p>
-          </div>
-        </div>
-      ) : (
-        <>
-          <LotissementTable
-            lotissements={paginated}
-            onEdit={isAdmin || isChefferie ? openEdit : undefined}
-            onDelete={isAdmin ? handleDelete : undefined}
-          />
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="mt-5 flex items-center justify-between">
-              <p className="text-sm text-slate-500">
-                Page {page} sur {totalPages}
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                  disabled={page === 1}
-                  className="rounded-full border border-slate-200/70 px-4 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Précédent
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
-                  disabled={page === totalPages}
-                  className="rounded-full border border-slate-200/70 px-4 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Suivant
-                </button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Modale */}
-      {isModalOpen && (
-        <LotissementForm
-          initialData={selected}
-          onClose={() => setIsModalOpen(false)}
-          onSubmit={handleSubmit}
+      {/* Indicateurs */}
+      <motion.section
+        variants={stagger(0, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        aria-label="Indicateurs des lotissements"
+      >
+        <Kpi
+          icon={Map}
+          label="Lotissements"
+          loading={loading}
+          value={lotissements.length}
+          legende={<>périmètres enregistrés</>}
         />
+        <Kpi
+          icon={Layers3}
+          label="Lots totaux"
+          loading={loading}
+          value={lotissements.reduce((s, l) => s + (l.nb_lots ?? 0), 0)}
+          legende={<>toutes parcelles confondues</>}
+        />
+        <Kpi
+          icon={Building2}
+          label="Îlots totaux"
+          loading={loading}
+          value={lotissements.reduce((s, l) => s + (l.nb_ilots ?? 0), 0)}
+          legende={<>découpage cadastral</>}
+        />
+        <Kpi
+          icon={MapPin}
+          label="Communes couvertes"
+          loading={loading}
+          value={new Set(lotissements.map((l) => l.commune).filter(Boolean)).size}
+          legende={<>emprise territoriale</>}
+        />
+      </motion.section>
+
+      <motion.div variants={stagger(0.05, 0.06)} initial="hidden" animate="show" className="flex flex-col gap-5">
+        {/* Recherche */}
+        <motion.div variants={fadeUp}>
+          <Card className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-sm">
+              <Search
+                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+              <Input
+                type="search"
+                placeholder="Rechercher par nom, commune, village…"
+                className="pl-9"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                aria-label="Rechercher un lotissement"
+              />
+            </div>
+            <p className="text-sm text-muted-foreground sm:pr-2">
+              {filtered.length} résultat{filtered.length !== 1 ? "s" : ""}
+            </p>
+          </Card>
+        </motion.div>
+
+        {error && (
+          <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm text-danger">
+            {error}
+          </p>
+        )}
+
+        {/* Registre */}
+        <motion.div variants={fadeUp}>
+          {loading ? (
+            <Card>
+              <p className="px-5 py-10 text-center text-sm text-muted-foreground">Chargement des lotissements…</p>
+            </Card>
+          ) : filtered.length === 0 ? (
+            <Card>
+              <EmptyState
+                icon={Map}
+                title={search ? "Aucun résultat" : "Aucun lotissement enregistré"}
+                description={
+                  search
+                    ? `Aucun lotissement ne correspond à « ${search} ».`
+                    : "Enregistrez un premier périmètre foncier pour ouvrir le registre."
+                }
+              />
+            </Card>
+          ) : (
+            <>
+              <LotissementTable
+                lotissements={paginated}
+                onEdit={isAdmin || isChefferie ? openEdit : undefined}
+                onDelete={isAdmin ? handleDelete : undefined}
+              />
+
+              {totalPages > 1 && (
+                <div className="mt-5 flex items-center justify-between gap-3">
+                  <p className="text-sm text-muted-foreground">
+                    Page {page} sur {totalPages}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                      disabled={page === 1}
+                    >
+                      Précédent
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+                      disabled={page === totalPages}
+                    >
+                      Suivant
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </motion.div>
+      </motion.div>
+
+      {isModalOpen && (
+        <LotissementForm initialData={selected} onClose={() => setIsModalOpen(false)} onSubmit={handleSubmit} />
       )}
 
-      {/* Toast */}
       {toast && (
         <div
-          className={`fixed bottom-5 right-5 z-50 rounded-2xl border px-5 py-3 text-sm font-medium shadow-lg transition-all ${
+          role="status"
+          className={`fixed right-5 bottom-5 z-50 rounded-xl border px-5 py-3 text-sm font-medium shadow-float ${
             toast.type === "error"
-              ? "border-red-200 bg-red-50 text-red-700"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700"
+              ? "border-danger/25 bg-danger-subtle text-danger"
+              : "border-success/25 bg-success-subtle text-success"
           }`}
         >
           {toast.msg}
         </div>
       )}
-    </div>
+    </AppShell>
   );
 }
