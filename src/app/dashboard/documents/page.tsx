@@ -18,6 +18,7 @@ import {
   Loader2 as LoaderIcon,
   Sparkles,
   PackageCheck,
+  Ban,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -164,13 +165,15 @@ function SigDots({ proprietaire, operateur, chefferie }: { proprietaire: string 
 
 // ─── Onglet Attestations ──────────────────────────────────────────────────────
 
-function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree }: {
+function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer }: {
   rows: AttestationRow[];
   dlState: DlState;
   remiseState: DlState;
   onDownload: (ref: string) => void;
   onShowQr: (att: AttestationRow) => void;
   onMarquerDelivree: (id: string) => void;
+  /** Réservé à l'admin — absent pour les autres rôles. */
+  onRevoquer?: (att: AttestationRow) => void;
 }) {
   if (rows.length === 0) {
     return (
@@ -243,6 +246,18 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
                         className={remise === "error" ? "text-danger" : "hover:text-success"}
                       >
                         <PackageCheck className={remise === "loading" ? "animate-pulse" : ""} />
+                      </Button>
+                    )}
+                    {onRevoquer && (att.statut === "generee" || att.statut === "delivree") && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => onRevoquer(att)}
+                        title="Révoquer cette attestation (elle deviendra INVALIDE à la vérification publique)"
+                        aria-label="Révoquer cette attestation"
+                        className="hover:text-danger"
+                      >
+                        <Ban />
                       </Button>
                     )}
                     {att.qr_token && (
@@ -503,6 +518,87 @@ function QrModal({ att, onClose }: { att: AttestationRow; onClose: () => void })
   );
 }
 
+// ─── Modale de révocation ─────────────────────────────────────────────────────
+
+/**
+ * Révoquer est un acte qui engage : le document devient INVALIDE pour toute
+ * vérification publique, et aucune RPC ne permet de revenir en arrière. D'où le
+ * motif obligatoire (10 caractères minimum, contrôlé aussi côté serveur) et
+ * l'énoncé explicite de la conséquence avant confirmation.
+ */
+function RevocationModal({ att, onClose, onConfirm }: {
+  att: AttestationRow;
+  onClose: () => void;
+  onConfirm: (motif: string) => Promise<string | null>;
+}) {
+  const [motif, setMotif] = useState("");
+  const [enCours, setEnCours] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const motifValide = motif.trim().length >= 10;
+
+  const confirmer = async () => {
+    if (!motifValide) return;
+    setEnCours(true);
+    setErreur(null);
+    const message = await onConfirm(motif.trim());
+    setEnCours(false);
+    if (message) setErreur(message);
+    else onClose();
+  };
+
+  return (
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert && !enCours) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Révoquer cette attestation</DialogTitle>
+          <DialogDescription className="font-mono">{att.reference}</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="space-y-4">
+          <p className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-foreground">
+            Après révocation, toute vérification publique de ce document — QR compris — affichera
+            <strong> « Document révoqué — ne pas s&apos;y fier »</strong>. L&apos;opération n&apos;est
+            pas réversible : corriger passe par l&apos;émission d&apos;une nouvelle attestation.
+          </p>
+
+          <div className="space-y-1.5">
+            <label htmlFor="motif-revocation" className="text-sm font-medium text-foreground">
+              Motif de la révocation
+            </label>
+            <textarea
+              id="motif-revocation"
+              value={motif}
+              onChange={(e) => setMotif(e.target.value)}
+              rows={3}
+              placeholder="Ex. Erreur d'attributaire — le lot 042 avait déjà été cédé le 12/03."
+              className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm text-foreground shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15"
+            />
+            <p className="text-xs text-muted-2">
+              Conservé au registre et jamais montré au public : il peut nommer une fraude ou une
+              personne. {motif.trim().length < 10 && `${10 - motif.trim().length} caractère(s) manquant(s).`}
+            </p>
+          </div>
+
+          {erreur && (
+            <p className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">
+              {erreur}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onClose} disabled={enCours}>
+              Annuler
+            </Button>
+            <Button type="button" variant="danger" onClick={confirmer} disabled={!motifValide || enCours}>
+              {enCours && <LoaderIcon className="h-4 w-4 animate-spin" />}
+              Révoquer définitivement
+            </Button>
+          </div>
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Page principale ──────────────────────────────────────────────────────────
 
 type Tab = "attestations" | "pv" | "documents";
@@ -518,6 +614,7 @@ export default function DocumentsPage() {
 
   const [dlState, setDlState] = useState<DlState>({});
   const [remiseState, setRemiseState] = useState<DlState>({});
+  const [aRevoquer, setARevoquer] = useState<AttestationRow | null>(null);
   const [qrAtt, setQrAtt] = useState<AttestationRow | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [apercuUrls, setApercuUrls] = useState<Record<string, string>>({});
@@ -618,6 +715,23 @@ export default function DocumentsPage() {
     } catch {
       // erreur silencieuse, pas de state dédié pour ce bouton
     }
+  };
+
+  /** Renvoie un message d'erreur à afficher dans la modale, ou null si c'est passé. */
+  const revoquer = async (id: string, motif: string): Promise<string | null> => {
+    // `revoquer_attestation` est absente de `database.types.ts` tant que la
+    // migration 20260722140000 n'est pas appliquée en production — les types
+    // sont générés depuis la base réelle. Ce cast disparaît au prochain
+    // `supabase gen types` ; il ne masque rien d'autre que ce décalage.
+    const appelerRpc = supabase.rpc as unknown as (
+      nom: string,
+      args: Record<string, unknown>,
+    ) => Promise<{ error: { message: string } | null }>;
+
+    const { error } = await appelerRpc("revoquer_attestation", { p_id: id, p_motif: motif });
+    if (error) return error.message;
+    void load();
+    return null;
   };
 
   const marquerDelivree = async (id: string) => {
@@ -769,6 +883,7 @@ export default function DocumentsPage() {
               rows={attestations}
               dlState={dlState}
               remiseState={remiseState}
+              onRevoquer={isAdmin ? setARevoquer : undefined}
               onDownload={telecharger}
               onShowQr={setQrAtt}
               onMarquerDelivree={marquerDelivree}
@@ -787,6 +902,14 @@ export default function DocumentsPage() {
       </motion.div>
 
       {qrAtt && <QrModal att={qrAtt} onClose={() => setQrAtt(null)} />}
+
+      {aRevoquer && (
+        <RevocationModal
+          att={aRevoquer}
+          onClose={() => setARevoquer(null)}
+          onConfirm={(motif) => revoquer(aRevoquer.id, motif)}
+        />
+      )}
 
       {showUpload && (
         <UploadPlanModal

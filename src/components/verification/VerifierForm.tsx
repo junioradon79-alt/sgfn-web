@@ -51,6 +51,16 @@ type ResultatVerification = {
   lng_approx?: number | null;
   nb_verifications?: number;
   cadastre?: Cadastre | null;
+  /**
+   * Verdict d'authenticité calculé **côté serveur** par `verifier_attestation()`
+   * — un client modifié ne peut donc pas afficher « valide » sur un document
+   * révoqué. Absent des documents autres que l'attestation de cession, d'où le
+   * repli sur l'ancien comportement quand il n'est pas fourni.
+   */
+  verdict?: "valide" | "revoquee" | "non_emise";
+  verdict_libelle?: string;
+  statut_attestation_libelle?: string;
+  revoquee_le?: string | null;
   [key: string]: unknown;
 };
 
@@ -410,8 +420,21 @@ function PasseportSections({ resultat, urlPasseport }: { resultat: ResultatVerif
             </p>
             <p className="mt-0.5 font-mono text-xs text-slate-500">{resultat.reference}</p>
           </div>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-            {String(resultat.statut_attestation ?? resultat.statut_document ?? "—")}
+          {/* Libellé serveur d'abord : le public lisait jusqu'ici la valeur
+              brute de l'enum (« a_generer », « delivree »). */}
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+              resultat.verdict === "revoquee"
+                ? "bg-red-100 text-red-700"
+                : "bg-slate-100 text-slate-600"
+            }`}
+          >
+            {String(
+              resultat.statut_attestation_libelle ??
+                resultat.statut_attestation ??
+                resultat.statut_document ??
+                "—",
+            )}
           </span>
         </div>
       </section>
@@ -826,36 +849,54 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
 
           {verdict === "trouve" && resultat && (
             <div className="mt-8">
-              <div
-                className={`flex items-start gap-4 rounded-2xl p-6 ${
-                  litigeActif ? "bg-amber-50" : "bg-emerald-50"
-                }`}
-              >
-                {litigeActif ? (
-                  <ShieldAlert className="mt-0.5 h-8 w-8 shrink-0 text-amber-600" />
+              {(() => {
+                // Un document révoqué prime sur tout le reste : ni le litige ni
+                // le score ne doivent adoucir le message. Trouver le document
+                // au registre ne veut pas dire qu'il vaut quelque chose.
+                const revoque = resultat.verdict === "revoquee";
+                const nonEmis = resultat.verdict === "non_emise";
+                const ton = revoque
+                  ? { fond: "bg-red-50", icone: "text-red-600", titre: "text-red-900", texte: "text-red-800" }
+                  : nonEmis
+                    ? { fond: "bg-slate-100", icone: "text-slate-500", titre: "text-slate-800", texte: "text-slate-600" }
+                    : litigeActif
+                      ? { fond: "bg-amber-50", icone: "text-amber-600", titre: "text-amber-800", texte: "text-amber-700" }
+                      : { fond: "bg-emerald-50", icone: "text-emerald-600", titre: "text-emerald-800", texte: "text-emerald-700" };
+                const typeLabel = TYPE_LABEL[String(resultat.type_document)] ?? resultat.type_document;
+                return (
+              <div className={`flex items-start gap-4 rounded-2xl p-6 ${ton.fond}`}>
+                {revoque ? (
+                  <ShieldX className={`mt-0.5 h-8 w-8 shrink-0 ${ton.icone}`} />
+                ) : litigeActif || nonEmis ? (
+                  <ShieldAlert className={`mt-0.5 h-8 w-8 shrink-0 ${ton.icone}`} />
                 ) : (
-                  <ShieldCheck className="mt-0.5 h-8 w-8 shrink-0 text-emerald-600" />
+                  <ShieldCheck className={`mt-0.5 h-8 w-8 shrink-0 ${ton.icone}`} />
                 )}
                 <div className="flex-1">
-                  <p
-                    className={`font-semibold ${
-                      litigeActif ? "text-amber-800" : "text-emerald-800"
-                    }`}
-                  >
-                    Document authentique —{" "}
-                    {TYPE_LABEL[String(resultat.type_document)] ?? resultat.type_document}
+                  <p className={`font-semibold ${ton.titre}`}>
+                    {revoque
+                      ? `Document RÉVOQUÉ — ${typeLabel}`
+                      : nonEmis
+                        ? `Document pas encore émis — ${typeLabel}`
+                        : `Document authentique — ${typeLabel}`}
                   </p>
-                  <p
-                    className={`mt-1 text-sm ${
-                      litigeActif ? "text-amber-700" : "text-emerald-700"
-                    }`}
-                  >
-                    {litigeActif
-                      ? "Ce document est enregistré au registre SGNF, mais un litige est en cours sur ce bien."
-                      : "Ce document est enregistré au registre foncier numérique SGNF."}
+                  <p className={`mt-1 text-sm ${ton.texte}`}>
+                    {revoque
+                      ? `Cette attestation a été révoquée par le registre SGNF${
+                          resultat.revoquee_le ? ` le ${fmtValeur(resultat.revoquee_le)}` : ""
+                        } et ne vaut plus preuve de rien. Ne vous y fiez pas et signalez-la à votre interlocuteur.`
+                      : nonEmis
+                        ? "Ce document est enregistré au registre mais n'a pas encore été émis : aucun exemplaire ne devrait circuler."
+                        : litigeActif
+                          ? "Ce document est enregistré au registre SGNF, mais un litige est en cours sur ce bien."
+                          : "Ce document est enregistré au registre foncier numérique SGNF."}
                   </p>
                 </div>
-                {typeof resultat.score_confiance === "number" && (
+                {/* Pas de jauge sur un document révoqué : afficher « 60/100 de
+                    confiance » à côté de « RÉVOQUÉ » enverrait deux messages
+                    contradictoires, et le score porte sur le lotissement, pas
+                    sur la validité de ce document-ci. */}
+                {!revoque && typeof resultat.score_confiance === "number" && (
                   <RadialGauge
                     value={resultat.score_confiance}
                     size={72}
@@ -872,7 +913,9 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
                   </RadialGauge>
                 )}
               </div>
-              {typeof resultat.score_confiance === "number" && (
+                );
+              })()}
+              {resultat.verdict !== "revoquee" && typeof resultat.score_confiance === "number" && (
                 <p className="mt-2 text-center text-xs text-slate-400">Score de confiance sur 100</p>
               )}
 
