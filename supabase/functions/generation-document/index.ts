@@ -683,11 +683,22 @@ Deno.serve(async (req) => {
   } catch (e) { console.error("QR svg", e); }
   try { qrDataUri = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 240 }); } catch (e) { console.error("QR dataurl", e); }
 
+  // Filigrane de revocation. Le gabarit PDFMonkey teste `{{revoquee}}` (chaine
+  // vide = document normal) pour afficher « REVOQUEE » en arriere-plan.
+  // `revoquer_attestation()` redeclenche cette generation apres revocation :
+  // le PDF stocke est ecrase par sa version filigranee, de sorte qu'un
+  // exemplaire retelecharge porte la mention, alors que les exemplaires deja
+  // imprimes restent evidemment inchanges -- c'est la verification QR qui fait
+  // foi pour ceux-la.
+  const estRevoquee = String(rec.statut ?? "") === "revoquee";
+
   const baseVars: Record<string, string> = {
     titre: cfg.titre,
     reference: rec.reference ?? rec.numero ?? rec.id ?? "",
     date: dateFr(rec.date_emission ?? rec.date_delivrance ?? rec.confirme_le ?? rec.cree_le),
     qr_svg: qrSvg, qr_data_uri: qrDataUri, verify_url: verifyUrl,
+    revoquee: estRevoquee ? "REVOQUEE" : "",
+    revoquee_le: estRevoquee ? dateFr(rec.revoquee_le) : "",
     ...d,
   };
 

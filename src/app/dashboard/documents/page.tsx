@@ -37,6 +37,11 @@ import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
 import { useProfile } from "@/hooks/useProfile";
 import { fadeUp, stagger } from "@/lib/motion";
+import {
+  SIGNATURES_ATTESTATION as SIGNATURES,
+  SIGNATURES_PAR_DEFAUT,
+  libelleSignature,
+} from "@/lib/signatures-attestation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,18 +63,16 @@ type AttestationRow = {
       numero: string | null;
       /** `signatures_requises` varie par lotissement — Koelea-Accor revu n'en
        *  exige que 2 (sans l'opérateur), la norme est à 3. */
-      lotissements: { nom: string | null; signatures_requises: string[] | null } | null;
+      lotissements: {
+        nom: string | null;
+        signatures_requises: string[] | null;
+        famille_id: string | null;
+      } | null;
     } | null;
   } | null;
   attributaires: { nom: string | null } | null;
 };
 
-/** Clés de `lotissements.signatures_requises`, dans l'ordre d'affichage. */
-const SIGNATURES = [
-  { cle: "proprietaire", label: "Propriétaire terrien" },
-  { cle: "operateur", label: "Opérateur" },
-  { cle: "chefferie", label: "Chefferie" },
-] as const;
 
 type PvRow = {
   id: string;
@@ -175,8 +178,9 @@ function SigDots({
   onSigner?: (att: AttestationRow, signature: string) => void;
   enCours?: string | null;
 }) {
-  const requises =
-    att.lots?.ilots?.lotissements?.signatures_requises ?? ["proprietaire", "operateur", "chefferie"];
+  const lotissement = att.lots?.ilots?.lotissements;
+  const requises = lotissement?.signatures_requises ?? SIGNATURES_PAR_DEFAUT;
+  const uneSeuleFamille = Boolean(lotissement?.famille_id);
   const dateDe: Record<string, string | null> = {
     proprietaire: att.sig_proprietaire_le,
     operateur: att.sig_operateur_le,
@@ -190,14 +194,15 @@ function SigDots({
       {SIGNATURES.map((s) => {
         const requise = requises.includes(s.cle);
         const date = dateDe[s.cle];
+        const label = libelleSignature(s.cle, uneSeuleFamille);
         const cliquable = Boolean(onSigner) && requise && !date && !revoquee;
         const titre = !requise
-          ? `${s.label} — non requise pour ce lotissement`
+          ? `${label} — non requise pour ce lotissement`
           : date
-            ? `${s.label} — constatée le ${fmtDate(date)}`
+            ? `${label} — constatée le ${fmtDate(date)}`
             : cliquable
-              ? `${s.label} — cliquer pour constater la signature sur le document papier`
-              : `${s.label} — non signée`;
+              ? `${label} — cliquer pour constater la signature sur le document papier`
+              : `${label} — non signée`;
         const pastille = (
           <span
             title={titre}
@@ -708,7 +713,7 @@ export default function DocumentsPage() {
       supabase
         .from("attestations_cession")
         .select(
-          "id, reference, statut, date_emission, cree_le, sig_proprietaire_le, sig_operateur_le, sig_chefferie_le, qr_token, lots(numero_lot, ilots(numero, lotissements(nom, signatures_requises))), attributaires(nom)"
+          "id, reference, statut, date_emission, cree_le, sig_proprietaire_le, sig_operateur_le, sig_chefferie_le, qr_token, lots(numero_lot, ilots(numero, lotissements(nom, signatures_requises, famille_id))), attributaires(nom)"
         )
         .order("cree_le", { ascending: false }),
       supabase

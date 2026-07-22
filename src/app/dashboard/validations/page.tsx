@@ -15,6 +15,7 @@ import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
 import { useProfile } from "@/hooks/useProfile";
 import { fadeUp, stagger } from "@/lib/motion";
+import { libelleSignature } from "@/lib/signatures-attestation";
 import type { AttestationCoutumiere } from "@/components/dashboard/chefferie/types";
 import { SignaturesBadges, ProgressBar } from "@/components/dashboard/chefferie/SharedUI";
 
@@ -30,7 +31,11 @@ type AttestationCession = {
   date_emission: string | null;
   lot: {
     numero_lot: string | null;
-    ilots?: { numero: string | null; lotissements?: { id: string; nom: string | null } | null } | null;
+    ilots?: {
+      numero: string | null;
+      /** `famille_id` sert au libellé du signataire — voir `libelleSignature`. */
+      lotissements?: { id: string; nom: string | null; famille_id?: string | null } | null;
+    } | null;
   } | null;
 };
 
@@ -60,7 +65,7 @@ export default function ValidationsPage() {
       supabase
         .from("attestations_cession")
         .select(
-          "id, reference, statut, sig_chefferie_le, sig_proprietaire_le, sig_operateur_le, date_emission, lot:lot_id(numero_lot, ilots(numero, lotissements(id, nom)))"
+          "id, reference, statut, sig_chefferie_le, sig_proprietaire_le, sig_operateur_le, date_emission, lot:lot_id(numero_lot, ilots(numero, lotissements(id, nom, famille_id)))"
         )
         .is("sig_chefferie_le", null),
       supabase
@@ -183,7 +188,13 @@ export default function ValidationsPage() {
                       </p>
                       <SignaturesBadges
                         sigs={[
-                          { label: "Propriétaire", done: !!a.sig_proprietaire_le },
+                          {
+                            // Même règle que le Coffre-fort documentaire :
+                            // chef de famille si le lotissement en a une,
+                            // propriétaire terrien s'il en couvre plusieurs.
+                            label: libelleSignature("proprietaire", Boolean(a.lot?.ilots?.lotissements?.famille_id)),
+                            done: !!a.sig_proprietaire_le,
+                          },
                           { label: "Opérateur", done: !!a.sig_operateur_le },
                         ]}
                       />
