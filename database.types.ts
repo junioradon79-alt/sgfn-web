@@ -87,8 +87,11 @@ export type Database = {
           delivree_le: string | null
           id: string
           lot_id: string
+          motif_revocation: string | null
           qr_token: string | null
           reference: string
+          revoquee_le: string | null
+          revoquee_par: string | null
           sig_chefferie_le: string | null
           sig_operateur_le: string | null
           sig_proprietaire_le: string | null
@@ -103,8 +106,11 @@ export type Database = {
           delivree_le?: string | null
           id?: string
           lot_id: string
+          motif_revocation?: string | null
           qr_token?: string | null
           reference: string
+          revoquee_le?: string | null
+          revoquee_par?: string | null
           sig_chefferie_le?: string | null
           sig_operateur_le?: string | null
           sig_proprietaire_le?: string | null
@@ -119,8 +125,11 @@ export type Database = {
           delivree_le?: string | null
           id?: string
           lot_id?: string
+          motif_revocation?: string | null
           qr_token?: string | null
           reference?: string
+          revoquee_le?: string | null
+          revoquee_par?: string | null
           sig_chefferie_le?: string | null
           sig_operateur_le?: string | null
           sig_proprietaire_le?: string | null
@@ -160,6 +169,13 @@ export type Database = {
             columns: ["lot_id"]
             isOneToOne: false
             referencedRelation: "lots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_cession_revoquee_par_fkey"
+            columns: ["revoquee_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -3891,6 +3907,8 @@ export type Database = {
         Returns: string
       }
       get_public_stats: { Args: never; Returns: Json }
+      lot_ids_commissaire: { Args: never; Returns: string[] }
+      lot_ids_operateur: { Args: never; Returns: string[] }
       lot_libelle: { Args: { p_lot_id: string }; Returns: Json }
       lot_pour_reference: { Args: { p_reference: string }; Returns: string }
       lots_verifiables: { Args: never; Returns: Json }
@@ -3948,19 +3966,19 @@ export type Database = {
       registre_supervision: {
         Args: never
         Returns: {
+          attestation_delivree: boolean
+          attestation_gratuite: boolean
+          attestation_reference: string
+          attestation_statut: string
+          attributaire_nom: string
+          ilot_numero: string
           lot_id: string
-          numero_lot: string | null
-          ilot_numero: string | null
-          lotissement_nom: string | null
-          statut: string | null
-          verrouille: boolean | null
-          attributaire_nom: string | null
-          qualite: string | null
-          attestation_reference: string | null
-          attestation_statut: string | null
-          attestation_delivree: boolean | null
-          attestation_gratuite: boolean | null
-          pv_alerte_statut: string | null
+          lotissement_nom: string
+          numero_lot: string
+          pv_alerte_statut: string
+          qualite: string
+          statut: string
+          verrouille: boolean
         }[]
       }
       rejeter_demande_geometre: {
@@ -3969,6 +3987,10 @@ export type Database = {
       }
       rejeter_soumission: {
         Args: { p_commentaire?: string; p_id: string }
+        Returns: undefined
+      }
+      revoquer_attestation: {
+        Args: { p_id: string; p_motif: string }
         Returns: undefined
       }
       score_confiance_lot: { Args: { p_lot_id: string }; Returns: number }

@@ -719,16 +719,7 @@ export default function DocumentsPage() {
 
   /** Renvoie un message d'erreur à afficher dans la modale, ou null si c'est passé. */
   const revoquer = async (id: string, motif: string): Promise<string | null> => {
-    // `revoquer_attestation` est absente de `database.types.ts` tant que la
-    // migration 20260722140000 n'est pas appliquée en production — les types
-    // sont générés depuis la base réelle. Ce cast disparaît au prochain
-    // `supabase gen types` ; il ne masque rien d'autre que ce décalage.
-    const appelerRpc = supabase.rpc as unknown as (
-      nom: string,
-      args: Record<string, unknown>,
-    ) => Promise<{ error: { message: string } | null }>;
-
-    const { error } = await appelerRpc("revoquer_attestation", { p_id: id, p_motif: motif });
+    const { error } = await supabase.rpc("revoquer_attestation", { p_id: id, p_motif: motif });
     if (error) return error.message;
     void load();
     return null;

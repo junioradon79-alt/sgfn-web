@@ -1,4 +1,7 @@
 // SGNF — Edge Function : VERIFICATION QR PUBLIQUE
+// v19 (22/07/2026) : un document RÉVOQUÉ se dit GRATUITEMENT, avant tout
+// paywall — voir le bloc commenté plus bas. Charge réduite : le fait et la
+// date, jamais le contenu payant ni le motif de révocation.
 // v16 : exception pour la 1re attestation de cession (rang 1, ayant-droit
 // d'origine) — gratuite y compris en consultation, signalée par
 // verifier_attestation() via `gratuite: true` (cession_id IS NULL). Toute
@@ -109,6 +112,34 @@ Deno.serve(async (req) => {
   if (!data || !data.type_document) {
     await journaliser(req, ref, null, "introuvable", lat, lon);
     return new Response(JSON.stringify({ statut: "introuvable" }), { headers: cors, status: 200 });
+  }
+
+  // Un document RÉVOQUÉ se dit gratuitement, avant tout paywall (décision du
+  // user, 22/07). Facturer 60 000 FCFA à quelqu'un pour lui apprendre que le
+  // document qu'on lui présente ne vaut rien serait exactement l'inverse du
+  // service rendu : la personne sur le point de se faire escroquer est celle
+  // qui a le plus besoin de la réponse, et elle n'a aucune raison de payer
+  // pour un faux. Le revenu perdu est négligeable — on paie pour vérifier un
+  // vrai document, pas un document révoqué.
+  //
+  // La charge renvoyée est volontairement RÉDUITE : elle dit que le document
+  // est révoqué et depuis quand, sans livrer le contenu payant (propriétaire,
+  // historique, score). Le motif de révocation n'est de toute façon jamais
+  // exposé par verifier_attestation().
+  if (data.verdict === "revoquee") {
+    await journaliser(req, ref, data.type_document, "revoquee", lat, lon);
+    return new Response(
+      JSON.stringify({
+        type_document: data.type_document,
+        reference: data.reference,
+        verdict: data.verdict,
+        verdict_libelle: data.verdict_libelle,
+        statut_attestation: data.statut_attestation,
+        statut_attestation_libelle: data.statut_attestation_libelle,
+        revoquee_le: data.revoquee_le,
+      }),
+      { headers: cors, status: 200 },
+    );
   }
 
   // Documents à consultation gratuite : verdict complet, comme avant.
