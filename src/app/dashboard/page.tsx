@@ -137,7 +137,12 @@ export default function CentrePilotagePage() {
         <motion.div variants={stagger(0.08, 0.06)} initial="hidden" animate="show" className="flex flex-col gap-5">
           {/* Composant principal : la seule vue qui répond à « où ? ». Le centre
               d'alertes l'accompagne — ce qui brûle se lit à côté de la carte. */}
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)] xl:items-start">
+          {/* `grid-cols-[minmax(0,1fr)]` dès la base, et pas seulement en `xl` :
+              sans gabarit explicite, la grille retombe sous `xl` sur une colonne
+              implicite `auto`, dont le plancher est le `min-content`. Le contenu
+              le plus large l'emportait — les onglets du Centre d'activité —
+              et poussait la page 262 px hors de l'écran sur un téléphone. */}
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)] xl:items-start">
             <TerritoryMap
               couverture={overview.couverture}
               totalLots={overview.patrimoine.lots}
@@ -155,8 +160,8 @@ export default function CentrePilotagePage() {
             </div>
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)] xl:items-start">
-            <div id="activite" className="scroll-mt-24">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)] xl:items-start">
+            <div id="activite" className="min-w-0 scroll-mt-24">
               <ActivityCenter activite={overview.activite} loading={overview.loading} />
             </div>
             <QuickActions onNouveauDossier={() => setAduOuvert(true)} />

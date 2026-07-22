@@ -57,9 +57,25 @@ function CardDescription({ className, ...props }: React.ComponentProps<"p">) {
   );
 }
 
+/**
+ * Actions d'en-tête (onglets, boutons).
+ *
+ * `shrink-0` empêche les boutons d'être compressés quand ils tiennent à côté du
+ * titre. Mais seul, il faisait déborder la page : une fois passé à la ligne par
+ * le `flex-wrap` de `CardHeader`, le bloc restait dimensionné à son contenu —
+ * les onglets dynamiques du Centre d'activité mesurent 577 px — et poussait le
+ * document 262 px au-delà de l'écran sur un téléphone. Le `max-w-full` des
+ * `TabsList` ne servait à rien, se mesurant contre ce parent trop large.
+ * `min-w-0 max-w-full` le borne à la carte : le défilement horizontal interne
+ * des onglets s'enclenche enfin, au lieu de déporter toute la page.
+ */
 function CardAction({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <div data-slot="card-action" className={cn("flex shrink-0 items-center gap-1.5", className)} {...props} />
+    <div
+      data-slot="card-action"
+      className={cn("flex max-w-full min-w-0 shrink-0 items-center gap-1.5", className)}
+      {...props}
+    />
   );
 }
 
