@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { X, Loader2, FileText } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { createClient } from "@/utils/supabase/client";
 import type { Lotissement, NewLotissement } from "../types";
+
+type CommissaireOption = { id: string; nom: string };
 
 type Props = {
   initialData?: Lotissement | null;
@@ -25,16 +27,38 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
     nb_lots: initialData?.nb_lots?.toString() ?? "",
     nb_ilots: initialData?.nb_ilots?.toString() ?? "",
     guide_reference: initialData?.guide_reference ?? "",
+    pv_numero_enregistrement: initialData?.pv_numero_enregistrement ?? "",
+    pv_commissaire_justice_id: initialData?.pv_commissaire_justice_id ?? "",
+    tf_numero: initialData?.tf_numero ?? "",
+    livre_foncier: initialData?.livre_foncier ?? "",
+    geometre_expert: initialData?.geometre_expert ?? "",
+    cabinet_geometre: initialData?.cabinet_geometre ?? "",
     pv_identification_physique_numero: initialData?.pv_identification_physique_numero ?? "",
     pv_identification_physique_date: initialData?.pv_identification_physique_date ?? "",
   });
+
+  // Référentiel des commissaires de justice (créable depuis Administration →
+  // Référentiels). Lisible par tout authentifié.
+  const [commissaires, setCommissaires] = useState<CommissaireOption[]>([]);
+  useEffect(() => {
+    supabase
+      .from("commissaires_justice")
+      .select("id, nom")
+      .order("nom")
+      .then(({ data }) => setCommissaires((data ?? []) as CommissaireOption[]));
+    // `supabase` est recréé à chaque rendu par createClient() : le laisser en
+    // dépendance relancerait la requête en boucle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [scanFile, setScanFile] = useState<File | null>(null);
   const scanUrl = initialData?.pv_identification_physique_scan_url ?? "";
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreurScan, setErreurScan] = useState<string | null>(null);
 
-  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm((f) => ({ ...f, [key]: e.target.value }));
+  const set =
+    (key: keyof typeof form) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setForm((f) => ({ ...f, [key]: e.target.value }));
 
   const handleScanFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     setScanFile(e.target.files?.[0] ?? null);
@@ -82,6 +106,12 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
       nb_lots: form.nb_lots === "" ? null : Number(form.nb_lots),
       nb_ilots: form.nb_ilots === "" ? null : Number(form.nb_ilots),
       guide_reference: form.guide_reference.trim() || null,
+      pv_numero_enregistrement: form.pv_numero_enregistrement.trim() || null,
+      pv_commissaire_justice_id: form.pv_commissaire_justice_id || null,
+      tf_numero: form.tf_numero.trim() || null,
+      livre_foncier: form.livre_foncier.trim() || null,
+      geometre_expert: form.geometre_expert.trim() || null,
+      cabinet_geometre: form.cabinet_geometre.trim() || null,
       pv_identification_physique_numero: form.pv_identification_physique_numero.trim() || null,
       pv_identification_physique_date: form.pv_identification_physique_date || null,
       pv_identification_physique_scan_url: finalScanUrl,
@@ -225,6 +255,97 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
               onChange={set("guide_reference")}
               placeholder="Ex. GP-2024-CI-001"
             />
+          </div>
+
+          {/* PV du guide de répartition — 20 points du score de confiance.
+              Le commissaire de justice provient du référentiel (Administration
+              → Référentiels), il n'est pas saisi en texte libre. */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label htmlFor="lot-pv-guide" className="text-sm font-medium text-slate-700">
+                N° d&apos;enregistrement du PV du guide
+              </label>
+              <Input
+                id="lot-pv-guide"
+                type="text"
+                value={form.pv_numero_enregistrement}
+                onChange={set("pv_numero_enregistrement")}
+                placeholder="Ex. PV-GR-2024-001"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="lot-commissaire" className="text-sm font-medium text-slate-700">
+                Commissaire de justice
+              </label>
+              <select
+                id="lot-commissaire"
+                value={form.pv_commissaire_justice_id}
+                onChange={set("pv_commissaire_justice_id")}
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
+              >
+                <option value="">—</option>
+                {commissaires.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nom}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Références cadastrales */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label htmlFor="lot-tf" className="text-sm font-medium text-slate-700">
+                N° de titre foncier
+              </label>
+              <Input
+                id="lot-tf"
+                type="text"
+                value={form.tf_numero}
+                onChange={set("tf_numero")}
+                placeholder="Ex. TF 12345"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="lot-livre" className="text-sm font-medium text-slate-700">
+                Livre foncier
+              </label>
+              <Input
+                id="lot-livre"
+                type="text"
+                value={form.livre_foncier}
+                onChange={set("livre_foncier")}
+                placeholder="Ex. Livre foncier d'Abidjan"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label htmlFor="lot-geometre" className="text-sm font-medium text-slate-700">
+                Géomètre-expert
+              </label>
+              <Input
+                id="lot-geometre"
+                type="text"
+                value={form.geometre_expert}
+                onChange={set("geometre_expert")}
+                placeholder="Ex. N'Guessan Kouadio"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="lot-cabinet" className="text-sm font-medium text-slate-700">
+                Cabinet
+              </label>
+              <Input
+                id="lot-cabinet"
+                type="text"
+                value={form.cabinet_geometre}
+                onChange={set("cabinet_geometre")}
+                placeholder="Ex. Cabinet TOPO-CI"
+              />
+            </div>
           </div>
 
           {/* PV d'identification physique */}
