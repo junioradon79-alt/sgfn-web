@@ -1,16 +1,47 @@
 import Link from "next/link";
-import { Edit2, Eye, MapPin, MoreHorizontal, Trash2 } from "lucide-react";
+import { Edit2, Eye, MapPin, Plus, ScrollText, Trash2 } from "lucide-react";
 import type { Lotissement } from "../types";
+import type { Apfc, StatutApfc } from "../services/apfc.service";
 
 type Props = {
   lotissements: Lotissement[];
   onEdit?: (lotissement: Lotissement) => void;
   onDelete?: (id: string) => void;
+  /** APFC existantes, indexées par `lotissement_id`. */
+  apfcParLotissement?: Map<string, Apfc>;
+  onApfc?: (lotissement: Lotissement) => void;
 };
 
-const TABLE_HEADERS = ["Nom du lotissement", "Localisation", "Lots", "Îlots", "Superficie", "Actions"] as const;
+const TABLE_HEADERS = [
+  "Nom du lotissement",
+  "Localisation",
+  "Lots",
+  "Îlots",
+  "Superficie",
+  "APFC",
+  "Actions",
+] as const;
 
-export default function LotissementTable({ lotissements, onEdit, onDelete }: Props) {
+/** Couleurs du badge d'APFC — l'absence est un défaut, pas un état neutre. */
+const APFC_TONS: Record<StatutApfc, string> = {
+  delivree: "bg-emerald-50 text-emerald-700",
+  en_cours: "bg-amber-50 text-amber-700",
+  a_delivrer: "bg-slate-100 text-slate-600",
+};
+
+const APFC_LIBELLES: Record<StatutApfc, string> = {
+  delivree: "Délivrée",
+  en_cours: "En cours",
+  a_delivrer: "À délivrer",
+};
+
+export default function LotissementTable({
+  lotissements,
+  onEdit,
+  onDelete,
+  apfcParLotissement,
+  onApfc,
+}: Props) {
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white">
       <div className="overflow-x-auto">
@@ -31,7 +62,7 @@ export default function LotissementTable({ lotissements, onEdit, onDelete }: Pro
           <tbody className="divide-y divide-slate-200/60">
             {lotissements.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-12 text-center text-sm text-slate-500">
+                <td colSpan={7} className="px-5 py-12 text-center text-sm text-slate-500">
                   Aucun lotissement enregistré.
                 </td>
               </tr>
@@ -58,6 +89,45 @@ export default function LotissementTable({ lotissements, onEdit, onDelete }: Pro
                   </td>
                   <td className="px-5 py-4 text-sm text-slate-600">
                     {l.superficie_texte ?? (l.superficie_m2 ? `${l.superficie_m2.toLocaleString("fr-FR")} m²` : "—")}
+                  </td>
+                  <td className="px-5 py-4">
+                    {(() => {
+                      const apfc = apfcParLotissement?.get(l.id);
+                      if (!apfc) {
+                        return onApfc ? (
+                          <button
+                            type="button"
+                            onClick={() => onApfc(l)}
+                            className="inline-flex items-center gap-1 rounded-full border border-dashed border-red-300 bg-red-50/60 px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+                          >
+                            <Plus className="h-3 w-3" />
+                            Aucune
+                          </button>
+                        ) : (
+                          <span className="text-xs font-medium text-red-600">Aucune</span>
+                        );
+                      }
+                      const badge = (
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${APFC_TONS[apfc.statut]}`}
+                        >
+                          <ScrollText className="h-3 w-3" />
+                          {APFC_LIBELLES[apfc.statut]}
+                        </span>
+                      );
+                      return onApfc ? (
+                        <button
+                          type="button"
+                          onClick={() => onApfc(l)}
+                          aria-label={`Modifier l'APFC de ${l.nom}`}
+                          className="transition-opacity hover:opacity-75"
+                        >
+                          {badge}
+                        </button>
+                      ) : (
+                        badge
+                      );
+                    })()}
                   </td>
                   <td className="px-5 py-4 text-right">
                     <div className="inline-flex items-center gap-0.5">

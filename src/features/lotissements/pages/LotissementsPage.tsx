@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Building2, Layers3, Map, MapPin, Plus, Search } from "lucide-react";
+import { Building2, Layers3, Map as MapIcon, MapPin, Plus, Search } from "lucide-react";
 
 import { AppShell } from "@/components/pilotage/AppShell";
 import { Badge } from "@/components/ds/badge";
@@ -17,11 +17,19 @@ import { fadeUp, stagger } from "@/lib/motion";
 import { useLotissements } from "../hooks/useLotissements";
 import LotissementTable from "../components/LotissementTable";
 import LotissementForm from "../components/LotissementForm";
+import ApfcForm from "../components/ApfcForm";
 import {
   proposerLotissement,
   getMesSoumissionsLotissement,
   type SoumissionLotissement,
 } from "../services/lotissements.service";
+import {
+  getApfcParLotissement,
+  createApfc,
+  updateApfc,
+  type Apfc,
+  type NewApfc,
+} from "../services/apfc.service";
 import type { Lotissement, NewLotissement } from "../types";
 
 const PAGE_SIZE = 8;
@@ -60,6 +68,26 @@ export default function LotissementsPage() {
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [mesSoumissions, setMesSoumissions] = useState<SoumissionLotissement[]>([]);
+
+  // APFC par lotissement : lecture ouverte (chefferie, opérateur, vérificateur,
+  // géomètre y ont accès en RLS), écriture réservée à l'admin.
+  const [apfcParLotissement, setApfcParLotissement] = useState<Map<string, Apfc>>(new Map());
+  const [apfcCible, setApfcCible] = useState<Lotissement | null>(null);
+  const [apfcSaving, setApfcSaving] = useState(false);
+
+  const rechargerApfc = useCallback(async (ids: string[]) => {
+    const { data } = await getApfcParLotissement(ids);
+    setApfcParLotissement(data);
+  }, []);
+
+  useEffect(() => {
+    if (lotissements.length === 0) return;
+    // Même forme que l'effet des soumissions plus bas : la mise à jour d'état
+    // vit dans le `.then`, pas dans le corps de l'effet.
+    void getApfcParLotissement(lotissements.map((l) => l.id)).then(({ data }) =>
+      setApfcParLotissement(data),
+    );
+  }, [lotissements]);
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
@@ -106,6 +134,23 @@ export default function LotissementsPage() {
     }
     setSelected(null);
     setIsModalOpen(false);
+  };
+
+  const handleApfcSubmit = async (values: NewApfc) => {
+    if (!apfcCible) return;
+    setApfcSaving(true);
+    const existante = apfcParLotissement.get(apfcCible.id);
+    const { error: apfcError } = existante
+      ? await updateApfc(existante.id, values)
+      : await createApfc(values);
+    setApfcSaving(false);
+    if (apfcError) {
+      showToast(`Échec de l'enregistrement : ${apfcError.message}`, "error");
+      return;
+    }
+    showToast(existante ? "APFC modifiée." : "APFC enregistrée.");
+    setApfcCible(null);
+    await rechargerApfc(lotissements.map((l) => l.id));
   };
 
   const handleDelete = async (id: string) => {
@@ -187,7 +232,7 @@ export default function LotissementsPage() {
         aria-label="Indicateurs des lotissements"
       >
         <Kpi
-          icon={Map}
+          icon={MapIcon}
           label="Lotissements"
           loading={loading}
           value={lotissements.length}
@@ -258,7 +303,7 @@ export default function LotissementsPage() {
           ) : filtered.length === 0 ? (
             <Card>
               <EmptyState
-                icon={Map}
+                icon={MapIcon}
                 title={search ? "Aucun résultat" : "Aucun lotissement enregistré"}
                 description={
                   search
@@ -273,6 +318,8 @@ export default function LotissementsPage() {
                 lotissements={paginated}
                 onEdit={isAdmin || isChefferie ? openEdit : undefined}
                 onDelete={isAdmin ? handleDelete : undefined}
+                apfcParLotissement={apfcParLotissement}
+                onApfc={isAdmin ? setApfcCible : undefined}
               />
 
               {totalPages > 1 && (
@@ -309,6 +356,16 @@ export default function LotissementsPage() {
 
       {isModalOpen && (
         <LotissementForm initialData={selected} onClose={() => setIsModalOpen(false)} onSubmit={handleSubmit} />
+      )}
+
+      {apfcCible && (
+        <ApfcForm
+          lotissement={apfcCible}
+          initialData={apfcParLotissement.get(apfcCible.id) ?? null}
+          onClose={() => setApfcCible(null)}
+          onSubmit={handleApfcSubmit}
+          saving={apfcSaving}
+        />
       )}
 
       {toast && (
