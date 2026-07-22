@@ -168,6 +168,160 @@ function CreerGrandeFamilleModal({
   );
 }
 
+// ─── Modal : créer une autorité coutumière ───────────────────────────────────
+
+/**
+ * Création d'une chefferie.
+ *
+ * Comble un manque relevé le 22/07 : la table `autorites_coutumieres` n'avait
+ * aucun point d'écriture dans l'interface — six lectures, zéro création. Une
+ * nouvelle chefferie ne pouvait naître que par un INSERT manuel en base, ce qui
+ * bloquait l'onboarding d'un nouveau territoire (Phase 2 du Document
+ * Directeur). La policy `autorites_admin_all` autorisait déjà l'écriture à
+ * l'admin : il ne manquait que l'écran.
+ */
+function CreerAutoriteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+  const supabase = useMemo(() => createClient(), []);
+  const [nom, setNom] = useState("");
+  const [type, setType] = useState("chefferie");
+  const [village, setVillage] = useState("");
+  const [chef, setChef] = useState("");
+  const [contact, setContact] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSave = async () => {
+    if (!nom.trim()) { setError("Le nom est requis."); return; }
+    setSaving(true);
+    setError("");
+    const { error: e } = await supabase.from("autorites_coutumieres").insert({
+      nom: nom.trim(),
+      type: type.trim() || null,
+      village: village.trim() || null,
+      chef: chef.trim() || null,
+      contact: contact.trim() || null,
+    });
+    if (e) { setError(e.message); setSaving(false); return; }
+    onSuccess();
+  };
+
+  return (
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Nouvelle autorité coutumière</p>
+          <DialogTitle>Créer une chefferie</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="space-y-4">
+          <Field label="Nom" htmlFor="ac-nom" required>
+            <Input id="ac-nom" autoFocus placeholder="Ex : Chefferie d'Ebimpe" value={nom} onChange={(e) => setNom(e.target.value)} />
+          </Field>
+          <Field label="Type" htmlFor="ac-type">
+            <Input id="ac-type" placeholder="Ex : chefferie" value={type} onChange={(e) => setType(e.target.value)} />
+          </Field>
+          <Field label="Village" htmlFor="ac-village">
+            <Input id="ac-village" placeholder="Ex : Ebimpe" value={village} onChange={(e) => setVillage(e.target.value)} />
+          </Field>
+          <Field label="Chef (nom d'usage)" htmlFor="ac-chef">
+            <Input id="ac-chef" placeholder="Ex : Nanan Kouassi" value={chef} onChange={(e) => setChef(e.target.value)} />
+          </Field>
+          <Field label="Contact" htmlFor="ac-contact">
+            <Input id="ac-contact" placeholder="Téléphone ou courriel" value={contact} onChange={(e) => setContact(e.target.value)} />
+          </Field>
+          <p className="text-xs text-muted-foreground">
+            Le compte numérique du chef se crée ensuite depuis « Invitations » : cet écran enregistre l&apos;autorité,
+            pas son utilisateur.
+          </p>
+          {error && <p role="alert" className="text-sm font-medium text-danger">{error}</p>}
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+          <Button type="button" variant="primary" loading={saving} onClick={handleSave}>
+            {saving ? "Création…" : "Créer"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Modal : créer une famille (lignée) ──────────────────────────────────────
+
+/** Même manque que ci-dessus : `familles` se modifiait et se rattachait, mais ne se créait pas. */
+function CreerFamilleModal({
+  grandesFamilles,
+  onClose,
+  onSuccess,
+}: {
+  grandesFamilles: GrandeFamille[];
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+  const [nom, setNom] = useState("");
+  const [chefDeFamille, setChefDeFamille] = useState("");
+  const [contact, setContact] = useState("");
+  const [grandeFamilleId, setGrandeFamilleId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSave = async () => {
+    if (!nom.trim()) { setError("Le nom est requis."); return; }
+    setSaving(true);
+    setError("");
+    const { error: e } = await supabase.from("familles").insert({
+      nom: nom.trim(),
+      chef_de_famille: chefDeFamille.trim() || null,
+      contact: contact.trim() || null,
+      grande_famille_id: grandeFamilleId || null,
+    });
+    if (e) { setError(e.message); setSaving(false); return; }
+    onSuccess();
+  };
+
+  return (
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Nouvelle lignée</p>
+          <DialogTitle>Créer une famille</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="space-y-4">
+          <Field label="Nom" htmlFor="fa-nom" required>
+            <Input id="fa-nom" autoFocus placeholder="Ex : Famille AKO DJEBE" value={nom} onChange={(e) => setNom(e.target.value)} />
+          </Field>
+          <Field label="Chef de famille (nom d'usage)" htmlFor="fa-chef">
+            <Input id="fa-chef" placeholder="Ex : Ncho Ohouo Boniface" value={chefDeFamille} onChange={(e) => setChefDeFamille(e.target.value)} />
+          </Field>
+          <Field label="Contact" htmlFor="fa-contact">
+            <Input id="fa-contact" placeholder="Téléphone ou courriel" value={contact} onChange={(e) => setContact(e.target.value)} />
+          </Field>
+          <Field label="Grande famille de rattachement" htmlFor="fa-gf">
+            <select
+              id="fa-gf"
+              value={grandeFamilleId}
+              onChange={(e) => setGrandeFamilleId(e.target.value)}
+              className="h-9 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            >
+              <option value="">— Aucune pour l&apos;instant —</option>
+              {grandesFamilles.map((gf) => (
+                <option key={gf.id} value={gf.id}>{gf.nom}</option>
+              ))}
+            </select>
+          </Field>
+          {error && <p role="alert" className="text-sm font-medium text-danger">{error}</p>}
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+          <Button type="button" variant="primary" loading={saving} onClick={handleSave}>
+            {saving ? "Création…" : "Créer"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Modal : lier une lignée à une grande famille ─────────────────────────────
 
 function LierGrandeFamilleModal({
@@ -703,6 +857,8 @@ export default function FamillesPage() {
   const [grandesFamilles, setGrandesFamilles] = useState<GrandeFamille[]>([]);
 
   const [showCreerGF, setShowCreerGF] = useState(false);
+  const [showCreerAutorite, setShowCreerAutorite] = useState(false);
+  const [showCreerFamille, setShowCreerFamille] = useState(false);
   const [modalGrandeFamille, setModalGrandeFamille] = useState<Famille | null>(null);
 
   // ── Familles (lignées) ──
@@ -1016,6 +1172,16 @@ export default function FamillesPage() {
       {/* ══ Onglet Lignées (familles) ═════════════════════════════════════════ */}
       {tab === "familles" && (
         <>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Lignées du registre — rattachées à une grande famille et, le cas échéant, à un compte chef.
+            </p>
+            <Button variant="outline" className="shrink-0 print:hidden" onClick={() => setShowCreerFamille(true)}>
+              <Plus className="h-4 w-4" />
+              Nouvelle
+            </Button>
+          </div>
+
           {!famillesLoading && sansChefFamille > 0 && (
             <div className="flex items-start gap-3 rounded-2xl border border-warning/30 bg-warning-subtle px-4 py-3.5">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
@@ -1179,6 +1345,16 @@ export default function FamillesPage() {
       {/* ══ Onglet Autorités coutumières ════════════════════════════════════ */}
       {tab === "autorites" && (
         <>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Chefferies et autorités coutumières du registre — chacune peut porter ses propres tarifs de cession.
+            </p>
+            <Button variant="outline" className="shrink-0 print:hidden" onClick={() => setShowCreerAutorite(true)}>
+              <Plus className="h-4 w-4" />
+              Nouvelle
+            </Button>
+          </div>
+
           {!autoritesLoading && sansChefAutorite > 0 && (
             <div className="flex items-start gap-3 rounded-2xl border border-warning/30 bg-warning-subtle px-4 py-3.5">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
@@ -1222,6 +1398,11 @@ export default function FamillesPage() {
               <div className="flex flex-col items-center justify-center gap-3 py-16">
                 <Crown className="h-8 w-8 text-muted-2" />
                 <p className="text-sm text-muted-foreground">Aucune autorité coutumière trouvée.</p>
+                {!searchAutorites && (
+                  <Button variant="primary" size="sm" onClick={() => setShowCreerAutorite(true)}>
+                    Créer la première chefferie
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -1282,6 +1463,21 @@ export default function FamillesPage() {
         <CreerGrandeFamilleModal
           onClose={() => setShowCreerGF(false)}
           onSuccess={() => { setShowCreerGF(false); void rechargerGF(); }}
+        />
+      )}
+
+      {showCreerAutorite && (
+        <CreerAutoriteModal
+          onClose={() => setShowCreerAutorite(false)}
+          onSuccess={() => { setShowCreerAutorite(false); void rechargerA(); }}
+        />
+      )}
+
+      {showCreerFamille && (
+        <CreerFamilleModal
+          grandesFamilles={grandesFamilles}
+          onClose={() => setShowCreerFamille(false)}
+          onSuccess={() => { setShowCreerFamille(false); void rechargerF(); }}
         />
       )}
 

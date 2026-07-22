@@ -3,7 +3,7 @@
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { KeyRound, Loader2, ScrollText, Settings, ShieldCheck, Users } from "lucide-react";
+import { KeyRound, Library, Loader2, ScrollText, Settings, ShieldCheck, Users } from "lucide-react";
 
 import { fadeUp } from "@/lib/motion";
 import { NAV_ITEMS, SECTION_LABELS, visibleNavItems } from "@/lib/navigation";
@@ -16,11 +16,12 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ds/ca
 import { EmptyState } from "@/components/ds/empty-state";
 import { Skeleton } from "@/components/ds/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ds/tabs";
+import { ReferentielsPanel } from "@/components/dashboard/administration/ReferentielsPanel";
 
 const nf = new Intl.NumberFormat("fr-FR");
 
 /** Volets pilotés par `?volet=` — miroir des sous-entrées « Administration » de la barre. */
-const VOLETS = ["comptes", "roles", "audit", "parametres"] as const;
+const VOLETS = ["comptes", "roles", "audit", "referentiels", "parametres"] as const;
 
 /** Libellés métier des groupes — le nom technique ne se montre pas à l'écran. */
 const GROUPES: Record<string, string> = {
@@ -100,6 +101,9 @@ function AdministrationContenu() {
             <TabsTrigger value="audit">
               <ScrollText className="size-4" /> Journal d&apos;audit
             </TabsTrigger>
+            <TabsTrigger value="referentiels">
+              <Library className="size-4" /> Référentiels
+            </TabsTrigger>
             <TabsTrigger value="parametres">
               <Settings className="size-4" /> Paramètres
             </TabsTrigger>
@@ -115,6 +119,10 @@ function AdministrationContenu() {
 
           <TabsContent value="audit">
             <AuditPanel entrees={admin.audit} loading={admin.loading} />
+          </TabsContent>
+
+          <TabsContent value="referentiels">
+            <ReferentielsPanel />
           </TabsContent>
 
           <TabsContent value="parametres">

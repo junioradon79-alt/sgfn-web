@@ -19,6 +19,7 @@ import {
   Home,
   KeyRound,
   Landmark,
+  Library,
   LayoutDashboard,
   LayoutGrid,
   Link2,
@@ -46,9 +47,11 @@ import { actionAgenceRequise, type AgenceDemande } from "./agence-actions";
 /**
  * Source unique de la navigation SGNF.
  *
- * Extrait de `components/ui/Sidebar.tsx` pour que l'ancienne barre latérale, la
- * nouvelle (Centre de pilotage) et la palette ⌘K partagent exactement les mêmes
- * règles d'accès. Une permission ne doit exister qu'à un seul endroit.
+ * Extrait à l'origine de `components/ui/Sidebar.tsx` pour que la barre latérale
+ * et la palette ⌘K partagent exactement les mêmes règles d'accès. Une
+ * permission ne doit exister qu'à un seul endroit. Cette ancienne barre a été
+ * supprimée le 22/07 avec la migration de `/lotissements` — `AppSidebar` et la
+ * palette sont désormais les deux seuls consommateurs de ce fichier.
  */
 
 export type BadgeKey =
@@ -277,6 +280,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Utilisateurs système", href: "/dashboard/administration", icon: Users, section: "administration", roles: [], deepLink: { key: "volet", default: true }, keywords: "utilisateurs système comptes administration accès" },
   { label: "Rôles & permissions", href: "/dashboard/administration?volet=roles", icon: KeyRound, section: "administration", roles: [], deepLink: { key: "volet", value: "roles" }, keywords: "rôles permissions droits accès habilitations" },
   { label: "Journal d'audit", href: "/dashboard/administration?volet=audit", icon: ScrollText, section: "administration", roles: [], deepLink: { key: "volet", value: "audit" }, keywords: "journal audit traçabilité historique événements" },
+  { label: "Référentiels", href: "/dashboard/administration?volet=referentiels", icon: Library, section: "administration", roles: [], deepLink: { key: "volet", value: "referentiels" }, keywords: "référentiels opérateurs commissaires justice registre entités" },
   { label: "Paramètres", href: "/dashboard/administration?volet=parametres", icon: Settings, section: "administration", roles: [], deepLink: { key: "volet", value: "parametres" }, keywords: "paramètres réglages configuration tarifs" },
 
   // ── Espaces dédiés (masqués pour l'admin) ──
