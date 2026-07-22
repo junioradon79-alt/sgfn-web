@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/client";
 
 import type { Database } from "../../../../database.types";
 
@@ -20,12 +20,20 @@ export type StatutApfc = Database["public"]["Enums"]["statut_apfc"];
  * Circuit arbitré avec le user : **l'admin enregistre, la chefferie signe**
  * ensuite via `/dashboard/validations`. Aucune migration n'a été nécessaire,
  * la policy `apfc_admin_all` autorisant déjà l'écriture à l'admin.
+ *
+ * ⚠️ Le client vient de `@/utils/supabase/client` et non du singleton
+ * `@/lib/supabase` : `/login` ouvre la session avec `createBrowserClient`
+ * (@supabase/ssr), qui range le jeton dans un **cookie**, quand le singleton
+ * supabase-js lit le **localStorage**. Importer le second revient à interroger
+ * la base en anonyme — sans la moindre erreur, puisque la RLS répond « 0 ligne »
+ * en lecture et ne refuse qu'à l'écriture.
  */
 
 /** APFC de plusieurs lotissements, indexées par `lotissement_id`. */
 export async function getApfcParLotissement(lotissementIds: string[]) {
   if (lotissementIds.length === 0) return { data: new Map<string, Apfc>(), error: null };
 
+  const supabase = createClient();
   const { data, error } = await supabase
     .from("attestations_coutumieres")
     .select("*")
@@ -40,6 +48,7 @@ export async function getApfcParLotissement(lotissementIds: string[]) {
 }
 
 export async function createApfc(values: NewApfc) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from("attestations_coutumieres")
     .insert(values)
@@ -50,6 +59,7 @@ export async function createApfc(values: NewApfc) {
 }
 
 export async function updateApfc(id: string, values: UpdateApfc) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from("attestations_coutumieres")
     .update(values)
@@ -70,6 +80,7 @@ export async function updateApfc(id: string, values: UpdateApfc) {
  * un refus RLS ne lève même aucune erreur.
  */
 export async function accorderDerogationDocuments(lotissementId: string, motif: string) {
+  const supabase = createClient();
   const { error } = await supabase.rpc("accorder_derogation_documents", {
     p_lotissement_id: lotissementId,
     p_motif: motif,
@@ -78,6 +89,7 @@ export async function accorderDerogationDocuments(lotissementId: string, motif: 
 }
 
 export async function retirerDerogationDocuments(lotissementId: string) {
+  const supabase = createClient();
   const { error } = await supabase.rpc("retirer_derogation_documents", {
     p_lotissement_id: lotissementId,
   });

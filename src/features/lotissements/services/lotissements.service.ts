@@ -1,11 +1,20 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/client";
 
 import type { NewLotissement, UpdateLotissement } from "../types";
+
+/**
+ * ⚠️ Client porteur de la session (cookie, `@supabase/ssr`) et non le singleton
+ * `@/lib/supabase` (localStorage, toujours vide depuis que `/login` est passé à
+ * `createBrowserClient`). La lecture des lotissements masquait la panne : la
+ * policy `lotissements_public_read` vaut `true`, si bien que la liste
+ * s'affichait normalement pendant que toute écriture partait en anonyme.
+ */
 
 /**
  * 📥 GET ALL
  */
 export async function getLotissements() {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from("lotissements")
     .select("*")
@@ -18,6 +27,7 @@ export async function getLotissements() {
  * 📥 GET ONE
  */
 export async function getLotissement(id: string) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from("lotissements")
     .select("*")
@@ -31,6 +41,7 @@ export async function getLotissement(id: string) {
  * ➕ CREATE
  */
 export async function createLotissement(values: NewLotissement) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from("lotissements")
     .insert(values)
@@ -47,6 +58,7 @@ export async function updateLotissement(
   id: string,
   values: UpdateLotissement
 ) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from("lotissements")
     .update(values)
@@ -61,6 +73,7 @@ export async function updateLotissement(
  * 🗑 DELETE
  */
 export async function deleteLotissement(id: string) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from("lotissements")
     .delete()
@@ -79,6 +92,7 @@ export async function proposerLotissement(
   payload: (NewLotissement | UpdateLotissement) & { lotissement_id?: string },
   titre: string
 ) {
+  const supabase = createClient();
   const { data, error } = await supabase.rpc("soumettre_saisie", {
     p_type: type,
     // La fonction SQL accepte null (cas création de lotissement) ; le générateur
@@ -106,6 +120,7 @@ export type SoumissionLotissement = {
  * en attente/traitées, la RLS ss_read limite déjà à l'auteur.
  */
 export async function getMesSoumissionsLotissement() {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from("soumissions_saisie")
     .select("id, type, titre, statut, commentaire_admin, cree_le, payload")

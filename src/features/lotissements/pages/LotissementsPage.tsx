@@ -81,8 +81,12 @@ export default function LotissementsPage() {
   const [derogationSaving, setDerogationSaving] = useState(false);
   const [derogationErreur, setDerogationErreur] = useState<string | null>(null);
 
+  // L'erreur de lecture n'était pas remontée : une APFC existante s'affichait
+  // alors comme « Aucune », c'est-à-dire exactement comme une APFC absente.
+  // Un échec de lecture et un dossier vide ne doivent pas se ressembler.
   const rechargerApfc = useCallback(async (ids: string[]) => {
-    const { data } = await getApfcParLotissement(ids);
+    const { data, error: apfcError } = await getApfcParLotissement(ids);
+    if (apfcError) console.error("Lecture des APFC impossible", apfcError);
     setApfcParLotissement(data);
   }, []);
 
@@ -90,9 +94,10 @@ export default function LotissementsPage() {
     if (lotissements.length === 0) return;
     // Même forme que l'effet des soumissions plus bas : la mise à jour d'état
     // vit dans le `.then`, pas dans le corps de l'effet.
-    void getApfcParLotissement(lotissements.map((l) => l.id)).then(({ data }) =>
-      setApfcParLotissement(data),
-    );
+    void getApfcParLotissement(lotissements.map((l) => l.id)).then(({ data, error: apfcError }) => {
+      if (apfcError) console.error("Lecture des APFC impossible", apfcError);
+      setApfcParLotissement(data);
+    });
   }, [lotissements]);
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
