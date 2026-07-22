@@ -50,6 +50,16 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
     // dépendance relancerait la requête en boucle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Fermeture au clavier (Échap) — sortie de secours si le formulaire est long.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   const [scanFile, setScanFile] = useState<File | null>(null);
   const scanUrl = initialData?.pv_identification_physique_scan_url ?? "";
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
@@ -119,10 +129,10 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-[1.75rem] border border-slate-200/70 bg-white p-6 shadow-2xl sm:p-8">
-        {/* En-tête */}
-        <div className="flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 px-4 py-8 backdrop-blur-sm">
+      <div className="flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-[1.75rem] border border-slate-200/70 bg-white shadow-2xl">
+        {/* En-tête — fixe, toujours visible (ne défile pas avec le formulaire) */}
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-8">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#1E6091]">
               {isEdit ? "Modifier" : "Nouveau lotissement"}
@@ -134,14 +144,16 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+            className="shrink-0 rounded-full border border-slate-200 p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
             aria-label="Fermer"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+          {/* Corps défilant */}
+          <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5 sm:px-8">
           {/* Nom */}
           <div className="space-y-1.5">
             <label htmlFor="lot-nom" className="text-sm font-medium text-slate-700">
@@ -402,8 +414,10 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
             {erreurScan && <p className="text-xs font-medium text-red-600">{erreurScan}</p>}
           </div>
 
-          {/* Actions */}
-          <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+          </div>
+
+          {/* Actions — fixes, toujours visibles (barre basse) */}
+          <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-100 px-6 py-4 sm:flex-row sm:justify-end sm:px-8">
             <button
               type="button"
               onClick={onClose}
