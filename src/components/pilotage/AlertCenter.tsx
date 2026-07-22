@@ -7,7 +7,6 @@ import {
   ChevronRight,
   ClipboardCheck,
   ClipboardEdit,
-  FileCheck2,
   FileWarning,
   ReceiptText,
   ShieldCheck,
@@ -60,15 +59,11 @@ export function AlertCenter({
   recettes,
   marketplaceARebuild,
   loading,
-  onGenererAttestations,
-  genererAttestationsEnCours,
 }: {
   files: AdminOverview["files"];
   recettes: AdminOverview["recettes"];
   marketplaceARebuild: boolean;
   loading: boolean;
-  onGenererAttestations: () => void;
-  genererAttestationsEnCours: boolean;
 }) {
   const alertes = React.useMemo<Alerte[]>(() => {
     const out: Alerte[] = [];
@@ -106,17 +101,12 @@ export function AlertCenter({
         compte: files.saisieAValider,
       });
 
-    if (files.attestationsGratuitesEnAttente > 0)
-      out.push({
-        id: "attestations-gratuites",
-        icon: FileCheck2,
-        gravite: "attention",
-        titre: `${files.attestationsGratuitesEnAttente} attestation${files.attestationsGratuitesEnAttente > 1 ? "s" : ""} gratuite${files.attestationsGratuitesEnAttente > 1 ? "s" : ""} en attente`,
-        detail: "Attribution déjà enregistrée, jamais génératrice d'attestation (import fait trigger désactivé).",
-        onAction: onGenererAttestations,
-        enCours: genererAttestationsEnCours,
-        compte: files.attestationsGratuitesEnAttente,
-      });
+    // L'alerte « attestations gratuites en attente » a été retirée le 22/07.
+    // Elle offrait une action de masse depuis le tableau de bord, sans indiquer
+    // le volume réel : après la purge du 21/07 elle proposait de régénérer 400
+    // attestations d'un clic. Le rattrapage vit désormais au seul endroit où il
+    // se comprend -- le Coffre-fort documentaire -- avec confirmation chiffrée
+    // au-delà du seuil.
 
     if (recettes.enAttente > 0)
       out.push({
@@ -152,7 +142,7 @@ export function AlertCenter({
       });
 
     return out.sort((a, b) => ORDRE[a.gravite] - ORDRE[b.gravite]);
-  }, [files, recettes, marketplaceARebuild, onGenererAttestations, genererAttestationsEnCours]);
+  }, [files, recettes, marketplaceARebuild]);
 
   const critiques = alertes.filter((a) => a.gravite === "critique").length;
 

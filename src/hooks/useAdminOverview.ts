@@ -163,8 +163,6 @@ export type AdminOverview = {
     dossiersAduEnCours: number;
     saisieAValider: number;
     demandesATraiter: number;
-    /** Lots dont l'attribution rang 1 est éligible à l'attestation gratuite mais n'en a jamais reçu (imports faits trigger désactivé). */
-    attestationsGratuitesEnAttente: number;
   };
 
   activite: {
@@ -188,7 +186,7 @@ const VIDE: Omit<AdminOverview, "loading" | "error" | "majLe" | "refresh"> = {
   couverture: { lotsGeolocalises: 0, perimetresGeolocalises: 0, taux: 0, perimetres: [], lotsGeo: [] },
   actes: { attestations: 0, delivrees: 0, serie: [] },
   recettes: { encaisse: 0, commissions: 0, enAttente: 0, paiements: [] },
-  files: { litiges: [], litigesOuverts: 0, dossiersAdu: [], dossiersAduTotal: 0, dossiersAduEnCours: 0, saisieAValider: 0, demandesATraiter: 0, attestationsGratuitesEnAttente: 0 },
+  files: { litiges: [], litigesOuverts: 0, dossiersAdu: [], dossiersAduTotal: 0, dossiersAduEnCours: 0, saisieAValider: 0, demandesATraiter: 0 },
   activite: { journal: [], serie: [], total14j: 0 },
 };
 
@@ -220,7 +218,6 @@ async function chargerOverview(
     journalSerieRes,
     saisieRes,
     demandesRes,
-    attestationsManquantesRes,
   ] = await Promise.all([
     // Un seul passage sur les lots : il alimente le patrimoine, la couverture
     // géographique, la composition par statut ET les stats par périmètre.
@@ -251,7 +248,6 @@ async function chargerOverview(
     supabase
       .from("demandes_acquisition_agence")
       .select("statut, vente_id, vente_statut, vente_paiement_statut, cession_id, paiement_statut, attestation_reference"),
-    supabase.from("v_attestations_gratuites_manquantes").select("lot_id", { count: "exact", head: true }),
   ]);
 
   // Une lecture refusée par le RLS ne doit pas vider tout l'écran : on remonte
@@ -360,7 +356,6 @@ async function chargerOverview(
       dossiersAduEnCours: dossiersAdu.filter((d) => !ADU_TERMINE.includes(d.statut ?? "")).length,
       saisieAValider: saisieRes.count ?? 0,
       demandesATraiter: demandes.filter(actionAgenceRequise).length,
-      attestationsGratuitesEnAttente: attestationsManquantesRes.count ?? 0,
     },
     activite: {
       journal,

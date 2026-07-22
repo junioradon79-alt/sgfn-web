@@ -42,6 +42,7 @@ import {
   SIGNATURES_PAR_DEFAUT,
   libelleSignature,
 } from "@/lib/signatures-attestation";
+import { SEUIL_RATTRAPAGE } from "@/lib/rattrapage-attestations";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -680,6 +681,83 @@ function RevocationModal({ att, onClose, onConfirm }: {
   );
 }
 
+/**
+ * Confirmation chiffrée du rattrapage de masse.
+ *
+ * On demande de **retranscrire le nombre**, et non de cliquer « OK » : un
+ * bouton de confirmation se clique sans lire, un nombre se recopie en l'ayant
+ * lu. C'est le même contrat que celui tenu par la RPC, qui exige de lui
+ * repasser ce nombre exact.
+ */
+function RattrapageModal({ nombre, onClose, onConfirm }: {
+  nombre: number;
+  onClose: () => void;
+  onConfirm: () => Promise<string | null>;
+}) {
+  const [saisie, setSaisie] = useState("");
+  const [enCours, setEnCours] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const valide = saisie.trim() === String(nombre);
+
+  const confirmer = async () => {
+    if (!valide) return;
+    setEnCours(true);
+    setErreur(null);
+    const message = await onConfirm();
+    setEnCours(false);
+    if (message) setErreur(message);
+    else onClose();
+  };
+
+  return (
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert && !enCours) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Générer {nombre} attestations d&apos;un coup</DialogTitle>
+          <DialogDescription>Opération de masse — à confirmer explicitement.</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="space-y-4">
+          <p className="rounded-xl border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-foreground">
+            <strong>{nombre} attestations</strong> seront créées et autant de PDF générés. Chacune
+            portera une référence et un QR définitifs. Il n&apos;existe pas d&apos;annulation en
+            masse : revenir en arrière se ferait attestation par attestation.
+          </p>
+
+          <div className="space-y-1.5">
+            <label htmlFor="confirmation-rattrapage" className="text-sm font-medium text-foreground">
+              Saisissez <span className="font-mono font-bold">{nombre}</span> pour confirmer
+            </label>
+            <input
+              id="confirmation-rattrapage"
+              value={saisie}
+              onChange={(e) => setSaisie(e.target.value)}
+              inputMode="numeric"
+              autoComplete="off"
+              className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 font-mono text-sm text-foreground shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15"
+            />
+          </div>
+
+          {erreur && (
+            <p className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">
+              {erreur}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onClose} disabled={enCours}>
+              Annuler
+            </Button>
+            <Button type="button" variant="primary" onClick={confirmer} disabled={!valide || enCours}>
+              {enCours && <LoaderIcon className="h-4 w-4 animate-spin" />}
+              Générer les {nombre} attestations
+            </Button>
+          </div>
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Page principale ──────────────────────────────────────────────────────────
 
 type Tab = "attestations" | "pv" | "documents";
@@ -703,13 +781,15 @@ export default function DocumentsPage() {
   const [apercuUrls, setApercuUrls] = useState<Record<string, string>>({});
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [attestationsEligibles, setAttestationsEligibles] = useState(0);
+  const [attestationsBloquees, setAttestationsBloquees] = useState(0);
   const [genererEnCours, setGenererEnCours] = useState(false);
   const [genererErreur, setGenererErreur] = useState<string | null>(null);
+  const [confirmRattrapage, setConfirmRattrapage] = useState(false);
 
   const peutTeleverserPlan = isAdmin || profile?.groupe === "geometre";
 
   const load = useCallback(async () => {
-    const [attRes, pvRes, docRes, eligiblesRes] = await Promise.all([
+    const [attRes, pvRes, docRes, eligiblesRes, bloqueesRes] = await Promise.all([
       supabase
         .from("attestations_cession")
         .select(
@@ -729,28 +809,45 @@ export default function DocumentsPage() {
         )
         .order("televerse_le", { ascending: false }),
       supabase.from("v_attestations_gratuites_manquantes").select("lot_id", { count: "exact", head: true }),
+      supabase.from("v_attestations_bloquees_sans_apfc").select("lot_id", { count: "exact", head: true }),
     ]);
     setAttestations((attRes.data ?? []) as unknown as AttestationRow[]);
     setPvs((pvRes.data ?? []) as unknown as PvRow[]);
     setDocs((docRes.data ?? []) as unknown as DocumentRow[]);
     setAttestationsEligibles(eligiblesRes.count ?? 0);
+    setAttestationsBloquees(bloqueesRes.count ?? 0);
   }, [supabase]);
 
   // Rattrapage permanent : reste affiché en continu (contrairement à l'alerte du
-  // Centre de pilotage, qui disparaît une fois soldée) -- ne génère effectivement
-  // que si des lots remplissent les conditions d'éligibilité (rejoue exactement
-  // la règle du trigger via generer_attestations_gratuites_manquantes()).
-  const genererAttestations = useCallback(async () => {
+  // Centre de pilotage, retirée le 22/07) -- ne génère que les lots dont le
+  // lotissement porte une APFC, les autres relevant de `attestationsBloquees`.
+  // Au-delà du seuil, la RPC exige qu'on lui répète le nombre exact : la modale
+  // demande donc la confirmation AVANT l'appel, plutôt que d'essuyer le refus.
+  // `p_confirmation` est omis sous le seuil : la RPC lui donne alors sa valeur
+  // par defaut. Les types generes la declarent optionnelle, pas nullable.
+  const genererAttestations = useCallback(async (confirmation?: number) => {
     setGenererEnCours(true);
     setGenererErreur(null);
-    const { error } = await supabase.rpc("generer_attestations_gratuites_manquantes");
+    const { error } = await supabase.rpc(
+      "generer_attestations_gratuites_manquantes",
+      confirmation === undefined ? {} : { p_confirmation: confirmation },
+    );
     setGenererEnCours(false);
     if (error) {
       setGenererErreur(error.message);
-      return;
+      return error.message;
     }
     void load();
+    return null;
   }, [load, supabase]);
+
+  const lancerRattrapage = useCallback(() => {
+    if (attestationsEligibles > SEUIL_RATTRAPAGE) {
+      setConfirmRattrapage(true);
+      return;
+    }
+    void genererAttestations();
+  }, [attestationsEligibles, genererAttestations]);
 
   const { isLoading: loading, recharger } = useChargement(load, [load]);
 
@@ -899,7 +996,7 @@ export default function DocumentsPage() {
               type="button"
               variant="outline"
               className="print:hidden"
-              onClick={genererAttestations}
+              onClick={lancerRattrapage}
               disabled={attestationsEligibles === 0 || genererEnCours}
               loading={genererEnCours}
               title={
@@ -928,6 +1025,18 @@ export default function DocumentsPage() {
       {genererErreur && (
         <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-2.5 text-sm font-medium text-danger">
           Échec de la génération des attestations : {genererErreur}
+        </p>
+      )}
+
+      {/* Ce qui est bloqué doit se voir. Sans cette ligne, l'absence d'APFC se
+          traduirait par des lots qui « n'apparaissent nulle part » -- le défaut
+          le plus coûteux à diagnostiquer, parce que rien ne le signale. */}
+      {isAdmin && attestationsBloquees > 0 && (
+        <p className="rounded-xl border border-warning/30 bg-warning/5 px-4 py-2.5 text-sm text-foreground print:hidden">
+          <strong>{attestationsBloquees}</strong> attestation{attestationsBloquees > 1 ? "s" : ""} ne
+          peu{attestationsBloquees > 1 ? "vent" : "t"} pas être générée{attestationsBloquees > 1 ? "s" : ""} :
+          le lotissement concerné n&apos;a pas d&apos;APFC. Saisissez-la depuis l&apos;écran
+          Lotissements, ou accordez-y une dérogation.
         </p>
       )}
 
@@ -1011,6 +1120,14 @@ export default function DocumentsPage() {
           att={aRevoquer}
           onClose={() => setARevoquer(null)}
           onConfirm={(motif) => revoquer(aRevoquer.id, motif)}
+        />
+      )}
+
+      {confirmRattrapage && (
+        <RattrapageModal
+          nombre={attestationsEligibles}
+          onClose={() => setConfirmRattrapage(false)}
+          onConfirm={() => genererAttestations(attestationsEligibles)}
         />
       )}
 

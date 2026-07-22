@@ -298,6 +298,13 @@ export type Database = {
             referencedRelation: "lotissements"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "attestations_coutumieres_lotissement_id_fkey"
+            columns: ["lotissement_id"]
+            isOneToOne: false
+            referencedRelation: "v_attestations_bloquees_sans_apfc"
+            referencedColumns: ["lotissement_id"]
+          },
         ]
       }
       attributaires: {
@@ -905,6 +912,13 @@ export type Database = {
             referencedRelation: "lotissements"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "conversations_lotissement_id_fkey"
+            columns: ["lotissement_id"]
+            isOneToOne: false
+            referencedRelation: "v_attestations_bloquees_sans_apfc"
+            referencedColumns: ["lotissement_id"]
+          },
         ]
       }
       cvgfr: {
@@ -936,6 +950,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "lotissements"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cvgfr_lotissement_id_fkey"
+            columns: ["lotissement_id"]
+            isOneToOne: false
+            referencedRelation: "v_attestations_bloquees_sans_apfc"
+            referencedColumns: ["lotissement_id"]
           },
         ]
       }
@@ -1679,6 +1700,13 @@ export type Database = {
             referencedRelation: "lotissements"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ilots_lotissement_id_fkey"
+            columns: ["lotissement_id"]
+            isOneToOne: false
+            referencedRelation: "v_attestations_bloquees_sans_apfc"
+            referencedColumns: ["lotissement_id"]
+          },
         ]
       }
       invitations: {
@@ -2013,6 +2041,9 @@ export type Database = {
           commune: string | null
           cree_le: string
           date_leve_topographique: string | null
+          derogation_apfc_le: string | null
+          derogation_apfc_motif: string | null
+          derogation_apfc_par: string | null
           district: string | null
           famille_id: string | null
           geometre_expert: string | null
@@ -2048,6 +2079,9 @@ export type Database = {
           commune?: string | null
           cree_le?: string
           date_leve_topographique?: string | null
+          derogation_apfc_le?: string | null
+          derogation_apfc_motif?: string | null
+          derogation_apfc_par?: string | null
           district?: string | null
           famille_id?: string | null
           geometre_expert?: string | null
@@ -2083,6 +2117,9 @@ export type Database = {
           commune?: string | null
           cree_le?: string
           date_leve_topographique?: string | null
+          derogation_apfc_le?: string | null
+          derogation_apfc_motif?: string | null
+          derogation_apfc_par?: string | null
           district?: string | null
           famille_id?: string | null
           geometre_expert?: string | null
@@ -2115,6 +2152,13 @@ export type Database = {
             columns: ["autorite_coutumiere_id"]
             isOneToOne: false
             referencedRelation: "autorites_coutumieres"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lotissements_derogation_apfc_par_fkey"
+            columns: ["derogation_apfc_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -2811,6 +2855,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "propositions_ia_lotissement_id_fkey"
+            columns: ["lotissement_id"]
+            isOneToOne: false
+            referencedRelation: "v_attestations_bloquees_sans_apfc"
+            referencedColumns: ["lotissement_id"]
+          },
+          {
             foreignKeyName: "propositions_ia_valide_par_fkey"
             columns: ["valide_par"]
             isOneToOne: false
@@ -3206,6 +3257,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "lotissements"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "soumissions_saisie_lotissement_id_fkey"
+            columns: ["lotissement_id"]
+            isOneToOne: false
+            referencedRelation: "v_attestations_bloquees_sans_apfc"
+            referencedColumns: ["lotissement_id"]
           },
           {
             foreignKeyName: "soumissions_saisie_traite_par_fkey"
@@ -3712,6 +3770,38 @@ export type Database = {
           },
         ]
       }
+      v_attestations_bloquees_sans_apfc: {
+        Row: {
+          attributaire_id: string | null
+          depuis: string | null
+          lot_id: string | null
+          lotissement: string | null
+          lotissement_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attributions_attributaire_id_fkey"
+            columns: ["attributaire_id"]
+            isOneToOne: false
+            referencedRelation: "attributaires"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attributions_attributaire_id_fkey"
+            columns: ["attributaire_id"]
+            isOneToOne: false
+            referencedRelation: "v_collectifs_pv_manquant"
+            referencedColumns: ["collectif_id"]
+          },
+          {
+            foreignKeyName: "attributions_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "lots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_attestations_gratuites_manquantes: {
         Row: {
           attributaire_id: string | null
@@ -3821,6 +3911,10 @@ export type Database = {
       _appliquer_modification_lotissement: {
         Args: { p_payload: Json }
         Returns: Json
+      }
+      accorder_derogation_apfc: {
+        Args: { p_lotissement_id: string; p_motif: string }
+        Returns: undefined
       }
       ajouter_note_litige: {
         Args: { p_corps: string; p_litige_id: string }
@@ -3942,7 +4036,10 @@ export type Database = {
         Returns: Json
       }
       finaliser_inscription: { Args: { p_code: string }; Returns: Json }
-      generer_attestations_gratuites_manquantes: { Args: never; Returns: Json }
+      generer_attestations_gratuites_manquantes: {
+        Args: { p_confirmation?: number }
+        Returns: Json
+      }
       generer_code_invitation: { Args: never; Returns: string }
       generer_pv_bornage: {
         Args: {
@@ -3957,6 +4054,10 @@ export type Database = {
       lot_ids_commissaire: { Args: never; Returns: string[] }
       lot_ids_operateur: { Args: never; Returns: string[] }
       lot_libelle: { Args: { p_lot_id: string }; Returns: Json }
+      lot_peut_emettre_attestation: {
+        Args: { p_lot_id: string }
+        Returns: boolean
+      }
       lot_pour_reference: { Args: { p_reference: string }; Returns: string }
       lots_verifiables: { Args: never; Returns: Json }
       ma_chefferie_id: { Args: never; Returns: string }
@@ -4034,6 +4135,10 @@ export type Database = {
       }
       rejeter_soumission: {
         Args: { p_commentaire?: string; p_id: string }
+        Returns: undefined
+      }
+      retirer_derogation_apfc: {
+        Args: { p_lotissement_id: string }
         Returns: undefined
       }
       revoquer_attestation: {

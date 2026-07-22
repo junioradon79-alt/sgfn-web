@@ -18,6 +18,7 @@ import { useLotissements } from "../hooks/useLotissements";
 import LotissementTable from "../components/LotissementTable";
 import LotissementForm from "../components/LotissementForm";
 import ApfcForm from "../components/ApfcForm";
+import DerogationApfcForm from "../components/DerogationApfcForm";
 import {
   proposerLotissement,
   getMesSoumissionsLotissement,
@@ -27,6 +28,8 @@ import {
   getApfcParLotissement,
   createApfc,
   updateApfc,
+  accorderDerogationApfc,
+  retirerDerogationApfc,
   type Apfc,
   type NewApfc,
 } from "../services/apfc.service";
@@ -74,6 +77,9 @@ export default function LotissementsPage() {
   const [apfcParLotissement, setApfcParLotissement] = useState<Map<string, Apfc>>(new Map());
   const [apfcCible, setApfcCible] = useState<Lotissement | null>(null);
   const [apfcSaving, setApfcSaving] = useState(false);
+  const [derogationCible, setDerogationCible] = useState<Lotissement | null>(null);
+  const [derogationSaving, setDerogationSaving] = useState(false);
+  const [derogationErreur, setDerogationErreur] = useState<string | null>(null);
 
   const rechargerApfc = useCallback(async (ids: string[]) => {
     const { data } = await getApfcParLotissement(ids);
@@ -151,6 +157,34 @@ export default function LotissementsPage() {
     showToast(existante ? "APFC modifiée." : "APFC enregistrée.");
     setApfcCible(null);
     await rechargerApfc(lotissements.map((l) => l.id));
+  };
+
+  // Dérogation à l'obligation d'APFC. Les deux RPC sont admin-only côté base ;
+  // le front n'affiche l'action qu'à l'admin, mais c'est la base qui tranche.
+  const handleDerogationSubmit = async (motif: string) => {
+    if (!derogationCible) return;
+    setDerogationSaving(true);
+    setDerogationErreur(null);
+    const { error: rpcError } = await accorderDerogationApfc(derogationCible.id, motif);
+    setDerogationSaving(false);
+    if (rpcError) {
+      setDerogationErreur(rpcError.message);
+      return;
+    }
+    setDerogationCible(null);
+    showToast("Dérogation accordée.");
+    await refresh();
+  };
+
+  const handleRetirerDerogation = async (lotissement: Lotissement) => {
+    if (!confirm(`Retirer la dérogation de « ${lotissement.nom} » ? Sans APFC, il ne pourra plus émettre d'attestation.`)) return;
+    const { error: rpcError } = await retirerDerogationApfc(lotissement.id);
+    if (rpcError) {
+      showToast(`Échec du retrait : ${rpcError.message}`, "error");
+      return;
+    }
+    showToast("Dérogation retirée.");
+    await refresh();
   };
 
   const handleDelete = async (id: string) => {
@@ -320,6 +354,8 @@ export default function LotissementsPage() {
                 onDelete={isAdmin ? handleDelete : undefined}
                 apfcParLotissement={apfcParLotissement}
                 onApfc={isAdmin ? setApfcCible : undefined}
+                onDeroger={isAdmin ? setDerogationCible : undefined}
+                onRetirerDerogation={isAdmin ? handleRetirerDerogation : undefined}
               />
 
               {totalPages > 1 && (
@@ -365,6 +401,16 @@ export default function LotissementsPage() {
           onClose={() => setApfcCible(null)}
           onSubmit={handleApfcSubmit}
           saving={apfcSaving}
+        />
+      )}
+
+      {derogationCible && (
+        <DerogationApfcForm
+          lotissement={derogationCible}
+          onClose={() => { setDerogationCible(null); setDerogationErreur(null); }}
+          onSubmit={handleDerogationSubmit}
+          saving={derogationSaving}
+          erreur={derogationErreur}
         />
       )}
 

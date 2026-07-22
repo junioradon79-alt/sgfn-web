@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Edit2, Eye, MapPin, Plus, ScrollText, Trash2 } from "lucide-react";
+import { Edit2, Eye, MapPin, Plus, ScrollText, ShieldAlert, Trash2 } from "lucide-react";
 import type { Lotissement } from "../types";
 import type { Apfc, StatutApfc } from "../services/apfc.service";
 
@@ -10,6 +10,9 @@ type Props = {
   /** APFC existantes, indexées par `lotissement_id`. */
   apfcParLotissement?: Map<string, Apfc>;
   onApfc?: (lotissement: Lotissement) => void;
+  /** Admin seulement : accorder / retirer la dérogation à l'obligation d'APFC. */
+  onDeroger?: (lotissement: Lotissement) => void;
+  onRetirerDerogation?: (lotissement: Lotissement) => void;
 };
 
 const TABLE_HEADERS = [
@@ -41,6 +44,8 @@ export default function LotissementTable({
   onDelete,
   apfcParLotissement,
   onApfc,
+  onDeroger,
+  onRetirerDerogation,
 }: Props) {
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white">
@@ -94,17 +99,48 @@ export default function LotissementTable({
                     {(() => {
                       const apfc = apfcParLotissement?.get(l.id);
                       if (!apfc) {
-                        return onApfc ? (
-                          <button
-                            type="button"
-                            onClick={() => onApfc(l)}
-                            className="inline-flex items-center gap-1 rounded-full border border-dashed border-red-300 bg-red-50/60 px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
-                          >
-                            <Plus className="h-3 w-3" />
-                            Aucune
-                          </button>
-                        ) : (
-                          <span className="text-xs font-medium text-red-600">Aucune</span>
+                        // Sans APFC, le lotissement n'émet plus d'attestation
+                        // (migration 20260722180000). L'état dérogé se lit donc
+                        // ici même : autrement, un blocage levé ailleurs serait
+                        // invisible depuis l'écran qui montre le manque.
+                        const derogue = Boolean(l.derogation_apfc_le);
+                        return (
+                          <div className="flex flex-col items-start gap-1">
+                            {onApfc ? (
+                              <button
+                                type="button"
+                                onClick={() => onApfc(l)}
+                                className="inline-flex items-center gap-1 rounded-full border border-dashed border-red-300 bg-red-50/60 px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+                              >
+                                <Plus className="h-3 w-3" />
+                                Aucune
+                              </button>
+                            ) : (
+                              <span className="text-xs font-medium text-red-600">Aucune</span>
+                            )}
+                            {derogue ? (
+                              <button
+                                type="button"
+                                onClick={onRetirerDerogation ? () => onRetirerDerogation(l) : undefined}
+                                disabled={!onRetirerDerogation}
+                                title={l.derogation_apfc_motif ?? undefined}
+                                className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 transition-colors enabled:hover:bg-amber-100 disabled:cursor-default"
+                              >
+                                <ShieldAlert className="h-3 w-3" />
+                                Dérogation
+                              </button>
+                            ) : (
+                              onDeroger && (
+                                <button
+                                  type="button"
+                                  onClick={() => onDeroger(l)}
+                                  className="text-xs font-medium text-slate-500 underline underline-offset-2 transition-colors hover:text-amber-700"
+                                >
+                                  Déroger
+                                </button>
+                              )
+                            )}
+                          </div>
                         );
                       }
                       const badge = (
