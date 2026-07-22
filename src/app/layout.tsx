@@ -26,7 +26,14 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0D3B66",
+  // Teinte la barre système autour de l'app installée. Deux valeurs, sinon la
+  // barre reste claire sur un écran sombre : ce sont les canvas `--background`
+  // de `globals.css`, pas le primary — la barre prolonge la page, elle ne la
+  // surmonte pas.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F6F8FB" },
+    { media: "(prefers-color-scheme: dark)", color: "#0B1524" },
+  ],
 };
 
 export default function RootLayout({

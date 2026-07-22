@@ -3,33 +3,75 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F6F8FB" />
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0B1524" />
   <title>SGNF — Hors connexion</title>
+  <!--
+    Page de secours servie par le service worker quand le réseau manque.
+
+    Deux contraintes propres à ce fichier, qui expliquent ses partis pris :
+
+    1. Il est autonome — pas de feuille de styles importée, pas de `globals.css`.
+       Les jetons du Design System y sont donc recopiés en dur ; s'ils changent,
+       cette page ne suivra pas toute seule.
+    2. Il bascule sur `prefers-color-scheme` et non sur la classe `.dark` : la
+       classe est posée par l'application, qui précisément ne tourne pas ici.
+       Sans ce média, la carte restait blanche sur un téléphone en thème sombre.
+
+    Les polices de l'application (Geist/Inter) viennent d'un CDN : hors ligne
+    elles sont par définition indisponibles. La pile démarre donc sur les
+    polices système, seules réellement garanties dans ce contexte.
+  -->
   <style>
+    :root {
+      --background: #F6F8FB;
+      --card: #FFFFFF;
+      --foreground: #0F172A;
+      --muted-foreground: #64748B;
+      --border: #E6ECF4;
+      --primary: #0B4D88;
+      --primary-700: #083A68;
+      --primary-foreground: #FFFFFF;
+      --shadow-panel: 0 4px 24px rgb(16 24 40 / .06);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --background: #0B1524;
+        --card: #111E30;
+        --foreground: #EAF1FB;
+        --muted-foreground: #93A6C0;
+        --border: #213348;
+        --shadow-panel: 0 4px 24px rgb(0 0 0 / .35);
+      }
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: Inter, system-ui, sans-serif;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       min-height: 100dvh;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #f8fafc;
-      color: #0f172a;
+      background: var(--background);
+      color: var(--foreground);
       padding: 1.5rem;
     }
     .card {
       max-width: 360px;
       width: 100%;
       text-align: center;
-      background: white;
-      border: 1px solid #e2e8f0;
+      background: var(--card);
+      border: 1px solid var(--border);
       border-radius: 1.5rem;
       padding: 2.5rem 2rem;
-      box-shadow: 0 4px 24px rgba(0,0,0,.06);
+      box-shadow: var(--shadow-panel);
     }
     .logo {
       width: 56px;
       height: 56px;
-      background: #0D3B66;
+      background: var(--primary);
       border-radius: 1rem;
       margin: 0 auto 1.25rem;
       display: flex;
@@ -37,11 +79,11 @@
       justify-content: center;
     }
     .logo img { width: 40px; height: 40px; object-fit: contain; }
-    h1 { font-size: 1.25rem; font-weight: 700; color: #0D3B66; margin-bottom: .5rem; }
-    p  { font-size: .9rem; color: #64748b; line-height: 1.6; margin-bottom: 1.5rem; }
+    h1 { font-size: 1.25rem; font-weight: 700; color: var(--foreground); margin-bottom: .5rem; }
+    p  { font-size: .9rem; color: var(--muted-foreground); line-height: 1.6; margin-bottom: 1.5rem; }
     button {
-      background: #0D3B66;
-      color: white;
+      background: var(--primary);
+      color: var(--primary-foreground);
       border: none;
       border-radius: .75rem;
       padding: .75rem 1.5rem;
@@ -50,7 +92,8 @@
       cursor: pointer;
       width: 100%;
     }
-    button:hover { background: #1E6091; }
+    button:hover { background: var(--primary-700); }
+    button:focus-visible { outline: 2px solid #1E88E5; outline-offset: 2px; }
   </style>
 </head>
 <body>
