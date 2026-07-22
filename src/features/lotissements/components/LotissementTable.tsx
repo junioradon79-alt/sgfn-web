@@ -99,11 +99,12 @@ export default function LotissementTable({
                     {(() => {
                       const apfc = apfcParLotissement?.get(l.id);
                       if (!apfc) {
-                        // Sans APFC, le lotissement n'émet plus d'attestation
-                        // (migration 20260722180000). L'état dérogé se lit donc
-                        // ici même : autrement, un blocage levé ailleurs serait
-                        // invisible depuis l'écran qui montre le manque.
-                        const derogue = Boolean(l.derogation_apfc_le);
+                        // Sans dossier documentaire complet, le lotissement
+                        // n'émet plus d'attestation (migration 20260722200000).
+                        // L'état dérogé se lit donc ici même : autrement, un
+                        // blocage levé ailleurs serait invisible depuis l'écran
+                        // qui montre le manque.
+                        const derogue = Boolean(l.derogation_documents_le);
                         return (
                           <div className="flex flex-col items-start gap-1">
                             {onApfc ? (
@@ -123,7 +124,7 @@ export default function LotissementTable({
                                 type="button"
                                 onClick={onRetirerDerogation ? () => onRetirerDerogation(l) : undefined}
                                 disabled={!onRetirerDerogation}
-                                title={l.derogation_apfc_motif ?? undefined}
+                                title={l.derogation_documents_motif ?? undefined}
                                 className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 transition-colors enabled:hover:bg-amber-100 disabled:cursor-default"
                               >
                                 <ShieldAlert className="h-3 w-3" />

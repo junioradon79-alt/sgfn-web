@@ -48,6 +48,12 @@ import { SEUIL_RATTRAPAGE } from "@/lib/rattrapage-attestations";
 
 type BadgeTone = "neutral" | "accent" | "success" | "warning" | "danger";
 
+/** Ligne brute de `v_attestations_bloquees_documents`. */
+type BlocageRow = { lotissement: string | null; score: number | null; manques: string[] | null };
+
+/** Le même blocage, replié sur le lotissement — c'est lui qui porte la cause. */
+type BlocageLotissement = { lotissement: string; score: number; manques: string[] };
+
 type AttestationRow = {
   id: string;
   reference: string;
@@ -782,6 +788,7 @@ export default function DocumentsPage() {
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [attestationsEligibles, setAttestationsEligibles] = useState(0);
   const [attestationsBloquees, setAttestationsBloquees] = useState(0);
+  const [blocagesParLotissement, setBlocagesParLotissement] = useState<BlocageLotissement[]>([]);
   const [genererEnCours, setGenererEnCours] = useState(false);
   const [genererErreur, setGenererErreur] = useState<string | null>(null);
   const [confirmRattrapage, setConfirmRattrapage] = useState(false);
@@ -789,7 +796,7 @@ export default function DocumentsPage() {
   const peutTeleverserPlan = isAdmin || profile?.groupe === "geometre";
 
   const load = useCallback(async () => {
-    const [attRes, pvRes, docRes, eligiblesRes, bloqueesRes] = await Promise.all([
+    const [attRes, pvRes, docRes, eligiblesRes, bloqueesRes, detailRes] = await Promise.all([
       supabase
         .from("attestations_cession")
         .select(
@@ -809,13 +816,34 @@ export default function DocumentsPage() {
         )
         .order("televerse_le", { ascending: false }),
       supabase.from("v_attestations_gratuites_manquantes").select("lot_id", { count: "exact", head: true }),
-      supabase.from("v_attestations_bloquees_sans_apfc").select("lot_id", { count: "exact", head: true }),
+      // Deux lectures de la même vue : le compte exact d'un côté, et de l'autre
+      // un échantillon borné qui suffit à nommer les lotissements en cause et
+      // leurs manques. Charger les 841 lignes pour n'en afficher que le résumé
+      // serait payer le transport d'une liste qu'on n'affiche jamais.
+      supabase.from("v_attestations_bloquees_documents").select("lot_id", { count: "exact", head: true }),
+      supabase
+        .from("v_attestations_bloquees_documents")
+        .select("lotissement, score, manques")
+        .limit(400),
     ]);
     setAttestations((attRes.data ?? []) as unknown as AttestationRow[]);
     setPvs((pvRes.data ?? []) as unknown as PvRow[]);
     setDocs((docRes.data ?? []) as unknown as DocumentRow[]);
     setAttestationsEligibles(eligiblesRes.count ?? 0);
     setAttestationsBloquees(bloqueesRes.count ?? 0);
+    // Tous les lots d'un lotissement sont bloqués pour la même raison : on replie
+    // donc sur les lotissements distincts au lieu d'énumérer les lots.
+    const parLotissement = new Map<string, BlocageLotissement>();
+    for (const r of (detailRes.data ?? []) as BlocageRow[]) {
+      if (r.lotissement && !parLotissement.has(r.lotissement)) {
+        parLotissement.set(r.lotissement, {
+          lotissement: r.lotissement,
+          score: r.score ?? 0,
+          manques: r.manques ?? [],
+        });
+      }
+    }
+    setBlocagesParLotissement([...parLotissement.values()]);
   }, [supabase]);
 
   // Rattrapage permanent : reste affiché en continu (contrairement à l'alerte du
@@ -1028,16 +1056,32 @@ export default function DocumentsPage() {
         </p>
       )}
 
-      {/* Ce qui est bloqué doit se voir. Sans cette ligne, l'absence d'APFC se
-          traduirait par des lots qui « n'apparaissent nulle part » -- le défaut
-          le plus coûteux à diagnostiquer, parce que rien ne le signale. */}
+      {/* Ce qui est bloqué doit se voir, ET dire pourquoi. Sans cette ligne, un
+          dossier incomplet se traduirait par des lots qui « n'apparaissent nulle
+          part » -- le défaut le plus coûteux à diagnostiquer, parce que rien ne
+          le signale. La vue nomme les critères manquants, on les affiche tels
+          quels plutôt que de renvoyer l'utilisateur deviner lequel des quatre. */}
       {isAdmin && attestationsBloquees > 0 && (
-        <p className="rounded-xl border border-warning/30 bg-warning/5 px-4 py-2.5 text-sm text-foreground print:hidden">
-          <strong>{attestationsBloquees}</strong> attestation{attestationsBloquees > 1 ? "s" : ""} ne
-          peu{attestationsBloquees > 1 ? "vent" : "t"} pas être générée{attestationsBloquees > 1 ? "s" : ""} :
-          le lotissement concerné n&apos;a pas d&apos;APFC. Saisissez-la depuis l&apos;écran
-          Lotissements, ou accordez-y une dérogation.
-        </p>
+        <div className="rounded-xl border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-foreground print:hidden">
+          <p>
+            <strong>{attestationsBloquees}</strong> attestation{attestationsBloquees > 1 ? "s" : ""} ne
+            peu{attestationsBloquees > 1 ? "vent" : "t"} pas être générée{attestationsBloquees > 1 ? "s" : ""} :
+            le score de confiance du lotissement n&apos;atteint pas 100/100.
+          </p>
+          {blocagesParLotissement.length > 0 && (
+            <ul className="mt-2 space-y-1 text-[13px] text-muted-foreground">
+              {blocagesParLotissement.map((b) => (
+                <li key={b.lotissement}>
+                  <span className="font-medium text-foreground">{b.lotissement}</span>{" "}
+                  <span className="tabular-nums">({b.score}/100)</span> — manque : {b.manques.join(", ")}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2 text-[13px] text-muted-foreground">
+            Complétez le dossier depuis l&apos;écran Lotissements, ou accordez-y une dérogation.
+          </p>
+        </div>
       )}
 
       {/* KPIs */}

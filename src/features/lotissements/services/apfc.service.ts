@@ -61,24 +61,24 @@ export async function updateApfc(id: string, values: UpdateApfc) {
 }
 
 /**
- * Dérogation à l'obligation d'APFC (migration `20260722180000`).
+ * Dérogation à l'exigence de score de confiance complet (migration `20260722200000`).
  *
  * Passe par des RPC et non par un `update` sur `lotissements` : les colonnes
- * `derogation_apfc_*` autorisent l'émission d'actes, elles ne peuvent donc pas
+ * `derogation_documents_*` autorisent l'émission d'actes, elles ne peuvent donc pas
  * dépendre du client. Les RPC vérifient le rôle, imposent un motif et
  * enregistrent l'auteur — un `update` direct n'aurait fait aucun des trois, et
  * un refus RLS ne lève même aucune erreur.
  */
-export async function accorderDerogationApfc(lotissementId: string, motif: string) {
-  const { error } = await supabase.rpc("accorder_derogation_apfc", {
+export async function accorderDerogationDocuments(lotissementId: string, motif: string) {
+  const { error } = await supabase.rpc("accorder_derogation_documents", {
     p_lotissement_id: lotissementId,
     p_motif: motif,
   });
   return { error };
 }
 
-export async function retirerDerogationApfc(lotissementId: string) {
-  const { error } = await supabase.rpc("retirer_derogation_apfc", {
+export async function retirerDerogationDocuments(lotissementId: string) {
+  const { error } = await supabase.rpc("retirer_derogation_documents", {
     p_lotissement_id: lotissementId,
   });
   return { error };

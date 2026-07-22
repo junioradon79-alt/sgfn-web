@@ -13,15 +13,15 @@ type Props = {
 };
 
 /**
- * Dérogation à l'obligation d'APFC.
+ * Dérogation à l'exigence de dossier documentaire complet.
  *
- * Depuis le 22/07, un lotissement sans APFC n'émet plus aucune attestation de
- * cession : l'APFC est le titre coutumier qui le fonde, et 40 des 100 points du
- * score de confiance en dépendent. La dérogation existe parce que le terrain
- * précède parfois le document — mais elle est nominative, motivée et retirable,
- * pour rester une exception constatée plutôt qu'un contournement silencieux.
+ * Depuis le 22/07, un lotissement n'émet aucune attestation de cession tant que
+ * son score de confiance n'atteint pas 100/100 — APFC délivrée, guide de
+ * répartition, PV du guide et PV d'identification physique. La dérogation existe
+ * parce que le terrain précède parfois le document, mais elle est nominative,
+ * motivée et retirable : une exception constatée, pas un contournement.
  */
-export default function DerogationApfcForm({ lotissement, onClose, onSubmit, saving, erreur }: Props) {
+export default function DerogationDocumentsForm({ lotissement, onClose, onSubmit, saving, erreur }: Props) {
   const [motif, setMotif] = useState("");
   const motifValide = motif.trim().length >= 10;
 
@@ -44,7 +44,7 @@ export default function DerogationApfcForm({ lotissement, onClose, onSubmit, sav
               {lotissement.nom}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Autoriser l&apos;émission d&apos;attestations de cession en l&apos;absence d&apos;APFC.
+              Autoriser l&apos;émission d&apos;attestations malgré un dossier incomplet.
             </p>
           </div>
           <button
@@ -59,10 +59,11 @@ export default function DerogationApfcForm({ lotissement, onClose, onSubmit, sav
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-slate-700">
-            L&apos;APFC est le titre coutumier qui fonde le lotissement, et elle pèse{" "}
-            <strong>40 des 100 points</strong> du score de confiance. Une dérogation lève le blocage
-            sans améliorer le score : les attestations émises resteront celles d&apos;un lotissement
-            incomplet. Elle se retire dès que l&apos;APFC est saisie.
+            Le score de confiance mesure la chaîne documentaire du lotissement : APFC
+            délivrée (40), guide de répartition (20), PV du guide (20), PV d&apos;identification
+            physique (20). Une dérogation <strong>lève le blocage sans améliorer le score</strong> :
+            les attestations émises resteront celles d&apos;un lotissement incomplet. Elle se retire
+            dès que le dossier est complet.
           </p>
 
           <div className="space-y-1.5">
@@ -74,7 +75,7 @@ export default function DerogationApfcForm({ lotissement, onClose, onSubmit, sav
               value={motif}
               onChange={(e) => setMotif(e.target.value)}
               rows={3}
-              placeholder="Ex. APFC en cours de régularisation auprès de la chefferie — dossier déposé le 12/07."
+              placeholder="Ex. PV d'identification physique en cours d'établissement — mission de bornage du 12/07."
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#1E6091] focus:outline-none focus:ring-2 focus:ring-[#1E6091]/15"
             />
             <p className="text-xs text-slate-500">

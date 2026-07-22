@@ -18,7 +18,7 @@ import { useLotissements } from "../hooks/useLotissements";
 import LotissementTable from "../components/LotissementTable";
 import LotissementForm from "../components/LotissementForm";
 import ApfcForm from "../components/ApfcForm";
-import DerogationApfcForm from "../components/DerogationApfcForm";
+import DerogationDocumentsForm from "../components/DerogationDocumentsForm";
 import {
   proposerLotissement,
   getMesSoumissionsLotissement,
@@ -28,8 +28,8 @@ import {
   getApfcParLotissement,
   createApfc,
   updateApfc,
-  accorderDerogationApfc,
-  retirerDerogationApfc,
+  accorderDerogationDocuments,
+  retirerDerogationDocuments,
   type Apfc,
   type NewApfc,
 } from "../services/apfc.service";
@@ -159,13 +159,13 @@ export default function LotissementsPage() {
     await rechargerApfc(lotissements.map((l) => l.id));
   };
 
-  // Dérogation à l'obligation d'APFC. Les deux RPC sont admin-only côté base ;
+  // Dérogation à l'exigence de dossier complet. Les deux RPC sont admin-only ;
   // le front n'affiche l'action qu'à l'admin, mais c'est la base qui tranche.
   const handleDerogationSubmit = async (motif: string) => {
     if (!derogationCible) return;
     setDerogationSaving(true);
     setDerogationErreur(null);
-    const { error: rpcError } = await accorderDerogationApfc(derogationCible.id, motif);
+    const { error: rpcError } = await accorderDerogationDocuments(derogationCible.id, motif);
     setDerogationSaving(false);
     if (rpcError) {
       setDerogationErreur(rpcError.message);
@@ -177,8 +177,8 @@ export default function LotissementsPage() {
   };
 
   const handleRetirerDerogation = async (lotissement: Lotissement) => {
-    if (!confirm(`Retirer la dérogation de « ${lotissement.nom} » ? Sans APFC, il ne pourra plus émettre d'attestation.`)) return;
-    const { error: rpcError } = await retirerDerogationApfc(lotissement.id);
+    if (!confirm(`Retirer la dérogation de « ${lotissement.nom} » ? Tant que son score de confiance n'atteint pas 100/100, il ne pourra plus émettre d'attestation.`)) return;
+    const { error: rpcError } = await retirerDerogationDocuments(lotissement.id);
     if (rpcError) {
       showToast(`Échec du retrait : ${rpcError.message}`, "error");
       return;
@@ -405,7 +405,7 @@ export default function LotissementsPage() {
       )}
 
       {derogationCible && (
-        <DerogationApfcForm
+        <DerogationDocumentsForm
           lotissement={derogationCible}
           onClose={() => { setDerogationCible(null); setDerogationErreur(null); }}
           onSubmit={handleDerogationSubmit}

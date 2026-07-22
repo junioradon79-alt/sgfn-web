@@ -302,7 +302,7 @@ export type Database = {
             foreignKeyName: "attestations_coutumieres_lotissement_id_fkey"
             columns: ["lotissement_id"]
             isOneToOne: false
-            referencedRelation: "v_attestations_bloquees_sans_apfc"
+            referencedRelation: "v_attestations_bloquees_documents"
             referencedColumns: ["lotissement_id"]
           },
         ]
@@ -916,7 +916,7 @@ export type Database = {
             foreignKeyName: "conversations_lotissement_id_fkey"
             columns: ["lotissement_id"]
             isOneToOne: false
-            referencedRelation: "v_attestations_bloquees_sans_apfc"
+            referencedRelation: "v_attestations_bloquees_documents"
             referencedColumns: ["lotissement_id"]
           },
         ]
@@ -955,7 +955,7 @@ export type Database = {
             foreignKeyName: "cvgfr_lotissement_id_fkey"
             columns: ["lotissement_id"]
             isOneToOne: false
-            referencedRelation: "v_attestations_bloquees_sans_apfc"
+            referencedRelation: "v_attestations_bloquees_documents"
             referencedColumns: ["lotissement_id"]
           },
         ]
@@ -1704,7 +1704,7 @@ export type Database = {
             foreignKeyName: "ilots_lotissement_id_fkey"
             columns: ["lotissement_id"]
             isOneToOne: false
-            referencedRelation: "v_attestations_bloquees_sans_apfc"
+            referencedRelation: "v_attestations_bloquees_documents"
             referencedColumns: ["lotissement_id"]
           },
         ]
@@ -2041,9 +2041,9 @@ export type Database = {
           commune: string | null
           cree_le: string
           date_leve_topographique: string | null
-          derogation_apfc_le: string | null
-          derogation_apfc_motif: string | null
-          derogation_apfc_par: string | null
+          derogation_documents_le: string | null
+          derogation_documents_motif: string | null
+          derogation_documents_par: string | null
           district: string | null
           famille_id: string | null
           geometre_expert: string | null
@@ -2079,9 +2079,9 @@ export type Database = {
           commune?: string | null
           cree_le?: string
           date_leve_topographique?: string | null
-          derogation_apfc_le?: string | null
-          derogation_apfc_motif?: string | null
-          derogation_apfc_par?: string | null
+          derogation_documents_le?: string | null
+          derogation_documents_motif?: string | null
+          derogation_documents_par?: string | null
           district?: string | null
           famille_id?: string | null
           geometre_expert?: string | null
@@ -2117,9 +2117,9 @@ export type Database = {
           commune?: string | null
           cree_le?: string
           date_leve_topographique?: string | null
-          derogation_apfc_le?: string | null
-          derogation_apfc_motif?: string | null
-          derogation_apfc_par?: string | null
+          derogation_documents_le?: string | null
+          derogation_documents_motif?: string | null
+          derogation_documents_par?: string | null
           district?: string | null
           famille_id?: string | null
           geometre_expert?: string | null
@@ -2155,8 +2155,8 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "lotissements_derogation_apfc_par_fkey"
-            columns: ["derogation_apfc_par"]
+            foreignKeyName: "lotissements_derogation_documents_par_fkey"
+            columns: ["derogation_documents_par"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2858,7 +2858,7 @@ export type Database = {
             foreignKeyName: "propositions_ia_lotissement_id_fkey"
             columns: ["lotissement_id"]
             isOneToOne: false
-            referencedRelation: "v_attestations_bloquees_sans_apfc"
+            referencedRelation: "v_attestations_bloquees_documents"
             referencedColumns: ["lotissement_id"]
           },
           {
@@ -3262,7 +3262,7 @@ export type Database = {
             foreignKeyName: "soumissions_saisie_lotissement_id_fkey"
             columns: ["lotissement_id"]
             isOneToOne: false
-            referencedRelation: "v_attestations_bloquees_sans_apfc"
+            referencedRelation: "v_attestations_bloquees_documents"
             referencedColumns: ["lotissement_id"]
           },
           {
@@ -3770,13 +3770,15 @@ export type Database = {
           },
         ]
       }
-      v_attestations_bloquees_sans_apfc: {
+      v_attestations_bloquees_documents: {
         Row: {
           attributaire_id: string | null
           depuis: string | null
           lot_id: string | null
           lotissement: string | null
           lotissement_id: string | null
+          manques: string[] | null
+          score: number | null
         }
         Relationships: [
           {
@@ -3912,7 +3914,7 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: Json
       }
-      accorder_derogation_apfc: {
+      accorder_derogation_documents: {
         Args: { p_lotissement_id: string; p_motif: string }
         Returns: undefined
       }
@@ -4075,6 +4077,10 @@ export type Database = {
         Args: { p_lot_id: string; p_message?: string }
         Returns: string
       }
+      manques_documentaires_lot: {
+        Args: { p_lot_id: string }
+        Returns: string[]
+      }
       marquer_attestation_delivree: {
         Args: { p_id: string }
         Returns: undefined
@@ -4096,6 +4102,10 @@ export type Database = {
           lotissement: string
           numero_lot: string
         }[]
+      }
+      message_refus_documentaire: {
+        Args: { p_lot_id: string }
+        Returns: string
       }
       mon_attributaire_id: { Args: never; Returns: string }
       mon_commissaire_id: { Args: never; Returns: string }
@@ -4137,7 +4147,7 @@ export type Database = {
         Args: { p_commentaire?: string; p_id: string }
         Returns: undefined
       }
-      retirer_derogation_apfc: {
+      retirer_derogation_documents: {
         Args: { p_lotissement_id: string }
         Returns: undefined
       }
