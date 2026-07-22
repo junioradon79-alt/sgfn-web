@@ -76,13 +76,21 @@ export default function ValidationsPage() {
 
   const { isLoading, recharger } = useChargement(fetchData, [autoriteId], !!autoriteId);
 
+  /**
+   * Passe par la RPC `signer_attestation` et non par un `update` direct.
+   * L'ancienne version était **inopérante depuis toujours** : la chefferie n'a
+   * qu'une policy SELECT sur `attestations_cession`, et sous RLS un update sans
+   * policy ne lève aucune erreur — il touche 0 ligne. Comme le code ne testait
+   * que `error`, l'écran affichait un succès et la pastille restait grise.
+   * La RPC, elle, lève une exception explicite si le droit manque.
+   */
   const signerAttestation = async (id: string) => {
     setSigning(id);
     setSignError(null);
-    const { error } = await supabase
-      .from("attestations_cession")
-      .update({ sig_chefferie_le: new Date().toISOString() })
-      .eq("id", id);
+    const { error } = await supabase.rpc("signer_attestation", {
+      p_id: id,
+      p_signature: "chefferie",
+    });
     if (error) setSignError(`Signature non enregistrée : ${error.message}`);
     setSigning(null);
     void recharger();

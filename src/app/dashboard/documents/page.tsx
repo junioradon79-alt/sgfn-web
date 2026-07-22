@@ -52,9 +52,24 @@ type AttestationRow = {
   sig_operateur_le: string | null;
   sig_chefferie_le: string | null;
   qr_token: string | null;
-  lots: { numero_lot: string | null; ilots: { numero: string | null; lotissements: { nom: string | null } | null } | null } | null;
+  lots: {
+    numero_lot: string | null;
+    ilots: {
+      numero: string | null;
+      /** `signatures_requises` varie par lotissement — Koelea-Accor revu n'en
+       *  exige que 2 (sans l'opérateur), la norme est à 3. */
+      lotissements: { nom: string | null; signatures_requises: string[] | null } | null;
+    } | null;
+  } | null;
   attributaires: { nom: string | null } | null;
 };
+
+/** Clés de `lotissements.signatures_requises`, dans l'ordre d'affichage. */
+const SIGNATURES = [
+  { cle: "proprietaire", label: "Propriétaire terrien" },
+  { cle: "operateur", label: "Opérateur" },
+  { cle: "chefferie", label: "Chefferie" },
+] as const;
 
 type PvRow = {
   id: string;
@@ -142,30 +157,86 @@ const TH_CLASS = "bg-inset px-5 py-3 text-left text-[10.5px] font-bold uppercase
 
 // ─── Indicateur de signature ──────────────────────────────────────────────────
 
-function SigDots({ proprietaire, operateur, chefferie }: { proprietaire: string | null; operateur: string | null; chefferie: string | null }) {
-  const sigs = [
-    { label: "Propriétaire", date: proprietaire },
-    { label: "Opérateur", date: operateur },
-    { label: "Chefferie", date: chefferie },
-  ];
-  const signed = sigs.filter((s) => s.date).length;
+/**
+ * Signatures **constatées** : le document est signé sur papier, on enregistre
+ * seulement qu'elles y figurent (et qui l'a constaté). La signature
+ * électronique reste hors scope — voir la migration du 22/07.
+ *
+ * Le dénominateur suit le lotissement : `n/2` sur Koelea-Accor revu, `n/3`
+ * ailleurs. Une signature non requise s'affiche en creux et non en « manquante »,
+ * sans quoi Koelea-Accor semblerait éternellement incomplet.
+ */
+function SigDots({
+  att,
+  onSigner,
+  enCours,
+}: {
+  att: AttestationRow;
+  onSigner?: (att: AttestationRow, signature: string) => void;
+  enCours?: string | null;
+}) {
+  const requises =
+    att.lots?.ilots?.lotissements?.signatures_requises ?? ["proprietaire", "operateur", "chefferie"];
+  const dateDe: Record<string, string | null> = {
+    proprietaire: att.sig_proprietaire_le,
+    operateur: att.sig_operateur_le,
+    chefferie: att.sig_chefferie_le,
+  };
+  const signeesRequises = requises.filter((c) => dateDe[c]).length;
+  const revoquee = att.statut === "revoquee";
+
   return (
     <div className="flex items-center gap-1.5">
-      {sigs.map((s) => (
-        <div
-          key={s.label}
-          title={s.date ? `${s.label} — ${fmtDate(s.date)}` : `${s.label} — non signé`}
-          className={`h-2.5 w-2.5 rounded-full ${s.date ? "bg-success" : "bg-border"}`}
-        />
-      ))}
-      <span className="ml-1 text-xs text-muted-2">{signed}/3</span>
+      {SIGNATURES.map((s) => {
+        const requise = requises.includes(s.cle);
+        const date = dateDe[s.cle];
+        const cliquable = Boolean(onSigner) && requise && !date && !revoquee;
+        const titre = !requise
+          ? `${s.label} — non requise pour ce lotissement`
+          : date
+            ? `${s.label} — constatée le ${fmtDate(date)}`
+            : cliquable
+              ? `${s.label} — cliquer pour constater la signature sur le document papier`
+              : `${s.label} — non signée`;
+        const pastille = (
+          <span
+            title={titre}
+            className={`block h-2.5 w-2.5 rounded-full ${
+              !requise
+                ? "border border-dashed border-border bg-transparent"
+                : date
+                  ? "bg-success"
+                  : "bg-border"
+            }`}
+          />
+        );
+        return cliquable ? (
+          <button
+            key={s.cle}
+            type="button"
+            onClick={() => onSigner?.(att, s.cle)}
+            disabled={enCours === `${att.id}:${s.cle}`}
+            aria-label={titre}
+            className="rounded-full p-0.5 transition hover:bg-inset disabled:opacity-50"
+          >
+            {pastille}
+          </button>
+        ) : (
+          <span key={s.cle} className="p-0.5">
+            {pastille}
+          </span>
+        );
+      })}
+      <span className="ml-1 text-xs text-muted-2">
+        {signeesRequises}/{requises.length}
+      </span>
     </div>
   );
 }
 
 // ─── Onglet Attestations ──────────────────────────────────────────────────────
 
-function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer }: {
+function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer, onSigner, signatureEnCours, erreurAction }: {
   rows: AttestationRow[];
   dlState: DlState;
   remiseState: DlState;
@@ -174,6 +245,10 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
   onMarquerDelivree: (id: string) => void;
   /** Réservé à l'admin — absent pour les autres rôles. */
   onRevoquer?: (att: AttestationRow) => void;
+  /** Constater une signature — admin, opérateur, et chefferie pour la sienne. */
+  onSigner?: (att: AttestationRow, signature: string) => void;
+  signatureEnCours?: string | null;
+  erreurAction?: string | null;
 }) {
   if (rows.length === 0) {
     return (
@@ -185,6 +260,11 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
   }
   return (
     <div className="overflow-x-auto">
+      {erreurAction && (
+        <p className="mx-5 mb-3 rounded-xl border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">
+          {erreurAction}
+        </p>
+      )}
       <table className="w-full min-w-[800px] text-sm">
         <thead>
           <tr className="border-b border-border">
@@ -224,11 +304,7 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
                   </Badge>
                 </td>
                 <td className="px-5 py-3.5">
-                  <SigDots
-                    proprietaire={att.sig_proprietaire_le}
-                    operateur={att.sig_operateur_le}
-                    chefferie={att.sig_chefferie_le}
-                  />
+                  <SigDots att={att} onSigner={onSigner} enCours={signatureEnCours} />
                 </td>
                 <td className="px-5 py-3.5 text-muted-2">
                   {fmtDate(att.date_emission ?? att.cree_le)}
@@ -615,6 +691,8 @@ export default function DocumentsPage() {
   const [dlState, setDlState] = useState<DlState>({});
   const [remiseState, setRemiseState] = useState<DlState>({});
   const [aRevoquer, setARevoquer] = useState<AttestationRow | null>(null);
+  const [signatureEnCours, setSignatureEnCours] = useState<string | null>(null);
+  const [erreurAction, setErreurAction] = useState<string | null>(null);
   const [qrAtt, setQrAtt] = useState<AttestationRow | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [apercuUrls, setApercuUrls] = useState<Record<string, string>>({});
@@ -630,7 +708,7 @@ export default function DocumentsPage() {
       supabase
         .from("attestations_cession")
         .select(
-          "id, reference, statut, date_emission, cree_le, sig_proprietaire_le, sig_operateur_le, sig_chefferie_le, qr_token, lots(numero_lot, ilots(numero, lotissements(nom))), attributaires(nom)"
+          "id, reference, statut, date_emission, cree_le, sig_proprietaire_le, sig_operateur_le, sig_chefferie_le, qr_token, lots(numero_lot, ilots(numero, lotissements(nom, signatures_requises))), attributaires(nom)"
         )
         .order("cree_le", { ascending: false }),
       supabase
@@ -725,10 +803,36 @@ export default function DocumentsPage() {
     return null;
   };
 
+  /**
+   * Constater une signature portée sur le document papier. Passe par une RPC
+   * et non par un `update` direct : la chefferie n'a qu'une policy SELECT sur
+   * `attestations_cession`, et un update bloqué par RLS ne lève AUCUNE erreur
+   * — il touche 0 ligne en silence. C'est ce qui rendait l'ancien bouton de
+   * `/dashboard/validations` inopérant sans que personne ne le voie.
+   */
+  const signerAttestation = async (att: AttestationRow, signature: string) => {
+    setSignatureEnCours(`${att.id}:${signature}`);
+    setErreurAction(null);
+    const { error } = await supabase.rpc("signer_attestation", {
+      p_id: att.id,
+      p_signature: signature,
+    });
+    setSignatureEnCours(null);
+    if (error) {
+      setErreurAction(error.message);
+      return;
+    }
+    void load();
+  };
+
   const marquerDelivree = async (id: string) => {
     setRemiseState((s) => ({ ...s, [id]: "loading" }));
+    setErreurAction(null);
     const { error } = await supabase.rpc("marquer_attestation_delivree", { p_id: id });
     if (error) {
+      // Le refus nomme les signatures manquantes : le montrer, plutôt que de
+      // laisser un bouton qui clignote en rouge sans dire pourquoi.
+      setErreurAction(error.message);
       setRemiseState((s) => ({ ...s, [id]: "error" }));
       setTimeout(() => setRemiseState((s) => ({ ...s, [id]: "idle" })), 2500);
       return;
@@ -875,6 +979,9 @@ export default function DocumentsPage() {
               dlState={dlState}
               remiseState={remiseState}
               onRevoquer={isAdmin ? setARevoquer : undefined}
+              onSigner={signerAttestation}
+              signatureEnCours={signatureEnCours}
+              erreurAction={erreurAction}
               onDownload={telecharger}
               onShowQr={setQrAtt}
               onMarquerDelivree={marquerDelivree}

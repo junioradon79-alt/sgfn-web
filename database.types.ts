@@ -85,6 +85,7 @@ export type Database = {
           cree_le: string
           date_emission: string | null
           delivree_le: string | null
+          delivree_par: string | null
           id: string
           lot_id: string
           motif_revocation: string | null
@@ -93,8 +94,11 @@ export type Database = {
           revoquee_le: string | null
           revoquee_par: string | null
           sig_chefferie_le: string | null
+          sig_chefferie_par: string | null
           sig_operateur_le: string | null
+          sig_operateur_par: string | null
           sig_proprietaire_le: string | null
+          sig_proprietaire_par: string | null
           statut: Database["public"]["Enums"]["statut_att_cession"]
         }
         Insert: {
@@ -104,6 +108,7 @@ export type Database = {
           cree_le?: string
           date_emission?: string | null
           delivree_le?: string | null
+          delivree_par?: string | null
           id?: string
           lot_id: string
           motif_revocation?: string | null
@@ -112,8 +117,11 @@ export type Database = {
           revoquee_le?: string | null
           revoquee_par?: string | null
           sig_chefferie_le?: string | null
+          sig_chefferie_par?: string | null
           sig_operateur_le?: string | null
+          sig_operateur_par?: string | null
           sig_proprietaire_le?: string | null
+          sig_proprietaire_par?: string | null
           statut?: Database["public"]["Enums"]["statut_att_cession"]
         }
         Update: {
@@ -123,6 +131,7 @@ export type Database = {
           cree_le?: string
           date_emission?: string | null
           delivree_le?: string | null
+          delivree_par?: string | null
           id?: string
           lot_id?: string
           motif_revocation?: string | null
@@ -131,8 +140,11 @@ export type Database = {
           revoquee_le?: string | null
           revoquee_par?: string | null
           sig_chefferie_le?: string | null
+          sig_chefferie_par?: string | null
           sig_operateur_le?: string | null
+          sig_operateur_par?: string | null
           sig_proprietaire_le?: string | null
+          sig_proprietaire_par?: string | null
           statut?: Database["public"]["Enums"]["statut_att_cession"]
         }
         Relationships: [
@@ -165,6 +177,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "attestations_cession_delivree_par_fkey"
+            columns: ["delivree_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "attestations_cession_lot_id_fkey"
             columns: ["lot_id"]
             isOneToOne: false
@@ -174,6 +193,27 @@ export type Database = {
           {
             foreignKeyName: "attestations_cession_revoquee_par_fkey"
             columns: ["revoquee_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_cession_sig_chefferie_par_fkey"
+            columns: ["sig_chefferie_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_cession_sig_operateur_par_fkey"
+            columns: ["sig_operateur_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_cession_sig_proprietaire_par_fkey"
+            columns: ["sig_proprietaire_par"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1993,6 +2033,7 @@ export type Database = {
           pv_identification_physique_scan_url: string | null
           pv_numero_enregistrement: string | null
           reference_plan: string | null
+          signatures_requises: string[]
           superficie_m2: number | null
           superficie_texte: string | null
           tf_numero: string | null
@@ -2027,6 +2068,7 @@ export type Database = {
           pv_identification_physique_scan_url?: string | null
           pv_numero_enregistrement?: string | null
           reference_plan?: string | null
+          signatures_requises?: string[]
           superficie_m2?: number | null
           superficie_texte?: string | null
           tf_numero?: string | null
@@ -2061,6 +2103,7 @@ export type Database = {
           pv_identification_physique_scan_url?: string | null
           pv_numero_enregistrement?: string | null
           reference_plan?: string | null
+          signatures_requises?: string[]
           superficie_m2?: number | null
           superficie_texte?: string | null
           tf_numero?: string | null
@@ -3787,6 +3830,10 @@ export type Database = {
         Args: { p_reference: string }
         Returns: Json
       }
+      annuler_signature_attestation: {
+        Args: { p_id: string; p_signature: string }
+        Returns: undefined
+      }
       approuver_demande_geometre: { Args: { p_id: string }; Returns: Json }
       approuver_soumission: {
         Args: { p_commentaire?: string; p_id: string }
@@ -3996,6 +4043,10 @@ export type Database = {
       score_confiance_lot: { Args: { p_lot_id: string }; Returns: number }
       sgfn_call_edge: {
         Args: { p_payload: Json; p_slug: string }
+        Returns: undefined
+      }
+      signer_attestation: {
+        Args: { p_id: string; p_signature: string }
         Returns: undefined
       }
       soumettre_saisie: {
