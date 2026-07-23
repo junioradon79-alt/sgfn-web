@@ -24,6 +24,7 @@
 sgfn-deploy*.tar.gz
 sgfn-deploy.*
 src.zip
+*.apk
 
 # manuel utilisateur genere (captures + PDF, artefact genere, livre hors git)
 /manuel-utilisateur/

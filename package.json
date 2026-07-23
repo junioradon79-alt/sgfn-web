@@ -10,7 +10,8 @@
     "lint": "eslint",
     "build:mobile": "next build && npx cap sync android",
     "cap:sync": "npx cap sync android",
-    "cap:open": "npx cap open android"
+    "cap:open": "npx cap open android",
+    "android:prepare": "npx cap sync android && node scripts/android-webdir.mjs"
   },
   "dependencies": {
     "@capacitor-mlkit/barcode-scanning": "^8.1.0",
