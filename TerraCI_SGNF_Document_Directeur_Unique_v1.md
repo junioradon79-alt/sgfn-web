@@ -1,6 +1,6 @@
 # TerraCI × SGNF — Document Directeur Unique
 
-**Version 1.41 — 23 juillet 2026**
+**Version 1.42 — 23 juillet 2026**
 
 > Cette version fusionne la v1.0 (vision stratégique TerraCI + état des lieux SGNF du matin du 07/07) et la Fiche projet SGNF (journal opérationnel détaillé) en **une seule référence de pilotage**. Les deux documents séparés sont désormais obsolètes : ce fichier est la référence unique pour comprendre où en est le projet, ce qui a été décidé stratégiquement, et ce qu'il reste à faire. La référence technique détaillée (schéma, conventions, pièges connus) reste le dossier `docs/` du repo `sgfn-web`, consolidé en PDF dans `docs/pdf/Dossier_Passation_SGNF.pdf`.
 
@@ -721,6 +721,14 @@ Quatre chantiers menés dans la nuit puis vérifiés et livrés le 22/07 : rendr
 
 **Deux points laissés ouverts.** (1) La **traçabilité de la remise** : `delivree_le` existe, `delivree_par` non — on sait quand une attestation a été remise, jamais par qui, alors que c'est précisément l'acte sorti de l'automatisme le 13/07 pour qu'il engage un humain ; même chose pour les trois signatures, horodatées sans auteur. (2) **Les signatures ne conditionnent pas la délivrance** : `marquer_attestation_delivree` ne vérifie que `statut='generee'`, on peut donc délivrer une attestation que personne n'a signée — reste à trancher si c'est voulu (la signature papier fait foi, l'application ne fait que tracer) ou si c'est un oubli.
 
+### Session du 23/07/2026 (début) — Bug acquéreur héritant d'un attributaire, clôture de 3 cessions historiques Koelea, APK v1.1.4
+
+**Bug signalé par le user à la connexion** : un compte Acquéreur fraîchement créé se voyait « propriétaire » de 23 parcelles. Cause à quatre maillons : le formulaire d'invitation Acquéreur portait un `attributaire_id` (celui du vendeur) → recopié tel quel par `handle_new_user()` sur le nouveau profil → l'app (web et mobile) charge les lots de cet `attributaire_id` → l'acquéreur voit les 23 parcelles du vendeur. **Corrigé et déployé en prod** : 2 invitations historiques déliées en base, formulaire front corrigé, et surtout une **contrainte fail-closed** `invitations_check` (`groupe <> 'acquereur' or attributaire_id is null`) qui bloque la classe d'erreur entière même si un futur formulaire régresse. `f493f21`, déploiement vérifié par diff de hash de chunks JS (live vs local).
+
+**3 cessions historiques Koelea (lots 31/44/45)**, montants non résolus depuis le dossier de réconciliation Koelea-Accor : sur décision explicite du user, **clôturées/annulées** plutôt que simplement ignorées — les lots restent `vendu`/verrouillés, l'attestation générée exceptionnellement le même jour fait foi.
+
+**APK Android v1.1.4** rebuild + vérifiée sur appareil réel (voir tableau §3, TerraCI Mobile) : corrige le lien mort « Voir le Passeport complet » dans le Registre foncier natif.
+
 ### Session du 23/07/2026 (fin) — Refonte des Niveaux d'attestation (1/2/3) et signature Chefferie payante
 
 Le verrou du 22/07 (score de confiance 100/100 pour tout émettre) bloquait les deux seuls lotissements existants (Brignan 20/100, Koelea 60/100). Le user en a profité pour trancher un point resté ouvert depuis le dossier Koelea : distinguer succession familiale et vente réelle plutôt que de tout traiter par le seul `rang`. Conçu en mode plan (3 agents d'exploration, 1 agent de conception, vérifications directes en base), implémenté et testé dans la foulée.
@@ -733,7 +741,9 @@ Le verrou du 22/07 (score de confiance 100/100 pour tout émettre) bloquait les 
 
 **Vérifié bout-en-bout en SQL brut** sur un vrai lot Koelea, dans une transaction forcée à s'annuler (`RAISE EXCEPTION` final) : dérogation → promotion Niveau 2 gratuite → signature bloquée sans paiement (message exact vérifié) → débloquée après confirmation → transfert réel → bascule Niveau 3 payante avec remise à zéro des signatures et du paiement, nouveau paiement créé, PDF régénéré → vérification QR redirigée correctement. `tsc`/`eslint` propres.
 
-**Laissé ouvert** : pas déployé sur le web (base et edge functions seules à jour), pas vérifié au navigateur (aucun outil Playwright cette session), le rattrapage rétroactif renverra 0 tant que le PV de répartition/identification n'est pas saisi pour au moins un des deux lotissements, gabarit PDFMonkey réel de l'Attestation d'Attribution de Lot pas encore créé (repli HTML interne), préfixe de référence et libellés PDF à valider avec le user avant impression réelle.
+**Déployé et committé le 23/07 (~20h05)** : build web + tar.gz + upload cPanel, vérifié sur le **contenu réel** (chunk `36bfm91942ucp.js` téléchargé depuis `sgfn.ci` contient bien `attestation_attribution`/`nom_identifie_physique`, pas seulement un code HTTP 200) ; commit `b784442` (17 fichiers, 7 migrations + 2 edge functions + 5 fichiers front + `database.types.ts`).
+
+**Laissé ouvert** : pas vérifié au navigateur (aucun outil Playwright cette session, seulement le contenu statique), le rattrapage rétroactif renverra 0 tant que le PV de répartition/identification n'est pas saisi pour au moins un des deux lotissements, gabarit PDFMonkey réel de l'Attestation d'Attribution de Lot pas encore créé (repli HTML interne), préfixe de référence et libellés PDF à valider avec le user avant impression réelle.
 
 ### Chantiers précédents (03/07, toujours d'actualité)
 
