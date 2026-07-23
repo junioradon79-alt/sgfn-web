@@ -6,11 +6,11 @@
 // lourdes ouvrent la page web du dashboard.
 
 import { useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Gauge, ClipboardList, ScanLine, MessageSquare, User } from "lucide-react";
 
 import { useAdminOverview } from "@/hooks/useAdminOverview";
 import { TabBar, type TabItem } from "./components/TabBar";
+import { useWebNav } from "./data/useWebNav";
 import { MessagesScreen } from "./screens/MessagesScreen";
 import { ChatScreen } from "./screens/ChatScreen";
 import { NotificationsScreen } from "./screens/NotificationsScreen";
@@ -24,7 +24,7 @@ type Tab = "pilotage" | "files" | "messages" | "profile";
 type Overlay = { kind: "chat"; convId: string } | { kind: "notifications" } | { kind: "perimetres" } | null;
 
 export function AdminApp({ data, dark, toggleDark, verify, logout, openProfilComplet }: ExperienceProps) {
-  const router = useRouter();
+  const openWeb = useWebNav();
   const overview = useAdminOverview(true);
   const [tab, setTab] = useState<Tab>("pilotage");
   const [overlay, setOverlay] = useState<Overlay>(null);
@@ -44,7 +44,6 @@ export function AdminApp({ data, dark, toggleDark, verify, logout, openProfilCom
     },
     [data]
   );
-  const openWeb = useCallback((path: string) => router.push(path), [router]);
 
   const unread = data.convos.reduce(
     (n, c) => n + (c.messages || []).filter((m) => !m.lu && m.expediteur !== data.userId).length,

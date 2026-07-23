@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, type FormEvent, type ReactNode } from "react";
-import Link from "next/link";
 import { KeyRound, Loader2, CheckCircle2, Eye, EyeOff, HelpCircle } from "lucide-react";
 import { BarHeader } from "../components/MobileHeader";
 import { groupeLabel } from "../data/mappers";
+import { useWebNav } from "../data/useWebNav";
 import type { InscriptionPayload } from "../data/useMobileData";
 
 type Step = "code" | "form" | "success";
@@ -20,6 +20,7 @@ export function SignupScreen({
   onInscrire: (p: InscriptionPayload) => Promise<{ ok: boolean; error?: string; needsConfirm?: boolean }>;
   onLogin: () => void;
 }) {
+  const goWeb = useWebNav();
   const [step, setStep] = useState<Step>("code");
   const [estPublic, setEstPublic] = useState(false);
   const [code, setCode] = useState("");
@@ -156,9 +157,9 @@ export function SignupScreen({
               <button type="button" onClick={passerEnPublic} className="font-semibold text-accent">
                 Pas de code ? Créer un compte acquéreur
               </button>
-              <Link href="/devenir-geometre/" className="text-muted-foreground">
+              <button type="button" onClick={() => goWeb("/devenir-geometre/")} className="text-muted-foreground">
                 Vous êtes géomètre-expert ? Faire une demande.
-              </Link>
+              </button>
             </div>
           </form>
         )}

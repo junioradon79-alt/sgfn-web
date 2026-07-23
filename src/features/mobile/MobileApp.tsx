@@ -6,10 +6,10 @@
 // rôle du compte (`profiles.groupe`) : Admin → AdminApp, sinon → CitizenApp.
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 import { useMobileData } from "./data/useMobileData";
+import { useWebNav } from "./data/useWebNav";
 import { Toast } from "./components/Toast";
 import { LandingScreen } from "./screens/LandingScreen";
 import { LoginScreen } from "./screens/LoginScreen";
@@ -21,7 +21,7 @@ const MARKET_URL = "https://monterrain.sgfn.ci";
 const THEME_KEY = "sgnf-mobile-theme";
 
 export function MobileApp() {
-  const router = useRouter();
+  const goWeb = useWebNav();
   const data = useMobileData();
 
   const [toast, setToast] = useState<string | null>(null);
@@ -57,11 +57,11 @@ export function MobileApp() {
   const flash = useCallback((msg: string) => setToast(msg), []);
 
   // Navigation partagée (liens sortants + déconnexion).
-  const verify = useCallback(() => router.push("/verifier/"), [router]);
+  const verify = useCallback(() => goWeb("/verifier/"), [goWeb]);
   const openMarket = useCallback(() => {
     if (typeof window !== "undefined") window.open(MARKET_URL, "_blank", "noopener,noreferrer");
   }, []);
-  const openProfilComplet = useCallback(() => router.push("/dashboard/profil/"), [router]);
+  const openProfilComplet = useCallback(() => goWeb("/dashboard/profil/"), [goWeb]);
   const logout = useCallback(async () => {
     await data.deconnexion();
     setUnauthView("landing");

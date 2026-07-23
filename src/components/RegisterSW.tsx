@@ -1,14 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-
-// Détecte l'app native Capacitor. Le bridge natif injecte `window.Capacitor`
-// (avec isNativePlatform) dans la WebView avant tout script de l'app.
-function isCapacitorNative(): boolean {
-  if (typeof window === "undefined") return false;
-  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-  return typeof cap?.isNativePlatform === "function" ? cap.isNativePlatform() : Boolean(cap);
-}
+import { isCapacitorNative } from "@/lib/capacitor";
 
 export function RegisterSW() {
   useEffect(() => {
