@@ -3,13 +3,16 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  AlertTriangle, ArrowRightLeft, Banknote, Boxes, Eye, FileWarning, Lock, Plus, Search,
+  AlertTriangle, ArrowRightLeft, Banknote, Boxes, Eye, FileWarning, Lock, Plus, Search, ShieldAlert,
 } from "lucide-react";
 
 import { AppShell } from "@/components/pilotage/AppShell";
 import { Badge } from "@/components/ds/badge";
 import { Button } from "@/components/ds/button";
 import { Card } from "@/components/ds/card";
+import {
+  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ds/dialog";
 import { EmptyState } from "@/components/ds/empty-state";
 import { Input, Textarea } from "@/components/ds/input";
 import { Kpi } from "@/components/ds/kpi";
@@ -290,6 +293,126 @@ function CessionModal({
   );
 }
 
+// ─── Génération exceptionnelle (admin) ─────────────────────────────────────────
+// Chemin direct pour ce qui, jusqu'au 23/07, ne se faisait qu'en SQL manuel :
+// débloquer une attestation malgré un dossier documentaire incomplet, lot par
+// lot, sans passer par la dérogation du lotissement entier. La RPC
+// `generer_attestation_exceptionnelle` fait le titulaire actuel gagnant quel
+// que soit son rang (succession comme revente) et trace motif/auteur/date
+// directement sur l'attestation — voir la migration du 23/07.
+
+type ResultatGenerationExceptionnelle = {
+  succes: number;
+  echecs: { lot: string; message: string }[];
+};
+
+function GenerationExceptionnelleModal({ lots, onClose, onConfirm }: {
+  lots: LotRecord[];
+  onClose: () => void;
+  onConfirm: (motif: string) => Promise<ResultatGenerationExceptionnelle>;
+}) {
+  const [motif, setMotif] = useState("");
+  const [enCours, setEnCours] = useState(false);
+  const [resultat, setResultat] = useState<ResultatGenerationExceptionnelle | null>(null);
+  const motifValide = motif.trim().length >= 10;
+
+  const confirmer = async () => {
+    if (!motifValide) return;
+    setEnCours(true);
+    const r = await onConfirm(motif.trim());
+    setEnCours(false);
+    setResultat(r);
+  };
+
+  return (
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert && !enCours) onClose(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <p className="text-[11px] font-bold tracking-[0.18em] text-warning uppercase">Admin — hors chemin normal</p>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldAlert className="size-5" aria-hidden />
+            Génération exceptionnelle d&apos;attestation
+          </DialogTitle>
+          <DialogDescription>
+            {lots.length} lot{lots.length > 1 ? "s" : ""} sélectionné{lots.length > 1 ? "s" : ""}
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogBody className="space-y-4">
+          {!resultat ? (
+            <>
+              <Avertissement>
+                Génère directement l&apos;attestation du titulaire actuel de chaque lot — quel que soit son
+                rang — sans passer par le score de confiance du lotissement ni par une cession payante.
+                Réservez ceci aux dossiers dont la transaction réelle est déjà établie (succession, vente déjà
+                actée) mais bloqués par un document manquant (PV, APFC…).
+              </Avertissement>
+
+              <div className="max-h-32 space-y-0.5 overflow-y-auto rounded-xl border border-border bg-inset p-3 text-xs text-muted-foreground">
+                {lots.map((l) => (
+                  <p key={l.id}>
+                    Lot {l.numero_lot}
+                    {l.ilots?.numero ? ` · Îlot ${l.ilots.numero}` : ""}
+                    {l.ilots?.lotissements?.nom ? ` — ${l.ilots.lotissements.nom}` : ""}
+                  </p>
+                ))}
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="motif-exception" className="text-sm font-medium text-foreground">
+                  Motif de la génération exceptionnelle
+                </label>
+                <Textarea
+                  id="motif-exception"
+                  value={motif}
+                  rows={3}
+                  onChange={(e) => setMotif(e.target.value)}
+                  placeholder="Ex. Attestations déjà mentionnées « délivrées » au guide de répartition ; dossier documentaire du lotissement incomplet (PV manquants)."
+                />
+                <p className="text-xs text-muted-2">
+                  Conservé sur chaque attestation avec votre nom et l&apos;horodatage.{" "}
+                  {motif.trim().length < 10 && `${10 - motif.trim().length} caractère(s) manquant(s).`}
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-2 text-sm">
+              {resultat.succes > 0 && (
+                <p className="rounded-xl border border-success/25 bg-success-subtle px-4 py-2.5 text-success">
+                  {resultat.succes} attestation{resultat.succes > 1 ? "s" : ""} générée{resultat.succes > 1 ? "s" : ""}.
+                </p>
+              )}
+              {resultat.echecs.length > 0 && (
+                <div className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-2.5 text-danger">
+                  <p className="font-medium">{resultat.echecs.length} échec{resultat.echecs.length > 1 ? "s" : ""} :</p>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                    {resultat.echecs.map((e, i) => (
+                      <li key={i}>{e.lot} — {e.message}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogBody>
+
+        <DialogFooter>
+          {!resultat ? (
+            <>
+              <Button type="button" variant="outline" onClick={onClose} disabled={enCours}>Annuler</Button>
+              <Button type="button" variant="primary" onClick={confirmer} disabled={!motifValide || enCours} loading={enCours}>
+                Générer{lots.length > 1 ? ` (${lots.length})` : ""}
+              </Button>
+            </>
+          ) : (
+            <Button type="button" variant="primary" onClick={onClose}>Fermer</Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const TABLE_HEADERS = ["Lot", "Lotissement & Localité", "Attributaire", "Statut", "Actions"] as const;
@@ -324,6 +447,8 @@ export default function LotsPage() {
   const [transfertLot, setTransfertLot] = useState<LotRecord | null>(null);
   const [litigeLot, setLitigeLot] = useState<LotRecord | null>(null);
   const [cessionLot, setCessionLot] = useState<LotRecord | null>(null);
+  const [selectionException, setSelectionException] = useState<Set<string>>(new Set());
+  const [modaleExceptionOuverte, setModaleExceptionOuverte] = useState(false);
 
   // Create form
   const [formState, setFormState] = useState(EMPTY_FORM);
@@ -366,7 +491,7 @@ export default function LotsPage() {
       fetchAllPages<AttestRow>((from, to) =>
         supabase
           .from("attestations_cession")
-          .select("lot_id, reference, statut, cession_id")
+          .select("lot_id, reference, statut, cession_id, exception, exception_le")
           .order("id", { ascending: true })
           .range(from, to) as unknown as PromiseLike<{ data: AttestRow[] | null }>
       ),
@@ -596,6 +721,33 @@ export default function LotsPage() {
     return null;
   };
 
+  const basculerSelectionException = (lotId: string) => {
+    setSelectionException((s) => {
+      const next = new Set(s);
+      if (next.has(lotId)) next.delete(lotId); else next.add(lotId);
+      return next;
+    });
+  };
+
+  const genererExceptionnellement = async (motif: string) => {
+    const lots = scopedRows.filter((l) => selectionException.has(l.id));
+    const echecs: { lot: string; message: string }[] = [];
+    let succes = 0;
+    for (const lot of lots) {
+      const { error } = await supabase.rpc("generer_attestation_exceptionnelle", {
+        p_lot_id: lot.id,
+        p_motif: motif,
+      });
+      if (error) echecs.push({ lot: `Lot ${lot.numero_lot}`, message: error.message });
+      else succes += 1;
+    }
+    if (succes > 0) {
+      setSelectionException(new Set());
+      await recharger();
+    }
+    return { succes, echecs };
+  };
+
   // Group ilots by lotissement for the select
   const ilotGroups = ilotOptions.reduce<Record<string, IlotOption[]>>((acc, ilot) => {
     const key = ilot.lotissements?.nom ?? "Sans lotissement";
@@ -742,6 +894,37 @@ export default function LotsPage() {
           </motion.button>
         )}
 
+        {/* Barre de sélection — génération exceptionnelle (admin) */}
+        {isAdmin && selectionException.size > 0 && (
+          <motion.div
+            variants={fadeUp}
+            className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/30 bg-warning-subtle px-4 py-3 text-sm text-warning print:hidden"
+          >
+            <ShieldAlert className="size-4 shrink-0" aria-hidden />
+            <span className="font-semibold">
+              {selectionException.size} lot{selectionException.size > 1 ? "s" : ""} sélectionné{selectionException.size > 1 ? "s" : ""}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="ml-auto"
+              onClick={() => setSelectionException(new Set())}
+            >
+              Désélectionner tout
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => setModaleExceptionOuverte(true)}
+            >
+              <ShieldAlert className="size-4" />
+              Génération exceptionnelle
+            </Button>
+          </motion.div>
+        )}
+
         {/* Tableau */}
         <motion.div variants={fadeUp}>
           <Card className="overflow-hidden print:border-none print:shadow-none">
@@ -768,6 +951,22 @@ export default function LotsPage() {
                 <table className="w-full min-w-[860px] border-collapse text-left">
                   <thead className="sticky top-0 z-10">
                     <tr className="border-b border-border bg-inset">
+                      {isAdmin && (
+                        <th scope="col" className="bg-inset px-5 py-3 print:hidden">
+                          <input
+                            type="checkbox"
+                            aria-label="Sélectionner tous les lots affichés"
+                            className="size-4 rounded border-border"
+                            style={{ accentColor: "var(--primary)" }}
+                            checked={displayedRows.length > 0 && displayedRows.every((l) => selectionException.has(l.id))}
+                            onChange={() => {
+                              const idsVisibles = displayedRows.map((l) => l.id);
+                              const touslà = idsVisibles.every((id) => selectionException.has(id));
+                              setSelectionException(touslà ? new Set() : new Set(idsVisibles));
+                            }}
+                          />
+                        </th>
+                      )}
                       {TABLE_HEADERS.map((header) => (
                         <th
                           key={header}
@@ -789,6 +988,18 @@ export default function LotsPage() {
 
                       return (
                         <tr key={lot.id} className="transition-colors hover:bg-inset/70">
+                          {isAdmin && (
+                            <td className="px-5 py-3.5 print:hidden">
+                              <input
+                                type="checkbox"
+                                aria-label={`Sélectionner le lot ${lot.numero_lot}`}
+                                className="size-4 rounded border-border"
+                                style={{ accentColor: "var(--primary)" }}
+                                checked={selectionException.has(lot.id)}
+                                onChange={() => basculerSelectionException(lot.id)}
+                              />
+                            </td>
+                          )}
                           {/* Lot */}
                           <td className="px-5 py-3.5">
                             <p className="text-[13px] font-bold text-foreground">Lot {lot.numero_lot}</p>
@@ -952,6 +1163,14 @@ export default function LotsPage() {
           />
         );
       })()}
+
+      {modaleExceptionOuverte && (
+        <GenerationExceptionnelleModal
+          lots={scopedRows.filter((l) => selectionException.has(l.id))}
+          onClose={() => setModaleExceptionOuverte(false)}
+          onConfirm={genererExceptionnellement}
+        />
+      )}
     </AppShell>
   );
 }

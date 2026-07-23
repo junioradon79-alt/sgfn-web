@@ -86,6 +86,10 @@ export type Database = {
           date_emission: string | null
           delivree_le: string | null
           delivree_par: string | null
+          exception: boolean
+          exception_le: string | null
+          exception_motif: string | null
+          exception_par: string | null
           id: string
           lot_id: string
           motif_revocation: string | null
@@ -109,6 +113,10 @@ export type Database = {
           date_emission?: string | null
           delivree_le?: string | null
           delivree_par?: string | null
+          exception?: boolean
+          exception_le?: string | null
+          exception_motif?: string | null
+          exception_par?: string | null
           id?: string
           lot_id: string
           motif_revocation?: string | null
@@ -132,6 +140,10 @@ export type Database = {
           date_emission?: string | null
           delivree_le?: string | null
           delivree_par?: string | null
+          exception?: boolean
+          exception_le?: string | null
+          exception_motif?: string | null
+          exception_par?: string | null
           id?: string
           lot_id?: string
           motif_revocation?: string | null
@@ -179,6 +191,13 @@ export type Database = {
           {
             foreignKeyName: "attestations_cession_delivree_par_fkey"
             columns: ["delivree_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_cession_exception_par_fkey"
+            columns: ["exception_par"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -4038,6 +4057,42 @@ export type Database = {
         Returns: Json
       }
       finaliser_inscription: { Args: { p_code: string }; Returns: Json }
+      generer_attestation_exceptionnelle: {
+        Args: { p_lot_id: string; p_motif: string }
+        Returns: {
+          acquereur_id: string
+          apfc_id: string | null
+          cession_id: string | null
+          cree_le: string
+          date_emission: string | null
+          delivree_le: string | null
+          delivree_par: string | null
+          exception: boolean
+          exception_le: string | null
+          exception_motif: string | null
+          exception_par: string | null
+          id: string
+          lot_id: string
+          motif_revocation: string | null
+          qr_token: string | null
+          reference: string
+          revoquee_le: string | null
+          revoquee_par: string | null
+          sig_chefferie_le: string | null
+          sig_chefferie_par: string | null
+          sig_operateur_le: string | null
+          sig_operateur_par: string | null
+          sig_proprietaire_le: string | null
+          sig_proprietaire_par: string | null
+          statut: Database["public"]["Enums"]["statut_att_cession"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "attestations_cession"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       generer_attestations_gratuites_manquantes: {
         Args: { p_confirmation?: number }
         Returns: Json

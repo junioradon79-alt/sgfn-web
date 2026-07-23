@@ -50,6 +50,8 @@ export type LotRecord = {
     reference?: string | null;
     statut?: string | null;
     cession_id?: string | null;
+    exception?: boolean | null;
+    exception_le?: string | null;
   }> | null;
 };
 
@@ -232,6 +234,18 @@ export function LotDetailModal({ lot, litiges, score, pvAlert, onClose }: {
               <span className="font-semibold">{attestation.reference}</span>
               <span>· {attestation.statut}</span>
               {!attestation.cession_id && <span className="opacity-80">· gratuite (1er propriétaire d&apos;origine)</span>}
+              {attestation.exception && (
+                <span
+                  title={
+                    attestation.exception_le
+                      ? `Générée exceptionnellement le ${new Date(attestation.exception_le).toLocaleDateString("fr-FR")}`
+                      : "Générée exceptionnellement"
+                  }
+                  className="rounded bg-warning-subtle px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-warning uppercase"
+                >
+                  Exceptionnelle
+                </span>
+              )}
               <a
                 href={`/passeport?ref=${encodeURIComponent(attestation.reference ?? "")}`}
                 target="_blank"

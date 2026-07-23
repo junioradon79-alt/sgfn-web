@@ -19,6 +19,7 @@ import {
   Sparkles,
   PackageCheck,
   Ban,
+  ShieldAlert,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -30,6 +31,7 @@ import {
   Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ds/dialog";
 import { Kpi } from "@/components/ds/kpi";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ds/tooltip";
 import { BoutonImprimer } from "@/components/dashboard/BoutonImprimer";
 import UploadPlanModal from "@/components/dashboard/UploadPlanModal";
 import { createClient } from "@/utils/supabase/client";
@@ -64,6 +66,10 @@ type AttestationRow = {
   sig_operateur_le: string | null;
   sig_chefferie_le: string | null;
   qr_token: string | null;
+  exception: boolean;
+  exception_motif: string | null;
+  exception_le: string | null;
+  exception_par: { nom_complet: string | null } | null;
   lots: {
     numero_lot: string | null;
     ilots: {
@@ -246,6 +252,32 @@ function SigDots({
   );
 }
 
+/**
+ * Marque une attestation née d'une génération exceptionnelle (dossier
+ * documentaire incomplet, dérogation admin) — voir la migration du 23/07 et
+ * `generer_attestation_exceptionnelle`. L'horodatage, l'auteur et le motif
+ * sont ceux demandés par le commanditaire, portés directement par la ligne.
+ */
+function ExceptionBadge({ att }: { att: AttestationRow }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex items-center gap-0.5 rounded bg-warning-subtle px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-warning uppercase">
+          <ShieldAlert className="size-2.5" aria-hidden />
+          Except.
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">
+        <p className="font-semibold">Génération exceptionnelle</p>
+        <p className="mt-1 opacity-90">
+          {att.exception_par?.nom_complet ?? "Administrateur"} · {fmtDate(att.exception_le)}
+        </p>
+        {att.exception_motif && <p className="mt-1 opacity-80">{att.exception_motif}</p>}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 // ─── Onglet Attestations ──────────────────────────────────────────────────────
 
 function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer, onSigner, signatureEnCours, erreurAction }: {
@@ -301,7 +333,10 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
             return (
               <tr key={att.id} className="transition hover:bg-inset/60">
                 <td className="px-5 py-3.5 font-mono text-xs font-semibold text-accent">
-                  {att.reference}
+                  <div className="flex items-center gap-1.5">
+                    {att.reference}
+                    {att.exception && <ExceptionBadge att={att} />}
+                  </div>
                 </td>
                 <td className="px-5 py-3.5 text-foreground">
                   {lotLabel}
@@ -800,7 +835,7 @@ export default function DocumentsPage() {
       supabase
         .from("attestations_cession")
         .select(
-          "id, reference, statut, date_emission, cree_le, sig_proprietaire_le, sig_operateur_le, sig_chefferie_le, qr_token, lots(numero_lot, ilots(numero, lotissements(nom, signatures_requises, famille_id))), attributaires(nom)"
+          "id, reference, statut, date_emission, cree_le, sig_proprietaire_le, sig_operateur_le, sig_chefferie_le, qr_token, exception, exception_motif, exception_le, exception_par:profiles!attestations_cession_exception_par_fkey(nom_complet), lots(numero_lot, ilots(numero, lotissements(nom, signatures_requises, famille_id))), attributaires(nom)"
         )
         .order("cree_le", { ascending: false }),
       supabase
