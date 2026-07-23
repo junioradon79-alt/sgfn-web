@@ -106,7 +106,21 @@ export type MobileData = {
   envoyerMessage: (convId: string, corps: string) => Promise<boolean>;
   marquerLu: (conv: Convo) => Promise<void>;
   suivreParcelle: (lotId: string) => Promise<boolean>;
+  connexion: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  validerCode: (code: string) => Promise<{ valide: boolean; groupe?: string; message?: string; erreur?: boolean }>;
+  inscrire: (p: InscriptionPayload) => Promise<{ ok: boolean; error?: string; needsConfirm?: boolean }>;
   deconnexion: () => Promise<void>;
+};
+
+export type InscriptionPayload = {
+  public?: boolean;
+  code?: string;
+  groupe?: string;
+  nomComplet: string;
+  telephone?: string;
+  email: string;
+  password: string;
+  accepteComm?: boolean;
 };
 
 export function useMobileData(): MobileData {
@@ -186,37 +200,50 @@ export function useMobileData(): MobileData {
     [supabase]
   );
 
+  // L'auth pilote tout : on écoute les changements de session (connexion,
+  // inscription avec session immédiate, déconnexion) et on (re)charge en
+  // conséquence. `INITIAL_SESSION` couvre le montage — pas de getUser manuel.
   useEffect(() => {
     let annule = false;
-    void (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        if (!annule) {
-          setAuthed(false);
-          setLoading(false);
-        }
-        return;
-      }
+
+    const load = async (u: { id: string; email?: string | null }) => {
       const { data: prof } = await supabase
         .from("profiles")
         .select("id, nom_complet, groupe, famille_id, autorite_coutumiere_id, attributaire_id")
-        .eq("id", user.id)
+        .eq("id", u.id)
         .single();
       const p = (prof ?? null) as MobileProfile | null;
       if (annule) return;
-      setUserId(user.id);
-      setEmail(user.email ?? null);
+      setUserId(u.id);
+      setEmail(u.email ?? null);
       setProfile(p);
       setAuthed(true);
-      if (p) {
-        await Promise.all([chargerParcelles(p), chargerConvos(user.id), chargerNotifs(user.id)]);
-      }
+      if (p) await Promise.all([chargerParcelles(p), chargerConvos(u.id), chargerNotifs(u.id)]);
       if (!annule) setLoading(false);
-    })();
+    };
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (annule) return;
+      if (event === "SIGNED_OUT") {
+        setAuthed(false);
+        setProfile(null);
+        setParcelles([]);
+        setConvos([]);
+        setNotifs([]);
+        setUserId(null);
+        setEmail(null);
+        setLoading(false);
+        return;
+      }
+      if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
+        if (session?.user) void load(session.user);
+        else setLoading(false);
+      }
+    });
+
     return () => {
       annule = true;
+      sub.subscription.unsubscribe();
     };
   }, [supabase, chargerParcelles, chargerConvos, chargerNotifs]);
 
@@ -268,6 +295,53 @@ export function useMobileData(): MobileData {
     [supabase, userId]
   );
 
+  // ── Authentification (connexion / inscription) ────────────────────────────────
+  // Mêmes appels que les pages web /login et /inscription, mais internes à l'app.
+  // La sécurité tient côté base : `handle_new_user()` ignore le `groupe` client
+  // sans invitation valide (correctif du 15/07).
+
+  const connexion = useCallback(
+    async (mail: string, password: string) => {
+      const { error } = await supabase.auth.signInWithPassword({ email: mail.trim(), password });
+      return error ? { ok: false, error: error.message } : { ok: true };
+    },
+    [supabase]
+  );
+
+  const validerCode = useCallback(
+    async (code: string) => {
+      const { data, error } = await supabase.rpc("valider_invitation", { p_code: code.trim().toUpperCase() });
+      if (error) return { valide: false, erreur: true as const };
+      const d = data as { valide: boolean; groupe?: string; message?: string } | null;
+      return { valide: !!d?.valide, groupe: d?.groupe, message: d?.message };
+    },
+    [supabase]
+  );
+
+  const inscrire = useCallback(
+    async (p: InscriptionPayload) => {
+      const metadata: Record<string, unknown> = {
+        nom_complet: p.nomComplet.trim(),
+        telephone: p.telephone?.trim() || null,
+      };
+      if (p.public) {
+        metadata.accepte_communications = !!p.accepteComm;
+      } else {
+        metadata.groupe = p.groupe;
+        metadata.code_invitation = p.code?.trim().toUpperCase();
+      }
+      const { data, error } = await supabase.auth.signUp({
+        email: p.email.trim(),
+        password: p.password,
+        options: { data: metadata },
+      });
+      if (error) return { ok: false, error: error.message };
+      // Session immédiate → `onAuthStateChange(SIGNED_IN)` charge le reste.
+      return { ok: true, needsConfirm: !data.session };
+    },
+    [supabase]
+  );
+
   const deconnexion = useCallback(async () => {
     await supabase.auth.signOut();
   }, [supabase]);
@@ -286,6 +360,9 @@ export function useMobileData(): MobileData {
     envoyerMessage,
     marquerLu,
     suivreParcelle,
+    connexion,
+    validerCode,
+    inscrire,
     deconnexion,
   };
 }

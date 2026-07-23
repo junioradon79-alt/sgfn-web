@@ -20,6 +20,9 @@ import { ChatScreen } from "./screens/ChatScreen";
 import { NotificationsScreen } from "./screens/NotificationsScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { PurchaseScreen } from "./screens/PurchaseScreen";
+import { LandingScreen } from "./screens/LandingScreen";
+import { LoginScreen } from "./screens/LoginScreen";
+import { SignupScreen } from "./screens/SignupScreen";
 
 export type Tab = "home" | "parcels" | "messages" | "profile";
 
@@ -41,6 +44,9 @@ export function MobileApp() {
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [dark, setDark] = useState(false);
+  // Écran affiché tant qu'on n'est pas connecté (Login/Vérifier/Market restaient
+  // des liens sortants ; ici Landing/Login/Signup sont natifs à l'app).
+  const [unauthView, setUnauthView] = useState<"landing" | "login" | "signup">("landing");
 
   // Thème : lu au montage, persisté à chaque bascule (portée : l'app mobile).
   useEffect(() => {
@@ -61,11 +67,6 @@ export function MobileApp() {
       return n;
     });
   }, []);
-
-  // Garde d'auth : non connecté → page de connexion existante (lien sortant).
-  useEffect(() => {
-    if (!data.loading && !data.authed) router.replace("/login/");
-  }, [data.loading, data.authed, router]);
 
   // Toast auto-disparaissant.
   useEffect(() => {
@@ -103,8 +104,9 @@ export function MobileApp() {
   }, [flash]);
   const logout = useCallback(async () => {
     await data.deconnexion();
-    router.replace("/login/");
-  }, [data, router]);
+    setUnauthView("landing");
+    // L'écoute d'auth (SIGNED_OUT) repasse l'app en mode déconnecté.
+  }, [data]);
   const openProfilComplet = useCallback(() => router.push("/dashboard/profil/"), [router]);
 
   // ── Dérivés ──────────────────────────────────────────────────────────────────
@@ -131,11 +133,40 @@ export function MobileApp() {
     </div>
   );
 
-  if (data.loading || !data.authed) {
+  if (data.loading) {
     return shell(
       <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-2">
         <Loader2 className="size-7 animate-spin text-primary" />
         <span className="text-[13px] font-medium">Chargement de votre espace…</span>
+      </div>
+    );
+  }
+
+  if (!data.authed) {
+    return shell(
+      <div className="relative flex-1 overflow-hidden">
+        {unauthView === "landing" && (
+          <LandingScreen
+            onLogin={() => setUnauthView("login")}
+            onSignup={() => setUnauthView("signup")}
+            onMarket={openMarket}
+          />
+        )}
+        {unauthView === "login" && (
+          <LoginScreen
+            onBack={() => setUnauthView("landing")}
+            onConnect={data.connexion}
+            onSignup={() => setUnauthView("signup")}
+          />
+        )}
+        {unauthView === "signup" && (
+          <SignupScreen
+            onBack={() => setUnauthView("landing")}
+            onValiderCode={data.validerCode}
+            onInscrire={data.inscrire}
+            onLogin={() => setUnauthView("login")}
+          />
+        )}
       </div>
     );
   }
