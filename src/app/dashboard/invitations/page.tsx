@@ -46,7 +46,11 @@ const STATUT_LABELS: Record<string, string> = {
   expiree: "Expirée",
 };
 
-const GROUPES_ATTRIBUTAIRE_REQUIS = ["proprietaire", "acquereur"];
+// Un acquéreur est un prospect/acheteur : il ne doit JAMAIS être rattaché à
+// l'attributaire d'un lot existant à l'invitation (sinon il « devient »
+// propriétaire des lots du vendeur — bug du 23/07). Seul l'ancien rôle
+// `proprietaire` (déprécié) reste rattaché à un attributaire.
+const GROUPES_ATTRIBUTAIRE_REQUIS = ["proprietaire"];
 const GROUPES_AUTORITE_REQUIS = ["chefferie"];
 const GROUPES_FAMILLE_REQUIS = ["proprietaire_terrien"];
 
