@@ -10,8 +10,8 @@
 //
 // Idempotent : à relancer après chaque `cap sync android` (qui réécrase les assets).
 
-import { readdirSync, statSync, mkdirSync, copyFileSync, writeFileSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { readdirSync, statSync, mkdirSync, copyFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { join } from "node:path";
 
 const PUBLIC = new URL("../android/app/src/main/assets/public/", import.meta.url);
 const ROOT = PUBLIC.pathname.replace(/^\/([A-Za-z]:)/, "$1"); // Windows: /C:/... -> C:/...
@@ -53,4 +53,14 @@ const redirect = `<!doctype html><html lang="fr"><head><meta charset="utf-8">
 </head><body></body></html>`;
 writeFileSync(join(ROOT, "index.html"), redirect, "utf8");
 
-console.log(`✓ webdir Android adapté — ${dirForms} formes répertoire créées, index.html -> /app/`);
+// Défense en profondeur : retirer le service worker du bundle natif. En natif,
+// RegisterSW ne l'enregistre plus (détection Capacitor) ; on supprime en plus le
+// fichier pour qu'aucune tentative n'aboutisse. Cf. incompatibilité SW × Capacitor.
+let swRemoved = false;
+const sw = join(ROOT, "sw.js");
+if (existsSync(sw)) { rmSync(sw); swRemoved = true; }
+
+console.log(
+  `✓ webdir Android adapté — ${dirForms} formes répertoire créées, index.html -> /app/` +
+    (swRemoved ? ", sw.js retiré" : "")
+);
