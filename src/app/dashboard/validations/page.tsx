@@ -39,6 +39,30 @@ type AttestationCession = {
   } | null;
 };
 
+/**
+ * Attestation d'Attribution de Lot (Niveau 2/3, 23/07/2026) — la signature
+ * Chefferie est conditionnée au paiement de signature (500 000 FCFA chefferie
+ * + 50 000 FCFA commission SGNF, `signature_payee_le`) : le bouton "Valider"
+ * reste désactivé et l'explique tant qu'il n'est pas confirmé.
+ */
+type AttestationAttributionLot = {
+  id: string;
+  reference: string;
+  statut: string;
+  niveau: number;
+  sig_chefferie_le: string | null;
+  sig_proprietaire_le: string | null;
+  sig_operateur_le: string | null;
+  signature_payee_le: string | null;
+  lot: {
+    numero_lot: string | null;
+    ilots?: {
+      numero: string | null;
+      lotissements?: { id: string; nom: string | null; famille_id?: string | null } | null;
+    } | null;
+  } | null;
+};
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 // Signatures/validations du chef de village : attestations de cession à valider
 // + APFC à co-signer. Déplacées ici depuis l'Espace Chefferie (qui n'affiche plus
@@ -50,8 +74,10 @@ export default function ValidationsPage() {
   const { counts } = useBadgeCounts();
 
   const [attestations, setAttestations] = useState<AttestationCession[]>([]);
+  const [attributionsLot, setAttributionsLot] = useState<AttestationAttributionLot[]>([]);
   const [apfc, setApfc] = useState<AttestationCoutumiere[]>([]);
   const [signing, setSigning] = useState<string | null>(null);
+  const [signingAttrib, setSigningAttrib] = useState<string | null>(null);
   const [signingApfc, setSigningApfc] = useState<string | null>(null);
   const [signError, setSignError] = useState<string | null>(null);
 
@@ -61,11 +87,17 @@ export default function ValidationsPage() {
   // filtrées sur la juridiction (apfc_read scopée aussi, filtre explicite en plus).
   const fetchData = useCallback(async () => {
     if (!autoriteId) return;
-    const [attestationsRes, apfcRes] = await Promise.all([
+    const [attestationsRes, attribRes, apfcRes] = await Promise.all([
       supabase
         .from("attestations_cession")
         .select(
           "id, reference, statut, sig_chefferie_le, sig_proprietaire_le, sig_operateur_le, date_emission, lot:lot_id(numero_lot, ilots(numero, lotissements(id, nom, famille_id)))"
+        )
+        .is("sig_chefferie_le", null),
+      supabase
+        .from("attestations_attribution_lot")
+        .select(
+          "id, reference, statut, niveau, sig_chefferie_le, sig_proprietaire_le, sig_operateur_le, signature_payee_le, lot:lot_id(numero_lot, ilots(numero, lotissements(id, nom, famille_id)))"
         )
         .is("sig_chefferie_le", null),
       supabase
@@ -76,6 +108,7 @@ export default function ValidationsPage() {
         .eq("autorite_coutumiere_id", autoriteId),
     ]);
     setAttestations((attestationsRes.data ?? []) as unknown as AttestationCession[]);
+    setAttributionsLot((attribRes.data ?? []) as unknown as AttestationAttributionLot[]);
     setApfc((apfcRes.data ?? []) as AttestationCoutumiere[]);
   }, [autoriteId, supabase]);
 
@@ -98,6 +131,24 @@ export default function ValidationsPage() {
     });
     if (error) setSignError(`Signature non enregistrée : ${error.message}`);
     setSigning(null);
+    void recharger();
+  };
+
+  /**
+   * Signature de l'Attestation d'Attribution de Lot — conditionnée au paiement
+   * de signature (500 000 FCFA chefferie + 50 000 FCFA commission SGNF) :
+   * `signer_attestation_attribution_lot` refuse explicitement tant que
+   * `signature_payee_le` n'est pas confirmé (cf. migration du 23/07).
+   */
+  const signerAttributionLot = async (id: string) => {
+    setSigningAttrib(id);
+    setSignError(null);
+    const { error } = await supabase.rpc("signer_attestation_attribution_lot", {
+      p_id: id,
+      p_signature: "chefferie",
+    });
+    if (error) setSignError(`Signature non enregistrée : ${error.message}`);
+    setSigningAttrib(null);
     void recharger();
   };
 
@@ -210,6 +261,72 @@ export default function ValidationsPage() {
                     </Button>
                   </li>
                 ))}
+              </ul>
+              </ScrollArea>
+            )}
+          </Card>
+        </motion.div>
+
+        {/* Attestations d'Attribution de Lot — signature Chefferie payante */}
+        <motion.div variants={fadeUp}>
+          <Card id="attributions" className="scroll-mt-6 overflow-hidden">
+            <CardHeader>
+              <div>
+                <CardTitle>Attestations d&apos;Attribution de Lot — en attente de votre signature</CardTitle>
+                <CardDescription>
+                  Signature conditionnée au paiement (500 000 FCFA chefferie + 50 000 FCFA commission SGNF)
+                  {!chargement && attributionsLot.length > 0 && ` · ${attributionsLot.length} en attente`}
+                </CardDescription>
+              </div>
+            </CardHeader>
+            {attributionsLot.length === 0 ? (
+              <EmptyState
+                icon={CheckCircle2}
+                tone="positive"
+                title="Rien en attente"
+                description="Aucune Attestation d'Attribution de Lot n'attend votre signature."
+              />
+            ) : (
+              <ScrollArea className="max-h-[520px] border-t border-border">
+              <ul className="divide-y divide-border">
+                {attributionsLot.map((a) => {
+                  const paye = !!a.signature_payee_le;
+                  return (
+                    <li key={a.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13.5px] font-semibold text-foreground">{a.reference}</p>
+                        <p className="mt-0.5 text-xs text-muted-2">
+                          Lot {a.lot?.numero_lot ?? "—"}
+                          {a.lot?.ilots?.lotissements?.nom ? ` — ${a.lot.ilots.lotissements.nom}` : ""}
+                          {" · Niveau "}{a.niveau}
+                        </p>
+                        <SignaturesBadges
+                          sigs={[
+                            {
+                              label: libelleSignature("proprietaire", Boolean(a.lot?.ilots?.lotissements?.famille_id)),
+                              done: !!a.sig_proprietaire_le,
+                            },
+                            { label: "Opérateur", done: !!a.sig_operateur_le },
+                          ]}
+                        />
+                        <p className={`mt-1.5 text-xs font-semibold ${paye ? "text-success" : "text-warning"}`}>
+                          {paye ? "Paiement de signature reçu" : "Paiement de signature en attente (guichet SGNF)"}
+                        </p>
+                      </div>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        loading={signingAttrib === a.id}
+                        disabled={!paye}
+                        title={!paye ? "La signature reste bloquée tant que le paiement de 550 000 FCFA n'est pas confirmé." : undefined}
+                        onClick={() => signerAttributionLot(a.id)}
+                      >
+                        <FileSignature />
+                        Valider
+                      </Button>
+                    </li>
+                  );
+                })}
               </ul>
               </ScrollArea>
             )}

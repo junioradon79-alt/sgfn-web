@@ -1,6 +1,6 @@
 # TerraCI × SGNF — Document Directeur Unique
 
-**Version 1.40 — 22 juillet 2026**
+**Version 1.41 — 23 juillet 2026**
 
 > Cette version fusionne la v1.0 (vision stratégique TerraCI + état des lieux SGNF du matin du 07/07) et la Fiche projet SGNF (journal opérationnel détaillé) en **une seule référence de pilotage**. Les deux documents séparés sont désormais obsolètes : ce fichier est la référence unique pour comprendre où en est le projet, ce qui a été décidé stratégiquement, et ce qu'il reste à faire. La référence technique détaillée (schéma, conventions, pièges connus) reste le dossier `docs/` du repo `sgfn-web`, consolidé en PDF dans `docs/pdf/Dossier_Passation_SGNF.pdf`.
 
@@ -52,9 +52,9 @@ Tout choix produit doit satisfaire quatre critères : **Sécurité, Simplicité,
 
 | Produit TerraCI (vision) | Acquis SGNF (réalité au 22/07/2026) | État |
 | --- | --- | --- |
-| TerraCI Verify | `/verifier` — vérification QR ; verdict d'attestation de cession payant (60 000 FCFA) sauf la 1re attestation, gratuite ; **badge de marque TerraCI Verify posé le 15/07** | ✅ En production |
+| TerraCI Verify | `/verifier` — vérification QR ; verdict d'attestation de cession payant (60 000 FCFA) sauf la 1re attestation, gratuite ; **badge de marque TerraCI Verify posé le 15/07** ; **Niveau 2 (Attestation d'Attribution de Lot) gratuit / Niveau 3 payant, déployé le 23/07 (base + web)** | ✅ En production |
 | TerraCI Market | monterrain.sgfn.ci — pass 5 000 FCFA / 7 jours / 10 contacts ; **renommé de « Mon Terrain » le 15/07** (logo + nom + tokens couleur ; palette terre/argile/sable du reste du site volontairement pas remplacée) | ✅ En production (v1), marque à jour |
-| TerraCI Docs | Coffre-fort documentaire, génération d'actes, versionnement, **tarification par palier des attestations de cession** | ✅ En production |
+| TerraCI Docs | Coffre-fort documentaire, génération d'actes, versionnement, **tarification par palier des attestations de cession** ; **Attestation d'Attribution de Lot (Niveau 2/3, signature Chefferie payante 550k FCFA) ajoutée et déployée le 23/07** (base + edge functions + web) | ✅ En production |
 | TerraCI Maps | Carte foncière `/dashboard/carte`, itinéraires Google Maps | 🟡 Partiel |
 | Passeport parcelle | `/passeport?ref=` — écran unique par lot (identité, propriétaire, documents, chronologie, géométrie floutée, QR, score), **livré le 13/07** ; même paywall que `/verifier` | ✅ En production (v1) — marketplace non couverte (aucun QR propre au lot) |
 | Score TerraTrust | Score de confiance **sans IA**, `calculer_score_confiance()` — **v3 depuis le 16/07** : mesure la chaîne documentaire du **lotissement** (APFC 40 / guide de répartition 20 / PV du guide 20 / PV d'identification physique 20) | 🟡 v3 en production ; le volet **IA** du Livre TerraTrust reste à construire |
@@ -720,6 +720,20 @@ Quatre chantiers menés dans la nuit puis vérifiés et livrés le 22/07 : rendr
 **Ce que le chantier a d'abord révélé — et pourquoi il a failli être livré à l'envers.** Le user a demandé que la délivrance exige les signatures (3 pour Koelea-Accor, 2 pour Brignan Kakodji). Le contrôle préalable a montré que **`sig_proprietaire_le` et `sig_operateur_le` n'ont AUCUN écrivain** — ni dans `src/`, ni dans une seule RPC : seule `sig_chefferie_le` est posable, depuis `/dashboard/validations`. Appliquer la règle telle quelle **rendrait toute délivrance impossible pour toujours**, sur les deux lotissements. C'est la **quatrième** occurrence de la capacité fantôme dans la journée (§9) : les trois pastilles de signature s'affichent à l'écran, deux ne peuvent jamais se remplir. Ordre correct : créer d'abord les deux chemins de signature manquants, ensuite seulement conditionner la délivrance.
 
 **Deux points laissés ouverts.** (1) La **traçabilité de la remise** : `delivree_le` existe, `delivree_par` non — on sait quand une attestation a été remise, jamais par qui, alors que c'est précisément l'acte sorti de l'automatisme le 13/07 pour qu'il engage un humain ; même chose pour les trois signatures, horodatées sans auteur. (2) **Les signatures ne conditionnent pas la délivrance** : `marquer_attestation_delivree` ne vérifie que `statut='generee'`, on peut donc délivrer une attestation que personne n'a signée — reste à trancher si c'est voulu (la signature papier fait foi, l'application ne fait que tracer) ou si c'est un oubli.
+
+### Session du 23/07/2026 (fin) — Refonte des Niveaux d'attestation (1/2/3) et signature Chefferie payante
+
+Le verrou du 22/07 (score de confiance 100/100 pour tout émettre) bloquait les deux seuls lotissements existants (Brignan 20/100, Koelea 60/100). Le user en a profité pour trancher un point resté ouvert depuis le dossier Koelea : distinguer succession familiale et vente réelle plutôt que de tout traiter par le seul `rang`. Conçu en mode plan (3 agents d'exploration, 1 agent de conception, vérifications directes en base), implémenté et testé dans la foulée.
+
+**Le modèle retenu** : **Niveau 1** (Attestation de cession, existante) couvre toute la lignée familiale tant qu'aucune vente réelle n'a eu lieu, conditions allégées à 3 critères (Guide + APFC + PV de répartition — le PV d'identification physique n'est plus requis ici). **Niveau 2** (Attestation d'Attribution de Lot, **nouveau document**, signé Chefferie) remplace le Niveau 1 comme référence, condition additionnelle = PV d'identification physique, **document unique par lot pour toujours** (mis à jour en place à chaque transfert, jamais recréé). **Niveau 3** = toute cession suivant le Niveau 2, familiale ou non, bascule définitivement le paywall QR — barème de cession inchangé (30k/tarif chefferie), juste réancré sur le Niveau.
+
+**Rectification actée en cours de route** : la signature Chefferie sur l'Attestation d'Attribution de Lot est désormais conditionnée à un **paiement de 500 000 FCFA (chefferie) + 50 000 FCFA (commission SGNF)**, rejoué à chaque nouvelle signature requise (donc à chaque transfert Niveau 3+). Conséquence : la clause « noms identiques → gratuit » a été retirée — la consultation QR est désormais toujours gratuite au Niveau 2, toujours payante au Niveau 3.
+
+**Implémentation** : 7 migrations (schéma + RLS + triggers ; gating nommé niveau1/niveau2 ; RPC de promotion `generer_attestation_attribution_lot` ; transition Niveau 3 via un helper unique branché sur les 2 vrais points d'insertion — `traiter_paiement_confirme()` pour le chemin payant, **pas** `creer_cession`, et `transferer_attribution()` pour les transferts admin directs, jusque-là sans aucun effet sur les attestations ; vérification QR avec redirection transparente de l'ancien QR Niveau 1 ; vues + RPC de rattrapage rétroactif, sans créance de paiement rétroactive ; une RPC de révocation oubliée dans la première passe, ajoutée après coup). Edge functions `verification-qr` et `generation-document` mises à jour. 5 fichiers front (registre des lots, coffre-fort documentaire — nouvel onglet, validations Chefferie, dossier du lot, vérification publique). `database.types.ts` patché à la main faute de régénération CLI disponible cette session.
+
+**Vérifié bout-en-bout en SQL brut** sur un vrai lot Koelea, dans une transaction forcée à s'annuler (`RAISE EXCEPTION` final) : dérogation → promotion Niveau 2 gratuite → signature bloquée sans paiement (message exact vérifié) → débloquée après confirmation → transfert réel → bascule Niveau 3 payante avec remise à zéro des signatures et du paiement, nouveau paiement créé, PDF régénéré → vérification QR redirigée correctement. `tsc`/`eslint` propres.
+
+**Laissé ouvert** : pas déployé sur le web (base et edge functions seules à jour), pas vérifié au navigateur (aucun outil Playwright cette session), le rattrapage rétroactif renverra 0 tant que le PV de répartition/identification n'est pas saisi pour au moins un des deux lotissements, gabarit PDFMonkey réel de l'Attestation d'Attribution de Lot pas encore créé (repli HTML interne), préfixe de référence et libellés PDF à valider avec le user avant impression réelle.
 
 ### Chantiers précédents (03/07, toujours d'actualité)
 

@@ -3,7 +3,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  AlertTriangle, ArrowRightLeft, Banknote, Boxes, Eye, FileWarning, Lock, Plus, Search, ShieldAlert,
+  AlertTriangle, ArrowRightLeft, Banknote, Boxes, Eye, FileSignature, FileWarning, Lock, Plus, Search, ShieldAlert,
 } from "lucide-react";
 
 import { AppShell } from "@/components/pilotage/AppShell";
@@ -413,6 +413,126 @@ function GenerationExceptionnelleModal({ lots, onClose, onConfirm }: {
   );
 }
 
+// ─── Génération de l'Attestation d'Attribution de Lot (Niveau 2, admin) ────────
+// Document unique par lot, signé Chefferie, remplace l'attestation de cession
+// comme document de référence. Contrairement à la génération exceptionnelle
+// (multi-lots), une seule instance à la fois : le nom identifié physiquement
+// se saisit lot par lot. La signature Chefferie reste bloquée tant que le
+// paiement de signature (500 000 FCFA chefferie + 50 000 FCFA commission
+// SGNF) n'est pas confirmé — cf. migration du 23/07.
+
+type ResultatAttributionLot = { succes: boolean; message?: string; reference?: string };
+
+function GenerationAttributionLotModal({ lot, onClose, onConfirm }: {
+  lot: LotRecord;
+  onClose: () => void;
+  onConfirm: (nomIdentifie: string, motifDerogation: string | null) => Promise<ResultatAttributionLot>;
+}) {
+  const [nomIdentifie, setNomIdentifie] = useState("");
+  const [motifDerogation, setMotifDerogation] = useState("");
+  const [enCours, setEnCours] = useState(false);
+  const [resultat, setResultat] = useState<ResultatAttributionLot | null>(null);
+
+  const titulaireActuel = [...(lot.attributions ?? [])].find((a) => a.actuel);
+  const nomRegistre = titulaireActuel?.attributaires?.nom ?? "—";
+  const nomValide = nomIdentifie.trim().length > 0;
+
+  const confirmer = async () => {
+    if (!nomValide) return;
+    setEnCours(true);
+    const r = await onConfirm(nomIdentifie.trim(), motifDerogation.trim().length > 0 ? motifDerogation.trim() : null);
+    setEnCours(false);
+    setResultat(r);
+  };
+
+  return (
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert && !enCours) onClose(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Admin — Niveau 2</p>
+          <DialogTitle className="flex items-center gap-2">
+            <FileSignature className="size-5" aria-hidden />
+            Générer l&apos;Attestation d&apos;Attribution de Lot
+          </DialogTitle>
+          <DialogDescription>
+            Lot {lot.numero_lot}
+            {lot.ilots?.numero ? ` · Îlot ${lot.ilots.numero}` : ""}
+            {lot.ilots?.lotissements?.nom ? ` — ${lot.ilots.lotissements.nom}` : ""}
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogBody className="space-y-4">
+          {!resultat ? (
+            <>
+              <Avertissement>
+                Document unique pour ce lot — signé par la Chefferie une fois le paiement de signature
+                (500 000 FCFA chefferie + 50 000 FCFA commission SGNF) confirmé. Remplace l&apos;attestation
+                de cession comme document de référence pour ce lot.
+              </Avertissement>
+
+              <Field label="Titulaire enregistré (registre)" htmlFor="nom-registre-attrib">
+                <Input id="nom-registre-attrib" value={nomRegistre} disabled readOnly />
+              </Field>
+
+              <Field label="Nom identifié physiquement" htmlFor="nom-identifie-attrib" required>
+                <Input
+                  id="nom-identifie-attrib"
+                  value={nomIdentifie}
+                  onChange={(e) => setNomIdentifie(e.target.value)}
+                  placeholder="Nom constaté lors de l'identification physique / bornage"
+                />
+              </Field>
+
+              <div className="space-y-1.5">
+                <label htmlFor="motif-derogation-attrib" className="text-sm font-medium text-foreground">
+                  Motif de dérogation (si le PV d&apos;identification physique manque encore)
+                </label>
+                <Textarea
+                  id="motif-derogation-attrib"
+                  value={motifDerogation}
+                  rows={2}
+                  onChange={(e) => setMotifDerogation(e.target.value)}
+                  placeholder="Laisser vide si le dossier documentaire du lotissement est complet"
+                />
+                {motifDerogation.trim().length > 0 && motifDerogation.trim().length < 10 && (
+                  <p className="text-xs text-muted-2">
+                    {10 - motifDerogation.trim().length} caractère(s) manquant(s) pour un motif valide.
+                  </p>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="space-y-2 text-sm">
+              {resultat.succes ? (
+                <p className="rounded-xl border border-success/25 bg-success-subtle px-4 py-2.5 text-success">
+                  Attestation d&apos;Attribution de Lot générée{resultat.reference ? ` (${resultat.reference})` : ""}.
+                </p>
+              ) : (
+                <p className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-2.5 text-danger">
+                  {resultat.message ?? "Échec de la génération."}
+                </p>
+              )}
+            </div>
+          )}
+        </DialogBody>
+
+        <DialogFooter>
+          {!resultat ? (
+            <>
+              <Button type="button" variant="outline" onClick={onClose} disabled={enCours}>Annuler</Button>
+              <Button type="button" variant="primary" onClick={confirmer} disabled={!nomValide || enCours} loading={enCours}>
+                Générer
+              </Button>
+            </>
+          ) : (
+            <Button type="button" variant="primary" onClick={onClose}>Fermer</Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const TABLE_HEADERS = ["Lot", "Lotissement & Localité", "Attributaire", "Statut", "Actions"] as const;
@@ -449,6 +569,7 @@ export default function LotsPage() {
   const [cessionLot, setCessionLot] = useState<LotRecord | null>(null);
   const [selectionException, setSelectionException] = useState<Set<string>>(new Set());
   const [modaleExceptionOuverte, setModaleExceptionOuverte] = useState(false);
+  const [attributionLotCible, setAttributionLotCible] = useState<LotRecord | null>(null);
 
   // Create form
   const [formState, setFormState] = useState(EMPTY_FORM);
@@ -467,10 +588,11 @@ export default function LotsPage() {
     // l'identique — modales, badges et alertes PV inchangés.
     type AttrRow = { lot_id: string | null } & NonNullable<LotRecord["attributions"]>[number];
     type AttestRow = { lot_id: string | null } & NonNullable<LotRecord["attestations_cession"]>[number];
+    type AttribRow = { lot_id: string | null } & NonNullable<LotRecord["attestations_attribution_lot"]>[number];
 
     // Ordre déterministe (numero_lot pour l'affichage, id/uuid comme départage
     // stable) requis par la pagination .range().
-    const [lotsData, attrsData, attestData] = await Promise.all([
+    const [lotsData, attrsData, attestData, attribData] = await Promise.all([
       fetchAllPages<LotRecord>((from, to) =>
         supabase
           .from("lots")
@@ -495,6 +617,13 @@ export default function LotsPage() {
           .order("id", { ascending: true })
           .range(from, to) as unknown as PromiseLike<{ data: AttestRow[] | null }>
       ),
+      fetchAllPages<AttribRow>((from, to) =>
+        supabase
+          .from("attestations_attribution_lot")
+          .select("lot_id, reference, statut, niveau, gratuite, nom_identifie_physique, signature_payee_le, sig_chefferie_le")
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: AttribRow[] | null }>
+      ),
     ]);
 
     const attrsByLot = new Map<string, NonNullable<LotRecord["attributions"]>>();
@@ -515,10 +644,20 @@ export default function LotsPage() {
       else attestByLot.set(lot_id, [rest]);
     }
 
+    const attribByLot = new Map<string, NonNullable<LotRecord["attestations_attribution_lot"]>>();
+    for (const at of attribData) {
+      if (!at.lot_id) continue;
+      const { lot_id, ...rest } = at;
+      const arr = attribByLot.get(lot_id);
+      if (arr) arr.push(rest);
+      else attribByLot.set(lot_id, [rest]);
+    }
+
     const merged = lotsData.map((l) => ({
       ...l,
       attributions: attrsByLot.get(l.id) ?? [],
       attestations_cession: attestByLot.get(l.id) ?? [],
+      attestations_attribution_lot: attribByLot.get(l.id) ?? [],
     }));
     setLotRows(merged);
   };
@@ -746,6 +885,21 @@ export default function LotsPage() {
       await recharger();
     }
     return { succes, echecs };
+  };
+
+  const genererAttributionLot = async (
+    nomIdentifie: string, motifDerogation: string | null
+  ): Promise<ResultatAttributionLot> => {
+    if (!attributionLotCible) return { succes: false, message: "Aucun lot sélectionné." };
+    const { data, error } = await supabase.rpc("generer_attestation_attribution_lot", {
+      p_lot_id: attributionLotCible.id,
+      p_nom_identifie_physique: nomIdentifie,
+      p_motif_derogation: motifDerogation ?? undefined,
+    });
+    if (error) return { succes: false, message: error.message };
+    await recharger();
+    const row = data as { reference?: string } | null;
+    return { succes: true, reference: row?.reference };
   };
 
   // Group ilots by lotissement for the select
@@ -1113,6 +1267,18 @@ export default function LotsPage() {
                                   <Banknote />
                                 </Button>
                               )}
+                              {isAdmin && attrActuel && !lot.attestations_attribution_lot?.[0] && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="hover:bg-accent-subtle hover:text-accent"
+                                  onClick={() => setAttributionLotCible(lot)}
+                                  title="Générer l'Attestation d'Attribution de Lot (Niveau 2)"
+                                  aria-label={`Générer l'Attestation d'Attribution de Lot du lot ${lot.numero_lot}`}
+                                >
+                                  <FileSignature />
+                                </Button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1188,6 +1354,14 @@ export default function LotsPage() {
           lots={scopedRows.filter((l) => selectionException.has(l.id))}
           onClose={() => setModaleExceptionOuverte(false)}
           onConfirm={genererExceptionnellement}
+        />
+      )}
+
+      {attributionLotCible && (
+        <GenerationAttributionLotModal
+          lot={attributionLotCible}
+          onClose={() => setAttributionLotCible(null)}
+          onConfirm={genererAttributionLot}
         />
       )}
     </AppShell>

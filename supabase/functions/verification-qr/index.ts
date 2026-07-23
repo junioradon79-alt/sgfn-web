@@ -1,4 +1,12 @@
 // SGNF — Edge Function : VERIFICATION QR PUBLIQUE
+// v20 (23/07/2026) : attestation_attribution (Niveau 2/3, Attestation
+// d'Attribution de Lot) rejoint les types payants. Gratuite au Niveau 2
+// (`gratuite: true`, tant qu'aucune cession ne suit la promotion), payante au
+// Niveau 3 (toute cession suivante, familiale ou non) — calculé côté SQL par
+// verifier_attestation_attribution(), pas de logique supplémentaire ici.
+// Un ancien QR d'attestation de cession (Niveau 1) déjà en mains propres est
+// redirigé de façon transparente vers l'état actuel (verifier_document())
+// une fois le lot promu Niveau 2/3 — même référence physique, contenu à jour.
 // v19 (22/07/2026) : un document RÉVOQUÉ se dit GRATUITEMENT, avant tout
 // paywall — voir le bloc commenté plus bas. Charge réduite : le fait et la
 // date, jamais le contenu payant ni le motif de révocation.
@@ -19,7 +27,10 @@ const supabase = createClient(
 
 // Dupliqué dans src/lib/consultation-qr.ts (front) — garder synchronisé.
 const TARIF = { montant_total: 60000, part_chefferie: 50000, commission_sgnf: 10000 };
-const TYPES_PAYANTS = new Set(["attestation_cession"]);
+// attestation_attribution (Niveau 2/3, 23/07/2026) : gratuite = (niveau = 2),
+// calculé côté SQL par verifier_attestation_attribution() — pas de logique
+// supplémentaire ici, la ligne `data.gratuite === true` ci-dessous suffit.
+const TYPES_PAYANTS = new Set(["attestation_cession", "attestation_attribution"]);
 // Une consultation payée reste consultable 24 h (re-affichage, retour paiement)
 const VALIDITE_PAIEMENT_MS = 24 * 60 * 60 * 1000;
 

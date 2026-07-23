@@ -86,6 +86,44 @@ type AttestationRow = {
   attributaires: { nom: string | null } | null;
 };
 
+/**
+ * Attestation d'Attribution de Lot (Niveau 2/3, 23/07/2026) — document unique
+ * par lot, mis à jour en place à chaque transfert. Forme délibérément
+ * sur-ensemble de `AttestationRow` : `SigDots`/`ExceptionBadge`/`QrModal`/
+ * `RevocationModal` sont réutilisés tels quels (typage structurel).
+ */
+type AttributionRow = {
+  id: string;
+  reference: string;
+  statut: string;
+  date_emission: string | null;
+  cree_le: string;
+  sig_proprietaire_le: string | null;
+  sig_operateur_le: string | null;
+  sig_chefferie_le: string | null;
+  qr_token: string | null;
+  exception: boolean;
+  exception_motif: string | null;
+  exception_le: string | null;
+  exception_par: { nom_complet: string | null } | null;
+  lots: {
+    numero_lot: string | null;
+    ilots: {
+      numero: string | null;
+      lotissements: {
+        nom: string | null;
+        signatures_requises: string[] | null;
+        famille_id: string | null;
+      } | null;
+    } | null;
+  } | null;
+  attributaires: { nom: string | null } | null;
+  niveau: number;
+  gratuite: boolean;
+  nom_identifie_physique: string | null;
+  signature_payee_le: string | null;
+  antecedent_attestation_cession_id: string | null;
+};
 
 type PvRow = {
   id: string;
@@ -355,6 +393,152 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
                 </td>
                 <td className="px-5 py-3.5 text-muted-2">
                   {fmtDate(att.date_emission ?? att.cree_le)}
+                </td>
+                <td className="px-5 py-3.5 text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    {att.statut === "generee" && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => onMarquerDelivree(att.id)}
+                        disabled={remise === "loading"}
+                        title="Marquer comme délivrée (remise physique au bénéficiaire)"
+                        aria-label="Marquer comme délivrée"
+                        className={remise === "error" ? "text-danger" : "hover:text-success"}
+                      >
+                        <PackageCheck className={remise === "loading" ? "animate-pulse" : ""} />
+                      </Button>
+                    )}
+                    {onRevoquer && (att.statut === "generee" || att.statut === "delivree") && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => onRevoquer(att)}
+                        title="Révoquer cette attestation (elle deviendra INVALIDE à la vérification publique)"
+                        aria-label="Révoquer cette attestation"
+                        className="hover:text-danger"
+                      >
+                        <Ban />
+                      </Button>
+                    )}
+                    {att.qr_token && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => onShowQr(att)}
+                        title="QR code de vérification"
+                        aria-label="QR code de vérification"
+                      >
+                        <QrCode />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => onDownload(att.reference)}
+                      disabled={dl === "loading"}
+                      title="Télécharger"
+                      aria-label="Télécharger"
+                      className={dl === "error" ? "text-danger" : undefined}
+                    >
+                      <Download className={dl === "loading" ? "animate-pulse" : ""} />
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Onglet Attributions de lot (Niveau 2/3) ───────────────────────────────────
+// Document unique par lot, mis à jour en place à chaque transfert — pas
+// d'historique de lignes soeurs comme pour les attestations de cession, mais
+// un badge Niveau + statut du paiement de signature Chefferie (500 000 FCFA
+// chefferie + 50 000 FCFA commission SGNF, requis avant que `sig_chefferie_le`
+// puisse être constatée — cf. migration du 23/07).
+
+function AttributionsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer, onSigner, signatureEnCours, erreurAction }: {
+  rows: AttributionRow[];
+  dlState: DlState;
+  remiseState: DlState;
+  onDownload: (ref: string) => void;
+  onShowQr: (att: AttributionRow) => void;
+  onMarquerDelivree: (id: string) => void;
+  onRevoquer?: (att: AttributionRow) => void;
+  /** Typé sur `AttestationRow` (pas `AttributionRow`) : c'est le type attendu par
+   * `SigDots`, qui appelle ce callback en interne avec son propre paramètre `att`. */
+  onSigner?: (att: AttestationRow, signature: string) => void;
+  signatureEnCours?: string | null;
+  erreurAction?: string | null;
+}) {
+  if (rows.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-sm text-muted-foreground">
+        <FileSignature className="mb-3 h-8 w-8 text-muted-2" />
+        Aucune Attestation d&apos;Attribution de Lot enregistrée.
+      </div>
+    );
+  }
+  return (
+    <div className="overflow-x-auto">
+      {erreurAction && (
+        <p className="mx-5 mb-3 rounded-xl border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">
+          {erreurAction}
+        </p>
+      )}
+      <table className="w-full min-w-[900px] text-sm">
+        <thead>
+          <tr className="border-b border-border">
+            <th className={TH_CLASS}>Référence</th>
+            <th className={TH_CLASS}>Lot</th>
+            <th className={TH_CLASS}>Titulaire actuel</th>
+            <th className={TH_CLASS}>Niveau</th>
+            <th className={TH_CLASS}>Paiement signature</th>
+            <th className={TH_CLASS}>Signatures</th>
+            <th className={TH_CLASS}></th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {rows.map((att) => {
+            const lot = att.lots;
+            const lotLabel = lot
+              ? `Lot ${lot.numero_lot ?? "—"}${lot.ilots?.numero ? ` · Îlot ${lot.ilots.numero}` : ""}`
+              : "—";
+            const lotissement = lot?.ilots?.lotissements?.nom ?? null;
+            const dl = dlState[att.reference] ?? "idle";
+            const remise = remiseState[att.id] ?? "idle";
+            return (
+              <tr key={att.id} className="transition hover:bg-inset/60">
+                <td className="px-5 py-3.5 font-mono text-xs font-semibold text-accent">
+                  <div className="flex items-center gap-1.5">
+                    {att.reference}
+                    {att.exception && <ExceptionBadge att={att} />}
+                  </div>
+                </td>
+                <td className="px-5 py-3.5 text-foreground">
+                  {lotLabel}
+                  {lotissement && <p className="text-xs text-muted-2">{lotissement}</p>}
+                </td>
+                <td className="px-5 py-3.5 text-muted-foreground">
+                  {att.attributaires?.nom ?? "—"}
+                </td>
+                <td className="px-5 py-3.5">
+                  <Badge tone={att.niveau === 2 ? "accent" : "warning"}>Niveau {att.niveau}</Badge>
+                  <p className="mt-0.5 text-xs text-muted-2">
+                    QR {att.gratuite ? "gratuit" : "payant"}
+                  </p>
+                </td>
+                <td className="px-5 py-3.5">
+                  <Badge tone={att.signature_payee_le ? "success" : "warning"}>
+                    {att.signature_payee_le ? "Reçu" : "En attente"}
+                  </Badge>
+                </td>
+                <td className="px-5 py-3.5">
+                  <SigDots att={att} onSigner={onSigner} enCours={signatureEnCours} />
                 </td>
                 <td className="px-5 py-3.5 text-right">
                   <div className="flex items-center justify-end gap-1">
@@ -801,7 +985,7 @@ function RattrapageModal({ nombre, onClose, onConfirm }: {
 
 // ─── Page principale ──────────────────────────────────────────────────────────
 
-type Tab = "attestations" | "pv" | "documents";
+type Tab = "attestations" | "attributions" | "pv" | "documents";
 
 export default function DocumentsPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -809,6 +993,7 @@ export default function DocumentsPage() {
   const { counts } = useBadgeCounts();
   const [activeTab, setActiveTab] = useState<Tab>("attestations");
   const [attestations, setAttestations] = useState<AttestationRow[]>([]);
+  const [attributionsLot, setAttributionsLot] = useState<AttributionRow[]>([]);
   const [pvs, setPvs] = useState<PvRow[]>([]);
   const [docs, setDocs] = useState<DocumentRow[]>([]);
 
@@ -818,6 +1003,12 @@ export default function DocumentsPage() {
   const [signatureEnCours, setSignatureEnCours] = useState<string | null>(null);
   const [erreurAction, setErreurAction] = useState<string | null>(null);
   const [qrAtt, setQrAtt] = useState<AttestationRow | null>(null);
+  const [dlStateAttrib, setDlStateAttrib] = useState<DlState>({});
+  const [remiseStateAttrib, setRemiseStateAttrib] = useState<DlState>({});
+  const [aRevoquerAttrib, setARevoquerAttrib] = useState<AttributionRow | null>(null);
+  const [signatureEnCoursAttrib, setSignatureEnCoursAttrib] = useState<string | null>(null);
+  const [erreurActionAttrib, setErreurActionAttrib] = useState<string | null>(null);
+  const [qrAttrib, setQrAttrib] = useState<AttributionRow | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [apercuUrls, setApercuUrls] = useState<Record<string, string>>({});
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -831,11 +1022,17 @@ export default function DocumentsPage() {
   const peutTeleverserPlan = isAdmin || profile?.groupe === "geometre";
 
   const load = useCallback(async () => {
-    const [attRes, pvRes, docRes, eligiblesRes, bloqueesRes, detailRes] = await Promise.all([
+    const [attRes, attribRes, pvRes, docRes, eligiblesRes, bloqueesRes, detailRes] = await Promise.all([
       supabase
         .from("attestations_cession")
         .select(
           "id, reference, statut, date_emission, cree_le, sig_proprietaire_le, sig_operateur_le, sig_chefferie_le, qr_token, exception, exception_motif, exception_le, exception_par:profiles!attestations_cession_exception_par_fkey(nom_complet), lots(numero_lot, ilots(numero, lotissements(nom, signatures_requises, famille_id))), attributaires(nom)"
+        )
+        .order("cree_le", { ascending: false }),
+      supabase
+        .from("attestations_attribution_lot")
+        .select(
+          "id, reference, statut, date_emission, cree_le, sig_proprietaire_le, sig_operateur_le, sig_chefferie_le, qr_token, exception, exception_motif, exception_le, exception_par:profiles!attestations_attribution_lot_exception_par_fkey(nom_complet), lots(numero_lot, ilots(numero, lotissements(nom, signatures_requises, famille_id))), attributaires(nom), niveau, gratuite, nom_identifie_physique, signature_payee_le, antecedent_attestation_cession_id"
         )
         .order("cree_le", { ascending: false }),
       supabase
@@ -862,6 +1059,7 @@ export default function DocumentsPage() {
         .limit(400),
     ]);
     setAttestations((attRes.data ?? []) as unknown as AttestationRow[]);
+    setAttributionsLot((attribRes.data ?? []) as unknown as AttributionRow[]);
     setPvs((pvRes.data ?? []) as unknown as PvRow[]);
     setDocs((docRes.data ?? []) as unknown as DocumentRow[]);
     setAttestationsEligibles(eligiblesRes.count ?? 0);
@@ -1031,8 +1229,71 @@ export default function DocumentsPage() {
     }
   };
 
+  /** Révoquer une Attestation d'Attribution de Lot — même doctrine que revoquer(). */
+  const revoquerAttrib = async (id: string, motif: string): Promise<string | null> => {
+    const { error } = await supabase.rpc("revoquer_attestation_attribution_lot", { p_id: id, p_motif: motif });
+    if (error) return error.message;
+    void load();
+    return null;
+  };
+
+  const signerAttestationAttrib = async (att: AttestationRow, signature: string) => {
+    setSignatureEnCoursAttrib(`${att.id}:${signature}`);
+    setErreurActionAttrib(null);
+    const { error } = await supabase.rpc("signer_attestation_attribution_lot", {
+      p_id: att.id,
+      p_signature: signature,
+    });
+    setSignatureEnCoursAttrib(null);
+    if (error) {
+      setErreurActionAttrib(error.message);
+      return;
+    }
+    void load();
+  };
+
+  const marquerDelivreeAttrib = async (id: string) => {
+    setRemiseStateAttrib((s) => ({ ...s, [id]: "loading" }));
+    setErreurActionAttrib(null);
+    const { error } = await supabase.rpc("marquer_attestation_attribution_lot_delivree", { p_id: id });
+    if (error) {
+      setErreurActionAttrib(error.message);
+      setRemiseStateAttrib((s) => ({ ...s, [id]: "error" }));
+      setTimeout(() => setRemiseStateAttrib((s) => ({ ...s, [id]: "idle" })), 2500);
+      return;
+    }
+    setRemiseStateAttrib((s) => ({ ...s, [id]: "idle" }));
+    void load();
+  };
+
+  const telechargerAttrib = async (reference: string) => {
+    setDlStateAttrib((s) => ({ ...s, [reference]: "loading" }));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/telecharger-document`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token ?? ""}`,
+          },
+          body: JSON.stringify({ table: "attestations_attribution_lot", reference }),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok || !json.url) throw new Error(json.erreur || "Erreur");
+      window.open(json.url, "_blank");
+      setDlStateAttrib((s) => ({ ...s, [reference]: "idle" }));
+    } catch {
+      setDlStateAttrib((s) => ({ ...s, [reference]: "error" }));
+      setTimeout(() => setDlStateAttrib((s) => ({ ...s, [reference]: "idle" })), 2500);
+    }
+  };
+
   const TABS: { id: Tab; label: string; icon: React.ReactNode; count: number }[] = [
     { id: "attestations", label: "Attestations", icon: <FileCheck className="h-4 w-4" />, count: attestations.length },
+    { id: "attributions", label: "Attributions de lot", icon: <FileSignature className="h-4 w-4" />, count: attributionsLot.length },
     { id: "pv", label: "PV de famille", icon: <FileSignature className="h-4 w-4" />, count: pvs.length },
     { id: "documents", label: "Documents", icon: <FileText className="h-4 w-4" />, count: docs.length },
   ];
@@ -1179,6 +1440,19 @@ export default function DocumentsPage() {
               onShowQr={setQrAtt}
               onMarquerDelivree={marquerDelivree}
             />
+          ) : activeTab === "attributions" ? (
+            <AttributionsTab
+              rows={attributionsLot}
+              dlState={dlStateAttrib}
+              remiseState={remiseStateAttrib}
+              onRevoquer={isAdmin ? setARevoquerAttrib : undefined}
+              onSigner={signerAttestationAttrib}
+              signatureEnCours={signatureEnCoursAttrib}
+              erreurAction={erreurActionAttrib}
+              onDownload={telechargerAttrib}
+              onShowQr={setQrAttrib}
+              onMarquerDelivree={marquerDelivreeAttrib}
+            />
           ) : activeTab === "pv" ? (
             <PvTab rows={pvs} />
           ) : (
@@ -1193,12 +1467,21 @@ export default function DocumentsPage() {
       </motion.div>
 
       {qrAtt && <QrModal att={qrAtt} onClose={() => setQrAtt(null)} />}
+      {qrAttrib && <QrModal att={qrAttrib} onClose={() => setQrAttrib(null)} />}
 
       {aRevoquer && (
         <RevocationModal
           att={aRevoquer}
           onClose={() => setARevoquer(null)}
           onConfirm={(motif) => revoquer(aRevoquer.id, motif)}
+        />
+      )}
+
+      {aRevoquerAttrib && (
+        <RevocationModal
+          att={aRevoquerAttrib}
+          onClose={() => setARevoquerAttrib(null)}
+          onConfirm={(motif) => revoquerAttrib(aRevoquerAttrib.id, motif)}
         />
       )}
 

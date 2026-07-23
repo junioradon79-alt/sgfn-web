@@ -15,10 +15,12 @@ export const TYPE_DEMARCHE_LABELS: Record<TypeDemarche, string> = {
   demande_acd: "Demande ACD",
   levee_litige: "Levée de litige",
   autre: "Autre démarche",
+  signature_attribution_lot: "Signature Chefferie — Attribution de Lot",
 };
 
 export const TYPE_OPTIONS: { value: TypePaiement; label: string }[] = [
   { value: "attestation_cession", label: "Attestation de cession" },
+  { value: "signature_attribution_lot", label: "Signature Chefferie — Attribution de Lot" },
   { value: "honoraires", label: "Honoraires géomètre" },
   { value: "vente_terrain", label: "Vente terrain" },
   { value: "autre", label: "Autre" },

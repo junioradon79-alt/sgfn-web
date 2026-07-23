@@ -67,6 +67,7 @@ type ResultatVerification = {
 
 const TYPE_LABEL: Record<string, string> = {
   attestation_cession: "Attestation de cession",
+  attestation_attribution: "Attestation d'Attribution de Lot",
   certificat_vente: "Certificat de vente",
   apfc: "Attestation de propriété foncière coutumière (APFC)",
   pv_bornage: "Procès-verbal de bornage",
@@ -100,6 +101,9 @@ const CHAMP_LABEL: Record<string, string> = {
   date_delivrance: "Date de délivrance",
   statut_litige: "Litige",
   nb_attestations_emises: "Attestations émises",
+  niveau: "Niveau",
+  nom_identifie_physique: "Nom identifié physiquement",
+  antecedent_attestation_cession_reference: "Antécédent (attestation de cession)",
   pv_numero_enregistrement: "N° enregistrement PV",
   pv_commissaire_nom: "Commissaire de justice",
   pv_commissaire_etude: "Étude",
@@ -995,7 +999,7 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
               suivre la parcelle (le composant se masque de lui-même si connecté). */}
           {(verdict === "trouve" || verdict === "paiement_requis") &&
             resultat &&
-            ["attestation_cession", "certificat_vente"].includes(String(resultat.type_document)) && (
+            ["attestation_cession", "attestation_attribution", "certificat_vente"].includes(String(resultat.type_document)) && (
               <InviteCompteAcquereur reference={String(resultat.reference ?? ref)} />
             )}
 

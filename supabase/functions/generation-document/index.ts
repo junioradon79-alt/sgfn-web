@@ -18,6 +18,11 @@ const HOOK_SECRET    = Deno.env.get("HOOK_SECRET");
 
 const CONFIG: Record<string, { titre: string; type_doc: string; template: string; pdfmonkeyEnv: string; pdfmonkeyTemplateIdDefault?: string; flipStatutDelivree: boolean; brandColor?: string }> = {
   attestations_cession:     { titre: "ATTESTATION DE CESSION",                       type_doc: "attestation_cession",            template: "attestation_cession.html", pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_ATTESTATION_CESSION", flipStatutDelivree: false, brandColor: "#20406B" },
+  // Document unique par lot (Niveau 2/3, 23/07/2026) : mis a jour en place a
+  // chaque transfert -> ce meme handler regenere le PDF sur INSERT (1re fois)
+  // ET sur UPDATE (transitions Niveau 3, appelees explicitement par
+  // _maj_attribution_lot_niveau3()/revoquer_attestation_attribution_lot()).
+  attestations_attribution_lot: { titre: "ATTESTATION D'ATTRIBUTION DE LOT",         type_doc: "attestation_attribution",         template: "attestation_attribution_lot.html", pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_ATTESTATION_ATTRIBUTION", flipStatutDelivree: false, brandColor: "#5B3A29" },
   certificats_vente:        { titre: "CERTIFICAT DE VENTE",                          type_doc: "certificat_vente",               template: "certificat_vente.html",     pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_CERTIFICAT_VENTE", flipStatutDelivree: true, brandColor: "#0E6B57" },
   attestations_coutumieres: { titre: "ATTESTATION DE PROPRIETE FONCIERE COUTUMIERE", type_doc: "certificat_propriete_coutumiere", template: "apfc.html",               pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_APFC", flipStatutDelivree: true, brandColor: "#9C362A" },
   // pdfmonkeyTemplateIdDefault : template "QUITTANCE" créé via l'API PDFMonkey le 03/07/2026 (pas de secret
@@ -96,6 +101,18 @@ async function chargerDonnees(table: string, rec: any): Promise<Record<string, s
       // type_signature : "principal" (1er ayant-droit, gratuite, sans cession_id) -> 2 signatures
       //                  "tiers" (transmission/vente liee a une cession reelle) -> 1 signature (S/Chef seul)
       out.type_signature = rec.cession_id ? "tiers" : "principal";
+    }
+
+    if (table === "attestations_attribution_lot") {
+      if (rec.titulaire_attributaire_id) Object.assign(out, await chargerAttributaire(rec.titulaire_attributaire_id));
+      if (rec.lot_id) Object.assign(out, await chargerLot(rec.lot_id));
+      out.niveau = rec.niveau != null ? String(rec.niveau) : "—";
+      out.gratuite = rec.gratuite ? "Oui" : "Non";
+      out.nom_identifie_physique = rec.nom_identifie_physique ?? "—";
+      // "principal" (Niveau 2, encore familial) -> gabarit standard ;
+      // "tiers" (Niveau 3, une cession a suivi) -> meme mise en page que
+      // l'attestation de cession en tiers, meme convention de nommage.
+      out.type_signature = rec.niveau === 3 ? "tiers" : "principal";
     }
 
     if (table === "certificats_vente") {
@@ -710,6 +727,13 @@ Deno.serve(async (req) => {
       .select("ilots(lotissements(pdfmonkey_template_attestation_cession))")
       .eq("id", rec.lot_id).single();
     const override = (lotLo as any)?.ilots?.lotissements?.pdfmonkey_template_attestation_cession;
+    if (override) pdfmonkeyTemplateId = override;
+  }
+  if (table === "attestations_attribution_lot" && rec.lot_id) {
+    const { data: lotLo } = await supabase.from("lots")
+      .select("ilots(lotissements(pdfmonkey_template_attestation_attribution))")
+      .eq("id", rec.lot_id).single();
+    const override = (lotLo as any)?.ilots?.lotissements?.pdfmonkey_template_attestation_attribution;
     if (override) pdfmonkeyTemplateId = override;
   }
   const filename = `${cfg.type_doc}_${baseVars.reference}.pdf`;

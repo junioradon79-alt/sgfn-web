@@ -53,6 +53,15 @@ export type LotRecord = {
     exception?: boolean | null;
     exception_le?: string | null;
   }> | null;
+  attestations_attribution_lot?: Array<{
+    reference?: string | null;
+    statut?: string | null;
+    niveau?: number | null;
+    gratuite?: boolean | null;
+    nom_identifie_physique?: string | null;
+    signature_payee_le?: string | null;
+    sig_chefferie_le?: string | null;
+  }> | null;
 };
 
 export type PvInfo = { reference: string | null; statut: string | null };
@@ -167,6 +176,7 @@ export function LotDetailModal({ lot, litiges, score, pvAlert, onClose }: {
     (a, b) => (a.rang ?? 0) - (b.rang ?? 0)
   );
   const attestation = lot.attestations_cession?.[0];
+  const attribution = lot.attestations_attribution_lot?.[0];
 
   return (
     <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
@@ -228,8 +238,45 @@ export function LotDetailModal({ lot, litiges, score, pvAlert, onClose }: {
             </div>
           )}
 
-          {/* Attestation de cession */}
-          {attestation && (
+          {/* Attestation d'Attribution de Lot (Niveau 2/3) — document de
+              référence dès qu'elle existe, remplace l'attestation de cession. */}
+          {attribution && (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-success/25 bg-success-subtle px-3 py-2.5 text-xs text-success">
+              <span className="font-semibold">{attribution.reference}</span>
+              <span>· {attribution.statut}</span>
+              <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-accent uppercase">
+                Niveau {attribution.niveau}
+              </span>
+              <span className="opacity-80">
+                · consultation QR {attribution.gratuite ? "gratuite" : "payante"}
+              </span>
+              {attribution.niveau === 2 && (
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide uppercase ${
+                    attribution.signature_payee_le
+                      ? "bg-success-subtle text-success"
+                      : "bg-warning-subtle text-warning"
+                  }`}
+                >
+                  {attribution.signature_payee_le ? "Paiement signature reçu" : "Paiement signature en attente"}
+                </span>
+              )}
+              <a
+                href={`/passeport?ref=${encodeURIComponent(attribution.reference ?? "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto flex items-center gap-1 font-semibold underline-offset-2 hover:underline"
+              >
+                Voir le Passeport public
+                <ExternalLink className="size-3" aria-hidden />
+              </a>
+            </div>
+          )}
+
+          {/* Attestation de cession (Niveau 1) — document de référence tant
+              qu'aucune Attestation d'Attribution de Lot n'existe ; sinon
+              conservée ici comme antécédent historique. */}
+          {attestation && !attribution && (
             <div className="flex flex-wrap items-center gap-2 rounded-xl border border-success/25 bg-success-subtle px-3 py-2.5 text-xs text-success">
               <span className="font-semibold">{attestation.reference}</span>
               <span>· {attestation.statut}</span>
@@ -256,6 +303,12 @@ export function LotDetailModal({ lot, litiges, score, pvAlert, onClose }: {
                 <ExternalLink className="size-3" aria-hidden />
               </a>
             </div>
+          )}
+          {attestation && attribution && (
+            <p className="text-xs text-muted-2">
+              Historique documentaire : attestation de cession antécédente{" "}
+              <span className="font-semibold text-muted-foreground">{attestation.reference}</span> (Niveau 1, remplacée ci-dessus).
+            </p>
           )}
 
           {/* Score de confiance */}
