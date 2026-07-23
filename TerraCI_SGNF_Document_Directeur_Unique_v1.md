@@ -62,7 +62,7 @@ Tout choix produit doit satisfaire quatre critères : **Sécurité, Simplicité,
 | TerraCI Collectivités | Rôles chefferie/commissaire opérationnels ; **nouveau rôle Propriétaire terrien** (ex chef de famille) séparé de la Chefferie village ; tarifs par chefferie amorcés (Ebimpe) | 🟡 Embryonnaire |
 | TerraCI Analytics | Statistiques home, tableaux de bord par rôle ; **dashboard analytics chefferie livré et déployé en avance (13-14/07)** (composition du territoire, actes, recettes, alertes) | 🟡 1er dashboard institutionnel livré (chefferie), à généraliser aux autres rôles |
 | TerraCI API | Edge functions internes ; aucune API publique | ⬜ À construire |
-| TerraCI Mobile | Sites responsive ; scanner QR caméra (web + natif ML Kit) ; **PWA installable et utilisable hors connexion, déployée et vérifiée en prod le 22/07** (15/15) | 🟡 PWA en production ; APK Android compilé mais **jamais testé sur téléphone réel**, différé |
+| TerraCI Mobile | Sites responsive ; scanner QR caméra (web + natif ML Kit) ; **PWA installable et utilisable hors connexion, déployée et vérifiée en prod le 22/07** (15/15) ; **APK Android debug v1.1.4 installée et vérifiée sur appareil le 23/07** (démarrage, navigation, liens sortants natifs, lien Passeport) | 🟡 PWA en production ; APK Android debug **vérifiée sur téléphone réel** ; release signé Play Store non produit (keystore présent, mot de passe hors dépôt) |
 | TerraCI Home | sgfn.ci — site vitrine institutionnel | ✅ En production |
 
 ---
