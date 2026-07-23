@@ -790,8 +790,27 @@ export default function LotsPage() {
             Suivi, traçabilité et statut juridique des parcelles cadastrales enregistrées.
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <BoutonImprimer />
+          {isAdmin && (
+            <Button
+              type="button"
+              variant="outline"
+              className="print:hidden"
+              onClick={() => setModaleExceptionOuverte(true)}
+              disabled={selectionException.size === 0}
+              title={
+                selectionException.size === 0
+                  ? "Cochez d'abord un ou plusieurs lots dans le tableau ci-dessous (colonne de gauche)."
+                  : `Générer l'attestation de ${selectionException.size} lot${selectionException.size > 1 ? "s" : ""} sélectionné${selectionException.size > 1 ? "s" : ""}.`
+              }
+            >
+              <ShieldAlert className="h-4 w-4" />
+              {selectionException.size > 0
+                ? `Génération exceptionnelle (${selectionException.size})`
+                : "Génération exceptionnelle"}
+            </Button>
+          )}
           {!isChefferie && (
             <Button
               type="button"
