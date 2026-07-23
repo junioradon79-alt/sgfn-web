@@ -115,6 +115,12 @@ h1, h2, h3, h4, h5, h6 {
   --accent-foreground: #FFFFFF;
   --accent-subtle: #EAF2FB;
 
+  /* TerraCI Market — sous-marque (navy/vert/or), constante en clair et sombre */
+  --terraci-navy: #0F2B52;
+  --terraci-green: #1E9E5A;
+  --terraci-green-light: #3FBE72;
+  --terraci-gold: #F0B429;
+
   /* Sémantique — teintes handoff */
   --success: #16A34A;
   --success-subtle: #E7F6EE;
@@ -165,6 +171,12 @@ h1, h2, h3, h4, h5, h6 {
   --accent-foreground: #FFFFFF;
   --accent-subtle: #152A44;
 
+  /* Sous-marque TerraCI inchangée en sombre (comme primary/accent). */
+  --terraci-navy: #0F2B52;
+  --terraci-green: #1E9E5A;
+  --terraci-green-light: #3FBE72;
+  --terraci-gold: #F0B429;
+
   --success: #16A34A;
   --success-subtle: #10251C;
   --warning: #D97706;
@@ -204,6 +216,11 @@ h1, h2, h3, h4, h5, h6 {
   --color-accent-foreground: var(--accent-foreground);
   --color-accent-subtle: var(--accent-subtle);
 
+  --color-terraci-navy: var(--terraci-navy);
+  --color-terraci-green: var(--terraci-green);
+  --color-terraci-green-light: var(--terraci-green-light);
+  --color-terraci-gold: var(--terraci-gold);
+
   --color-success: var(--success);
   --color-success-subtle: var(--success-subtle);
   --color-warning: var(--warning);
@@ -231,6 +248,12 @@ h1, h2, h3, h4, h5, h6 {
 .tabular {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
+}
+
+/* App mobile (/app) — apparition du toast bas. */
+@keyframes sgnf-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
 }
 
 /* ── Animations du Site Vitrine (handoff) ────────────────────────────────────
