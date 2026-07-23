@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { CONSULTATION_QR, fmtMontantFCFA } from "@/lib/consultation-qr";
+import { toFlatHtmlPath } from "@/lib/capacitor";
 import RadialGauge from "@/components/ui/RadialGauge";
 import { InviteCompteAcquereur } from "./InviteCompteAcquereur";
 
@@ -501,6 +502,7 @@ function PasseportSections({ resultat, urlPasseport }: { resultat: ResultatVerif
 }
 
 function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
+  const natif = useEstNatif();
   const searchParams = useSearchParams();
   const refInitiale = searchParams.get("ref") ?? searchParams.get("token") ?? "";
   // Présent au retour du paiement en ligne (return_url CinetPay)
@@ -943,12 +945,30 @@ function VerifierForm({ mode = "verify" }: { mode?: "verify" | "passeport" }) {
 
               {mode === "verify" && resultat.type_document !== "apfc" && (
                 <div className="mt-4 text-center">
-                  <Link
-                    href={`/passeport?ref=${encodeURIComponent(resultat.reference ?? ref)}`}
-                    className="text-sm font-semibold text-[#1E6091] underline-offset-2 hover:underline"
-                  >
-                    Voir le Passeport complet de ce lot →
-                  </Link>
+                  {natif ? (
+                    // En natif, un <Link> Next.js échoue silencieusement : Capacitor
+                    // ne résout pas les URL en dossier (/passeport/) — même bug que
+                    // la boucle de redirection résolue sur /app. On vise donc le
+                    // fichier plat en pleine navigation, comme useWebNav.
+                    <button
+                      type="button"
+                      onClick={() =>
+                        window.location.assign(
+                          toFlatHtmlPath(`/passeport?ref=${encodeURIComponent(resultat.reference ?? ref)}`),
+                        )
+                      }
+                      className="text-sm font-semibold text-[#1E6091] underline-offset-2 hover:underline"
+                    >
+                      Voir le Passeport complet de ce lot →
+                    </button>
+                  ) : (
+                    <Link
+                      href={`/passeport?ref=${encodeURIComponent(resultat.reference ?? ref)}`}
+                      className="text-sm font-semibold text-[#1E6091] underline-offset-2 hover:underline"
+                    >
+                      Voir le Passeport complet de ce lot →
+                    </Link>
+                  )}
                 </div>
               )}
 
