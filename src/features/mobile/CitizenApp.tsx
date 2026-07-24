@@ -33,6 +33,8 @@ export type ExperienceProps = {
   openMarket: () => void;
   logout: () => void;
   openProfilComplet: () => void;
+  biometricEnabled: boolean;
+  onDisableBiometric: () => void;
 };
 
 export function CitizenApp({
@@ -44,6 +46,8 @@ export function CitizenApp({
   openMarket,
   logout,
   openProfilComplet,
+  biometricEnabled,
+  onDisableBiometric,
 }: ExperienceProps) {
   const [tab, setTab] = useState<Tab>("home");
   const [overlay, setOverlay] = useState<Overlay>(null);
@@ -138,6 +142,8 @@ export function CitizenApp({
             onToggleDark={toggleDark}
             onLogout={logout}
             onOpenProfilComplet={openProfilComplet}
+            biometricEnabled={biometricEnabled}
+            onDisableBiometric={onDisableBiometric}
           />
         )}
       </div>

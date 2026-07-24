@@ -1,6 +1,6 @@
 # TerraCI × SGNF — Document Directeur Unique
 
-**Version 1.53 — 24 juillet 2026**
+**Version 1.54 — 24 juillet 2026**
 
 > Cette version fusionne la v1.0 (vision stratégique TerraCI + état des lieux SGNF du matin du 07/07) et la Fiche projet SGNF (journal opérationnel détaillé) en **une seule référence de pilotage**. Les deux documents séparés sont désormais obsolètes : ce fichier est la référence unique pour comprendre où en est le projet, ce qui a été décidé stratégiquement, et ce qu'il reste à faire. La référence technique détaillée (schéma, conventions, pièges connus) reste le dossier `docs/` du repo `sgfn-web`, consolidé en PDF dans `docs/pdf/Dossier_Passation_SGNF.pdf`.
 
@@ -815,6 +815,14 @@ Le repli HTML embarqué (`gabaritInterne()`) a été **retiré** : comme les 3 a
 **Vérifié par rendu réel à chaque itération**, pas seulement en théorie : mode debug de l'edge function invoqué directement (JWT `service_role`, clé récupérée via `supabase projects api-keys`), PDF généré et **relu visuellement** (outil de lecture PDF) — c'est ce contrôle qui a révélé successivement le débordement sur une 2e page (marges resserrées), le défaut de signature du titulaire (corrigé), et confirmé que le conditionnel Liquid de révocation ne casse pas le rendu. Aucune route admin ni scaffolding de diagnostic ne subsiste dans le code déployé (vérifié par grep après chaque itération).
 
 **Déployé en production** (edge function `generation-document`, une dizaine de cycles au fil du chantier). Commits `7a05a0b`, `62ac4ea`, `19afb86`, `a3ccfb5`.
+
+### Session du 24/07/2026 (suite 4) — Connexion biométrique sur l'app mobile
+
+Sur demande du user, ajout de la **connexion par biométrie** (empreinte / reconnaissance faciale) à l'app mobile Capacitor (`/app`). Deux points d'entrée décidés avec le user avant implémentation : (1) un bouton dédié sur l'écran de connexion natif, en alternative à la saisie email/mot de passe ; (2) un déverrouillage rapide biométrique quand le verrouillage par inactivité (10 min sans activité, ou 3 min en arrière-plan) a déconnecté la session — au lieu de tout retaper à chaque fois.
+
+**Implémentation** : plugin `@capgo/capacitor-native-biometric@8.6.2` (fork maintenu et compatible Capacitor 8 du plugin historique `capacitor-native-biometric`, resté bloqué sur Capacitor 3 depuis 2023). Email + mot de passe sont chiffrés dans le coffre natif (Android Keystore / iOS Keychain, `AccessControl.BIOMETRY_ANY`) ; leur lecture déclenche elle-même l'invite biométrique du système, sans étape séparée. Nouveaux fichiers : `src/lib/biometric.ts` (wrapper, no-op hors app native), `BiometricLockScreen.tsx` (déverrouillage post-inactivité), `EnableBiometricPrompt.tsx` (modale d'activation proposée une fois après une connexion par mot de passe réussie). `MobileApp.tsx` distingue désormais la déconnexion manuelle (bouton Profil → écran d'accueil) de la déconnexion par inactivité (→ écran de déverrouillage biométrique si activé) ; dans les deux cas le jeton Supabase est réellement révoqué, comme avant. Si le mot de passe biométrique stocké devient invalide (changé depuis le web), l'entrée est automatiquement désactivée plutôt que de laisser l'échec se répéter en boucle silencieuse.
+
+Permission `USE_BIOMETRIC` ajoutée au manifest Android ; version app bumpée **1.1.6 → 1.1.7** (`versionCode` 11 → 12). `tsc`, `eslint` et le build web (export statique) propres ; APK debug compilée avec succès (`sgnf-app-1.1.7-debug-20260724.apk`, plugin natif bien détecté au build Gradle). **Non vérifié sur appareil physique** — contrairement aux autres livraisons de cette session, la biométrie ne peut se tester qu'avec un capteur réel ; reste à faire par le user en installant l'APK.
 
 ### Chantiers précédents (03/07, toujours d'actualité)
 

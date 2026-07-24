@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { BadgeCheck, Moon, LogOut, ChevronRight } from "lucide-react";
+import { BadgeCheck, Moon, Fingerprint, LogOut, ChevronRight } from "lucide-react";
 import { PrimaryHeader } from "../components/MobileHeader";
 import type { MobileProfile } from "../data/useMobileData";
 import { groupeLabel, initiales } from "../data/mappers";
@@ -13,9 +13,20 @@ type Props = {
   onToggleDark: () => void;
   onLogout: () => void;
   onOpenProfilComplet: () => void;
+  biometricEnabled?: boolean;
+  onDisableBiometric?: () => void;
 };
 
-export function ProfileScreen({ profile, email, dark, onToggleDark, onLogout, onOpenProfilComplet }: Props) {
+export function ProfileScreen({
+  profile,
+  email,
+  dark,
+  onToggleDark,
+  onLogout,
+  onOpenProfilComplet,
+  biometricEnabled = false,
+  onDisableBiometric,
+}: Props) {
   const rows: { label: string; value: string }[] = [
     { label: "Nom complet", value: profile?.nom_complet ?? "—" },
     { label: "Adresse e-mail", value: email ?? "—" },
@@ -82,6 +93,28 @@ export function ProfileScreen({ profile, email, dark, onToggleDark, onLogout, on
             <span className="size-[21px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,.3)]" />
           </button>
         </div>
+
+        {biometricEnabled && onDisableBiometric && (
+          <div className="mt-3 flex items-center gap-3 rounded-[18px] border border-border bg-card px-4 py-3.5 shadow-panel">
+            <span className="flex size-[34px] flex-none items-center justify-center rounded-[10px] bg-inset text-primary">
+              <Fingerprint className="size-[18px]" strokeWidth={2} />
+            </span>
+            <span className="flex-1">
+              <span className="block text-[14px] text-foreground">Connexion biométrique</span>
+              <span className="block text-[11.5px] text-muted-foreground">Activée sur cet appareil</span>
+            </span>
+            <button
+              type="button"
+              onClick={onDisableBiometric}
+              role="switch"
+              aria-checked="true"
+              aria-label="Désactiver la connexion biométrique"
+              className="flex h-[27px] w-[46px] flex-none items-center justify-end rounded-full bg-primary p-[3px] transition-colors"
+            >
+              <span className="size-[21px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,.3)]" />
+            </button>
+          </div>
+        )}
 
         <button
           type="button"

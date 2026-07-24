@@ -26,6 +26,9 @@ importers:
       '@capacitor/status-bar':
         specifier: ^8.0.2
         version: 8.0.2(@capacitor/core@8.4.1)
+      '@capgo/capacitor-native-biometric':
+        specifier: ^8.6.2
+        version: 8.6.2(@capacitor/core@8.4.1)
       '@radix-ui/react-avatar':
         specifier: ^1.2.2
         version: 1.2.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -305,6 +308,11 @@ packages:
 
   '@capacitor/status-bar@8.0.2':
     resolution: {integrity: sha512-WXs8YB8B9eEaPZz+bcdY6t2nForF1FLoj/JU0Dl9RRgQnddnS98FEEyDooQhaY7wivr000j4+SC1FyeJkrFO7A==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
+  '@capgo/capacitor-native-biometric@8.6.2':
+    resolution: {integrity: sha512-nLdiPRRs8vRLRgYgB1rZYYU5GPfGx+OoVsAicw+t1kVn0jaSluvWii+VMJFd33vPFK5qkhLqRsUGe4b0H7tndA==}
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
@@ -4065,6 +4073,10 @@ snapshots:
       '@capacitor/core': 8.4.1
 
   '@capacitor/status-bar@8.0.2(@capacitor/core@8.4.1)':
+    dependencies:
+      '@capacitor/core': 8.4.1
+
+  '@capgo/capacitor-native-biometric@8.6.2(@capacitor/core@8.4.1)':
     dependencies:
       '@capacitor/core': 8.4.1
 

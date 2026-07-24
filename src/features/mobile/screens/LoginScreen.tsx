@@ -2,23 +2,29 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useState, type FormEvent } from "react";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Fingerprint, Loader2 } from "lucide-react";
 import { BackButton } from "../components/MobileHeader";
 
 export function LoginScreen({
   onBack,
   onConnect,
   onSignup,
+  biometricEnabled = false,
+  onBiometricLogin,
 }: {
   onBack: () => void;
   onConnect: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   onSignup: () => void;
+  /** Vrai si une session biométrique est déjà enregistrée sur cet appareil. */
+  biometricEnabled?: boolean;
+  onBiometricLogin?: () => Promise<{ ok: boolean; error?: string }>;
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [bioLoading, setBioLoading] = useState(false);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -30,6 +36,17 @@ export function LoginScreen({
     if (!res.ok) {
       setError(res.error ?? "Connexion impossible. Vérifiez vos identifiants.");
       setLoading(false);
+    }
+  };
+
+  const tryBiometric = async () => {
+    if (bioLoading || !onBiometricLogin) return;
+    setBioLoading(true);
+    setError(null);
+    const res = await onBiometricLogin();
+    if (!res.ok) {
+      setError(res.error ?? "Authentification biométrique annulée ou échouée.");
+      setBioLoading(false);
     }
   };
 
@@ -105,6 +122,22 @@ export function LoginScreen({
             {loading && <Loader2 className="size-4 animate-spin" />}
             Se connecter
           </button>
+
+          {biometricEnabled && onBiometricLogin && (
+            <button
+              type="button"
+              onClick={tryBiometric}
+              disabled={bioLoading}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-inset px-4 py-3 text-[14px] font-semibold text-foreground disabled:opacity-60"
+            >
+              {bioLoading ? (
+                <Loader2 className="size-[18px] animate-spin" />
+              ) : (
+                <Fingerprint className="size-[18px]" />
+              )}
+              Se connecter par biométrie
+            </button>
+          )}
         </form>
 
         <button type="button" onClick={onSignup} className="text-center text-[13px] font-semibold text-accent">

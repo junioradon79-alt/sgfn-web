@@ -23,7 +23,16 @@ import type { ExperienceProps } from "./CitizenApp";
 type Tab = "pilotage" | "files" | "messages" | "profile";
 type Overlay = { kind: "chat"; convId: string } | { kind: "notifications" } | { kind: "perimetres" } | null;
 
-export function AdminApp({ data, dark, toggleDark, verify, logout, openProfilComplet }: ExperienceProps) {
+export function AdminApp({
+  data,
+  dark,
+  toggleDark,
+  verify,
+  logout,
+  openProfilComplet,
+  biometricEnabled,
+  onDisableBiometric,
+}: ExperienceProps) {
   const openWeb = useWebNav();
   const overview = useAdminOverview(true);
   const [tab, setTab] = useState<Tab>("pilotage");
@@ -102,6 +111,8 @@ export function AdminApp({ data, dark, toggleDark, verify, logout, openProfilCom
             onToggleDark={toggleDark}
             onLogout={logout}
             onOpenProfilComplet={openProfilComplet}
+            biometricEnabled={biometricEnabled}
+            onDisableBiometric={onDisableBiometric}
           />
         )}
       </div>

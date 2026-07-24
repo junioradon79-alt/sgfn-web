@@ -5,16 +5,25 @@
 // colonne « téléphone ». Une fois connecté, elle branche l'expérience selon le
 // rôle du compte (`profiles.groupe`) : Admin → AdminApp, sinon → CitizenApp.
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 
 import { useMobileData } from "./data/useMobileData";
 import { useWebNav } from "./data/useWebNav";
+import {
+  activerBiometrie,
+  biometrieActive,
+  biometrieDisponible,
+  connexionBiometrique,
+  desactiverBiometrie,
+} from "@/lib/biometric";
 import { Toast } from "./components/Toast";
 import { InactivityLock } from "./components/InactivityLock";
+import { EnableBiometricPrompt } from "./components/EnableBiometricPrompt";
 import { LandingScreen } from "./screens/LandingScreen";
 import { LoginScreen } from "./screens/LoginScreen";
 import { SignupScreen } from "./screens/SignupScreen";
+import { BiometricLockScreen } from "./screens/BiometricLockScreen";
 import { CitizenApp, type ExperienceProps } from "./CitizenApp";
 import { AdminApp } from "./AdminApp";
 
@@ -27,7 +36,30 @@ export function MobileApp() {
 
   const [toast, setToast] = useState<string | null>(null);
   const [dark, setDark] = useState(false);
-  const [unauthView, setUnauthView] = useState<"landing" | "login" | "signup">("landing");
+  const [unauthView, setUnauthView] = useState<"landing" | "login" | "signup" | "locked">("landing");
+
+  // Biométrie : disponibilité matérielle + identifiants déjà enregistrés sur
+  // cet appareil (source de vérité = le coffre natif, pas un simple drapeau
+  // local). `pendingCreds` porte le mot de passe le temps d'afficher la
+  // proposition d'activation post-connexion — jamais persisté tel quel.
+  const [bioAvailable, setBioAvailable] = useState(false);
+  const [bioEnabled, setBioEnabled] = useState(false);
+  const [showEnablePrompt, setShowEnablePrompt] = useState(false);
+  const pendingCreds = useRef<{ email: string; password: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [avail, active] = await Promise.all([biometrieDisponible(), biometrieActive()]);
+      if (!cancelled) {
+        setBioAvailable(avail);
+        setBioEnabled(active);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Thème : lu au montage, persisté à chaque bascule.
   useEffect(() => {
@@ -63,9 +95,69 @@ export function MobileApp() {
     if (typeof window !== "undefined") window.open(MARKET_URL, "_blank", "noopener,noreferrer");
   }, []);
   const openProfilComplet = useCallback(() => goWeb("/dashboard/profil/"), [goWeb]);
+
+  // Déconnexion manuelle (bouton Profil) : toujours vers Landing.
   const logout = useCallback(async () => {
     await data.deconnexion();
     setUnauthView("landing");
+  }, [data]);
+
+  // Déconnexion par inactivité (InactivityLock) : le jeton est réellement
+  // révoqué (cf. InactivityLock), mais si la biométrie est activée on propose
+  // un déverrouillage rapide plutôt que de tout retaper.
+  const lockForInactivity = useCallback(async () => {
+    await data.deconnexion();
+    setUnauthView(bioEnabled ? "locked" : "landing");
+  }, [data, bioEnabled]);
+
+  // Connexion par mot de passe : si l'appareil supporte la biométrie et
+  // qu'elle n'est pas encore activée, propose de l'activer juste après.
+  const handlePasswordLogin = useCallback(
+    async (mail: string, password: string) => {
+      const res = await data.connexion(mail, password);
+      if (res.ok && bioAvailable && !bioEnabled) {
+        pendingCreds.current = { email: mail, password };
+        setShowEnablePrompt(true);
+      }
+      return res;
+    },
+    [data, bioAvailable, bioEnabled]
+  );
+
+  const handleEnableBiometric = useCallback(async () => {
+    const creds = pendingCreds.current;
+    pendingCreds.current = null;
+    setShowEnablePrompt(false);
+    if (!creds) return;
+    const ok = await activerBiometrie(creds.email, creds.password);
+    setBioEnabled(ok);
+    flash(ok ? "Connexion biométrique activée" : "Biométrie indisponible sur cet appareil");
+  }, [flash]);
+
+  const dismissEnablePrompt = useCallback(() => {
+    pendingCreds.current = null;
+    setShowEnablePrompt(false);
+  }, []);
+
+  const handleDisableBiometric = useCallback(async () => {
+    await desactiverBiometrie();
+    setBioEnabled(false);
+    flash("Connexion biométrique désactivée");
+  }, [flash]);
+
+  // Connexion biométrique : invite native → identifiants stockés → même appel
+  // que la connexion par mot de passe. Si le mot de passe stocké a été rendu
+  // caduc (changé depuis le web), on retire l'entrée biométrique plutôt que
+  // de la laisser échouer silencieusement à chaque tentative.
+  const handleBiometricLogin = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    const creds = await connexionBiometrique();
+    if (!creds) return { ok: false, error: "Authentification biométrique annulée ou échouée." };
+    const res = await data.connexion(creds.email, creds.password);
+    if (!res.ok) {
+      await desactiverBiometrie();
+      setBioEnabled(false);
+    }
+    return res;
   }, [data]);
 
   const shell = (children: ReactNode) => (
@@ -100,8 +192,10 @@ export function MobileApp() {
         {unauthView === "login" && (
           <LoginScreen
             onBack={() => setUnauthView("landing")}
-            onConnect={data.connexion}
+            onConnect={handlePasswordLogin}
             onSignup={() => setUnauthView("signup")}
+            biometricEnabled={bioEnabled}
+            onBiometricLogin={handleBiometricLogin}
           />
         )}
         {unauthView === "signup" && (
@@ -111,6 +205,9 @@ export function MobileApp() {
             onInscrire={data.inscrire}
             onLogin={() => setUnauthView("login")}
           />
+        )}
+        {unauthView === "locked" && (
+          <BiometricLockScreen onUnlock={handleBiometricLogin} onSwitchAccount={() => setUnauthView("landing")} />
         )}
       </div>
     );
@@ -126,6 +223,8 @@ export function MobileApp() {
     openMarket,
     logout,
     openProfilComplet,
+    biometricEnabled: bioEnabled,
+    onDisableBiometric: handleDisableBiometric,
   };
   const isAdmin = data.profile?.groupe === "admin";
 
@@ -133,7 +232,8 @@ export function MobileApp() {
     <>
       {isAdmin ? <AdminApp {...expProps} /> : <CitizenApp {...expProps} />}
       <Toast message={toast} />
-      <InactivityLock onExpire={logout} />
+      <InactivityLock onExpire={lockForInactivity} />
+      {showEnablePrompt && <EnableBiometricPrompt onEnable={handleEnableBiometric} onDismiss={dismissEnablePrompt} />}
     </>
   );
 }
