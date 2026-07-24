@@ -25,7 +25,11 @@
 
 ## Hiérarchie familiale / coutumière
 
-`grandes_familles`, `familles` (23, avec `chef_profile_id` FK → profiles = identité routable du chef de famille), `autorites_coutumieres`, `pv_reunions_famille` (13) + `pv_reunions_famille_lots` (21) + `pv_reunions_famille_membres` (16), `attestations_coutumieres` (APFC, 1 ligne).
+`grandes_familles`, `familles` (23, avec `chef_profile_id` FK → profiles = identité routable du chef de famille), `autorites_coutumieres` (26 lignes au 24/07 — 25 chefferies d'Abidjan/Songon-Anyama-Bingerville ajoutées, `numero_arrete_nomination`/`date_arrete`/`autorite_signataire`/`arrete_nomination_scan_url` laissés `null` tant qu'aucun arrêté réel n'est saisi), `pv_reunions_famille` (13) + `pv_reunions_famille_lots` (21) + `pv_reunions_famille_membres` (16), `attestations_coutumieres` (APFC, 1 ligne).
+
+## Référentiel géographique
+
+`sous_prefectures` (créée le 24/07, 252 lignes couvrant tout le territoire ivoirien, source Ministère de l'Intérieur via data.gouv.ci) — `nom`, `departement`, `region`, `chef_lieu_departement`, `commune` (198/252 avec commune de plein exercice). **Distincte de `autorites_coutumieres`** : une sous-préfecture est une circonscription d'État, pas une autorité traditionnelle. ⚠️ `region` reprend l'ancienne nomenclature ministérielle à 19 régions (ex. « Lagunes »), pas les 14 districts/31 régions actuels — ne pas les confondre. RLS : lecture pour tout authentifié, écriture admin seule.
 
 ## Documents & transactions foncières
 

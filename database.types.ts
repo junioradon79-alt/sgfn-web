@@ -665,26 +665,38 @@ export type Database = {
       }
       autorites_coutumieres: {
         Row: {
+          arrete_nomination_scan_url: string | null
+          autorite_signataire: string | null
           chef: string | null
           contact: string | null
+          date_arrete: string | null
           id: string
           nom: string
+          numero_arrete_nomination: string | null
           type: string | null
           village: string | null
         }
         Insert: {
+          arrete_nomination_scan_url?: string | null
+          autorite_signataire?: string | null
           chef?: string | null
           contact?: string | null
+          date_arrete?: string | null
           id?: string
           nom: string
+          numero_arrete_nomination?: string | null
           type?: string | null
           village?: string | null
         }
         Update: {
+          arrete_nomination_scan_url?: string | null
+          autorite_signataire?: string | null
           chef?: string | null
           contact?: string | null
+          date_arrete?: string | null
           id?: string
           nom?: string
+          numero_arrete_nomination?: string | null
           type?: string | null
           village?: string | null
         }
@@ -3501,6 +3513,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sous_prefectures: {
+        Row: {
+          chef_lieu_departement: string | null
+          commune: string | null
+          cree_le: string
+          departement: string | null
+          id: string
+          nom: string
+          region: string | null
+        }
+        Insert: {
+          chef_lieu_departement?: string | null
+          commune?: string | null
+          cree_le?: string
+          departement?: string | null
+          id?: string
+          nom: string
+          region?: string | null
+        }
+        Update: {
+          chef_lieu_departement?: string | null
+          commune?: string | null
+          cree_le?: string
+          departement?: string | null
+          id?: string
+          nom?: string
+          region?: string | null
+        }
+        Relationships: []
       }
       suivis_parcelle: {
         Row: {

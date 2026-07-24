@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import {
   Users, UserCheck, AlertTriangle, Search, Check,
-  UserPlus, ChevronRight, Crown, Landmark, Link2, Unlink, Building2, Plus,
+  UserPlus, ChevronRight, Crown, Landmark, Link2, Unlink, Building2, Plus, Pencil,
 } from "lucide-react";
 
 import { AppShell } from "@/components/pilotage/AppShell";
@@ -79,6 +79,11 @@ type AutoriteCoutumiere = {
   type: string | null;
   village: string | null;
   chef: string | null;
+  contact: string | null;
+  numero_arrete_nomination: string | null;
+  date_arrete: string | null;
+  autorite_signataire: string | null;
+  arrete_nomination_scan_url: string | null;
   chefs_profils: ChefProfile[];
 };
 
@@ -187,6 +192,9 @@ function CreerAutoriteModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   const [village, setVillage] = useState("");
   const [chef, setChef] = useState("");
   const [contact, setContact] = useState("");
+  const [numeroArrete, setNumeroArrete] = useState("");
+  const [dateArrete, setDateArrete] = useState("");
+  const [autoriteSignataire, setAutoriteSignataire] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -200,6 +208,9 @@ function CreerAutoriteModal({ onClose, onSuccess }: { onClose: () => void; onSuc
       village: village.trim() || null,
       chef: chef.trim() || null,
       contact: contact.trim() || null,
+      numero_arrete_nomination: numeroArrete.trim() || null,
+      date_arrete: dateArrete || null,
+      autorite_signataire: autoriteSignataire.trim() || null,
     });
     if (e) { setError(e.message); setSaving(false); return; }
     onSuccess();
@@ -228,9 +239,25 @@ function CreerAutoriteModal({ onClose, onSuccess }: { onClose: () => void; onSuc
           <Field label="Contact" htmlFor="ac-contact">
             <Input id="ac-contact" placeholder="Téléphone ou courriel" value={contact} onChange={(e) => setContact(e.target.value)} />
           </Field>
+          <div className="border-t border-border pt-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Arrêté de nomination
+            </p>
+            <div className="space-y-4">
+              <Field label="Numéro de l'arrêté" htmlFor="ac-arrete-numero">
+                <Input id="ac-arrete-numero" placeholder="Ex : N°017/RW/P.SGLA/CAB" value={numeroArrete} onChange={(e) => setNumeroArrete(e.target.value)} />
+              </Field>
+              <Field label="Date de l'arrêté" htmlFor="ac-arrete-date">
+                <Input id="ac-arrete-date" type="date" value={dateArrete} onChange={(e) => setDateArrete(e.target.value)} />
+              </Field>
+              <Field label="Autorité signataire" htmlFor="ac-arrete-signataire">
+                <Input id="ac-arrete-signataire" placeholder="Ex : Préfet d'Abidjan" value={autoriteSignataire} onChange={(e) => setAutoriteSignataire(e.target.value)} />
+              </Field>
+            </div>
+          </div>
           <p className="text-xs text-muted-foreground">
             Le compte numérique du chef se crée ensuite depuis « Invitations » : cet écran enregistre l&apos;autorité,
-            pas son utilisateur.
+            pas son utilisateur. Le scan de l&apos;arrêté s&apos;ajoute après création, depuis le bouton Éditer.
           </p>
           {error && <p role="alert" className="text-sm font-medium text-danger">{error}</p>}
         </DialogBody>
@@ -238,6 +265,135 @@ function CreerAutoriteModal({ onClose, onSuccess }: { onClose: () => void; onSuc
           <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
           <Button type="button" variant="primary" loading={saving} onClick={handleSave}>
             {saving ? "Création…" : "Créer"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Modal : éditer une autorité coutumière (dont l'arrêté de nomination) ────
+
+/**
+ * Ajouté le 24/07 : aucune des 6 colonnes de `autorites_coutumieres` n'était
+ * éditable après création — seul un INSERT existait (CreerAutoriteModal). Le
+ * numéro d'arrêté, sa date, l'autorité signataire et le scan de preuve se
+ * collectent après coup (documents physiques à réunir), d'où le besoin d'un
+ * vrai écran d'édition plutôt qu'un SQL ponctuel.
+ */
+function EditerAutoriteModal({
+  autorite,
+  onClose,
+  onSuccess,
+}: {
+  autorite: AutoriteCoutumiere;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+  const [nom, setNom] = useState(autorite.nom);
+  const [type, setType] = useState(autorite.type ?? "");
+  const [village, setVillage] = useState(autorite.village ?? "");
+  const [chef, setChef] = useState(autorite.chef ?? "");
+  const [contact, setContact] = useState(autorite.contact ?? "");
+  const [numeroArrete, setNumeroArrete] = useState(autorite.numero_arrete_nomination ?? "");
+  const [dateArrete, setDateArrete] = useState(autorite.date_arrete ?? "");
+  const [autoriteSignataire, setAutoriteSignataire] = useState(autorite.autorite_signataire ?? "");
+  const [scanFile, setScanFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const voirScanActuel = async () => {
+    if (!autorite.arrete_nomination_scan_url) return;
+    const { data } = await supabase.storage.from("documents").createSignedUrl(autorite.arrete_nomination_scan_url, 3600);
+    if (data) window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleSave = async () => {
+    if (!nom.trim()) { setError("Le nom est requis."); return; }
+    setSaving(true);
+    setError("");
+
+    let scanUrl = autorite.arrete_nomination_scan_url;
+    if (scanFile) {
+      const extension = scanFile.name.split(".").pop() ?? "pdf";
+      const chemin = `arrete-nomination/${autorite.id}/scan.${extension}`;
+      const { error: uploadErr } = await supabase.storage.from("documents").upload(chemin, scanFile, { upsert: true });
+      if (uploadErr) { setError(`Téléversement du scan échoué : ${uploadErr.message}`); setSaving(false); return; }
+      scanUrl = chemin;
+    }
+
+    const { error: e } = await supabase
+      .from("autorites_coutumieres")
+      .update({
+        nom: nom.trim(),
+        type: type.trim() || null,
+        village: village.trim() || null,
+        chef: chef.trim() || null,
+        contact: contact.trim() || null,
+        numero_arrete_nomination: numeroArrete.trim() || null,
+        date_arrete: dateArrete || null,
+        autorite_signataire: autoriteSignataire.trim() || null,
+        arrete_nomination_scan_url: scanUrl,
+      })
+      .eq("id", autorite.id);
+    if (e) { setError(e.message); setSaving(false); return; }
+    onSuccess();
+  };
+
+  return (
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Autorité coutumière</p>
+          <DialogTitle>Éditer {autorite.nom}</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="space-y-4">
+          <Field label="Nom" htmlFor="ea-nom" required>
+            <Input id="ea-nom" value={nom} onChange={(e) => setNom(e.target.value)} />
+          </Field>
+          <Field label="Type" htmlFor="ea-type">
+            <Input id="ea-type" value={type} onChange={(e) => setType(e.target.value)} />
+          </Field>
+          <Field label="Village" htmlFor="ea-village">
+            <Input id="ea-village" value={village} onChange={(e) => setVillage(e.target.value)} />
+          </Field>
+          <Field label="Chef (nom d'usage)" htmlFor="ea-chef">
+            <Input id="ea-chef" value={chef} onChange={(e) => setChef(e.target.value)} />
+          </Field>
+          <Field label="Contact" htmlFor="ea-contact">
+            <Input id="ea-contact" value={contact} onChange={(e) => setContact(e.target.value)} />
+          </Field>
+          <div className="border-t border-border pt-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Arrêté de nomination
+            </p>
+            <div className="space-y-4">
+              <Field label="Numéro de l'arrêté" htmlFor="ea-arrete-numero">
+                <Input id="ea-arrete-numero" placeholder="Ex : N°017/RW/P.SGLA/CAB" value={numeroArrete} onChange={(e) => setNumeroArrete(e.target.value)} />
+              </Field>
+              <Field label="Date de l'arrêté" htmlFor="ea-arrete-date">
+                <Input id="ea-arrete-date" type="date" value={dateArrete} onChange={(e) => setDateArrete(e.target.value)} />
+              </Field>
+              <Field label="Autorité signataire" htmlFor="ea-arrete-signataire">
+                <Input id="ea-arrete-signataire" placeholder="Ex : Préfet d'Abidjan" value={autoriteSignataire} onChange={(e) => setAutoriteSignataire(e.target.value)} />
+              </Field>
+              <Field label="Scan de l'arrêté" htmlFor="ea-arrete-scan">
+                <Input id="ea-arrete-scan" type="file" accept=".pdf,image/*" onChange={(e) => setScanFile(e.target.files?.[0] ?? null)} />
+                {autorite.arrete_nomination_scan_url && !scanFile && (
+                  <button type="button" onClick={voirScanActuel} className="mt-1 text-xs font-medium text-accent underline underline-offset-2">
+                    Voir le scan déjà enregistré
+                  </button>
+                )}
+              </Field>
+            </div>
+          </div>
+          {error && <p role="alert" className="text-sm font-medium text-danger">{error}</p>}
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+          <Button type="button" variant="primary" loading={saving} onClick={handleSave}>
+            {saving ? "Enregistrement…" : "Enregistrer"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -873,6 +1029,7 @@ export default function FamillesPage() {
 
   const [searchAutorites, setSearchAutorites] = useState("");
   const [modalAutorite, setModalAutorite] = useState<AutoriteCoutumiere | null>(null);
+  const [editAutorite, setEditAutorite] = useState<AutoriteCoutumiere | null>(null);
 
   const fetchGrandesFamilles = useCallback(async () => {
     const { data: gfs } = await supabase.from("grandes_familles").select("id, nom, description").order("nom");
@@ -937,7 +1094,10 @@ export default function FamillesPage() {
   }, [supabase]);
 
   const fetchAutorites = useCallback(async () => {
-    const { data: acs } = await supabase.from("autorites_coutumieres").select("id, nom, type, village, chef").order("nom");
+    const { data: acs } = await supabase
+      .from("autorites_coutumieres")
+      .select("id, nom, type, village, chef, contact, numero_arrete_nomination, date_arrete, autorite_signataire, arrete_nomination_scan_url")
+      .order("nom");
 
     const { data: chefsProfils } = await supabase
       .from("profiles")
@@ -1422,6 +1582,11 @@ export default function FamillesPage() {
                           <p className="font-medium text-foreground">{a.nom}</p>
                           {a.village && <p className="mt-0.5 text-xs text-muted-2">{a.village}</p>}
                           {a.type && <p className="text-xs text-muted-2">{a.type}</p>}
+                          {a.numero_arrete_nomination ? (
+                            <p className="mt-1 text-[11px] text-success">Arrêté {a.numero_arrete_nomination}</p>
+                          ) : (
+                            <p className="mt-1 text-[11px] text-warning">Sans arrêté de nomination</p>
+                          )}
                         </td>
                         <td className="px-5 py-3.5 text-muted-foreground">
                           {a.chef ?? <span className="text-muted-2">—</span>}
@@ -1443,10 +1608,15 @@ export default function FamillesPage() {
                           )}
                         </td>
                         <td className="px-5 py-3.5 text-right print:hidden">
-                          <Button variant="ghost" size="sm" onClick={() => setModalAutorite(a)}>
-                            {a.chefs_profils.length > 0 ? "Gérer" : "Désigner"}
-                            <ChevronRight className="h-3.5 w-3.5" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => setEditAutorite(a)} title="Éditer la fiche (dont l'arrêté de nomination)">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => setModalAutorite(a)}>
+                              {a.chefs_profils.length > 0 ? "Gérer" : "Désigner"}
+                              <ChevronRight className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1470,6 +1640,14 @@ export default function FamillesPage() {
         <CreerAutoriteModal
           onClose={() => setShowCreerAutorite(false)}
           onSuccess={() => { setShowCreerAutorite(false); void rechargerA(); }}
+        />
+      )}
+
+      {editAutorite && (
+        <EditerAutoriteModal
+          autorite={editAutorite}
+          onClose={() => setEditAutorite(null)}
+          onSuccess={() => { setEditAutorite(null); void rechargerA(); }}
         />
       )}
 
