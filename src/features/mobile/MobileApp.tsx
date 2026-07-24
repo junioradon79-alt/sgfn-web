@@ -131,7 +131,7 @@ export function MobileApp() {
     if (!creds) return;
     const ok = await activerBiometrie(creds.email, creds.password);
     setBioEnabled(ok);
-    flash(ok ? "Connexion biométrique activée" : "Biométrie indisponible sur cet appareil");
+    flash(ok ? "Connexion biométrique activée" : "Activation annulée ou biométrie indisponible");
   }, [flash]);
 
   const dismissEnablePrompt = useCallback(() => {
