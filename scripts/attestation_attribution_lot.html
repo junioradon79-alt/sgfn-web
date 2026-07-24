@@ -1,8 +1,10 @@
 <!--
-  SGNF — Gabarit PDFMonkey : ATTESTATION D'ATTRIBUTION DE LOT (v1, 24/07/2026)
-  Derive du gabarit officiel ATTESTATION DE CESSION (att_cess, meme identite visuelle/couleur
-  #20406B) -- un seul bloc de signature (Chefferie), quel que soit le niveau, et nouvelle
-  section "Autorite coutumiere signataire" (chef du village + arrete de nomination).
+  SGNF — Gabarit PDFMonkey : ATTESTATION D'ATTRIBUTION DE LOT (v2, 24/07/2026)
+  Derive du gabarit officiel ATTESTATION DE CESSION (att_cess, meme structure : armoiries,
+  bandeau tricolore, sections en barres) mais en jaune-orange #F77F00 (au lieu du bleu
+  #20406B de la Cession) pour distinguer visuellement les deux documents. Un seul bloc de
+  signature (Chefferie), quel que soit le niveau. Le chef du village signataire et son
+  arrete de nomination sont cites dans le preambule, pas dans une section a part.
 -->
 <!DOCTYPE html>
 <html lang="fr">
@@ -25,29 +27,29 @@ body { min-height:297mm; display:flex; flex-direction:column; font-family:Arial,
 .sgfn .logo-row { display:flex; justify-content:flex-end; align-items:center; gap:10px; }
 .sgfn .logo-row img { height:38px; }
 .sgfn .logo-txt { text-align:center; }
-.sgfn .logo-txt .nom { font-size:20px; font-weight:800; color:#20406B; letter-spacing:1px; }
+.sgfn .logo-txt .nom { font-size:20px; font-weight:800; color:#F77F00; letter-spacing:1px; }
 .sgfn .logo-txt .st { font-size:7px; color:#5a6675; max-width:130px; line-height:1.2; }
 .ref { font-size:10px; color:#5a6675; margin-top:6px; }
-h1 { text-align:center; color:#20406B; font-size:22px; font-weight:800; margin:16px 0 8px; letter-spacing:1px; }
+h1 { text-align:center; color:#F77F00; font-size:22px; font-weight:800; margin:16px 0 8px; letter-spacing:1px; }
 .intro { text-align:center; max-width:88%; margin:0 auto 14px; line-height:1.5; color:#3a4756; }
-.bar { background:#20406B; color:white; padding:5px 12px; font-weight:700; letter-spacing:.5px; margin-top:9px; }
+.bar { background:#F77F00; color:white; padding:5px 12px; font-weight:700; letter-spacing:.5px; margin-top:9px; }
 .sect { display:flex; justify-content:space-between; align-items:flex-start; padding:9px 4px 6px; }
 .rows { flex:1; }
 .row { display:flex; padding:3px 0; }
 .row .k { width:220px; font-weight:700; }
 .qr { width:100px; height:100px; }
 .qr-wrap { margin-left:20px; text-align:center; }
-.qr-warn { font-size:7px; color:#20406B; font-weight:700; margin-top:2px; line-height:1.15; }
+.qr-warn { font-size:7px; color:#F77F00; font-weight:700; margin-top:2px; line-height:1.15; }
 .qr img { width:100%; height:100%; }
 .clore { text-align:center; margin:14px 0 10px; line-height:1.5; }
-.sign { display:flex; margin-top:9px; border:1px solid #20406B; }
-.sign.sign-1 { max-width:320px; margin-left:auto; margin-right:auto; }
-.sign .col { flex:1; border-right:1px solid #20406B; }
+.sign { display:flex; margin-top:16px; border:1px solid #F77F00; }
+.sign.sign-1 { max-width:630px; margin-left:auto; margin-right:auto; }
+.sign .col { flex:1; border-right:1px solid #F77F00; }
 .sign .col:last-child { border-right:none; }
-.sign .t { text-align:center; font-weight:700; padding:8px; border-bottom:1px solid #d6dde7; }
-.sign .z { height:60px; display:flex; align-items:center; justify-content:center; color:#b9c2cd; font-size:10px; border-bottom:1px solid #d6dde7; }
-.sign .n { text-align:center; padding:8px; }
-.sign .d { text-align:center; font-size:10px; padding-bottom:8px; }
+.sign .t { text-align:center; font-weight:700; padding:14px; font-size:13px; border-bottom:1px solid #d6dde7; }
+.sign .z { height:145px; display:flex; align-items:center; justify-content:center; color:#b9c2cd; font-size:11px; border-bottom:1px solid #d6dde7; }
+.sign .n { text-align:center; padding:12px; font-weight:700; }
+.sign .d { text-align:center; font-size:10px; padding-bottom:14px; }
 .security { text-align:center; margin-top:12px; font-size:10px; color:#687587; }
 .spacer { flex:1; }
 .foot { margin-top:12px; text-align:center; font-size:9px; color:#8a94a0; border-top:1px solid #e2e7ee; padding-top:8px; line-height:1.4; }
@@ -79,7 +81,7 @@ h1 { text-align:center; color:#20406B; font-size:22px; font-weight:800; margin:1
   </div>
 
   <h1>ATTESTATION D'ATTRIBUTION DE LOT</h1>
-  <p class="intro">Nous soussignés, certifions par la présente que l'attribution du lot foncier décrit ci-dessous au titulaire désigné a été effectuée dans les conditions régulières et conformement aux dispositions en vigueur.</p>
+  <p class="intro">Nous, soussignés, {{ chef_village }}, Chef du village de {{ village }}, selon les dispositions de l'Arrêté {{ numero_arrete_nomination }}, certifions par la présente que l'attribution du lot foncier décrit ci-dessous au titulaire désigné a été effectuée dans les conditions régulières et conformement aux dispositions en vigueur.</p>
 
   <div class="bar">INFORMATIONS SUR LE TITULAIRE</div>
   <div class="sect">
@@ -99,13 +101,6 @@ h1 { text-align:center; color:#20406B; font-size:22px; font-weight:800; margin:1
     <div class="row"><div class="k">Lot</div><div>{{ lot }}</div></div>
     <div class="row"><div class="k">Superficie</div><div>{{ superficie_enregistree }}</div></div>
     <div class="row"><div class="k">Identifié physiquement sous le nom</div><div>{{ nom_identifie_physique }}</div></div>
-  </div></div>
-
-  <div class="bar">AUTORITÉ COUTUMIÈRE SIGNATAIRE</div>
-  <div class="sect"><div class="rows">
-    <div class="row"><div class="k">Chef du village</div><div>{{ chef_village }}</div></div>
-    <div class="row"><div class="k">N° d'arrêté de nomination</div><div>{{ numero_arrete_nomination }}</div></div>
-    <div class="row"><div class="k">Date de l'arrêté</div><div>{{ date_arrete_nomination }}</div></div>
   </div></div>
 
   <p class="clore">En foi de quoi cette présente attestation est délivrée pour servir et valoir ce que de droit.<br>

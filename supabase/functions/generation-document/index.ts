@@ -24,7 +24,7 @@ const CONFIG: Record<string, { titre: string; type_doc: string; template: string
   // _maj_attribution_lot_niveau3()/revoquer_attestation_attribution_lot()).
   // pdfmonkeyTemplateIdDefault : template "ATTESTATION_ATTRIBUTION_LOT" créé via l'API PDFMonkey le
   // 24/07/2026 (même patron que QUITTANCE le 03/07) — pas de secret PDFMONKEY_TEMPLATE_ID_ATTESTATION_ATTRIBUTION posé.
-  attestations_attribution_lot: { titre: "ATTESTATION D'ATTRIBUTION DE LOT",         type_doc: "attestation_attribution",         template: "attestation_attribution_lot.html", pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_ATTESTATION_ATTRIBUTION", pdfmonkeyTemplateIdDefault: "a5376606-e3c3-49b2-99af-84368933ac40", flipStatutDelivree: false, brandColor: "#5B3A29" },
+  attestations_attribution_lot: { titre: "ATTESTATION D'ATTRIBUTION DE LOT",         type_doc: "attestation_attribution",         template: "attestation_attribution_lot.html", pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_ATTESTATION_ATTRIBUTION", pdfmonkeyTemplateIdDefault: "a5376606-e3c3-49b2-99af-84368933ac40", flipStatutDelivree: false, brandColor: "#F77F00" },
   certificats_vente:        { titre: "CERTIFICAT DE VENTE",                          type_doc: "certificat_vente",               template: "certificat_vente.html",     pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_CERTIFICAT_VENTE", flipStatutDelivree: true, brandColor: "#0E6B57" },
   attestations_coutumieres: { titre: "ATTESTATION DE PROPRIETE FONCIERE COUTUMIERE", type_doc: "certificat_propriete_coutumiere", template: "apfc.html",               pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_APFC", flipStatutDelivree: true, brandColor: "#9C362A" },
   // pdfmonkeyTemplateIdDefault : template "QUITTANCE" créé via l'API PDFMonkey le 03/07/2026 (pas de secret
