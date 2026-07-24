@@ -111,10 +111,6 @@ async function chargerDonnees(table: string, rec: any): Promise<Record<string, s
       out.niveau = rec.niveau != null ? String(rec.niveau) : "—";
       out.gratuite = rec.gratuite ? "Oui" : "Non";
       out.nom_identifie_physique = rec.nom_identifie_physique ?? "—";
-      // "principal" (Niveau 2, encore familial) -> gabarit standard ;
-      // "tiers" (Niveau 3, une cession a suivi) -> meme mise en page que
-      // l'attestation de cession en tiers, meme convention de nommage.
-      out.type_signature = rec.niveau === 3 ? "tiers" : "principal";
       // Chef de village + arrete de nomination -- l'attestation est signee
       // par la chefferie du lotissement, pas par le titulaire : ces infos
       // viennent de autorites_coutumieres via lots -> ilots -> lotissements,
@@ -663,13 +659,9 @@ const ATTRIBUTION_LOT_GABARIT = `<!doctype html>
   .details .label, .autorite-box .label { width: 42%; font-size: 11.5px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
   .details .value, .autorite-box .value { width: 58%; font-size: 13px; color: #1F2937; font-weight: 600; }
 
-  /* Le bloc de signatures affiché dépend de {{type_signature}} ("principal" ou
-     "tiers"), injecté comme classe sur <body> — pas de moteur de gabarit avec
-     conditions reelles disponible en repli HTML, donc on affiche/masque en CSS
-     pur via un selecteur qui matche la valeur litterale de la variable. */
-  .sig-set { display: none; gap: 14px; margin-bottom: 16px; position: relative; z-index: 1; }
-  body.sig-only-principal .sig-set.set-principal { display: flex; }
-  body.sig-only-tiers .sig-set.set-tiers { display: flex; }
+  /* Un seul bloc de signature (la Chefferie), quel que soit le niveau -- le
+     titulaire ne signe pas ce document. */
+  .sig-set { display: flex; gap: 14px; margin-bottom: 16px; position: relative; z-index: 1; }
   .signature-box { flex: 1; border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px; text-align: center; }
   .signature-box .role { font-size: 11px; font-weight: 700; color: #5B3A29; text-transform: uppercase; letter-spacing: 0.03em; }
   .signature-box .ligne { border-top: 1px solid #CBD5E1; margin-top: 26px; padding-top: 6px; font-size: 10px; color: #94a3b8; }
@@ -687,7 +679,7 @@ const ATTRIBUTION_LOT_GABARIT = `<!doctype html>
   .footer { margin-top: 16px; text-align: center; font-size: 9.5px; color: #CBD5E1; position: relative; z-index: 1; }
 </style>
 </head>
-<body class="sig-only-{{type_signature}}">
+<body>
 
   <div class="watermark">{{revoquee}}</div>
 
@@ -735,11 +727,7 @@ const ATTRIBUTION_LOT_GABARIT = `<!doctype html>
     <div class="row"><div class="label">Date de l'arrêté</div><div class="value">{{date_arrete_nomination}}</div></div>
   </div>
 
-  <div class="sig-set set-principal">
-    <div class="signature-box"><div class="role">Le titulaire</div><div class="ligne">Signature</div></div>
-    <div class="signature-box"><div class="role">La Chefferie</div><div class="ligne">Signature</div></div>
-  </div>
-  <div class="sig-set set-tiers">
+  <div class="sig-set">
     <div class="signature-box"><div class="role">La Chefferie</div><div class="ligne">Signature</div></div>
   </div>
 
