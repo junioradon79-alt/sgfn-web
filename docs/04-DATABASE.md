@@ -45,6 +45,10 @@
 
 `jetons_marketplace` (pass 5000 FCFA/7j/10 contacts), `annonces_marketplace` (1 lot ↔ 1 annonce, statut `brouillon/active/suspendue/vendue`), `demandes_contact`. Vue publique `annonces_publiques` (`security_invoker=false`, colonnes `lat_approx`/`lng_approx` arrondies ~110 m, jamais les coordonnées exactes).
 
+## Back-office interne (comptabilité + RH, créées le 24/07)
+
+`depenses` (dépenses saisies à la main par catégorie — `categorie_depense` enum) et `collaborateurs` (annuaire RH simple, indépendant de `profiles`). Usage interne SGNF uniquement, RLS admin + rôle `comptable` (nouvelle valeur de l'enum `groupe_utilisateur`). Les recettes ne sont pas stockées ici : lues directement dans `paiements.commission_sgfn` (statut `confirme`), la part réellement encaissée par SGNF.
+
 ## Litiges, messagerie, notifications, sécurité
 
 `litiges`, `conversations`/`conversation_participants`/`messages`/`conversation_documents`, `notifications_a_envoyer` (file d'attente email/SMS), `invitations` (8), `scans_qr` (10 — journal des vérifications QR), `consultations_qr` (créée le 07/07 — consultations QR payantes des attestations de cession : 60 000 FCFA dont 50 000 chefferie/10 000 SGNF historisés par ligne, jeton porteur + code court `CQR-…`, RLS admin-only, écrite par les edge fns en service_role), `journal_audit` (1308 — trigger d'audit sur ~10 tables), `propositions_ia`, `profiles` (14).
@@ -53,7 +57,7 @@
 
 # 3. Fonctions et triggers clés
 
-**Helpers RLS** (SECURITY DEFINER, appelés à l'intérieur même des policies — **ne jamais révoquer leur EXECUTE**, ça casserait l'accès aux données) : `est_admin()`, `mon_groupe()`, `mon_attributaire_id()`, `mon_operateur_id()`, `peut_contacter()`, `suis_participant()`.
+**Helpers RLS** (SECURITY DEFINER, appelés à l'intérieur même des policies — **ne jamais révoquer leur EXECUTE**, ça casserait l'accès aux données) : `est_admin()`, `est_comptable()` (rôle `comptable`, 24/07), `mon_groupe()`, `mon_attributaire_id()`, `mon_operateur_id()`, `peut_contacter()`, `suis_participant()`.
 
 **Triggers d'audit et de cohérence** : `enregistrer_audit()` (journalise sur `journal_audit`, doit être `SECURITY DEFINER` — bug corrigé le 02/07, voir §5), `bloquer_double_cession`, `verrouiller_lot_vendu`, `ventes_before_insert`/`ventes_after_insert` (verrouille le lot + génère le certificat), `set_updated_at()`.
 
