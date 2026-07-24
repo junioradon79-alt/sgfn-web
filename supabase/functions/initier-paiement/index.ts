@@ -3,7 +3,10 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
+  // x-client-info / apikey sont envoyés d'office par le client supabase-js
+  // (functions.invoke) : sans eux dans la liste, le préflight CORS échoue avant
+  // d'atteindre la fonction (cf. correctif CORS du 11/07 sur les autres edges).
+  "Access-Control-Allow-Headers": "authorization, content-type, x-client-info, apikey",
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -77,6 +80,26 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ error: "Ce paiement n'est plus en attente" }),
       { status: 400, headers: { ...CORS, "Content-Type": "application/json" } }
+    );
+  }
+
+  // Contrôle de propriété (correctif audit 24/07) : le paiement est récupéré via
+  // service_role (RLS contournée) ; on vérifie donc explicitement que l'appelant
+  // a le droit d'initier CE paiement. Autorisés : le titulaire du paiement
+  // (acquereur_id = son attributaire — parcours "mon-achat"/"proprietaire"), ou
+  // un agent SGNF admin/opérateur agissant au guichet (écran "paiements").
+  const { data: profilAppelant } = await admin
+    .from("profiles")
+    .select("groupe, attributaire_id")
+    .eq("id", user.id)
+    .single();
+  const estAgent = profilAppelant?.groupe === "admin" || profilAppelant?.groupe === "operateur";
+  const estTitulaire = paiement.acquereur_id != null
+    && profilAppelant?.attributaire_id === paiement.acquereur_id;
+  if (!estAgent && !estTitulaire) {
+    return new Response(
+      JSON.stringify({ error: "Non autorisé pour ce paiement" }),
+      { status: 403, headers: { ...CORS, "Content-Type": "application/json" } }
     );
   }
 
