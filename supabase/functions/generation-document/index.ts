@@ -1,5 +1,5 @@
 // =====================================================================
-//  SGNF — Edge Function : GENERATION-DOCUMENT  (v34 : ajout pv_bornage — PV de bornage genere pour les missions du portefeuille geometre, cf. missions_geometre/pv_bornage)
+//  SGNF — Edge Function : GENERATION-DOCUMENT  (v35 : gabarit reel Attestation d'Attribution de Lot — chef de village + arrete de nomination, admin temporaire de creation du template PDFMonkey)
 // =====================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import QRCode from "npm:qrcode";
@@ -22,7 +22,9 @@ const CONFIG: Record<string, { titre: string; type_doc: string; template: string
   // chaque transfert -> ce meme handler regenere le PDF sur INSERT (1re fois)
   // ET sur UPDATE (transitions Niveau 3, appelees explicitement par
   // _maj_attribution_lot_niveau3()/revoquer_attestation_attribution_lot()).
-  attestations_attribution_lot: { titre: "ATTESTATION D'ATTRIBUTION DE LOT",         type_doc: "attestation_attribution",         template: "attestation_attribution_lot.html", pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_ATTESTATION_ATTRIBUTION", flipStatutDelivree: false, brandColor: "#5B3A29" },
+  // pdfmonkeyTemplateIdDefault : template "ATTESTATION_ATTRIBUTION_LOT" créé via l'API PDFMonkey le
+  // 24/07/2026 (même patron que QUITTANCE le 03/07) — pas de secret PDFMONKEY_TEMPLATE_ID_ATTESTATION_ATTRIBUTION posé.
+  attestations_attribution_lot: { titre: "ATTESTATION D'ATTRIBUTION DE LOT",         type_doc: "attestation_attribution",         template: "attestation_attribution_lot.html", pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_ATTESTATION_ATTRIBUTION", pdfmonkeyTemplateIdDefault: "a5376606-e3c3-49b2-99af-84368933ac40", flipStatutDelivree: false, brandColor: "#5B3A29" },
   certificats_vente:        { titre: "CERTIFICAT DE VENTE",                          type_doc: "certificat_vente",               template: "certificat_vente.html",     pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_CERTIFICAT_VENTE", flipStatutDelivree: true, brandColor: "#0E6B57" },
   attestations_coutumieres: { titre: "ATTESTATION DE PROPRIETE FONCIERE COUTUMIERE", type_doc: "certificat_propriete_coutumiere", template: "apfc.html",               pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_APFC", flipStatutDelivree: true, brandColor: "#9C362A" },
   // pdfmonkeyTemplateIdDefault : template "QUITTANCE" créé via l'API PDFMonkey le 03/07/2026 (pas de secret
@@ -113,6 +115,23 @@ async function chargerDonnees(table: string, rec: any): Promise<Record<string, s
       // "tiers" (Niveau 3, une cession a suivi) -> meme mise en page que
       // l'attestation de cession en tiers, meme convention de nommage.
       out.type_signature = rec.niveau === 3 ? "tiers" : "principal";
+      // Chef de village + arrete de nomination -- l'attestation est signee
+      // par la chefferie du lotissement, pas par le titulaire : ces infos
+      // viennent de autorites_coutumieres via lots -> ilots -> lotissements,
+      // pas d'une colonne directe sur attestations_attribution_lot.
+      out.chef_village = "—"; out.numero_arrete_nomination = "—"; out.date_arrete_nomination = "—";
+      if (rec.lot_id) {
+        const { data: lotAc } = await supabase.from("lots")
+          .select("ilots(lotissements(autorite_coutumiere_id))").eq("id", rec.lot_id).single();
+        const autoriteId = (lotAc as any)?.ilots?.lotissements?.autorite_coutumiere_id;
+        if (autoriteId) {
+          const { data: ac } = await supabase.from("autorites_coutumieres")
+            .select("chef,numero_arrete_nomination,date_arrete").eq("id", autoriteId).single();
+          out.chef_village = ac?.chef ?? "—";
+          out.numero_arrete_nomination = ac?.numero_arrete_nomination ?? "—";
+          out.date_arrete_nomination = ac?.date_arrete ? dateFr(ac.date_arrete) : "—";
+        }
+      }
     }
 
     if (table === "certificats_vente") {
@@ -566,9 +585,195 @@ const PV_BORNAGE_GABARIT = `<!doctype html>
 </html>
 `;
 
+const ATTRIBUTION_LOT_GABARIT = `<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>{{titre}} — {{reference}}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, "Helvetica Neue", sans-serif;
+    color: #1F2937;
+    background: #ffffff;
+    width: 210mm;
+    min-height: 297mm;
+    padding: 14mm 16mm;
+    position: relative;
+  }
+
+  .watermark {
+    position: absolute;
+    top: 45%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-28deg);
+    font-size: 74px;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    color: rgba(190, 40, 40, 0.18);
+    z-index: 0;
+    pointer-events: none;
+  }
+  .watermark:empty { display: none; }
+
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 3px solid #5B3A29; padding-bottom: 10px; margin-bottom: 16px;
+    position: relative; z-index: 1;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .badge {
+    width: 48px; height: 48px; border-radius: 12px;
+    background: linear-gradient(135deg, #5B3A29, #8A5A3D);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .brand .badge svg { width: 26px; height: 26px; }
+  .brand .name { font-size: 20px; font-weight: 800; color: #5B3A29; letter-spacing: 0.02em; }
+  .brand .tagline { font-size: 10px; color: #64748b; margin-top: 2px; }
+  .doc-meta { text-align: right; }
+  .doc-meta .titre { font-size: 15px; font-weight: 800; color: #5B3A29; letter-spacing: 0.06em; text-transform: uppercase; }
+  .doc-meta .niveau {
+    display: inline-block; margin-top: 5px; font-size: 10.5px; font-weight: 700; color: #ffffff;
+    background: #5B3A29; border-radius: 999px; padding: 3px 10px; letter-spacing: 0.04em;
+  }
+  .doc-meta .ref { font-size: 12px; color: #475569; margin-top: 6px; font-family: "Courier New", monospace; }
+  .doc-meta .date { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+  .doc-meta .revoked-line { font-size: 11px; color: #B91C1C; font-weight: 700; margin-top: 4px; }
+  .doc-meta .revoked-line:empty { display: none; }
+  .doc-meta .revoked-line:not(:empty)::before { content: "Révoquée le "; }
+
+  .titulaire-box {
+    background: linear-gradient(135deg, #5B3A29, #8A5A3D);
+    border-radius: 14px; padding: 14px 22px; color: #ffffff; margin-bottom: 14px;
+    position: relative; z-index: 1;
+  }
+  .titulaire-box .label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.85; }
+  .titulaire-box .nom { font-size: 20px; font-weight: 800; margin-top: 4px; }
+  .titulaire-box .sous { font-size: 11.5px; margin-top: 6px; opacity: 0.92; }
+
+  .section-title {
+    font-size: 11.5px; font-weight: 700; color: #5B3A29; text-transform: uppercase;
+    letter-spacing: 0.05em; margin: 0 0 5px 2px; position: relative; z-index: 1;
+  }
+
+  .details, .autorite-box { border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden; margin-bottom: 14px; position: relative; z-index: 1; }
+  .details .row, .autorite-box .row { display: flex; padding: 8px 18px; border-bottom: 1px solid #F1F5F9; }
+  .details .row:last-child, .autorite-box .row:last-child { border-bottom: none; }
+  .details .row:nth-child(even), .autorite-box .row:nth-child(even) { background: #F8FAFC; }
+  .details .label, .autorite-box .label { width: 42%; font-size: 11.5px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .details .value, .autorite-box .value { width: 58%; font-size: 13px; color: #1F2937; font-weight: 600; }
+
+  /* Le bloc de signatures affiché dépend de {{type_signature}} ("principal" ou
+     "tiers"), injecté comme classe sur <body> — pas de moteur de gabarit avec
+     conditions reelles disponible en repli HTML, donc on affiche/masque en CSS
+     pur via un selecteur qui matche la valeur litterale de la variable. */
+  .sig-set { display: none; gap: 14px; margin-bottom: 16px; position: relative; z-index: 1; }
+  body.sig-only-principal .sig-set.set-principal { display: flex; }
+  body.sig-only-tiers .sig-set.set-tiers { display: flex; }
+  .signature-box { flex: 1; border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px; text-align: center; }
+  .signature-box .role { font-size: 11px; font-weight: 700; color: #5B3A29; text-transform: uppercase; letter-spacing: 0.03em; }
+  .signature-box .ligne { border-top: 1px solid #CBD5E1; margin-top: 26px; padding-top: 6px; font-size: 10px; color: #94a3b8; }
+
+  .verif {
+    display: flex; align-items: center; gap: 18px; border: 1px dashed #CBD5E1;
+    border-radius: 12px; padding: 12px 18px; margin-bottom: 16px; position: relative; z-index: 1;
+  }
+  .verif img { width: 68px; height: 68px; flex-shrink: 0; }
+  .verif .titre-verif { font-size: 12.5px; font-weight: 700; color: #5B3A29; }
+  .verif .texte-verif { font-size: 11px; color: #64748b; margin-top: 4px; line-height: 1.5; }
+  .verif .url-verif { font-size: 10.5px; color: #8A5A3D; margin-top: 4px; word-break: break-all; }
+
+  .mention-legale { font-size: 10px; color: #94a3b8; line-height: 1.5; border-top: 1px solid #E2E8F0; padding-top: 10px; position: relative; z-index: 1; }
+  .footer { margin-top: 16px; text-align: center; font-size: 9.5px; color: #CBD5E1; position: relative; z-index: 1; }
+</style>
+</head>
+<body class="sig-only-{{type_signature}}">
+
+  <div class="watermark">{{revoquee}}</div>
+
+  <div class="header">
+    <div class="brand">
+      <div class="badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+      </div>
+      <div>
+        <div class="name">SGNF</div>
+        <div class="tagline">Système de Gestion Numérique du Foncier</div>
+      </div>
+    </div>
+    <div class="doc-meta">
+      <div class="titre">{{titre}}</div>
+      <div class="niveau">Niveau {{niveau}}</div>
+      <div class="ref">{{reference}}</div>
+      <div class="date">Émise le {{date}}</div>
+      <div class="revoked-line">{{revoquee_le}}</div>
+    </div>
+  </div>
+
+  <div class="titulaire-box">
+    <div class="label">Titulaire du lot</div>
+    <div class="nom">{{nom}}</div>
+    <div class="sous">{{type_piece}} N° {{num_piece}} · {{contacts}}</div>
+  </div>
+
+  <div class="section-title">Identification du lot</div>
+  <div class="details">
+    <div class="row"><div class="label">Lotissement</div><div class="value">{{lotissement}}</div></div>
+    <div class="row"><div class="label">Village / Commune</div><div class="value">{{village}} · {{commune}}</div></div>
+    <div class="row"><div class="label">Îlot / Lot</div><div class="value">{{ilot}} / {{lot}}</div></div>
+    <div class="row"><div class="label">Superficie</div><div class="value">{{superficie_enregistree}}</div></div>
+    <div class="row"><div class="label">Identifié physiquement sous le nom</div><div class="value">{{nom_identifie_physique}}</div></div>
+  </div>
+
+  <div class="section-title">Autorité coutumière signataire</div>
+  <div class="autorite-box">
+    <div class="row"><div class="label">Chef du village</div><div class="value">{{chef_village}}</div></div>
+    <div class="row"><div class="label">N° d'arrêté de nomination</div><div class="value">{{numero_arrete_nomination}}</div></div>
+    <div class="row"><div class="label">Date de l'arrêté</div><div class="value">{{date_arrete_nomination}}</div></div>
+  </div>
+
+  <div class="sig-set set-principal">
+    <div class="signature-box"><div class="role">Le titulaire</div><div class="ligne">Signature</div></div>
+    <div class="signature-box"><div class="role">La Chefferie</div><div class="ligne">Signature</div></div>
+  </div>
+  <div class="sig-set set-tiers">
+    <div class="signature-box"><div class="role">La Chefferie</div><div class="ligne">Signature</div></div>
+  </div>
+
+  <div class="verif">
+    <img src="{{qr_data_uri}}" alt="QR code de vérification" />
+    <div>
+      <div class="titre-verif">Vérifier l'authenticité de cette attestation</div>
+      <div class="texte-verif">
+        Scannez ce QR code avec l'appareil photo de votre téléphone, ou saisissez la
+        référence <strong>{{reference}}</strong> sur la page de vérification SGNF.
+      </div>
+      <div class="url-verif">{{verify_url}}</div>
+    </div>
+  </div>
+
+  <p class="mention-legale">
+    Cette Attestation d'Attribution de Lot est délivrée par le Système de Gestion Numérique du
+    Foncier (SGNF) et signée par l'autorité coutumière du village désignée ci-dessus, agissant
+    en vertu de l'arrêté de nomination mentionné. Elle constate l'attribution du lot identifié
+    ci-dessus au titulaire désigné et remplace, à sa délivrance, l'Attestation de cession comme
+    document de référence pour ce lot. Elle ne constitue pas un titre foncier définitif. Chaque
+    vérification de ce document est journalisée par SGNF.
+  </p>
+
+  <div class="footer">SGNF — Système de Gestion Numérique du Foncier · Document généré automatiquement</div>
+
+</body>
+</html>
+`;
+
 function gabaritInterne(cfg: { titre: string; type_doc: string }): string {
   if (cfg.type_doc === "quittance") return QUITTANCE_GABARIT;
   if (cfg.type_doc === "pv_bornage") return PV_BORNAGE_GABARIT;
+  if (cfg.type_doc === "attestation_attribution") return ATTRIBUTION_LOT_GABARIT;
   return `<!DOCTYPE html><html><body><h1>${cfg.titre}</h1><p>{{reference}} — document genere sans gabarit specifique (repli minimal)</p></body></html>`;
 }
 
@@ -649,7 +854,7 @@ Deno.serve(async (req) => {
   if (evt.debug === true) {
     const t = evt.table ?? "attestations_cession";
     const cfg = CONFIG[t];
-    const tplId = cfg ? Deno.env.get(cfg.pdfmonkeyEnv) : null;
+    const tplId = cfg ? (Deno.env.get(cfg.pdfmonkeyEnv) ?? cfg.pdfmonkeyTemplateIdDefault) : null;
     const fnBaseDiag = (Deno.env.get("SUPABASE_URL") ?? "").replace(".supabase.co", ".functions.supabase.co");
     const verifyUrlSample = PUBLIC_VERIFY_BASE ? `${PUBLIC_VERIFY_BASE.replace(/\/+$/, "")}/?ref=SAMPLE-REF` : `${fnBaseDiag}/verification-qr?ref=SAMPLE-REF`;
     const diag: Record<string, unknown> = { table: t, hasApiKey: !!PDFMONKEY_API_KEY, hasTemplateId: !!tplId, templateId: tplId ?? null, hasPublicVerifyBase: !!PUBLIC_VERIFY_BASE, publicVerifyBase: PUBLIC_VERIFY_BASE ?? null, sampleVerifyUrl: verifyUrlSample };
@@ -672,6 +877,9 @@ Deno.serve(async (req) => {
           client_nom: "TEST CLIENT", client_contact: "+225 00 00", type_mission: "Bornage",
           geometre_nom: "TEST GEOMETRE", geometre_numero_ordre: "TEST-0000", geometre_cabinet: "TEST CABINET",
           date_bornage: "24 Juin 2026", superficie_mesuree: "1 000 m²", superficie_enregistree: "1 000 m²", observations: "—",
+          niveau: "2", gratuite: "Oui", nom_identifie_physique: "TEST IDENTIFIE PHYSIQUEMENT",
+          chef_village: "TEST CHEF VILLAGE", numero_arrete_nomination: "99/PA/SG/D1", date_arrete_nomination: "24 Juin 2026",
+          revoquee: "", revoquee_le: "",
         };
         const bytes = await renderViaPdfMonkey(tplId, sample, "debug.pdf");
         diag.success = true; diag.pdfSizeBytes = bytes.length;
