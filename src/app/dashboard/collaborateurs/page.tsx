@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState, type ChangeEvent } from "react";
 import { motion } from "framer-motion";
-import { Mail, Phone, Plus, Search, Trash2, UserRoundCheck, UserRoundX, UsersRound } from "lucide-react";
+import { Mail, Pencil, Phone, Plus, Search, Trash2, UserRoundCheck, UserRoundX, UsersRound } from "lucide-react";
 
 import { fadeUp } from "@/lib/motion";
 import { createClient } from "@/utils/supabase/client";
@@ -51,7 +51,8 @@ function CollaborateursContenu() {
 
   const [collaborateurs, setCollaborateurs] = useState<Collaborateur[]>([]);
   const [recherche, setRecherche] = useState("");
-  const [modaleOuverte, setModaleOuverte] = useState(false);
+  // `"creation"` = modale vide ; un objet = modale pré-remplie en édition ; `null` = fermée.
+  const [modale, setModale] = useState<"creation" | Collaborateur | null>(null);
 
   const charger = useCallback(async () => {
     const { data } = await supabase
@@ -101,7 +102,7 @@ function CollaborateursContenu() {
             variant="primary"
             size="sm"
             className="ml-auto shrink-0"
-            onClick={() => setModaleOuverte(true)}
+            onClick={() => setModale("creation")}
           >
             <Plus className="size-4" />
             Nouveau collaborateur
@@ -178,6 +179,9 @@ function CollaborateursContenu() {
                         </td>
                         <td className="py-2.5 text-right">
                           <div className="flex justify-end gap-1.5">
+                            <Button variant="ghost" size="icon-sm" onClick={() => setModale(c)} title="Modifier">
+                              <Pencil className="size-4" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon-sm"
@@ -205,11 +209,12 @@ function CollaborateursContenu() {
         </Card>
       </motion.div>
 
-      {modaleOuverte && (
+      {modale && (
         <CollaborateurModal
-          onClose={() => setModaleOuverte(false)}
+          collaborateur={modale === "creation" ? null : modale}
+          onClose={() => setModale(null)}
           onSuccess={() => {
-            setModaleOuverte(false);
+            setModale(null);
             void recharger();
           }}
         />
@@ -222,17 +227,27 @@ export default function CollaborateursPage() {
   return <CollaborateursContenu />;
 }
 
-// ─── Modale de création ────────────────────────────────────────────────────
+// ─── Modale de création / édition ──────────────────────────────────────────
 
-function CollaborateurModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+function CollaborateurModal({
+  collaborateur,
+  onClose,
+  onSuccess,
+}: {
+  /** Présent = édition (pré-remplie, UPDATE) ; absent = création (INSERT). */
+  collaborateur?: Collaborateur | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
   const supabase = useMemo(() => createClient(), []);
+  const edition = !!collaborateur;
   const [valeurs, setValeurs] = useState({
-    nom_complet: "",
-    poste: "",
-    service: "",
-    email: "",
-    telephone: "",
-    date_entree: "",
+    nom_complet: collaborateur?.nom_complet ?? "",
+    poste: collaborateur?.poste ?? "",
+    service: collaborateur?.service ?? "",
+    email: collaborateur?.email ?? "",
+    telephone: collaborateur?.telephone ?? "",
+    date_entree: collaborateur?.date_entree ?? "",
   });
   const [saving, setSaving] = useState(false);
   const [erreur, setErreur] = useState("");
@@ -248,14 +263,18 @@ function CollaborateurModal({ onClose, onSuccess }: { onClose: () => void; onSuc
     setSaving(true);
     setErreur("");
 
-    const { error } = await supabase.from("collaborateurs").insert({
+    const payload = {
       nom_complet: valeurs.nom_complet.trim(),
       poste: valeurs.poste.trim() || null,
       service: valeurs.service.trim() || null,
       email: valeurs.email.trim() || null,
       telephone: valeurs.telephone.trim() || null,
       date_entree: valeurs.date_entree || null,
-    });
+    };
+
+    const { error } = edition
+      ? await supabase.from("collaborateurs").update(payload).eq("id", collaborateur!.id)
+      : await supabase.from("collaborateurs").insert(payload);
 
     if (error) {
       setErreur(error.message);
@@ -269,8 +288,10 @@ function CollaborateurModal({ onClose, onSuccess }: { onClose: () => void; onSuc
     <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Nouveau</p>
-          <DialogTitle>Ajouter un collaborateur</DialogTitle>
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">
+            {edition ? "Modification" : "Nouveau"}
+          </p>
+          <DialogTitle>{edition ? "Modifier le collaborateur" : "Ajouter un collaborateur"}</DialogTitle>
         </DialogHeader>
         <DialogBody className="space-y-4">
           <Field label="Nom complet" htmlFor="collab-nom" required>
@@ -314,7 +335,7 @@ function CollaborateurModal({ onClose, onSuccess }: { onClose: () => void; onSuc
             Annuler
           </Button>
           <Button type="button" variant="primary" loading={saving} onClick={enregistrer}>
-            {saving ? "Ajout…" : "Ajouter"}
+            {saving ? "Enregistrement…" : edition ? "Enregistrer" : "Ajouter"}
           </Button>
         </DialogFooter>
       </DialogContent>
