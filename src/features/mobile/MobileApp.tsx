@@ -11,6 +11,7 @@ import { Loader2 } from "lucide-react";
 import { useMobileData } from "./data/useMobileData";
 import { useWebNav } from "./data/useWebNav";
 import { Toast } from "./components/Toast";
+import { InactivityLock } from "./components/InactivityLock";
 import { LandingScreen } from "./screens/LandingScreen";
 import { LoginScreen } from "./screens/LoginScreen";
 import { SignupScreen } from "./screens/SignupScreen";
@@ -132,6 +133,7 @@ export function MobileApp() {
     <>
       {isAdmin ? <AdminApp {...expProps} /> : <CitizenApp {...expProps} />}
       <Toast message={toast} />
+      <InactivityLock onExpire={logout} />
     </>
   );
 }
