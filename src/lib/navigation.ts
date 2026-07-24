@@ -38,6 +38,8 @@ import {
   Store,
   TrendingUp,
   Users,
+  UsersRound,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -177,6 +179,7 @@ export const ESPACE_LABELS: Record<string, string> = {
   proprietaire: "Propriétaire terrien", // rôle déprécié, fondu dans le précédent
   operateur_saisie: "Saisie foncière",
   acquereur: "Espace Acquéreur",
+  comptable: "Comptabilité & RH",
 };
 
 export const libelleEspace = (groupe: string | null) =>
@@ -282,6 +285,11 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Journal d'audit", href: "/dashboard/administration?volet=audit", icon: ScrollText, section: "administration", roles: [], deepLink: { key: "volet", value: "audit" }, keywords: "journal audit traçabilité historique événements" },
   { label: "Référentiels", href: "/dashboard/administration?volet=referentiels", icon: Library, section: "administration", roles: [], deepLink: { key: "volet", value: "referentiels" }, keywords: "référentiels opérateurs commissaires justice registre entités" },
   { label: "Paramètres", href: "/dashboard/administration?volet=parametres", icon: Settings, section: "administration", roles: [], deepLink: { key: "volet", value: "parametres" }, keywords: "paramètres réglages configuration tarifs" },
+  // Comptabilité + RH : back-office interne SGNF (24/07). `roles: ["comptable"]`
+  // affiche ces deux entrées à l'admin (qui contourne le filtre `roles`, cf.
+  // `visibleNavItems`) ET au nouveau rôle comptable — mais à personne d'autre.
+  { label: "Comptabilité", href: "/dashboard/comptabilite", icon: Wallet, section: "administration", roles: ["comptable"], keywords: "comptabilité recettes dépenses solde finances trésorerie" },
+  { label: "Collaborateurs", href: "/dashboard/collaborateurs", icon: UsersRound, section: "administration", roles: ["comptable"], keywords: "rh ressources humaines personnel équipe employés annuaire" },
 
   // ── Espaces dédiés (masqués pour l'admin) ──
   { label: "Mon espace", href: "/dashboard/mon-achat", icon: ClipboardCheck, section: "espaces", roles: ["acquereur"], adminHide: true, badgeKey: "acquereurAction", keywords: "acquéreur suivi terrains achat" },
@@ -365,6 +373,8 @@ const ROLE_NAV_ORDER: Partial<Record<string, string[]>> = {
   // au-dessus d'un unique lien n'ajoute qu'un étage de hiérarchie vide, et le
   // handoff ne l'affiche pas.
   operateur_saisie: ["/dashboard/saisie"],
+  // Comptable : back-office interne, liste fermée aux deux modules + messagerie.
+  comptable: ["/dashboard/comptabilite", "/dashboard/collaborateurs", "/dashboard/messages"],
   commissaire: [
     "/dashboard/commissaire",
     "/dashboard/litiges",

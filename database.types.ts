@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -74,6 +74,216 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      attestations_attribution_lot: {
+        Row: {
+          antecedent_attestation_cession_id: string | null
+          apfc_id: string | null
+          attribution_id: string | null
+          cree_le: string
+          date_emission: string | null
+          delivree_le: string | null
+          delivree_par: string | null
+          derniere_maj_par: string | null
+          exception: boolean
+          exception_le: string | null
+          exception_motif: string | null
+          exception_par: string | null
+          gratuite: boolean
+          historique: Json
+          id: string
+          lot_id: string
+          maj_le: string
+          motif_revocation: string | null
+          niveau: number
+          nom_identifie_physique: string | null
+          promue_niveau3_le: string | null
+          qr_token: string | null
+          reference: string
+          revoquee_le: string | null
+          revoquee_par: string | null
+          sig_chefferie_le: string | null
+          sig_chefferie_par: string | null
+          sig_operateur_le: string | null
+          sig_operateur_par: string | null
+          sig_proprietaire_le: string | null
+          sig_proprietaire_par: string | null
+          signature_payee_le: string | null
+          statut: Database["public"]["Enums"]["statut_att_cession"]
+          titulaire_attributaire_id: string
+        }
+        Insert: {
+          antecedent_attestation_cession_id?: string | null
+          apfc_id?: string | null
+          attribution_id?: string | null
+          cree_le?: string
+          date_emission?: string | null
+          delivree_le?: string | null
+          delivree_par?: string | null
+          derniere_maj_par?: string | null
+          exception?: boolean
+          exception_le?: string | null
+          exception_motif?: string | null
+          exception_par?: string | null
+          gratuite?: boolean
+          historique?: Json
+          id?: string
+          lot_id: string
+          maj_le?: string
+          motif_revocation?: string | null
+          niveau?: number
+          nom_identifie_physique?: string | null
+          promue_niveau3_le?: string | null
+          qr_token?: string | null
+          reference: string
+          revoquee_le?: string | null
+          revoquee_par?: string | null
+          sig_chefferie_le?: string | null
+          sig_chefferie_par?: string | null
+          sig_operateur_le?: string | null
+          sig_operateur_par?: string | null
+          sig_proprietaire_le?: string | null
+          sig_proprietaire_par?: string | null
+          signature_payee_le?: string | null
+          statut?: Database["public"]["Enums"]["statut_att_cession"]
+          titulaire_attributaire_id: string
+        }
+        Update: {
+          antecedent_attestation_cession_id?: string | null
+          apfc_id?: string | null
+          attribution_id?: string | null
+          cree_le?: string
+          date_emission?: string | null
+          delivree_le?: string | null
+          delivree_par?: string | null
+          derniere_maj_par?: string | null
+          exception?: boolean
+          exception_le?: string | null
+          exception_motif?: string | null
+          exception_par?: string | null
+          gratuite?: boolean
+          historique?: Json
+          id?: string
+          lot_id?: string
+          maj_le?: string
+          motif_revocation?: string | null
+          niveau?: number
+          nom_identifie_physique?: string | null
+          promue_niveau3_le?: string | null
+          qr_token?: string | null
+          reference?: string
+          revoquee_le?: string | null
+          revoquee_par?: string | null
+          sig_chefferie_le?: string | null
+          sig_chefferie_par?: string | null
+          sig_operateur_le?: string | null
+          sig_operateur_par?: string | null
+          sig_proprietaire_le?: string | null
+          sig_proprietaire_par?: string | null
+          signature_payee_le?: string | null
+          statut?: Database["public"]["Enums"]["statut_att_cession"]
+          titulaire_attributaire_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attestations_attribution_lot_antecedent_attestation_cessio_fkey"
+            columns: ["antecedent_attestation_cession_id"]
+            isOneToOne: false
+            referencedRelation: "attestations_cession"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_attribution_lot_apfc_id_fkey"
+            columns: ["apfc_id"]
+            isOneToOne: false
+            referencedRelation: "attestations_coutumieres"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_attribution_lot_attribution_id_fkey"
+            columns: ["attribution_id"]
+            isOneToOne: false
+            referencedRelation: "attributions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_attribution_lot_attribution_id_fkey"
+            columns: ["attribution_id"]
+            isOneToOne: false
+            referencedRelation: "v_niveau3_retroactif_eligibles"
+            referencedColumns: ["attribution_id"]
+          },
+          {
+            foreignKeyName: "attestations_attribution_lot_delivree_par_fkey"
+            columns: ["delivree_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_attribution_lot_derniere_maj_par_fkey"
+            columns: ["derniere_maj_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_attribution_lot_exception_par_fkey"
+            columns: ["exception_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_attribution_lot_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: true
+            referencedRelation: "lots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_attribution_lot_revoquee_par_fkey"
+            columns: ["revoquee_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_attribution_lot_sig_chefferie_par_fkey"
+            columns: ["sig_chefferie_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_attribution_lot_sig_operateur_par_fkey"
+            columns: ["sig_operateur_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_attribution_lot_sig_proprietaire_par_fkey"
+            columns: ["sig_proprietaire_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_attribution_lot_titulaire_attributaire_id_fkey"
+            columns: ["titulaire_attributaire_id"]
+            isOneToOne: false
+            referencedRelation: "attributaires"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attestations_attribution_lot_titulaire_attributaire_id_fkey"
+            columns: ["titulaire_attributaire_id"]
+            isOneToOne: false
+            referencedRelation: "v_collectifs_pv_manquant"
+            referencedColumns: ["collectif_id"]
           },
         ]
       }
@@ -235,202 +445,6 @@ export type Database = {
             columns: ["sig_proprietaire_par"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      attestations_attribution_lot: {
-        Row: {
-          antecedent_attestation_cession_id: string | null
-          apfc_id: string | null
-          attribution_id: string | null
-          cree_le: string
-          date_emission: string | null
-          delivree_le: string | null
-          delivree_par: string | null
-          derniere_maj_par: string | null
-          exception: boolean
-          exception_le: string | null
-          exception_motif: string | null
-          exception_par: string | null
-          gratuite: boolean
-          historique: Json
-          id: string
-          lot_id: string
-          maj_le: string
-          motif_revocation: string | null
-          niveau: number
-          nom_identifie_physique: string | null
-          promue_niveau3_le: string | null
-          qr_token: string | null
-          reference: string
-          revoquee_le: string | null
-          revoquee_par: string | null
-          sig_chefferie_le: string | null
-          sig_chefferie_par: string | null
-          sig_operateur_le: string | null
-          sig_operateur_par: string | null
-          sig_proprietaire_le: string | null
-          sig_proprietaire_par: string | null
-          signature_payee_le: string | null
-          statut: Database["public"]["Enums"]["statut_att_cession"]
-          titulaire_attributaire_id: string
-        }
-        Insert: {
-          antecedent_attestation_cession_id?: string | null
-          apfc_id?: string | null
-          attribution_id?: string | null
-          cree_le?: string
-          date_emission?: string | null
-          delivree_le?: string | null
-          delivree_par?: string | null
-          derniere_maj_par?: string | null
-          exception?: boolean
-          exception_le?: string | null
-          exception_motif?: string | null
-          exception_par?: string | null
-          gratuite?: boolean
-          historique?: Json
-          id?: string
-          lot_id: string
-          maj_le?: string
-          motif_revocation?: string | null
-          niveau?: number
-          nom_identifie_physique?: string | null
-          promue_niveau3_le?: string | null
-          qr_token?: string | null
-          reference: string
-          revoquee_le?: string | null
-          revoquee_par?: string | null
-          sig_chefferie_le?: string | null
-          sig_chefferie_par?: string | null
-          sig_operateur_le?: string | null
-          sig_operateur_par?: string | null
-          sig_proprietaire_le?: string | null
-          sig_proprietaire_par?: string | null
-          signature_payee_le?: string | null
-          statut?: Database["public"]["Enums"]["statut_att_cession"]
-          titulaire_attributaire_id: string
-        }
-        Update: {
-          antecedent_attestation_cession_id?: string | null
-          apfc_id?: string | null
-          attribution_id?: string | null
-          cree_le?: string
-          date_emission?: string | null
-          delivree_le?: string | null
-          delivree_par?: string | null
-          derniere_maj_par?: string | null
-          exception?: boolean
-          exception_le?: string | null
-          exception_motif?: string | null
-          exception_par?: string | null
-          gratuite?: boolean
-          historique?: Json
-          id?: string
-          lot_id?: string
-          maj_le?: string
-          motif_revocation?: string | null
-          niveau?: number
-          nom_identifie_physique?: string | null
-          promue_niveau3_le?: string | null
-          qr_token?: string | null
-          reference?: string
-          revoquee_le?: string | null
-          revoquee_par?: string | null
-          sig_chefferie_le?: string | null
-          sig_chefferie_par?: string | null
-          sig_operateur_le?: string | null
-          sig_operateur_par?: string | null
-          sig_proprietaire_le?: string | null
-          sig_proprietaire_par?: string | null
-          signature_payee_le?: string | null
-          statut?: Database["public"]["Enums"]["statut_att_cession"]
-          titulaire_attributaire_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "attestations_attribution_lot_antecedent_attestation_cessio_fkey"
-            columns: ["antecedent_attestation_cession_id"]
-            isOneToOne: false
-            referencedRelation: "attestations_cession"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attestations_attribution_lot_apfc_id_fkey"
-            columns: ["apfc_id"]
-            isOneToOne: false
-            referencedRelation: "attestations_coutumieres"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attestations_attribution_lot_attribution_id_fkey"
-            columns: ["attribution_id"]
-            isOneToOne: false
-            referencedRelation: "attributions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attestations_attribution_lot_delivree_par_fkey"
-            columns: ["delivree_par"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attestations_attribution_lot_derniere_maj_par_fkey"
-            columns: ["derniere_maj_par"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attestations_attribution_lot_exception_par_fkey"
-            columns: ["exception_par"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attestations_attribution_lot_lot_id_fkey"
-            columns: ["lot_id"]
-            isOneToOne: true
-            referencedRelation: "lots"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attestations_attribution_lot_revoquee_par_fkey"
-            columns: ["revoquee_par"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attestations_attribution_lot_sig_chefferie_par_fkey"
-            columns: ["sig_chefferie_par"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attestations_attribution_lot_sig_operateur_par_fkey"
-            columns: ["sig_operateur_par"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attestations_attribution_lot_sig_proprietaire_par_fkey"
-            columns: ["sig_proprietaire_par"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attestations_attribution_lot_titulaire_attributaire_id_fkey"
-            columns: ["titulaire_attributaire_id"]
-            isOneToOne: false
-            referencedRelation: "attributaires"
             referencedColumns: ["id"]
           },
         ]
@@ -834,6 +848,62 @@ export type Database = {
             columns: ["operateur_id"]
             isOneToOne: false
             referencedRelation: "operateurs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      collaborateurs: {
+        Row: {
+          cree_le: string
+          cree_par: string | null
+          date_entree: string | null
+          date_sortie: string | null
+          email: string | null
+          id: string
+          modifie_le: string
+          nom_complet: string
+          notes: string | null
+          poste: string | null
+          service: string | null
+          statut: string
+          telephone: string | null
+        }
+        Insert: {
+          cree_le?: string
+          cree_par?: string | null
+          date_entree?: string | null
+          date_sortie?: string | null
+          email?: string | null
+          id?: string
+          modifie_le?: string
+          nom_complet: string
+          notes?: string | null
+          poste?: string | null
+          service?: string | null
+          statut?: string
+          telephone?: string | null
+        }
+        Update: {
+          cree_le?: string
+          cree_par?: string | null
+          date_entree?: string | null
+          date_sortie?: string | null
+          email?: string | null
+          id?: string
+          modifie_le?: string
+          nom_complet?: string
+          notes?: string | null
+          poste?: string | null
+          service?: string | null
+          statut?: string
+          telephone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collaborateurs_cree_par_fkey"
+            columns: ["cree_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1484,6 +1554,44 @@ export type Database = {
             columns: ["lot_id"]
             isOneToOne: false
             referencedRelation: "lots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      depenses: {
+        Row: {
+          categorie: Database["public"]["Enums"]["categorie_depense"]
+          cree_le: string
+          date_depense: string
+          description: string
+          id: string
+          montant: number
+          saisi_par: string | null
+        }
+        Insert: {
+          categorie: Database["public"]["Enums"]["categorie_depense"]
+          cree_le?: string
+          date_depense?: string
+          description: string
+          id?: string
+          montant: number
+          saisi_par?: string | null
+        }
+        Update: {
+          categorie?: Database["public"]["Enums"]["categorie_depense"]
+          cree_le?: string
+          date_depense?: string
+          description?: string
+          id?: string
+          montant?: number
+          saisi_par?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "depenses_saisi_par_fkey"
+            columns: ["saisi_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2824,13 +2932,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "paiements_attestation_attribution_id_fkey"
-            columns: ["attestation_attribution_id"]
-            isOneToOne: false
-            referencedRelation: "attestations_attribution_lot"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "paiements_acquereur_id_fkey"
             columns: ["acquereur_id"]
             isOneToOne: false
@@ -2843,6 +2944,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_collectifs_pv_manquant"
             referencedColumns: ["collectif_id"]
+          },
+          {
+            foreignKeyName: "paiements_attestation_attribution_id_fkey"
+            columns: ["attestation_attribution_id"]
+            isOneToOne: false
+            referencedRelation: "attestations_attribution_lot"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "paiements_cession_id_fkey"
@@ -4169,6 +4277,64 @@ export type Database = {
           },
         ]
       }
+      v_niveau2_eligibles_manuel: {
+        Row: {
+          lot_id: string | null
+          lotissement: string | null
+          numero_lot: string | null
+          qualite: Database["public"]["Enums"]["qualite_attribution"] | null
+          titulaire_registre: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attributions_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "lots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_niveau3_retroactif_eligibles: {
+        Row: {
+          attributaire_id: string | null
+          attribution_id: string | null
+          lot_id: string | null
+        }
+        Insert: {
+          attributaire_id?: string | null
+          attribution_id?: string | null
+          lot_id?: string | null
+        }
+        Update: {
+          attributaire_id?: string | null
+          attribution_id?: string | null
+          lot_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attributions_attributaire_id_fkey"
+            columns: ["attributaire_id"]
+            isOneToOne: false
+            referencedRelation: "attributaires"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attributions_attributaire_id_fkey"
+            columns: ["attributaire_id"]
+            isOneToOne: false
+            referencedRelation: "v_collectifs_pv_manquant"
+            referencedColumns: ["collectif_id"]
+          },
+          {
+            foreignKeyName: "attributions_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "lots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       _appliquer_creation_lotissement: {
@@ -4183,6 +4349,14 @@ export type Database = {
       _appliquer_modification_lotissement: {
         Args: { p_payload: Json }
         Returns: Json
+      }
+      _maj_attribution_lot_niveau3: {
+        Args: {
+          p_attribution_id: string
+          p_lot_id: string
+          p_titulaire_id: string
+        }
+        Returns: undefined
       }
       accorder_derogation_documents: {
         Args: { p_lotissement_id: string; p_motif: string }
@@ -4293,6 +4467,7 @@ export type Database = {
         Returns: undefined
       }
       est_admin: { Args: never; Returns: boolean }
+      est_comptable: { Args: never; Returns: boolean }
       est_lot_eligible_marketplace: {
         Args: { p_lot_id: string }
         Returns: boolean
@@ -4312,44 +4487,12 @@ export type Database = {
         Returns: Json
       }
       finaliser_inscription: { Args: { p_code: string }; Returns: Json }
-      generer_attestation_exceptionnelle: {
-        Args: { p_lot_id: string; p_motif: string }
-        Returns: {
-          acquereur_id: string
-          apfc_id: string | null
-          cession_id: string | null
-          cree_le: string
-          date_emission: string | null
-          delivree_le: string | null
-          delivree_par: string | null
-          exception: boolean
-          exception_le: string | null
-          exception_motif: string | null
-          exception_par: string | null
-          id: string
-          lot_id: string
-          motif_revocation: string | null
-          qr_token: string | null
-          reference: string
-          revoquee_le: string | null
-          revoquee_par: string | null
-          sig_chefferie_le: string | null
-          sig_chefferie_par: string | null
-          sig_operateur_le: string | null
-          sig_operateur_par: string | null
-          sig_proprietaire_le: string | null
-          sig_proprietaire_par: string | null
-          statut: Database["public"]["Enums"]["statut_att_cession"]
-        }
-        SetofOptions: {
-          from: "*"
-          to: "attestations_cession"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       generer_attestation_attribution_lot: {
-        Args: { p_lot_id: string; p_motif_derogation?: string; p_nom_identifie_physique: string }
+        Args: {
+          p_lot_id: string
+          p_motif_derogation?: string
+          p_nom_identifie_physique: string
+        }
         Returns: {
           antecedent_attestation_cession_id: string | null
           apfc_id: string | null
@@ -4386,6 +4529,48 @@ export type Database = {
           statut: Database["public"]["Enums"]["statut_att_cession"]
           titulaire_attributaire_id: string
         }
+        SetofOptions: {
+          from: "*"
+          to: "attestations_attribution_lot"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      generer_attestation_exceptionnelle: {
+        Args: { p_lot_id: string; p_motif: string }
+        Returns: {
+          acquereur_id: string
+          apfc_id: string | null
+          cession_id: string | null
+          cree_le: string
+          date_emission: string | null
+          delivree_le: string | null
+          delivree_par: string | null
+          exception: boolean
+          exception_le: string | null
+          exception_motif: string | null
+          exception_par: string | null
+          id: string
+          lot_id: string
+          motif_revocation: string | null
+          qr_token: string | null
+          reference: string
+          revoquee_le: string | null
+          revoquee_par: string | null
+          sig_chefferie_le: string | null
+          sig_chefferie_par: string | null
+          sig_operateur_le: string | null
+          sig_operateur_par: string | null
+          sig_proprietaire_le: string | null
+          sig_proprietaire_par: string | null
+          statut: Database["public"]["Enums"]["statut_att_cession"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "attestations_cession"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       generer_attestations_gratuites_manquantes: {
         Args: { p_confirmation?: number }
@@ -4409,6 +4594,14 @@ export type Database = {
         Args: { p_lot_id: string }
         Returns: boolean
       }
+      lot_peut_emettre_attestation_niveau1: {
+        Args: { p_lot_id: string }
+        Returns: boolean
+      }
+      lot_peut_emettre_attestation_niveau2: {
+        Args: { p_lot_id: string }
+        Returns: boolean
+      }
       lot_pour_reference: { Args: { p_reference: string }; Returns: string }
       lots_verifiables: { Args: never; Returns: Json }
       ma_chefferie_id: { Args: never; Returns: string }
@@ -4426,10 +4619,9 @@ export type Database = {
         Args: { p_lot_id: string; p_message?: string }
         Returns: string
       }
-      manques_documentaires_lot: {
-        Args: { p_lot_id: string }
-        Returns: string[]
-      }
+      manques_documentaires_lot:
+        | { Args: { p_lot_id: string }; Returns: string[] }
+        | { Args: { p_lot_id: string; p_niveau?: number }; Returns: string[] }
       marquer_attestation_attribution_lot_delivree: {
         Args: { p_id: string }
         Returns: undefined
@@ -4437,10 +4629,6 @@ export type Database = {
       marquer_attestation_delivree: {
         Args: { p_id: string }
         Returns: undefined
-      }
-      rattraper_niveau3_retroactif: {
-        Args: { p_confirmation?: number }
-        Returns: Json
       }
       marquer_echeances_en_retard: { Args: never; Returns: undefined }
       marquer_paiement_recu: {
@@ -4460,10 +4648,9 @@ export type Database = {
           numero_lot: string
         }[]
       }
-      message_refus_documentaire: {
-        Args: { p_lot_id: string }
-        Returns: string
-      }
+      message_refus_documentaire:
+        | { Args: { p_lot_id: string }; Returns: string }
+        | { Args: { p_lot_id: string; p_niveau?: number }; Returns: string }
       mon_attributaire_id: { Args: never; Returns: string }
       mon_commissaire_id: { Args: never; Returns: string }
       mon_geometre_id: { Args: never; Returns: string }
@@ -4474,6 +4661,10 @@ export type Database = {
       mon_operateur_id: { Args: never; Returns: string }
       peut_contacter: { Args: { p_destinataire_id: string }; Returns: boolean }
       profil_de_attributaire: { Args: { p_attr: string }; Returns: string }
+      rattraper_niveau3_retroactif: {
+        Args: { p_confirmation?: number }
+        Returns: Json
+      }
       regenerer_document: {
         Args: { p_id: string; p_table: string }
         Returns: undefined
@@ -4569,10 +4760,23 @@ export type Database = {
         Returns: undefined
       }
       verifier_attestation: { Args: { p_ref: string }; Returns: Json }
+      verifier_attestation_attribution: {
+        Args: { p_ref: string }
+        Returns: Json
+      }
       verifier_document: { Args: { p_ref: string }; Returns: Json }
     }
     Enums: {
       canal_notification: "whatsapp" | "email" | "sms"
+      categorie_depense:
+        | "salaires"
+        | "loyer_charges"
+        | "materiel_equipement"
+        | "prestataires_externes"
+        | "marketing_communication"
+        | "impots_taxes"
+        | "deplacements"
+        | "autre"
       groupe_utilisateur:
         | "admin"
         | "chefferie"
@@ -4586,6 +4790,7 @@ export type Database = {
         | "geometre"
         | "commissaire"
         | "amenageur"
+        | "comptable"
       moyen_paiement:
         | "wave"
         | "orange_money"
@@ -4860,6 +5065,16 @@ export const Constants = {
   public: {
     Enums: {
       canal_notification: ["whatsapp", "email", "sms"],
+      categorie_depense: [
+        "salaires",
+        "loyer_charges",
+        "materiel_equipement",
+        "prestataires_externes",
+        "marketing_communication",
+        "impots_taxes",
+        "deplacements",
+        "autre",
+      ],
       groupe_utilisateur: [
         "admin",
         "chefferie",
@@ -4873,6 +5088,7 @@ export const Constants = {
         "geometre",
         "commissaire",
         "amenageur",
+        "comptable",
       ],
       moyen_paiement: [
         "wave",

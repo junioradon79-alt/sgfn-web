@@ -37,6 +37,7 @@ const GROUPES: Record<string, string> = {
   agent_ia: "Agent IA",
   amenageur: "Aménageur (déprécié)",
   proprietaire: "Propriétaire par achat (déprécié)",
+  comptable: "Comptabilité & RH",
 };
 
 const libelleGroupe = (g: string | null) => (g ? GROUPES[g] ?? g : "—");
