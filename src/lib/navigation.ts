@@ -17,6 +17,7 @@ import {
   HandCoins,
   Handshake,
   Home,
+  IdCard,
   KeyRound,
   Landmark,
   Library,
@@ -180,6 +181,7 @@ export const ESPACE_LABELS: Record<string, string> = {
   operateur_saisie: "Saisie foncière",
   acquereur: "Espace Acquéreur",
   comptable: "Comptabilité & RH",
+  collaborateur: "Espace Collaborateur",
 };
 
 export const libelleEspace = (groupe: string | null) =>
@@ -301,6 +303,9 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Propriétaire terrien", href: "/dashboard/proprietaire-terrien", icon: Home, section: "espaces", roles: ["proprietaire_terrien"], adminHide: true, badgeKey: "ptAValider" },
   { label: "Espace Géomètre", href: "/dashboard/geometre", icon: Ruler, section: "espaces", roles: ["geometre"], adminHide: true },
   { label: "Mes missions", href: "/dashboard/missions", icon: Briefcase, section: "espaces", roles: ["geometre"], adminHide: true, badgeKey: "missionsGeometre" },
+  // Collaborateur : rôle minimal (24/07), sa seule donnée propre est sa fiche
+  // RH (lecture seule, policy `collaborateurs_lecture_soi`).
+  { label: "Ma fiche RH", href: "/dashboard/mon-profil-rh", icon: IdCard, section: "espaces", roles: ["collaborateur"], adminHide: true },
 
   // ── Documents ──
   // « Registre documentaire » côté national (handoff) ; « Documents », plus
@@ -375,6 +380,8 @@ const ROLE_NAV_ORDER: Partial<Record<string, string[]>> = {
   operateur_saisie: ["/dashboard/saisie"],
   // Comptable : back-office interne, liste fermée aux deux modules + messagerie.
   comptable: ["/dashboard/comptabilite", "/dashboard/collaborateurs", "/dashboard/messages"],
+  // Collaborateur : rôle minimal (24/07), liste fermée à sa fiche + messagerie.
+  collaborateur: ["/dashboard/mon-profil-rh", "/dashboard/messages"],
   commissaire: [
     "/dashboard/commissaire",
     "/dashboard/litiges",

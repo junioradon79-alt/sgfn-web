@@ -45,6 +45,11 @@ const ROLE_HOME: Record<string, string> = {
   proprietaire_terrien: "/dashboard/proprietaire-terrien",
   operateur_saisie: "/dashboard/saisie",
   geometre: "/dashboard/geometre",
+  // Comptable : oubliée à sa création (24/07) — atterrissait sur ce Centre de
+  // pilotage national, hors de portée RLS pour ce rôle. Collaborateur : nouveau
+  // rôle minimal (24/07), sa fiche RH est son seul espace.
+  comptable: "/dashboard/comptabilite",
+  collaborateur: "/dashboard/mon-profil-rh",
 };
 
 /**

@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -71,6 +71,44 @@ export type Database = {
           {
             foreignKeyName: "annonces_marketplace_proprietaire_profile_id_fkey"
             columns: ["proprietaire_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      apports: {
+        Row: {
+          categorie: Database["public"]["Enums"]["categorie_apport"]
+          cree_le: string
+          date_apport: string
+          description: string
+          id: string
+          montant: number
+          saisi_par: string | null
+        }
+        Insert: {
+          categorie: Database["public"]["Enums"]["categorie_apport"]
+          cree_le?: string
+          date_apport?: string
+          description: string
+          id?: string
+          montant: number
+          saisi_par?: string | null
+        }
+        Update: {
+          categorie?: Database["public"]["Enums"]["categorie_apport"]
+          cree_le?: string
+          date_apport?: string
+          description?: string
+          id?: string
+          montant?: number
+          saisi_par?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apports_saisi_par_fkey"
+            columns: ["saisi_par"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2049,6 +2087,7 @@ export type Database = {
           attributaire_id: string | null
           autorite_coutumiere_id: string | null
           code: string
+          collaborateur_id: string | null
           commissaire_id: string | null
           cree_le: string
           cree_par: string
@@ -2068,6 +2107,7 @@ export type Database = {
           attributaire_id?: string | null
           autorite_coutumiere_id?: string | null
           code?: string
+          collaborateur_id?: string | null
           commissaire_id?: string | null
           cree_le?: string
           cree_par?: string
@@ -2087,6 +2127,7 @@ export type Database = {
           attributaire_id?: string | null
           autorite_coutumiere_id?: string | null
           code?: string
+          collaborateur_id?: string | null
           commissaire_id?: string | null
           cree_le?: string
           cree_par?: string
@@ -2122,6 +2163,13 @@ export type Database = {
             columns: ["autorite_coutumiere_id"]
             isOneToOne: false
             referencedRelation: "autorites_coutumieres"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitations_collaborateur_id_fkey"
+            columns: ["collaborateur_id"]
+            isOneToOne: false
+            referencedRelation: "collaborateurs"
             referencedColumns: ["id"]
           },
           {
@@ -3051,6 +3099,7 @@ export type Database = {
           actif: boolean
           attributaire_id: string | null
           autorite_coutumiere_id: string | null
+          collaborateur_id: string | null
           commissaire_id: string | null
           cree_le: string
           famille_id: string | null
@@ -3065,6 +3114,7 @@ export type Database = {
           actif?: boolean
           attributaire_id?: string | null
           autorite_coutumiere_id?: string | null
+          collaborateur_id?: string | null
           commissaire_id?: string | null
           cree_le?: string
           famille_id?: string | null
@@ -3079,6 +3129,7 @@ export type Database = {
           actif?: boolean
           attributaire_id?: string | null
           autorite_coutumiere_id?: string | null
+          collaborateur_id?: string | null
           commissaire_id?: string | null
           cree_le?: string
           famille_id?: string | null
@@ -3123,6 +3174,13 @@ export type Database = {
             columns: ["operateur_id"]
             isOneToOne: false
             referencedRelation: "operateurs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_collaborateur_id_fkey"
+            columns: ["collaborateur_id"]
+            isOneToOne: false
+            referencedRelation: "collaborateurs"
             referencedColumns: ["id"]
           },
           {
@@ -4384,6 +4442,7 @@ export type Database = {
         Returns: Json
       }
       calculer_score_confiance: { Args: { p_lot_id: string }; Returns: Json }
+      collaborateurs_avec_compte: { Args: never; Returns: string[] }
       conformite_lotissements: { Args: never; Returns: Json }
       convertir_demande_en_cession: {
         Args: {
@@ -4652,6 +4711,7 @@ export type Database = {
         | { Args: { p_lot_id: string }; Returns: string }
         | { Args: { p_lot_id: string; p_niveau?: number }; Returns: string }
       mon_attributaire_id: { Args: never; Returns: string }
+      mon_collaborateur_id: { Args: never; Returns: string }
       mon_commissaire_id: { Args: never; Returns: string }
       mon_geometre_id: { Args: never; Returns: string }
       mon_groupe: {
@@ -4768,6 +4828,11 @@ export type Database = {
     }
     Enums: {
       canal_notification: "whatsapp" | "email" | "sms"
+      categorie_apport:
+        | "apport_capital"
+        | "pret_associe"
+        | "subvention"
+        | "autre"
       categorie_depense:
         | "salaires"
         | "loyer_charges"
@@ -4791,6 +4856,7 @@ export type Database = {
         | "commissaire"
         | "amenageur"
         | "comptable"
+        | "collaborateur"
       moyen_paiement:
         | "wave"
         | "orange_money"
@@ -5065,6 +5131,12 @@ export const Constants = {
   public: {
     Enums: {
       canal_notification: ["whatsapp", "email", "sms"],
+      categorie_apport: [
+        "apport_capital",
+        "pret_associe",
+        "subvention",
+        "autre",
+      ],
       categorie_depense: [
         "salaires",
         "loyer_charges",
@@ -5089,6 +5161,7 @@ export const Constants = {
         "commissaire",
         "amenageur",
         "comptable",
+        "collaborateur",
       ],
       moyen_paiement: [
         "wave",

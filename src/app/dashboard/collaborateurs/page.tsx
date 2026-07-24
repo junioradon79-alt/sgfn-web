@@ -24,9 +24,15 @@ import { Skeleton } from "@/components/ds/skeleton";
  *
  * Périmètre volontairement restreint (décidé avec le user) : identité, poste,
  * contact, date d'entrée, statut actif/inactif. Ni congés, ni paie — table
- * `collaborateurs`, indépendante de `profiles` (un collaborateur n'a pas
- * forcément de compte applicatif). Accès : admin + rôle `comptable`
- * (policies `collaborateurs_gestion`, migration 20260724181000).
+ * `collaborateurs`. Accès : admin + rôle `comptable` (policies
+ * `collaborateurs_gestion`, migration 20260724181000).
+ *
+ * Un collaborateur n'a pas forcément de compte applicatif : la colonne
+ * « Accès » (24/07) indique s'il en a un (lien `profiles.collaborateur_id`,
+ * exposé sans exposer `profiles` via le RPC `collaborateurs_avec_compte()`).
+ * Les identifiants eux-mêmes se provisionnent depuis `/dashboard/invitations`
+ * (rôle « Collaborateur »), pas ici — un seul point d'entrée pour tous les
+ * types de comptes.
  */
 
 type Collaborateur = {
@@ -50,16 +56,23 @@ function CollaborateursContenu() {
   const { counts } = useBadgeCounts();
 
   const [collaborateurs, setCollaborateurs] = useState<Collaborateur[]>([]);
+  const [avecCompte, setAvecCompte] = useState<Set<string>>(new Set());
   const [recherche, setRecherche] = useState("");
   // `"creation"` = modale vide ; un objet = modale pré-remplie en édition ; `null` = fermée.
   const [modale, setModale] = useState<"creation" | Collaborateur | null>(null);
 
   const charger = useCallback(async () => {
-    const { data } = await supabase
-      .from("collaborateurs")
-      .select("id, nom_complet, poste, service, email, telephone, date_entree, statut")
-      .order("nom_complet");
+    const [{ data }, { data: ids }] = await Promise.all([
+      supabase
+        .from("collaborateurs")
+        .select("id, nom_complet, poste, service, email, telephone, date_entree, statut")
+        .order("nom_complet"),
+      // RPC plutôt qu'une jointure sur `profiles` : évite d'exposer toute la
+      // table (téléphones/emails d'autres rôles) à `comptable`.
+      supabase.rpc("collaborateurs_avec_compte"),
+    ]);
     setCollaborateurs((data ?? []) as Collaborateur[]);
+    setAvecCompte(new Set((ids as string[] | null) ?? []));
   }, [supabase]);
 
   const { isLoading: loading, recharger } = useChargement(charger, [charger]);
@@ -136,7 +149,7 @@ function CollaborateursContenu() {
               />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-[13px]">
+                <table className="w-full min-w-[860px] text-[13px]">
                   <thead>
                     <tr className="border-b border-border text-left text-[11px] font-bold tracking-wider text-muted-2 uppercase">
                       <th className="pb-2 font-bold">Nom</th>
@@ -145,6 +158,7 @@ function CollaborateursContenu() {
                       <th className="pb-2 font-bold">Contact</th>
                       <th className="pb-2 font-bold">Entrée</th>
                       <th className="pb-2 text-right font-bold">Statut</th>
+                      <th className="pb-2 text-right font-bold">Accès</th>
                       <th className="pb-2 text-right font-bold">Actions</th>
                     </tr>
                   </thead>
@@ -175,6 +189,11 @@ function CollaborateursContenu() {
                         <td className="py-2.5 text-right">
                           <Badge tone={c.statut === "actif" ? "success" : "neutral"}>
                             {c.statut === "actif" ? "Actif" : "Inactif"}
+                          </Badge>
+                        </td>
+                        <td className="py-2.5 text-right">
+                          <Badge tone={avecCompte.has(c.id) ? "success" : "neutral"}>
+                            {avecCompte.has(c.id) ? "Compte actif" : "Aucun compte"}
                           </Badge>
                         </td>
                         <td className="py-2.5 text-right">

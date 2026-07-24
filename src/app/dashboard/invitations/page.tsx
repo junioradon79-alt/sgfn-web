@@ -30,6 +30,8 @@ const GROUPES = [
   { value: "verificateur", label: "Vérificateur" },
   // « Aménageur » fusionné dans « Opérateur » (même métier côté foncier).
   { value: "operateur", label: "Opérateur / Aménageur" },
+  { value: "comptable", label: "Comptable (RH & finances)" },
+  { value: "collaborateur", label: "Collaborateur (accès minimal)" },
 ];
 
 const STATUT_TONE: Record<string, "warning" | "success" | "danger" | "neutral"> = {
@@ -53,6 +55,7 @@ const STATUT_LABELS: Record<string, string> = {
 const GROUPES_ATTRIBUTAIRE_REQUIS = ["proprietaire"];
 const GROUPES_AUTORITE_REQUIS = ["chefferie"];
 const GROUPES_FAMILLE_REQUIS = ["proprietaire_terrien"];
+const GROUPES_COLLABORATEUR_REQUIS = ["collaborateur"];
 
 type Option = { id: string; nom: string };
 
@@ -122,10 +125,13 @@ export default function InvitationsPage() {
   const [autorites, setAutorites] = useState<Option[]>([]);
   const [familleId, setFamilleId] = useState("");
   const [familles, setFamilles] = useState<Option[]>([]);
+  const [collaborateurId, setCollaborateurId] = useState("");
+  const [collaborateursDisponibles, setCollaborateursDisponibles] = useState<Option[]>([]);
 
   const attributaireRequis = GROUPES_ATTRIBUTAIRE_REQUIS.includes(groupe);
   const autoriteRequise = GROUPES_AUTORITE_REQUIS.includes(groupe);
   const familleRequise = GROUPES_FAMILLE_REQUIS.includes(groupe);
+  const collaborateurRequis = GROUPES_COLLABORATEUR_REQUIS.includes(groupe);
 
   useEffect(() => {
     supabase.from("attributaires").select("id, nom").order("nom")
@@ -134,6 +140,18 @@ export default function InvitationsPage() {
       .then(({ data }) => setAutorites((data as Option[]) ?? []));
     supabase.from("familles").select("id, nom").order("nom")
       .then(({ data }) => setFamilles((data as Option[]) ?? []));
+    // Collaborateurs actifs qui n'ont pas déjà un compte (RPC plutôt qu'un
+    // filtre client sur `profiles` — ce rôle n'a pas accès à cette table).
+    Promise.all([
+      supabase.from("collaborateurs").select("id, nom_complet").eq("statut", "actif").order("nom_complet"),
+      supabase.rpc("collaborateurs_avec_compte"),
+    ]).then(([{ data: collabs }, { data: avecCompte }]) => {
+      const dejaLies = new Set((avecCompte as string[] | null) ?? []);
+      const options = ((collabs as { id: string; nom_complet: string }[] | null) ?? [])
+        .filter((c) => !dejaLies.has(c.id))
+        .map((c) => ({ id: c.id, nom: c.nom_complet }));
+      setCollaborateursDisponibles(options);
+    });
   }, [supabase]);
 
   const fetchInvitations = async () => {
@@ -167,6 +185,7 @@ export default function InvitationsPage() {
       attributaire_id: attributaireRequis ? attributaireId : null,
       autorite_coutumiere_id: autoriteRequise ? autoriteCoutumiereId : null,
       famille_id: familleRequise ? familleId : null,
+      collaborateur_id: collaborateurRequis ? collaborateurId : null,
       cree_par: user.id,
     });
 
@@ -181,6 +200,9 @@ export default function InvitationsPage() {
       setAttributaireId("");
       setAutoriteCoutumiereId("");
       setFamilleId("");
+      setCollaborateurId("");
+      // Le collaborateur choisi n'est plus disponible pour une prochaine invitation.
+      setCollaborateursDisponibles((prev) => prev.filter((c) => c.id !== collaborateurId));
       await recharger();
     }
 
@@ -282,6 +304,7 @@ export default function InvitationsPage() {
                     setAttributaireId("");
                     setAutoriteCoutumiereId("");
                     setFamilleId("");
+                    setCollaborateurId("");
                   }}
                 >
                   {GROUPES.map((g) => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
@@ -327,11 +350,29 @@ export default function InvitationsPage() {
                   </ChampSelect>
                 )}
 
-                {(attributaireRequis || autoriteRequise || familleRequise) && (
+                {collaborateurRequis && (
+                  <ChampSelect
+                    id="inv-collaborateur"
+                    label="Collaborateur concerné"
+                    required
+                    placeholder={
+                      collaborateursDisponibles.length === 0
+                        ? "Aucun collaborateur disponible…"
+                        : "Sélectionner un collaborateur…"
+                    }
+                    value={collaborateurId}
+                    onChange={setCollaborateurId}
+                  >
+                    {collaborateursDisponibles.map((c) => <SelectItem key={c.id} value={c.id}>{c.nom}</SelectItem>)}
+                  </ChampSelect>
+                )}
+
+                {(attributaireRequis || autoriteRequise || familleRequise || collaborateurRequis) && (
                   <p className="text-xs text-muted-foreground sm:col-span-2">
                     {attributaireRequis && "Un compte propriétaire ou acquéreur doit être rattaché à un attributaire existant."}
                     {autoriteRequise && "Un compte Chefferie doit être rattaché à son autorité coutumière dès l'invitation."}
                     {familleRequise && "Un compte Propriétaire terrien doit être rattaché à sa famille dès l'invitation."}
+                    {collaborateurRequis && "Seuls les collaborateurs actifs n'ayant pas déjà de compte sont proposés. Ajoutez-le d'abord depuis la page Collaborateurs si besoin."}
                   </p>
                 )}
 
@@ -366,7 +407,8 @@ export default function InvitationsPage() {
                       !groupe ||
                       (attributaireRequis && !attributaireId) ||
                       (autoriteRequise && !autoriteCoutumiereId) ||
-                      (familleRequise && !familleId)
+                      (familleRequise && !familleId) ||
+                      (collaborateurRequis && !collaborateurId)
                     }
                   >
                     {isPending ? "Génération…" : "Générer le code"}

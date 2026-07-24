@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState, type ChangeEvent } from "react";
 import { motion } from "framer-motion";
-import { HandCoins, Plus, Receipt, Scale, Trash2, Wallet } from "lucide-react";
+import { HandCoins, PiggyBank, Plus, Receipt, Scale, Trash2, Wallet } from "lucide-react";
 
 import { fadeUp, stagger } from "@/lib/motion";
 import { createClient } from "@/utils/supabase/client";
@@ -32,11 +32,19 @@ import type { Database } from "../../../../database.types";
  * `montant_total` qui inclut la part reversée à des tiers. Seules les
  * dépenses sont saisies à la main (table `depenses`).
  *
- * Accès : admin + rôle `comptable` (policies `depenses_gestion` et
- * `paiements_read_comptable`, migration 20260724181000).
+ * Apports (24/07) : entrées manuelles hors commissions — apports en capital,
+ * prêts associés… reçus pour couvrir des charges courantes avant encaissement
+ * des commissions (table `apports`). Volontairement tenus À PART du KPI
+ * Recettes (décision user) pour que ce dernier reste un vrai indicateur du
+ * chiffre d'affaires commissions ; ils entrent en revanche dans le Solde de
+ * trésorerie disponible, au même titre que les dépenses.
+ *
+ * Accès : admin + rôle `comptable` (policies `depenses_gestion`, `apports_gestion`
+ * et `paiements_read_comptable`, migrations 20260724181000/20260724191000).
  */
 
 type CategorieDepense = Database["public"]["Enums"]["categorie_depense"];
+type CategorieApport = Database["public"]["Enums"]["categorie_apport"];
 
 const CATEGORIE_LABELS: Record<CategorieDepense, string> = {
   salaires: "Salaires",
@@ -51,8 +59,18 @@ const CATEGORIE_LABELS: Record<CategorieDepense, string> = {
 
 const CATEGORIES = Object.keys(CATEGORIE_LABELS) as CategorieDepense[];
 
+const CATEGORIE_APPORT_LABELS: Record<CategorieApport, string> = {
+  apport_capital: "Apport en capital",
+  pret_associe: "Prêt associé",
+  subvention: "Subvention",
+  autre: "Autre",
+};
+
+const CATEGORIES_APPORT = Object.keys(CATEGORIE_APPORT_LABELS) as CategorieApport[];
+
 type PaiementConfirme = { montant_total: number; commission_sgfn: number; confirme_le: string | null };
 type Depense = { id: string; date_depense: string; categorie: CategorieDepense; description: string; montant: number };
+type Apport = { id: string; date_apport: string; categorie: CategorieApport; description: string; montant: number };
 
 const nf = new Intl.NumberFormat("fr-FR");
 const fcfa = (n: number) => `${nf.format(Math.round(n))} F`;
@@ -72,48 +90,66 @@ function ComptabiliteContenu() {
 
   const [paiements, setPaiements] = useState<PaiementConfirme[]>([]);
   const [depenses, setDepenses] = useState<Depense[]>([]);
+  const [apports, setApports] = useState<Apport[]>([]);
   const [modaleOuverte, setModaleOuverte] = useState(false);
+  const [modaleApportOuverte, setModaleApportOuverte] = useState(false);
 
   const charger = useCallback(async () => {
-    const [p, d] = await Promise.all([
+    const [p, d, a] = await Promise.all([
       supabase.from("paiements").select("montant_total, commission_sgfn, confirme_le").eq("statut", "confirme"),
       supabase
         .from("depenses")
         .select("id, date_depense, categorie, description, montant")
         .order("date_depense", { ascending: false }),
+      supabase
+        .from("apports")
+        .select("id, date_apport, categorie, description, montant")
+        .order("date_apport", { ascending: false }),
     ]);
     setPaiements((p.data ?? []) as PaiementConfirme[]);
     setDepenses((d.data ?? []) as Depense[]);
+    setApports((a.data ?? []) as Apport[]);
   }, [supabase]);
 
   const { isLoading: loading, recharger } = useChargement(charger, [charger]);
 
   const recettesTotal = paiements.reduce((s, p) => s + (p.commission_sgfn ?? 0), 0);
   const depensesTotal = depenses.reduce((s, d) => s + (d.montant ?? 0), 0);
-  const solde = recettesTotal - depensesTotal;
+  const apportsTotal = apports.reduce((s, a) => s + (a.montant ?? 0), 0);
+  // Solde de trésorerie = recettes commissions + apports − dépenses. Les
+  // apports restent hors KPI Recettes (qui ne doit refléter que le chiffre
+  // d'affaires réel), mais comptent bien dans ce qui est disponible en caisse.
+  const solde = recettesTotal + apportsTotal - depensesTotal;
 
-  // ── Solde mensuel — recettes (paiements.confirme_le) et dépenses (depenses.date_depense)
-  //    regroupées par mois, fusionnées sur les 6 derniers mois avec un mouvement. ──
+  // ── Solde mensuel — recettes (paiements.confirme_le), apports (apports.date_apport)
+  //    et dépenses (depenses.date_depense) regroupés par mois, fusionnés sur les
+  //    6 derniers mois avec au moins un mouvement. ──
   const parMois = useMemo(() => {
-    const table = new Map<string, { recettes: number; depenses: number }>();
+    const table = new Map<string, { recettes: number; apports: number; depenses: number }>();
     for (const p of paiements) {
       if (!p.confirme_le) continue;
       const cle = moisCle(p.confirme_le);
-      const e = table.get(cle) ?? { recettes: 0, depenses: 0 };
+      const e = table.get(cle) ?? { recettes: 0, apports: 0, depenses: 0 };
       e.recettes += p.commission_sgfn ?? 0;
+      table.set(cle, e);
+    }
+    for (const a of apports) {
+      const cle = moisCle(a.date_apport);
+      const e = table.get(cle) ?? { recettes: 0, apports: 0, depenses: 0 };
+      e.apports += a.montant ?? 0;
       table.set(cle, e);
     }
     for (const d of depenses) {
       const cle = moisCle(d.date_depense);
-      const e = table.get(cle) ?? { recettes: 0, depenses: 0 };
+      const e = table.get(cle) ?? { recettes: 0, apports: 0, depenses: 0 };
       e.depenses += d.montant ?? 0;
       table.set(cle, e);
     }
     return [...table.entries()]
       .sort((a, b) => b[0].localeCompare(a[0]))
       .slice(0, 6)
-      .map(([cle, v]) => ({ cle, ...v, solde: v.recettes - v.depenses }));
-  }, [paiements, depenses]);
+      .map(([cle, v]) => ({ cle, ...v, solde: v.recettes + v.apports - v.depenses }));
+  }, [paiements, apports, depenses]);
 
   const supprimerDepense = async (d: Depense) => {
     if (!window.confirm(`Supprimer la dépense « ${d.description} » (${fcfa(d.montant)}) ?`)) return;
@@ -121,10 +157,16 @@ function ComptabiliteContenu() {
     void recharger();
   };
 
+  const supprimerApport = async (a: Apport) => {
+    if (!window.confirm(`Supprimer l'apport « ${a.description} » (${fcfa(a.montant)}) ?`)) return;
+    await supabase.from("apports").delete().eq("id", a.id);
+    void recharger();
+  };
+
   return (
     <AppShell wide loading={loading} counts={counts} onRefresh={recharger}>
       <motion.div variants={stagger(0, 0.05)} initial="hidden" animate="show" className="flex flex-col gap-5">
-        <motion.div variants={fadeUp} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <motion.div variants={fadeUp} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Kpi
             icon={HandCoins}
             label="Recettes"
@@ -132,6 +174,14 @@ function ComptabiliteContenu() {
             value={recettesTotal}
             format={fcfa}
             legende="Part SGNF des paiements confirmés (toutes périodes)"
+          />
+          <Kpi
+            icon={PiggyBank}
+            label="Apports"
+            loading={loading}
+            value={apportsTotal}
+            format={fcfa}
+            legende={`${apports.length} apport${apports.length > 1 ? "s" : ""} saisi${apports.length > 1 ? "s" : ""} · hors chiffre d'affaires`}
           />
           <Kpi
             icon={Receipt}
@@ -148,7 +198,7 @@ function ComptabiliteContenu() {
             value={solde}
             format={fcfa}
             tone={solde < 0 ? "warning" : "neutral"}
-            legende="Recettes − dépenses, toutes périodes confondues"
+            legende="Recettes + apports − dépenses, toutes périodes confondues"
           />
         </motion.div>
 
@@ -167,11 +217,12 @@ function ComptabiliteContenu() {
                 <EmptyState icon={Wallet} title="Aucun mouvement" description="Aucune recette ni dépense enregistrée pour l'instant." />
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[520px] text-[13px]">
+                  <table className="w-full min-w-[620px] text-[13px]">
                     <thead>
                       <tr className="border-b border-border text-left text-[11px] font-bold tracking-wider text-muted-2 uppercase">
                         <th className="pb-2 font-bold">Mois</th>
                         <th className="pb-2 text-right font-bold">Recettes</th>
+                        <th className="pb-2 text-right font-bold">Apports</th>
                         <th className="pb-2 text-right font-bold">Dépenses</th>
                         <th className="pb-2 text-right font-bold">Solde</th>
                       </tr>
@@ -181,6 +232,7 @@ function ComptabiliteContenu() {
                         <tr key={m.cle} className="border-b border-border/60 last:border-0">
                           <td className="py-2.5 font-medium text-foreground capitalize">{moisLabel(m.cle)}</td>
                           <td className="tabular py-2.5 text-right text-success">{fcfa(m.recettes)}</td>
+                          <td className="tabular py-2.5 text-right text-accent">{fcfa(m.apports)}</td>
                           <td className="tabular py-2.5 text-right text-danger">{fcfa(m.depenses)}</td>
                           <td className="tabular py-2.5 text-right font-semibold text-foreground">{fcfa(m.solde)}</td>
                         </tr>
@@ -232,6 +284,50 @@ function ComptabiliteContenu() {
             </div>
           </Card>
         </motion.div>
+
+        <motion.div variants={fadeUp}>
+          <Card className="overflow-hidden">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-border px-5 py-4">
+              <PiggyBank className="size-4 text-primary" aria-hidden />
+              <h2 className="text-sm font-semibold text-foreground">Apports ({apports.length})</h2>
+              <Button variant="outline" size="sm" className="ml-auto shrink-0" onClick={() => setModaleApportOuverte(true)}>
+                <Plus className="size-4" />
+                Nouvel apport
+              </Button>
+            </div>
+            <div className="px-5 pb-5">
+              {loading ? (
+                <Skeleton className="h-40" />
+              ) : apports.length === 0 ? (
+                <EmptyState
+                  icon={PiggyBank}
+                  title="Aucun apport"
+                  description="Enregistrez un apport en capital, un prêt associé ou une subvention reçus par la structure."
+                />
+              ) : (
+                <ul className="divide-y divide-border">
+                  {apports.map((a) => (
+                    <li key={a.id} className="flex items-center justify-between gap-3 py-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">{a.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {CATEGORIE_APPORT_LABELS[a.categorie]} ·{" "}
+                          {new Date(a.date_apport).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <Badge className="tabular">{fcfa(a.montant)}</Badge>
+                        <Button variant="ghost" size="icon-sm" onClick={() => supprimerApport(a)} title="Supprimer">
+                          <Trash2 className="size-4 text-danger" />
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </Card>
+        </motion.div>
       </motion.div>
 
       {modaleOuverte && (
@@ -239,6 +335,16 @@ function ComptabiliteContenu() {
           onClose={() => setModaleOuverte(false)}
           onSuccess={() => {
             setModaleOuverte(false);
+            void recharger();
+          }}
+        />
+      )}
+
+      {modaleApportOuverte && (
+        <ApportModal
+          onClose={() => setModaleApportOuverte(false)}
+          onSuccess={() => {
+            setModaleApportOuverte(false);
             void recharger();
           }}
         />
@@ -328,6 +434,104 @@ function DepenseModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: 
               type="date"
               value={dateDepense}
               onChange={(e: ChangeEvent<HTMLInputElement>) => setDateDepense(e.target.value)}
+            />
+          </Field>
+          {erreur && (
+            <p role="alert" className="text-sm font-medium text-danger">
+              {erreur}
+            </p>
+          )}
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Annuler
+          </Button>
+          <Button type="button" variant="primary" loading={saving} onClick={enregistrer}>
+            {saving ? "Enregistrement…" : "Enregistrer"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Modale de saisie d'un apport (entrée manuelle hors commissions) ──────
+
+function ApportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+  const supabase = useMemo(() => createClient(), []);
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  const [description, setDescription] = useState("");
+  const [categorie, setCategorie] = useState<CategorieApport>("apport_capital");
+  const [montant, setMontant] = useState("");
+  const [dateApport, setDateApport] = useState(aujourdhui);
+  const [saving, setSaving] = useState(false);
+  const [erreur, setErreur] = useState("");
+
+  const enregistrer = async () => {
+    const montantNombre = Number(montant.replace(",", "."));
+    if (!description.trim()) { setErreur("La description est requise."); return; }
+    if (!Number.isFinite(montantNombre) || montantNombre <= 0) { setErreur("Le montant doit être un nombre positif."); return; }
+
+    setSaving(true);
+    setErreur("");
+
+    const { error } = await supabase.from("apports").insert({
+      description: description.trim(),
+      categorie,
+      montant: montantNombre,
+      date_apport: dateApport,
+    });
+
+    if (error) { setErreur(error.message); setSaving(false); return; }
+    onSuccess();
+  };
+
+  return (
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Nouvel apport</p>
+          <DialogTitle>Enregistrer un apport</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="space-y-4">
+          <Field label="Description" htmlFor="apport-description" required>
+            <Input
+              id="apport-description"
+              autoFocus
+              value={description}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setDescription(e.target.value)}
+              placeholder="Ex : Apport de trésorerie juillet"
+            />
+          </Field>
+          <Field label="Catégorie" htmlFor="apport-categorie" required>
+            <Select value={categorie} onValueChange={(v) => setCategorie(v as CategorieApport)}>
+              <SelectTrigger id="apport-categorie">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIES_APPORT.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {CATEGORIE_APPORT_LABELS[c]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Montant (FCFA)" htmlFor="apport-montant" required>
+            <Input
+              id="apport-montant"
+              inputMode="numeric"
+              value={montant}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setMontant(e.target.value)}
+              placeholder="Ex : 500000"
+            />
+          </Field>
+          <Field label="Date" htmlFor="apport-date" required>
+            <Input
+              id="apport-date"
+              type="date"
+              value={dateApport}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setDateApport(e.target.value)}
             />
           </Field>
           {erreur && (
