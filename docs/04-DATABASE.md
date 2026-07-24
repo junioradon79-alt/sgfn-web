@@ -47,7 +47,9 @@
 
 ## Back-office interne (comptabilité + RH, créées le 24/07)
 
-`depenses` (dépenses saisies à la main par catégorie — `categorie_depense` enum) et `collaborateurs` (annuaire RH simple, indépendant de `profiles`). Usage interne SGNF uniquement, RLS admin + rôle `comptable` (nouvelle valeur de l'enum `groupe_utilisateur`). Les recettes ne sont pas stockées ici : lues directement dans `paiements.commission_sgfn` (statut `confirme`), la part réellement encaissée par SGNF.
+`depenses` (dépenses saisies à la main par catégorie — `categorie_depense` enum), `apports` (entrées manuelles hors commissions — apports en capital/prêts associés/subventions, `categorie_apport` enum, ajoutée en fin de journée le 24/07) et `collaborateurs` (annuaire RH simple). Usage interne SGNF uniquement, RLS admin + rôle `comptable` (valeur de l'enum `groupe_utilisateur`). Les recettes ne sont pas stockées ici : lues directement dans `paiements.commission_sgfn` (statut `confirme`), la part réellement encaissée par SGNF. Les apports sont volontairement tenus hors du KPI Recettes mais comptent dans le solde de trésorerie.
+
+`collaborateurs` peut désormais porter un compte de connexion : `profiles.collaborateur_id` (FK, même convention que `famille_id`/`autorite_coutumiere_id` — portée par `profiles`, unique partiel) rattache un profil à sa fiche RH, provisionné via le système d'invitation existant (`invitations.collaborateur_id`). Rôle minimal `collaborateur` (valeur de l'enum, 24/07) : lecture seule de sa propre fiche (policy `collaborateurs_lecture_soi`) + Messages, rien d'autre.
 
 ## Litiges, messagerie, notifications, sécurité
 
@@ -57,7 +59,7 @@
 
 # 3. Fonctions et triggers clés
 
-**Helpers RLS** (SECURITY DEFINER, appelés à l'intérieur même des policies — **ne jamais révoquer leur EXECUTE**, ça casserait l'accès aux données) : `est_admin()`, `est_comptable()` (rôle `comptable`, 24/07), `mon_groupe()`, `mon_attributaire_id()`, `mon_operateur_id()`, `peut_contacter()`, `suis_participant()`.
+**Helpers RLS** (SECURITY DEFINER, appelés à l'intérieur même des policies — **ne jamais révoquer leur EXECUTE**, ça casserait l'accès aux données) : `est_admin()`, `est_comptable()` (rôle `comptable`, 24/07), `mon_collaborateur_id()` (rôle `collaborateur`, 24/07), `mon_groupe()`, `mon_attributaire_id()`, `mon_operateur_id()`, `peut_contacter()`, `suis_participant()`. À part, `collaborateurs_avec_compte()` (24/07) : pas un helper de policy mais un RPC appelé par le front (pages Invitations/Collaborateurs) pour savoir quels collaborateurs ont déjà un compte, sans exposer toute la table `profiles` à `comptable` — le filtre `est_admin() OR est_comptable()` est fait **dans** la fonction, un appel non autorisé renvoie un ensemble vide plutôt qu'une erreur.
 
 **Triggers d'audit et de cohérence** : `enregistrer_audit()` (journalise sur `journal_audit`, doit être `SECURITY DEFINER` — bug corrigé le 02/07, voir §5), `bloquer_double_cession`, `verrouiller_lot_vendu`, `ventes_before_insert`/`ventes_after_insert` (verrouille le lot + génère le certificat), `set_updated_at()`.
 
