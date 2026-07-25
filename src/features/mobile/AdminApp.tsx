@@ -9,10 +9,12 @@ import { useCallback, useState } from "react";
 import { Gauge, ClipboardList, ScanLine, MessageSquare, User } from "lucide-react";
 
 import { useAdminOverview } from "@/hooks/useAdminOverview";
+import { useBackHandler } from "@/lib/android-back";
 import { TabBar, type TabItem } from "./components/TabBar";
 import { useWebNav } from "./data/useWebNav";
 import { MessagesScreen } from "./screens/MessagesScreen";
 import { ChatScreen } from "./screens/ChatScreen";
+import { NewChatScreen } from "./screens/NewChatScreen";
 import { NotificationsScreen } from "./screens/NotificationsScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { PilotageScreen } from "./screens/admin/PilotageScreen";
@@ -21,12 +23,18 @@ import { PerimetresScreen } from "./screens/admin/PerimetresScreen";
 import type { ExperienceProps } from "./CitizenApp";
 
 type Tab = "pilotage" | "files" | "messages" | "profile";
-type Overlay = { kind: "chat"; convId: string } | { kind: "notifications" } | { kind: "perimetres" } | null;
+type Overlay =
+  | { kind: "chat"; convId: string }
+  | { kind: "newchat" }
+  | { kind: "notifications" }
+  | { kind: "perimetres" }
+  | null;
 
 export function AdminApp({
   data,
   dark,
   toggleDark,
+  flash,
   verify,
   logout,
   openProfilComplet,
@@ -43,8 +51,25 @@ export function AdminApp({
     setTab(t as Tab);
   }, []);
   const back = useCallback(() => setOverlay(null), []);
+
+  // Geste de retour Android — même règle que l'expérience citoyen, à ceci près
+  // que l'écran racine est ici le Pilotage.
+  useBackHandler(
+    useCallback(() => {
+      if (overlay) {
+        setOverlay(null);
+        return true;
+      }
+      if (tab !== "pilotage") {
+        setTab("pilotage");
+        return true;
+      }
+      return false;
+    }, [overlay, tab]),
+  );
   const openNotifications = useCallback(() => setOverlay({ kind: "notifications" }), []);
   const openPerimetres = useCallback(() => setOverlay({ kind: "perimetres" }), []);
+  const openNewChat = useCallback(() => setOverlay({ kind: "newchat" }), []);
   const openChat = useCallback(
     (convId: string) => {
       const c = data.convos.find((x) => x.id === convId);
@@ -86,6 +111,18 @@ export function AdminApp({
             onSend={(corps) => data.envoyerMessage(conv.id, corps)}
           />
         )}
+        {overlay?.kind === "newchat" && (
+          <NewChatScreen
+            moiId={data.userId}
+            onBack={back}
+            onCreer={data.creerConversation}
+            onCree={(convId) => {
+              setTab("messages");
+              setOverlay({ kind: "chat", convId });
+              flash("Message envoyé");
+            }}
+          />
+        )}
         {overlay?.kind === "notifications" && <NotificationsScreen notifs={data.notifs} onBack={back} />}
         {overlay?.kind === "perimetres" && <PerimetresScreen overview={overview} onBack={back} />}
 
@@ -101,7 +138,12 @@ export function AdminApp({
         )}
         {!overlay && tab === "files" && <FilesScreen overview={overview} openWeb={openWeb} />}
         {!overlay && tab === "messages" && (
-          <MessagesScreen convos={data.convos} userId={data.userId} onOpenChat={openChat} />
+          <MessagesScreen
+            convos={data.convos}
+            userId={data.userId}
+            onOpenChat={openChat}
+            onNewChat={openNewChat}
+          />
         )}
         {!overlay && tab === "profile" && (
           <ProfileScreen

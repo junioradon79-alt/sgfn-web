@@ -10,6 +10,7 @@ import { Loader2 } from "lucide-react";
 
 import { useMobileData } from "./data/useMobileData";
 import { useWebNav } from "./data/useWebNav";
+import { useBackHandler, useSortieApplication, quitterApplication } from "@/lib/android-back";
 import {
   activerBiometrie,
   biometrieActive,
@@ -88,6 +89,38 @@ export function MobileApp() {
     return () => clearTimeout(t);
   }, [toast]);
   const flash = useCallback((msg: string) => setToast(msg), []);
+
+  // ── Geste de retour Android ────────────────────────────────────────────────
+  // Trois niveaux répondent, du plus haut au plus bas : le calque ou l'onglet
+  // (CitizenApp/AdminApp), puis les écrans de connexion ci-dessous, puis la
+  // sortie. Sur l'écran d'accueil du flux public comme sur l'onglet racine,
+  // plus rien ne consomme le retour : on demande alors confirmation. Sortir
+  // d'un coup de pouce au milieu d'une inscription serait brutal.
+  const sortieArmee = useRef(false);
+
+  useBackHandler(
+    useCallback(() => {
+      if (!data.authed && (unauthView === "login" || unauthView === "signup")) {
+        setUnauthView("landing");
+        return true;
+      }
+      return false;
+    }, [data.authed, unauthView]),
+  );
+
+  useSortieApplication(
+    useCallback(() => {
+      if (sortieArmee.current) {
+        void quitterApplication();
+        return;
+      }
+      sortieArmee.current = true;
+      setToast("Appuyez à nouveau pour quitter");
+      setTimeout(() => {
+        sortieArmee.current = false;
+      }, 2200);
+    }, []),
+  );
 
   // Navigation partagée (liens sortants + déconnexion).
   const verify = useCallback(() => goWeb("/verifier/"), [goWeb]);

@@ -104,6 +104,11 @@ export type MobileData = {
   reloadMessages: () => Promise<void>;
   reloadNotifs: () => Promise<void>;
   envoyerMessage: (convId: string, corps: string) => Promise<boolean>;
+  creerConversation: (
+    destinataireId: string,
+    sujet: string,
+    corps: string,
+  ) => Promise<{ ok: boolean; convId?: string; error?: string }>;
   marquerLu: (conv: Convo) => Promise<void>;
   suivreParcelle: (lotId: string) => Promise<boolean>;
   connexion: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
@@ -268,6 +273,48 @@ export function useMobileData(): MobileData {
     [supabase, userId, chargerConvos]
   );
 
+  // Ouvrir un échange. Même séquence que la messagerie web
+  // (`dashboard/messages`) : conversation, participants, premier message — il
+  // n'existe pas de RPC transactionnelle pour cela, et en inventer une ici
+  // ferait diverger deux chemins pour un même acte.
+  //
+  // ⚠️ Si l'ajout des participants échoue, la conversation créée serait
+  // orpheline et invisible de tous (le RLS filtre sur la participation) : on
+  // la supprime plutôt que de laisser une ligne fantôme en base.
+  const creerConversation = useCallback(
+    async (destinataireId: string, sujet: string, corps: string) => {
+      if (!userId) return { ok: false, error: "Session expirée." };
+      const texte = corps.trim();
+      if (!texte) return { ok: false, error: "Le message est vide." };
+
+      const { data: conv, error: e1 } = await supabase
+        .from("conversations")
+        .insert({ sujet: sujet.trim() || null, cree_par: userId })
+        .select("id")
+        .single();
+      if (e1 || !conv) return { ok: false, error: e1?.message ?? "Création impossible." };
+      const convId = (conv as { id: string }).id;
+
+      const { error: e2 } = await supabase.from("conversation_participants").insert([
+        { conversation_id: convId, profile_id: userId },
+        { conversation_id: convId, profile_id: destinataireId },
+      ]);
+      if (e2) {
+        await supabase.from("conversations").delete().eq("id", convId);
+        return { ok: false, error: e2.message };
+      }
+
+      const { error: e3 } = await supabase
+        .from("messages")
+        .insert({ conversation_id: convId, expediteur: userId, corps: texte });
+      if (e3) return { ok: false, error: e3.message };
+
+      await chargerConvos(userId);
+      return { ok: true, convId };
+    },
+    [supabase, userId, chargerConvos],
+  );
+
   const marquerLu = useCallback(
     async (conv: Convo) => {
       if (!userId) return;
@@ -358,6 +405,7 @@ export function useMobileData(): MobileData {
     reloadMessages,
     reloadNotifs,
     envoyerMessage,
+    creerConversation,
     marquerLu,
     suivreParcelle,
     connexion,
@@ -365,6 +413,44 @@ export function useMobileData(): MobileData {
     inscrire,
     deconnexion,
   };
+}
+
+// ─── Destinataires possibles (chargés à la demande) ─────────────────────────────
+// La liste n'est PAS filtrée côté client : c'est la policy `peut_contacter()`
+// qui décide qui l'on voit — les agents SGNF, plus les personnes avec qui l'on
+// converse déjà (resserrée le 24/07 après qu'un acquéreur pouvait lire les 20
+// profils de la base). Un filtre client en plus donnerait l'illusion d'une
+// règle de sécurité alors qu'il ne serait qu'un confort d'affichage.
+
+export type Contact = { id: string; nom_complet: string | null; groupe: string | null };
+
+export function useContactsMessagerie(actif: boolean, moiId: string | null) {
+  const [supabase] = useState(() => createClient());
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  // Vrai dès le montage : le hook n'est appelé que sur l'écran de rédaction,
+  // qui s'ouvre en chargeant. Le passer à `true` depuis l'effet ferait un rendu
+  // en cascade pour un état qu'on connaît d'avance.
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!actif || !moiId) return;
+    let annule = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, nom_complet, groupe")
+        .neq("id", moiId)
+        .order("nom_complet");
+      if (annule) return;
+      setContacts((data ?? []) as Contact[]);
+      setLoading(false);
+    })();
+    return () => {
+      annule = true;
+    };
+  }, [supabase, actif, moiId]);
+
+  return { contacts, loading };
 }
 
 // ─── Détail d'une parcelle (chargé à la demande) ────────────────────────────────

@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, PenLine } from "lucide-react";
 import type { Convo } from "../data/useMobileData";
 import { initiales, fmtRelatif } from "../data/mappers";
 
@@ -8,10 +8,12 @@ export function MessagesScreen({
   convos,
   userId,
   onOpenChat,
+  onNewChat,
 }: {
   convos: Convo[];
   userId: string | null;
   onOpenChat: (convId: string) => void;
+  onNewChat: () => void;
 }) {
   const autre = (c: Convo) =>
     (c.conversation_participants || []).find((p) => p.profile_id !== userId)?.profiles ?? null;
@@ -27,19 +29,40 @@ export function MessagesScreen({
 
   return (
     <div className="absolute inset-0 flex flex-col bg-background">
-      <div className="flex-none px-[18px] pt-2 pb-3">
-        <div className="text-[22px] font-extrabold text-foreground">Messages</div>
-        <div className="mt-0.5 text-[12.5px] text-muted-foreground">Vos échanges avec les agents et géomètres</div>
+      <div className="flex flex-none items-start justify-between gap-3 px-[18px] pt-2 pb-3">
+        <div className="min-w-0">
+          <div className="text-[22px] font-extrabold text-foreground">Messages</div>
+          <div className="mt-0.5 text-[12.5px] text-muted-foreground">Vos échanges avec les agents et géomètres</div>
+        </div>
+        <button
+          type="button"
+          onClick={onNewChat}
+          aria-label="Nouveau message"
+          className="flex size-11 flex-none items-center justify-center rounded-full bg-primary text-primary-foreground"
+        >
+          <PenLine className="size-5" />
+        </button>
       </div>
 
       <div className="sgnf-scroll flex-1 overflow-y-auto px-3 pb-6">
         {tries.length === 0 ? (
+          /* L'état vide portait un simple constat. Il porte maintenant l'action :
+             c'est précisément là que l'on veut écrire, et c'était le seul écran
+             depuis lequel un citoyen ne pouvait rien engager. */
           <div className="flex flex-col items-center gap-2 px-5 py-16 text-center">
             <MessageSquare className="size-7 text-muted-2" />
             <div className="text-[14px] font-semibold text-foreground">Aucune conversation</div>
             <div className="text-[12px] text-muted-foreground">
-              Vos échanges avec les agents SGNF et les géomètres apparaîtront ici.
+              Écrivez aux agents SGNF pour toute question sur vos parcelles ou vos démarches.
             </div>
+            <button
+              type="button"
+              onClick={onNewChat}
+              className="mt-3 flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-[14px] font-semibold text-primary-foreground"
+            >
+              <PenLine className="size-4" />
+              Écrire un message
+            </button>
           </div>
         ) : (
           tries.map((c) => {

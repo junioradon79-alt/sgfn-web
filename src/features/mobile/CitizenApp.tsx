@@ -5,12 +5,14 @@
 
 import { useCallback, useState } from "react";
 import { Home, Boxes, ScanLine, MessageSquare, User } from "lucide-react";
+import { useBackHandler } from "@/lib/android-back";
 import { TabBar, type TabItem } from "./components/TabBar";
 import { HomeScreen } from "./screens/HomeScreen";
 import { ParcelsScreen } from "./screens/ParcelsScreen";
 import { ParcelDetailScreen } from "./screens/ParcelDetailScreen";
 import { MessagesScreen } from "./screens/MessagesScreen";
 import { ChatScreen } from "./screens/ChatScreen";
+import { NewChatScreen } from "./screens/NewChatScreen";
 import { NotificationsScreen } from "./screens/NotificationsScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { PurchaseScreen } from "./screens/PurchaseScreen";
@@ -21,6 +23,7 @@ type Overlay =
   | { kind: "detail"; lotId: string }
   | { kind: "purchase"; lotId: string }
   | { kind: "chat"; convId: string }
+  | { kind: "newchat" }
   | { kind: "notifications" }
   | null;
 
@@ -57,6 +60,22 @@ export function CitizenApp({
     setTab(t as Tab);
   }, []);
   const back = useCallback(() => setOverlay(null), []);
+
+  // Geste de retour Android : d'abord fermer le calque, puis revenir à
+  // l'accueil. Ce n'est qu'au-delà que la coquille propose de quitter.
+  useBackHandler(
+    useCallback(() => {
+      if (overlay) {
+        setOverlay(null);
+        return true;
+      }
+      if (tab !== "home") {
+        setTab("home");
+        return true;
+      }
+      return false;
+    }, [overlay, tab]),
+  );
   const openDetail = useCallback((lotId: string) => setOverlay({ kind: "detail", lotId }), []);
   const openPurchase = useCallback((lotId: string) => setOverlay({ kind: "purchase", lotId }), []);
   const openNotifications = useCallback(() => setOverlay({ kind: "notifications" }), []);
@@ -68,11 +87,10 @@ export function CitizenApp({
     },
     [data]
   );
-  const contact = useCallback(() => {
-    setOverlay(null);
-    setTab("messages");
-    flash("Retrouvez vos échanges avec les agents ici");
-  }, [flash]);
+  const openNewChat = useCallback(() => setOverlay({ kind: "newchat" }), []);
+  // « Contacter » depuis le détail d'une parcelle : autant ouvrir directement la
+  // rédaction — c'est ce que la personne veut faire, pas consulter une liste.
+  const contact = useCallback(() => setOverlay({ kind: "newchat" }), []);
 
   const unread = data.convos.reduce(
     (n, c) => n + (c.messages || []).filter((m) => !m.lu && m.expediteur !== data.userId).length,
@@ -115,6 +133,18 @@ export function CitizenApp({
             onSend={(corps) => data.envoyerMessage(conv.id, corps)}
           />
         )}
+        {overlay?.kind === "newchat" && (
+          <NewChatScreen
+            moiId={data.userId}
+            onBack={back}
+            onCreer={data.creerConversation}
+            onCree={(convId) => {
+              setTab("messages");
+              setOverlay({ kind: "chat", convId });
+              flash("Message envoyé");
+            }}
+          />
+        )}
         {overlay?.kind === "notifications" && <NotificationsScreen notifs={data.notifs} onBack={back} />}
 
         {!overlay && tab === "home" && (
@@ -132,7 +162,12 @@ export function CitizenApp({
         )}
         {!overlay && tab === "parcels" && <ParcelsScreen parcelles={data.parcelles} onOpenParcel={openDetail} />}
         {!overlay && tab === "messages" && (
-          <MessagesScreen convos={data.convos} userId={data.userId} onOpenChat={openChat} />
+          <MessagesScreen
+            convos={data.convos}
+            userId={data.userId}
+            onOpenChat={openChat}
+            onNewChat={openNewChat}
+          />
         )}
         {!overlay && tab === "profile" && (
           <ProfileScreen
