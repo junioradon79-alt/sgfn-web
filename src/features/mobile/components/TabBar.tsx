@@ -56,7 +56,8 @@ export function TabBar({
             <span className="relative">
               <Icon className="size-[23px]" strokeWidth={2} />
               {it.badge ? (
-                <span className="tabular absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white">
+                // Brique : c'est une file à traiter, pas une anomalie.
+                <span className="tabular absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-brick px-1 text-[10px] font-bold text-brick-foreground">
                   {it.badge > 99 ? "99+" : it.badge}
                 </span>
               ) : null}

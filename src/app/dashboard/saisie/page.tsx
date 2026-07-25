@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import { CountBadge } from "@/components/ds/badge";
 import { createClient } from "@/utils/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
@@ -148,6 +149,8 @@ export default function SaisiePage() {
   // ── Mes soumissions ──
   const [soumissions, setSoumissions] = useState<Soumission[]>([]);
   const [soumissionsLoading, setSoumissionsLoading] = useState(false);
+  /** Ce qui attend l'agent : ses soumissions renvoyées par l'admin. */
+  const aCorriger = soumissions.filter((s) => s.statut === "rejetee").length;
 
   // Chargement des lotissements
   useEffect(() => {
@@ -907,8 +910,24 @@ export default function SaisiePage() {
         /* ── Onglet File de validation (admin) ── */
         <FileValidation />
       ) : (
-        /* ── Onglet Mes soumissions (opérateur) ── */
-        <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm sm:p-6">
+        /* ── Onglet Mes soumissions (opérateur) ──
+           Une soumission rejetée est ce que l'agent doit corriger : c'est son
+           « à nous de jouer » (cf. `fetchBadgeCounts`, clé `saisieRejetees`).
+           La pastille rouge du menu l'annonçait déjà, l'écran d'arrivée non. */
+        <div
+          className={`rounded-2xl border p-5 shadow-sm sm:p-6 ${
+            aCorriger > 0 ? "border-brick/45 bg-brick-subtle ring-1 ring-brick/20" : "border-border/60 bg-card"
+          }`}
+        >
+          {aCorriger > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+              <CountBadge value={aCorriger} />
+              <span className="text-sm font-semibold text-foreground">
+                soumission{aCorriger > 1 ? "s" : ""} rejetée{aCorriger > 1 ? "s" : ""} à corriger
+              </span>
+              <span className="text-sm text-muted-foreground">— le motif figure sous chacune.</span>
+            </div>
+          )}
           {soumissionsLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Chargement…

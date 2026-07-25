@@ -183,6 +183,30 @@ export default function ApercuCartesPage() {
           </div>
         </Section>
 
+        <Section
+          titre="5 · Où la convention s'applique"
+          note="Une carte n'apparaît en brique que si sa file est non vide — en production, elles le sont toutes, donc tout reste blanc."
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[540px] text-[12.5px]">
+              <thead>
+                <tr className="border-b border-border text-left text-[11px] tracking-wide text-muted-2 uppercase">
+                  <th className="py-2 pr-4 font-bold">Écran</th>
+                  <th className="py-2 pr-4 font-bold">Ce qui déclenche la teinte</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {COUVERTURE.map((c) => (
+                  <tr key={c.ecran}>
+                    <td className="py-2 pr-4 font-semibold text-foreground">{c.ecran}</td>
+                    <td className="py-2 pr-4 text-muted-foreground">{c.declencheur}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+
         <p className="pb-6 text-[12.5px] text-muted-foreground">
           Les écrans réels vivent sur{" "}
           <Link href="/dashboard" className="font-semibold text-accent underline">
@@ -223,6 +247,26 @@ function Etat({ libelle, children }: { libelle: string; children: React.ReactNod
     </div>
   );
 }
+
+/** Récapitulatif de couverture — tenu à jour à la main, il est la seule vue
+ *  d'ensemble de la convention : une carte oubliée se voit ici par son absence. */
+const COUVERTURE = [
+  { ecran: "Pilotage — Actions requises", declencheur: "toute file foncière non vide" },
+  { ecran: "Pilotage — Files de traitement", declencheur: "litiges ouverts + paiements à encaisser" },
+  { ecran: "Chefferie — À traiter en priorité", declencheur: "APFC à signer, cessions, litiges" },
+  { ecran: "Validations — cessions", declencheur: "attestations sans signature chefferie" },
+  { ecran: "Validations — attributions de lot", declencheur: "attributions sans signature chefferie" },
+  { ecran: "Validations — APFC", declencheur: "APFC sans signature du chef de village" },
+  { ecran: "Demandes d'acquisition", declencheur: "demandes où l'agence doit jouer" },
+  { ecran: "Paiements — vue À valider", declencheur: "règlements guichet en attente" },
+  { ecran: "Géomètres-experts", declencheur: "demandes d'inscription à approuver" },
+  { ecran: "Saisie — file de validation (admin)", declencheur: "soumissions en attente" },
+  { ecran: "Saisie — mes soumissions (agent)", declencheur: "soumissions rejetées à corriger" },
+  { ecran: "Propriétaire terrien — APFC / PV", declencheur: "à signer / à régulariser" },
+  { ecran: "Propriétaire — bandeau paiements", declencheur: "paiements en attente de sa part" },
+  { ecran: "Barre latérale + onglets mobiles", declencheur: "pastilles « N à traiter »" },
+  { ecran: "App mobile admin — À faire / Files", declencheur: "toute file non vide" },
+];
 
 const PRIORITES_DEMO = [
   {

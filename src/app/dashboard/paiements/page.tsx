@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 import { AppShell } from "@/components/pilotage/AppShell";
-import { Badge } from "@/components/ds/badge";
+import { Badge, CountBadge } from "@/components/ds/badge";
 import { Button } from "@/components/ds/button";
 import { Card } from "@/components/ds/card";
 import {
@@ -987,7 +987,10 @@ function PaiementsContenu() {
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${vue === "a_valider" ? "bg-primary text-primary-foreground" : "border border-border bg-card text-muted-foreground hover:bg-inset"}`}
           >
             <ShieldCheck className="h-3.5 w-3.5" />
-            À valider {aValider.length > 0 && `(${aValider.length})`}
+            À valider
+            {aValider.length > 0 && (
+              <CountBadge tone={vue === "a_valider" ? "inverse" : "brick"} value={aValider.length} />
+            )}
           </button>
         </div>
       )}
@@ -1021,12 +1024,20 @@ function PaiementsContenu() {
       {isAdmin && vue === "registre" && <FraisAgregateurConfig />}
       {isAdmin && vue === "registre" && <TarifsChefferieAdmin />}
 
-      {/* Tableau */}
-      <Card className="overflow-hidden">
-        <div className="border-b border-border bg-inset px-5 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      {/* Tableau. La teinte d'alerte ne vaut que pour la vue « À valider » : en
+          vue Registre, la même carte affiche l'historique complet, qui n'attend
+          personne — la teindre reviendrait à la peindre en permanence. */}
+      <Card
+        tone={vue === "a_valider" && aValider.length > 0 ? "alert" : "default"}
+        className="overflow-hidden"
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-border bg-inset px-5 py-3 group-data-[tone=alert]/card:border-brick group-data-[tone=alert]/card:bg-brick">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground group-data-[tone=alert]/card:text-brick-foreground">
             {vue === "a_valider" ? "Paiements en attente de validation manuelle" : "Registre des transactions"}
           </p>
+          {vue === "a_valider" && aValider.length > 0 && (
+            <CountBadge tone="inverse" value={aValider.length} />
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] border-collapse text-left">

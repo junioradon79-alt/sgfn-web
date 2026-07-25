@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, ChevronRight, Loader2, X } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import { CountBadge } from "@/components/ds/badge";
 import { createClient } from "@/utils/supabase/client";
 import {
   CLASSE_LABELS,
@@ -109,9 +110,12 @@ export function FileValidation() {
         </div>
       )}
 
+      {/* La pastille rouge du menu et le Centre d'alertes annoncent cette file ;
+          l'écran d'arrivée ne la signalait pas. Même convention brique. */}
       <div>
-        <h2 className="text-sm font-semibold text-[#0D3B66]">
-          À valider ({enAttente.length})
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-[#0D3B66]">
+          À valider
+          {enAttente.length > 0 && <CountBadge value={enAttente.length} />}
         </h2>
         {loading ? (
           <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">

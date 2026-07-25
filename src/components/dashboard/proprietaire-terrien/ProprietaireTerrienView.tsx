@@ -7,7 +7,7 @@ import { useChargement } from "@/hooks/useChargement";
 import { stagger } from "@/lib/motion";
 import type { BadgeKey } from "@/lib/navigation";
 import { AppShell } from "@/components/pilotage/AppShell";
-import { Badge } from "@/components/ds/badge";
+import { Badge, CountBadge } from "@/components/ds/badge";
 import { Button } from "@/components/ds/button";
 import { Card } from "@/components/ds/card";
 import { EmptyState } from "@/components/ds/empty-state";
@@ -533,16 +533,25 @@ export function ProprietaireTerrienView({
         )}
       </div>
 
-      {/* APFC — réservé au chef de famille (document de la lignée) */}
+      {/* APFC — réservé au chef de famille (document de la lignée). Il a la même
+          file de signature que la chefferie : même convention brique, et comme
+          partout elle n'apparaît que si quelque chose l'attend réellement. */}
       {estChefDeFamille && (
-        <Card id="apfc" className="scroll-mt-6 overflow-hidden">
-          <div className="border-b border-border px-5 py-4">
-            <h2 className="text-[13.5px] font-semibold text-foreground">
-              Attestation de Propriété Foncière Coutumière (APFC)
-            </h2>
-            <p className="mt-0.5 text-[11.5px] text-muted-2">
-              Document cosigné par la famille et la Chefferie du village
-            </p>
+        <Card
+          id="apfc"
+          tone={!loading && apfcNonSignees > 0 ? "alert" : "default"}
+          className="scroll-mt-6 overflow-hidden"
+        >
+          <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4 group-data-[tone=alert]/card:border-brick group-data-[tone=alert]/card:bg-brick">
+            <div className="min-w-0">
+              <h2 className="text-[13.5px] font-semibold text-foreground group-data-[tone=alert]/card:text-brick-foreground">
+                Attestation de Propriété Foncière Coutumière (APFC)
+              </h2>
+              <p className="mt-0.5 text-[11.5px] text-muted-2 group-data-[tone=alert]/card:text-brick-foreground/85">
+                Document cosigné par la famille et la Chefferie du village
+              </p>
+            </div>
+            {!loading && apfcNonSignees > 0 && <CountBadge tone="inverse" value={apfcNonSignees} />}
           </div>
           {apfc.length === 0 ? (
             <div className="flex items-center gap-2 px-5 py-6 text-[13px] text-muted-2">
@@ -603,12 +612,21 @@ export function ProprietaireTerrienView({
 
       {/* PV de réunion de famille — réservé au chef de famille */}
       {estChefDeFamille && (
-        <Card id="pv" className="scroll-mt-6 overflow-hidden">
-          <div className="border-b border-border px-5 py-4">
-            <h2 className="text-[13.5px] font-semibold text-foreground">PV de réunion de famille</h2>
-            <p className="mt-0.5 text-[11.5px] text-muted-2">
-              Habilitation des ayants-droit à céder ou transmettre les parcelles · Lecture seule
-            </p>
+        <Card
+          id="pv"
+          tone={!loading && pvAFournir > 0 ? "alert" : "default"}
+          className="scroll-mt-6 overflow-hidden"
+        >
+          <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4 group-data-[tone=alert]/card:border-brick group-data-[tone=alert]/card:bg-brick">
+            <div className="min-w-0">
+              <h2 className="text-[13.5px] font-semibold text-foreground group-data-[tone=alert]/card:text-brick-foreground">
+                PV de réunion de famille
+              </h2>
+              <p className="mt-0.5 text-[11.5px] text-muted-2 group-data-[tone=alert]/card:text-brick-foreground/85">
+                Habilitation des ayants-droit à céder ou transmettre les parcelles · Lecture seule
+              </p>
+            </div>
+            {!loading && pvAFournir > 0 && <CountBadge tone="inverse" value={pvAFournir} />}
           </div>
           {pvs.length === 0 ? (
             <div className="px-5 py-6 text-[13px] text-muted-2">Aucun PV enregistré.</div>

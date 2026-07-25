@@ -166,6 +166,8 @@ export default function ValidationsPage() {
   };
 
   const chargement = profileLoading || (isChefferie && isLoading);
+  /** Seules les APFC sans signature du chef de village attendent une décision. */
+  const apfcACosigner = apfc.filter((a) => !a.sig_chef_village_le).length;
 
   if (!profileLoading && (!isChefferie || !profile?.autorite_coutumiere_id)) {
     return (
@@ -353,12 +355,25 @@ export default function ValidationsPage() {
 
         {/* APFC à co-signer */}
         <motion.div variants={fadeUp}>
-          <Card id="apfc" className="scroll-mt-6 overflow-hidden">
+          {/* ⚠️ Contrairement aux deux files ci-dessus, la requête APFC ne filtre
+              pas sur la signature manquante : la liste contient aussi les
+              documents déjà validés. Le compteur doit donc être dérivé, sinon
+              la carte resterait brique alors que plus rien n'attend. */}
+          <Card
+            id="apfc"
+            tone={!chargement && apfcACosigner > 0 ? "alert" : "default"}
+            className="scroll-mt-6 overflow-hidden"
+          >
             <CardHeader>
-              <div>
+              <div className="min-w-0">
                 <CardTitle>APFC — Attestations de Propriété Foncière Coutumière</CardTitle>
                 <CardDescription>Documents entérinés par la Chefferie du village</CardDescription>
               </div>
+              {!chargement && apfcACosigner > 0 && (
+                <CardAction>
+                  <CountBadge tone="inverse" value={apfcACosigner} />
+                </CardAction>
+              )}
             </CardHeader>
             {apfc.length === 0 ? (
               <EmptyState

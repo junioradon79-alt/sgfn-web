@@ -218,14 +218,39 @@ serait illisible.
 - `AlertCenter` — Centre de pilotage, « Actions requises » ; pastille par ligne,
   colorée par gravité, et pastille d'en-tête comptant les **dossiers**, pas les
   lignes (six lignes peuvent cacher vingt-neuf dossiers).
+- `WorkQueues` — « Files de traitement », sur le même écran. Ne compte que
+  `litigesOuverts + recettes.enAttente` : le **total** des dossiers ADU et
+  l'historique complet des paiements relèvent du registre, pas de la file, et
+  les inclure laisserait la carte en brique à demeure.
 - `/dashboard/chefferie` — « À traiter en priorité ».
-- `/dashboard/validations` — les deux files de signature. Le compte quittait la
-  description en fin de phrase (« · 4 en attente ») où il ne se lisait pas.
+- `/dashboard/validations` — **les trois** files de signature (cessions,
+  attributions de lot, APFC). Le compte quittait la description en fin de phrase
+  (« · 4 en attente ») où il ne se lisait pas. ⚠️ La requête APFC, contrairement
+  à ses deux sœurs, **ne filtre pas** sur la signature manquante : le compteur
+  est dérivé (`apfcACosigner`), sinon la carte resterait brique à vide.
 - `/dashboard/demandes-acquisition` — bandeau + cartes marquées, **rebasculés de
   `danger` vers brick** : ils portaient le rouge d'anomalie pour dire « à faire ».
+- `/dashboard/paiements` — vue « À valider » seulement. En vue Registre la même
+  carte affiche l'historique complet, qui n'attend personne.
+- `/dashboard/geometres` — demandes d'inscription, **rebasculées de `warning`**,
+  troisième couleur pour le même message.
+- `/dashboard/saisie` — la file de validation admin (`FileValidation`) **et**
+  les soumissions rejetées de l'agent, son « à nous de jouer » à lui.
+- `ProprietaireTerrienView` — APFC à signer et PV à régulariser : le chef de
+  famille a la même file de signature que la chefferie.
+- `/dashboard/proprietaire` — bandeau « N paiements en attente de votre part ».
+- **Pastilles de file** — `AppSidebar` et `TabBar` mobile passées de `danger` à
+  brick : leur infobulle dit « N à traiter », c'est une file. La cloche
+  (messages non lus) reste à part — un message reçu n'est pas un dossier à
+  décider.
 - App mobile admin — `PilotageScreen` (« À faire ») et `FilesScreen`. Sur ce
   dernier, la teinte suit désormais **la file** et non le type de dossier : un
   litige à zéro n'a rien d'alarmant, trente saisies en attente si.
+
+Restent **délibérément neutres** : « Actions rapides » (ce que je *peux* faire,
+pas ce qui m'attend), les registres filtrables, le registre du commissaire
+(supervision en lecture), les brouillons, et les invitations en attente
+d'activation — qui attendent l'invité, pas l'agence.
 
 **Voir l'état plein sans fabriquer de dossiers** : `/apercu-cartes` (route de
 développement, neutralisée dans le build de production — elle n'y sert qu'un

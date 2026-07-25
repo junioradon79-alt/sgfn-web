@@ -166,15 +166,18 @@ export function AppSidebar({
         )}
         <span className="relative shrink-0">
           <Icon className={cn("size-[17px]", enFavori && "fill-amber-500 text-amber-500")} aria-hidden />
+          {/* Brique et non `danger` : l'infobulle dit « N à traiter », c'est
+              une file, pas une anomalie — même signal que les cartes d'action,
+              donc même couleur. Sinon « on m'attend » s'écrit en deux rouges. */}
           {badge > 0 && collapsed && (
-            <span className="absolute -top-1 -right-1 size-2 rounded-full bg-danger ring-2 ring-card" aria-hidden />
+            <span className="absolute -top-1 -right-1 size-2 rounded-full bg-brick ring-2 ring-card" aria-hidden />
           )}
         </span>
         {!collapsed && (
           <>
             <span className="truncate">{libelle}</span>
             {badge > 0 && (
-              <span className="ml-auto inline-flex h-[18px] min-w-[19px] items-center justify-center rounded-[9px] bg-danger px-[5px] text-[10.5px] font-bold leading-none text-white tabular">
+              <span className="ml-auto inline-flex h-[18px] min-w-[19px] items-center justify-center rounded-[9px] bg-brick px-[5px] text-[10.5px] font-bold leading-none text-brick-foreground tabular">
                 {badge}
               </span>
             )}

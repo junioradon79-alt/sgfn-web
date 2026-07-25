@@ -6,6 +6,7 @@ import { Building2, Check, Copy, IdCard, Link2, Phone, Pencil, Plus, Ruler, Sear
 
 import { AppShell } from "@/components/pilotage/AppShell";
 import { Badge } from "@/components/ui/Badge";
+import { CountBadge } from "@/components/ds/badge";
 import { Button } from "@/components/ds/button";
 import { Card } from "@/components/ds/card";
 import { EmptyState } from "@/components/ds/empty-state";
@@ -298,10 +299,11 @@ export default function GeometresExpertsPage() {
       {demandes.length > 0 && (
         <section className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
-            <UserPlus className="text-accent size-4" aria-hidden />
+            <UserPlus className="size-4 text-brick" aria-hidden />
             <h2 className="text-[11px] font-bold tracking-[0.18em] text-muted-foreground uppercase">
-              Demandes en attente ({demandes.length})
+              Demandes en attente
             </h2>
+            <CountBadge value={demandes.length} />
           </div>
 
           {demandeErreur && (
@@ -313,7 +315,9 @@ export default function GeometresExpertsPage() {
           {demandes.map((d) => {
             const code = codesGeneres[d.id];
             return (
-              <Card key={d.id} className="border-warning/30 bg-warning-subtle px-5 py-4">
+              // Ces cartes étaient en ambre (`warning`), une troisième couleur
+              // pour dire « on m'attend » — le brique unifie le signal.
+              <Card key={d.id} className="border-brick/45 bg-brick-subtle px-5 py-4 ring-1 ring-brick/20">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-foreground">{d.nom}</p>

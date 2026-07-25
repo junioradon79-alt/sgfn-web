@@ -7,7 +7,7 @@ import { BadgeCheck, FilePlus2, Landmark, ReceiptText, ScaleIcon, ShieldCheck } 
 
 import { fadeUp } from "@/lib/motion";
 import type { AdminOverview, DossierAdu, LitigeRow, PaiementRow } from "@/hooks/useAdminOverview";
-import { Badge } from "@/components/ds/badge";
+import { Badge, CountBadge } from "@/components/ds/badge";
 import { Button } from "@/components/ds/button";
 import { Card, CardAction, CardDescription, CardHeader, CardTitle } from "@/components/ds/card";
 import { DataGrid, type Column } from "@/components/ds/data-grid";
@@ -172,17 +172,24 @@ export function WorkQueues({
     },
   ];
 
+  // Ne comptent que les dossiers qui appellent **notre** arbitrage : un litige
+  // ouvert, un paiement à encaisser. Le total des dossiers ADU et l'historique
+  // complet des paiements sont du registre, pas de la file — les inclure
+  // laisserait la carte en brique à demeure, donc sans signal.
+  const aArbitrer = files.litigesOuverts + recettes.enAttente;
+
   return (
     <motion.div variants={fadeUp}>
-      <Card>
+      <Card tone={!loading && aArbitrer > 0 ? "alert" : "default"}>
         <Tabs defaultValue="litiges">
-          <CardHeader className="border-b border-border">
+          <CardHeader className="border-b border-border group-data-[tone=alert]/card:border-brick">
             <div className="min-w-0">
               <CardTitle>Files de traitement</CardTitle>
               <CardDescription>Les registres opérationnels qui demandent un arbitrage.</CardDescription>
             </div>
             <CardAction className="flex-wrap justify-end gap-2">
-              <TabsList>
+              {!loading && aArbitrer > 0 && <CountBadge tone="inverse" value={aArbitrer} />}
+              <TabsList className="group-data-[tone=alert]/card:bg-brick-foreground/15">
                 <TabsTrigger value="litiges">
                   <ScaleIcon />
                   Litiges

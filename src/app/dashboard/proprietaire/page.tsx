@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 import { AppShell } from "@/components/pilotage/AppShell";
-import { Badge } from "@/components/ds/badge";
+import { Badge, CountBadge } from "@/components/ds/badge";
 import { Button } from "@/components/ds/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ds/card";
 import { EmptyState } from "@/components/ds/empty-state";
@@ -251,13 +251,17 @@ export default function EspaceProprietairePage() {
           <p className="mt-1 text-[13.5px] text-muted-foreground">
             Suivez vos lots, attestations, paiements et démarches foncières.
           </p>
+          {/* Rouge brique et pastille compteur : c'est le même message que le
+              bandeau « N actions à faire » des Demandes d'acquisition, il doit
+              s'écrire de la même façon. Était en ambre. */}
           {paiementsAPayer.length > 0 && (
             <a
               href="#mes-paiements"
-              className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-warning-subtle px-3 py-1.5 text-xs font-semibold text-warning transition-opacity hover:opacity-80"
+              className="mt-2.5 inline-flex items-center gap-2 rounded-full border border-brick/40 bg-brick-subtle py-1.5 pr-3.5 pl-2 text-xs font-semibold text-foreground transition-opacity hover:opacity-80"
             >
-              <Banknote className="size-3.5" aria-hidden />
-              {paiementsAPayer.length} paiement{paiementsAPayer.length > 1 ? "s" : ""} en attente de votre part
+              <CountBadge value={paiementsAPayer.length} />
+              <Banknote className="size-3.5 text-brick" aria-hidden />
+              paiement{paiementsAPayer.length > 1 ? "s" : ""} en attente de votre part
             </a>
           )}
         </div>
