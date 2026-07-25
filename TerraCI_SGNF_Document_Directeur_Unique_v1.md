@@ -1,6 +1,6 @@
 # TerraCI × SGNF — Document Directeur Unique
 
-**Version 1.57 — 25 juillet 2026**
+**Version 1.58 — 25 juillet 2026**
 
 > Cette version fusionne la v1.0 (vision stratégique TerraCI + état des lieux SGNF du matin du 07/07) et la Fiche projet SGNF (journal opérationnel détaillé) en **une seule référence de pilotage**. Les deux documents séparés sont désormais obsolètes : ce fichier est la référence unique pour comprendre où en est le projet, ce qui a été décidé stratégiquement, et ce qu'il reste à faire. La référence technique détaillée (schéma, conventions, pièges connus) reste le dossier `docs/` du repo `sgfn-web`, consolidé en PDF dans `docs/pdf/Dossier_Passation_SGNF.pdf`.
 
@@ -856,7 +856,9 @@ Demande du user : pouvoir **imprimer le relevé comptable**, avec sélection de 
 
 **Leçon d'outillage, à rapprocher de celle du 22/07 (« établir d'abord où est le défaut »)** : deux contrôles ont d'abord échoué sur un écran parfaitement correct. `innerText` **applique les CSS de casse** — un titre en `uppercase` ressort « RÉCAPITULATIF », et une regex sensible à la casse le manque. Le `textContent` brut disait bien « Récapitulatif ». Le défaut était dans le script, pas dans l'application ; les contrôles textuels y sont désormais insensibles à la casse, avec la raison écrite en commentaire.
 
-`tsc`, `eslint` et `next build` verts. Commit `de7178a`. **Non déployé** — reste en attente de la prochaine mise en ligne.
+`tsc`, `eslint` et `next build` verts. Commit `de7178a`. **Déployé et vérifié en production le 25/07** : archive reconstruite au HEAD avant archivage (pour ne pas rejouer le piège de la veille, où le `out/` sur disque précédait le dernier correctif), **249/251 fichiers identiques à l'octet près**, les 2 exceptions étant les faux positifs connus (`404.html` de même MD5 des deux côtés, `.htaccess` en 403). Marqueur choisi **propre au build** conformément à la leçon du 21/07 — le chunk `1ebfkj1sk164q.js`, inexistant dans tout build antérieur, répond en **HTTP 200 / 35 208 o** (taille locale exacte) et contient bien les 5 chaînes du relevé (« Relevé comptable », « Postes de dépenses », « Sections du relevé », « non opposable », « Ventilation par poste »).
+
+**Racine du dépôt nettoyée** au passage, à la demande du user : 4 archives de déploiement périmées supprimées, plus `src.zip` — un instantané complet du projet du 30/06 (30 998 fichiers, 1,37 Go décompressé) qui pesait à lui seul **753 Mo**, soit 92 % de l'encombrement. Sa suppression n'a été proposée qu'après avoir **prouvé sa redondance** : le `src/` qu'il contient est couvert par git (le dépôt remonte au 27/06, avec des commits tout au long du 30/06), `node_modules/` se réinstalle, `.next/` et `out/` sont des artefacts de build. **803 Mo libérés.** Les archives de déploiement étant irréversibles à supprimer et `src.zip` d'une autre nature que les autres, l'arbitrage a été posé au user plutôt que tranché seul.
 
 **Deux observations de production relevées au passage**, sans action demandée : les recettes sont à **0** (aucun paiement `confirme` en base, cohérent avec l'absence des secrets CinetPay, dette #2), si bien que la section Recettes restera vide jusqu'au premier encaissement confirmé ; et les dépenses saisies étaient **toutes classées « Autre »** au début de la session, ce qui rendait le filtre par poste sans effet pratique — le user a commencé à ventiler pendant les tests (première dépense « Déplacements »).
 
