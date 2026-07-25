@@ -2,6 +2,14 @@
 // sans toucher au dossier out/ servi sur le web. À relancer après chaque
 // `cap sync android` (qui réécrase les assets). Cf. `npm run android:prepare`.
 //
+// 🔴 OUBLIÉ LE 25/07, ET L'APK ÉTAIT MÉCONNAISSABLE : un `npx cap sync android`
+// lancé seul rétablit l'`index.html` du SITE PUBLIC, si bien que l'application
+// démarre sur la page d'accueil du site au lieu de l'app mobile. Rien ne le
+// signale — ni erreur, ni écran blanc, juste « ce n'est pas la même appli ».
+// Les scripts npm ont depuis été recâblés pour que `cap:sync` et `build:mobile`
+// passent tous deux par `android:prepare` : la seule protection fiable est
+// qu'aucune commande ne puisse plus laisser les assets dans cet état.
+//
 // Capacitor sert les assets locaux (https://localhost) par interception native.
 // 🔴 IMPORTANT (constaté sur appareil) : son serveur local NE résout PAS les URL
 // en dossier — une requête vers `/app/` ne renvoie pas `app/index.html`, elle

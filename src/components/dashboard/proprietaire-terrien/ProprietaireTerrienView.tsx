@@ -547,7 +547,7 @@ export function ProprietaireTerrienView({
               <h2 className="text-[13.5px] font-semibold text-foreground group-data-[tone=alert]/card:text-brick-foreground">
                 Attestation de Propriété Foncière Coutumière (APFC)
               </h2>
-              <p className="mt-0.5 text-[11.5px] text-muted-2 group-data-[tone=alert]/card:text-brick-foreground/85">
+              <p className="mt-0.5 text-[11.5px] text-muted-2 group-data-[tone=alert]/card:text-brick-foreground/95">
                 Document cosigné par la famille et la Chefferie du village
               </p>
             </div>
@@ -622,7 +622,7 @@ export function ProprietaireTerrienView({
               <h2 className="text-[13.5px] font-semibold text-foreground group-data-[tone=alert]/card:text-brick-foreground">
                 PV de réunion de famille
               </h2>
-              <p className="mt-0.5 text-[11.5px] text-muted-2 group-data-[tone=alert]/card:text-brick-foreground/85">
+              <p className="mt-0.5 text-[11.5px] text-muted-2 group-data-[tone=alert]/card:text-brick-foreground/95">
                 Habilitation des ayants-droit à céder ou transmettre les parcelles · Lecture seule
               </p>
             </div>

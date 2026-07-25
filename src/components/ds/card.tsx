@@ -77,7 +77,8 @@ function CardDescription({ className, ...props }: React.ComponentProps<"p">) {
       data-slot="card-description"
       className={cn(
         "mt-1 text-[13px] leading-snug text-muted-foreground",
-        "group-data-[tone=alert]/card:text-brick-foreground/85",
+        // /85 mesurait 3,53:1 sur l'aplat brique — sous le seuil AA à 13 px.
+        "group-data-[tone=alert]/card:text-brick-foreground/95",
         className,
       )}
       {...props}

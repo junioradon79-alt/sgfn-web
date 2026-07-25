@@ -38,14 +38,18 @@ type Alerte = {
 /**
  * Sur le lavis brique, les pastilles d'icône teintées (`bg-danger-subtle` &
  * consorts) se confondaient avec le fond : elles reposent donc sur la surface
- * blanche de la carte, et c'est l'icône seule qui porte la gravité. Le volume,
- * lui, est porté par un aplat plein (`CountBadge`) — un chiffre doit se lire
- * sans être déchiffré.
+ * de la carte, et c'est l'**icône seule** qui porte la gravité.
+ *
+ * Le **volume** est porté par un aplat plein unique, en brique. Les pastilles
+ * ont d'abord repris la couleur de gravité — d'où deux défauts : « on
+ * m'attend » s'écrivait en quatre couleurs sur la carte censée unifier le
+ * signal, et le blanc sur ambre (3,2:1) comme sur bleu (3,7:1) passait sous le
+ * seuil AA à 12 px. Un chiffre doit se lire sans être déchiffré.
  */
-const STYLE: Record<Gravite, { puce: string; pastille: "danger" | "warning" | "accent" }> = {
-  critique: { puce: "text-danger", pastille: "danger" },
-  attention: { puce: "text-warning", pastille: "warning" },
-  info: { puce: "text-accent", pastille: "accent" },
+const STYLE: Record<Gravite, { puce: string }> = {
+  critique: { puce: "text-danger" },
+  attention: { puce: "text-warning" },
+  info: { puce: "text-accent" },
 };
 
 const ORDRE: Record<Gravite, number> = { critique: 0, attention: 1, info: 2 };
@@ -155,11 +159,21 @@ export function AlertCenter({
     return out.sort((a, b) => ORDRE[a.gravite] - ORDRE[b.gravite]);
   }, [files, recettes, marketplaceARebuild]);
 
+  // 🔴 La teinte se décide sur les seules gravités qui appellent une décision.
+  // Elle a d'abord été branchée sur `alertes.length`, ce qui la rendait
+  // **permanente** : un dossier ADU en cours (gravité `info`, « instruction et
+  // pièces à suivre ») reste ouvert des mois, et le site marketplace est « à
+  // reconstruire » jusqu'au prochain déploiement. La carte serait restée brique
+  // à demeure — exactement le décor que la convention interdit, et l'inverse du
+  // raisonnement tenu par `WorkQueues` sur le même écran.
+  //
+  // Les lignes `info` restent affichées : elles informent, elles n'alertent pas.
+  const aTraiter = alertes.filter((a) => a.gravite !== "info");
   // Le total porté par la pastille d'en-tête est le nombre de **dossiers**, pas
   // de lignes : trois lignes peuvent cacher quarante dossiers à traiter, et
   // c'est ce volume-là qui décide si l'on s'y met maintenant.
-  const dossiers = alertes.reduce((n, a) => n + a.compte, 0);
-  const enAlerte = !loading && alertes.length > 0;
+  const dossiers = aTraiter.reduce((n, a) => n + a.compte, 0);
+  const enAlerte = !loading && aTraiter.length > 0;
 
   return (
     <motion.div variants={fadeUp} className="min-w-0">
@@ -200,14 +214,14 @@ export function AlertCenter({
                 const Icon = a.icon;
                 const contenu = (
                   <>
-                    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-brick/15 bg-card">
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-inset group-data-[tone=alert]/card:border-brick/15 group-data-[tone=alert]/card:bg-card">
                       <Icon className={cn("size-4", s.puce)} aria-hidden />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] font-semibold text-foreground">{a.titre}</span>
                       <span className="block truncate text-[12px] text-muted-foreground">{a.detail}</span>
                     </span>
-                    <CountBadge tone={s.pastille} value={a.compte} />
+                    <CountBadge value={a.compte} />
                   </>
                 );
 
@@ -234,7 +248,7 @@ export function AlertCenter({
                   <motion.li key={a.id} variants={fadeUp}>
                     <Link
                       href={a.href}
-                      className="group flex items-center gap-3 rounded-lg px-3 py-2.5 outline-none transition-colors hover:bg-brick/10 focus-visible:ring-2 focus-visible:ring-ring/50"
+                      className="group flex items-center gap-3 rounded-lg px-3 py-2.5 outline-none transition-colors hover:bg-inset focus-visible:ring-2 focus-visible:ring-ring/50 group-data-[tone=alert]/card:hover:bg-brick/10"
                     >
                       {contenu}
                       <ChevronRight

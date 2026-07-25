@@ -168,6 +168,13 @@ export default function ValidationsPage() {
   const chargement = profileLoading || (isChefferie && isLoading);
   /** Seules les APFC sans signature du chef de village attendent une décision. */
   const apfcACosigner = apfc.filter((a) => !a.sig_chef_village_le).length;
+  /**
+   * Une attribution dont le paiement n'est pas reçu a son bouton désactivé :
+   * elle ne peut PAS être signée aujourd'hui. La compter ferait afficher une
+   * carte rouge et un compteur sur des lignes que l'on ne peut qu'attendre —
+   * la teinte doit désigner ce sur quoi on peut agir, pas ce qui existe.
+   */
+  const attributionsSignables = attributionsLot.filter((a) => a.signature_payee_le).length;
 
   if (!profileLoading && (!isChefferie || !profile?.autorite_coutumiere_id)) {
     return (
@@ -283,7 +290,7 @@ export default function ValidationsPage() {
         <motion.div variants={fadeUp}>
           <Card
             id="attributions"
-            tone={!chargement && attributionsLot.length > 0 ? "alert" : "default"}
+            tone={!chargement && attributionsSignables > 0 ? "alert" : "default"}
             className="scroll-mt-6 overflow-hidden"
           >
             <CardHeader>
@@ -293,9 +300,9 @@ export default function ValidationsPage() {
                   Signature conditionnée au paiement (500 000 FCFA chefferie + 50 000 FCFA commission SGNF)
                 </CardDescription>
               </div>
-              {!chargement && attributionsLot.length > 0 && (
+              {!chargement && attributionsSignables > 0 && (
                 <CardAction>
-                  <CountBadge tone="inverse" value={attributionsLot.length} />
+                  <CountBadge tone="inverse" value={attributionsSignables} />
                 </CardAction>
               )}
             </CardHeader>
