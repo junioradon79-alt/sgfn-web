@@ -1,6 +1,6 @@
 # TerraCI × SGNF — Document Directeur Unique
 
-**Version 1.56 — 24 juillet 2026**
+**Version 1.57 — 25 juillet 2026**
 
 > Cette version fusionne la v1.0 (vision stratégique TerraCI + état des lieux SGNF du matin du 07/07) et la Fiche projet SGNF (journal opérationnel détaillé) en **une seule référence de pilotage**. Les deux documents séparés sont désormais obsolètes : ce fichier est la référence unique pour comprendre où en est le projet, ce qui a été décidé stratégiquement, et ce qu'il reste à faire. La référence technique détaillée (schéma, conventions, pièges connus) reste le dossier `docs/` du repo `sgfn-web`, consolidé en PDF dans `docs/pdf/Dossier_Passation_SGNF.pdf`.
 
@@ -839,6 +839,26 @@ Contrôle de l'écart entre le dépôt et `sgfn.ci`, mené **sur le contenu et j
 **Impact réel du retard : nul pour les utilisateurs web** — `src/lib/biometric.ts` est un **no-op hors app native** (`if (!isCapacitorNative()) return false`), la biométrie ne s'exécutant que dans l'APK déjà installée et vérifiée sur l'appareil du user. Le déploiement visait la **resynchronisation dépôt/production**, non un correctif : un retard cosmétique aujourd'hui devient un embarquement non décidé au prochain chantier web.
 
 **Resynchronisation faite** : archive `sgfn-deploy.tar.gz` (17,7 Mo) générée par `tar -czf … -C out .` — **jamais** `npm run deploy`/`make-zip.ps1`, dont le zip ne stocke pas les permissions Unix et sort les dossiers en 644, non traversables (403 sur tout `/_next/`). Vérifié avant remise : **13 dossiers en 755**, 251 fichiers en 644, `.htaccess` embarqué, clés Supabase bien figées au build (`bvdzrhvbiglwrhzpmuwy`), chunks de biométrie présents. Upload et extraction cPanel par le user. **Contre-vérification après déploiement : 249/251 identiques à l'octet près**, `/app.html` agrégé passé à **1 007 227 o** (égal au local), marqueur `biom` **0 → 1**, chunk `313fjfwi7xkvi.js` en **HTTP 200 / 83 490 o**. Les deux exceptions sont des faux positifs levés : `404.html` a le **même MD5** des deux côtés (le test le classait « absent » par tautologie, `/404.html` *étant* le corps du 404) et `.htaccess` répond **403**, comportement correct d'Apache sur un fichier de configuration.
+
+### Session du 25/07/2026 — Relevé comptable imprimable (période, postes, sections)
+
+Demande du user : pouvoir **imprimer le relevé comptable**, avec sélection de période, de postes de dépenses, etc. Trois arbitrages posés en questions **avant** d'écrire du code, tous trois tranchés dans le sens recommandé :
+
+1. **Recettes détaillées ligne à ligne** plutôt qu'agrégées — c'est ce qui permet de remonter un montant à sa pièce d'origine devant un tiers (associé, banque, administration fiscale). La section Recettes **n'existait pas** dans le module : l'écran n'affichait qu'un KPI global.
+2. **Impression par le navigateur** (`window.print()` + variantes Tailwind `print:`), comme les 5 registres admin, plutôt qu'un **5e gabarit PDFMonkey**. Motif : ce relevé est un document **interne, non opposable et non QR-vérifiable** — il ne justifie pas un gabarit distant de plus à tenir synchronisé à la main, avec la charge de vérification que cela impose (cf. §10, gabarit de l'Attestation d'Attribution).
+3. **Filtres agissant sur tout l'écran**, pas seulement sur l'impression : on imprime ce qu'on voit, et les filtres servent aussi à l'analyse quotidienne.
+
+**Livré** : filtres période (deux dates + raccourcis Ce mois / Ce trimestre / Cette année / Tout), postes de dépenses (8 pastilles à bascule) et sections du relevé (Recettes / Apports / Dépenses) ; section Recettes créée (date, référence, type d'acte, montant total, part SGNF) avec ventilation par type d'acte ; Dépenses et Apports passés en tables avec totaux et **ventilation par poste** ; en-tête de document imprimé qui **se décrit lui-même** (période, postes retenus, sections, date d'édition, mention « document interne, non opposable ») ; récapitulatif final Recettes / Apports / Dépenses / Solde.
+
+**Deux règles de justesse comptable** inscrites dans le code : une section décochée sort **aussi des totaux** (le solde imprimé doit toujours être la somme de ce que la feuille montre, sinon il est indéfendable), et les trois tables passent par **`fetchAllPages`** — PostgREST tronque chaque réponse à 1000 lignes **silencieusement**, et un relevé comptable amputé sans avertissement est pire qu'un relevé absent. C'est le seul écran où un total faux se propage directement dans une décision de gestion.
+
+**Méthode de vérification — trois défauts trouvés par relecture du rendu réel, aucun par les compteurs.** Le nouveau `scripts/e2e-releve-comptable.mjs` (19 contrôles) pilote un navigateur, applique les filtres et vérifie qu'ils **recalculent les agrégats**, puis bascule en **`emulateMedia({ media: "print" })`** — le seul moyen de voir ce qui sortira de l'imprimante sans imprimer. Mais ce sont les **captures relues visuellement** qui ont révélé : un `EmptyState` mangeant ~5 cm de papier pour dire « rien » (compacté en une ligne à l'impression) ; des colonnes séparées par de larges creux, puis — après une **surcorrection** en `w-full` — des textes **collés** entre eux (« 16/07/2026Abonnement Anthropic », « POSTEMONTANT »), corrigé par une gouttière explicite ; et des montants longs **coupés sur deux lignes** à l'écran. Aucun de ces trois défauts n'était visible dans un compteur vert.
+
+**Leçon d'outillage, à rapprocher de celle du 22/07 (« établir d'abord où est le défaut »)** : deux contrôles ont d'abord échoué sur un écran parfaitement correct. `innerText` **applique les CSS de casse** — un titre en `uppercase` ressort « RÉCAPITULATIF », et une regex sensible à la casse le manque. Le `textContent` brut disait bien « Récapitulatif ». Le défaut était dans le script, pas dans l'application ; les contrôles textuels y sont désormais insensibles à la casse, avec la raison écrite en commentaire.
+
+`tsc`, `eslint` et `next build` verts. Commit `de7178a`. **Non déployé** — reste en attente de la prochaine mise en ligne.
+
+**Deux observations de production relevées au passage**, sans action demandée : les recettes sont à **0** (aucun paiement `confirme` en base, cohérent avec l'absence des secrets CinetPay, dette #2), si bien que la section Recettes restera vide jusqu'au premier encaissement confirmé ; et les dépenses saisies étaient **toutes classées « Autre »** au début de la session, ce qui rendait le filtre par poste sans effet pratique — le user a commencé à ventiler pendant les tests (première dépense « Déplacements »).
 
 ### Chantiers précédents (03/07, toujours d'actualité)
 
