@@ -1,6 +1,7 @@
 "use client";
 
 import { Bell, Building2, FileCheck2, Coins, ClipboardList, ChevronRight, Map } from "lucide-react";
+import { CountBadge } from "@/components/ds/badge";
 import { PrimaryHeader } from "../../components/MobileHeader";
 import { fmtFCFA, prenom } from "../../data/mappers";
 import type { AdminOverview } from "@/hooks/useAdminOverview";
@@ -104,22 +105,45 @@ export function PilotageScreen({
           </div>
         </div>
 
-        {/* À faire */}
+        {/* À faire — même convention que le web : rouge brique dès qu'une file
+            est non vide, pastille compteur, et rien de tout cela si tout est à
+            jour. Le téléphone se consulte d'un coup d'œil : c'est l'écran où la
+            teinte compte le plus. */}
         <button
           type="button"
           onClick={onOpenFiles}
-          className="mt-4 w-full rounded-[22px] border border-border bg-card p-4 text-left shadow-panel"
+          className={`mt-4 w-full overflow-hidden rounded-[22px] border text-left shadow-panel ${
+            aFaire > 0 ? "border-brick/45 bg-brick-subtle" : "border-border bg-card"
+          }`}
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-[13px] font-bold text-foreground">
-              <ClipboardList className="size-[18px] text-primary" />À faire
+          <div
+            className={`flex items-center justify-between px-4 py-3 ${
+              aFaire > 0 ? "bg-brick" : ""
+            }`}
+          >
+            <div
+              className={`flex items-center gap-2 text-[13px] font-bold ${
+                aFaire > 0 ? "text-brick-foreground" : "text-foreground"
+              }`}
+            >
+              <ClipboardList
+                className={`size-[18px] ${aFaire > 0 ? "text-brick-foreground" : "text-primary"}`}
+              />
+              À faire
             </div>
-            <div className="flex items-center gap-1 text-[12px] font-semibold text-accent">
-              {aFaire > 0 ? `${aFaire} en attente` : "à jour"}
-              <ChevronRight className="size-4" />
-            </div>
+            {aFaire > 0 ? (
+              <div className="flex items-center gap-1.5">
+                <CountBadge tone="inverse" value={aFaire} />
+                <ChevronRight className="size-4 text-brick-foreground" />
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 text-[12px] font-semibold text-accent">
+                à jour
+                <ChevronRight className="size-4" />
+              </div>
+            )}
           </div>
-          <div className="mt-3 grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-4 gap-2 px-4 pt-3 pb-4">
             <Mini value={files.saisieAValider} label="Saisies" />
             <Mini value={files.demandesATraiter} label="Demandes" />
             <Mini value={files.litigesOuverts} label="Litiges" tone="danger" />

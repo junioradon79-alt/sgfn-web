@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { fadeUp, stagger } from "@/lib/motion";
 import type { AdminOverview } from "@/hooks/useAdminOverview";
 import { Card, CardHeader, CardTitle, CardDescription, CardAction } from "@/components/ds/card";
-import { Badge } from "@/components/ds/badge";
+import { CountBadge } from "@/components/ds/badge";
 import { Button } from "@/components/ds/button";
 import { EmptyState } from "@/components/ds/empty-state";
 import { Skeleton } from "@/components/ds/skeleton";
@@ -35,10 +35,17 @@ type Alerte = {
   compte: number;
 } & ({ href: string; onAction?: undefined } | { href?: undefined; onAction: () => void; enCours: boolean });
 
-const STYLE: Record<Gravite, { puce: string; fond: string; badge: "danger" | "warning" | "accent" }> = {
-  critique: { puce: "text-danger", fond: "bg-danger-subtle", badge: "danger" },
-  attention: { puce: "text-warning", fond: "bg-warning-subtle", badge: "warning" },
-  info: { puce: "text-accent", fond: "bg-accent-subtle", badge: "accent" },
+/**
+ * Sur le lavis brique, les pastilles d'icône teintées (`bg-danger-subtle` &
+ * consorts) se confondaient avec le fond : elles reposent donc sur la surface
+ * blanche de la carte, et c'est l'icône seule qui porte la gravité. Le volume,
+ * lui, est porté par un aplat plein (`CountBadge`) — un chiffre doit se lire
+ * sans être déchiffré.
+ */
+const STYLE: Record<Gravite, { puce: string; pastille: "danger" | "warning" | "accent" }> = {
+  critique: { puce: "text-danger", pastille: "danger" },
+  attention: { puce: "text-warning", pastille: "warning" },
+  info: { puce: "text-accent", pastille: "accent" },
 };
 
 const ORDRE: Record<Gravite, number> = { critique: 0, attention: 1, info: 2 };
@@ -52,7 +59,11 @@ const ORDRE: Record<Gravite, number> = { critique: 0, attention: 1, info: 2 };
  * différentes selon l'endroit où il s'affiche.
  *
  * L'absence d'alerte n'est pas un vide à combler : c'est une information, et
- * elle est affichée comme telle.
+ * elle est affichée comme telle — carte neutre, message vert.
+ *
+ * Dès qu'une file se remplit, la carte bascule en rouge brique (`tone="alert"`)
+ * et chaque ligne porte sa pastille compteur. Les deux états sont donc lisibles
+ * de loin et sans les lire : blanc = rien à faire, brique = on m'attend.
  */
 export function AlertCenter({
   files,
@@ -144,26 +155,31 @@ export function AlertCenter({
     return out.sort((a, b) => ORDRE[a.gravite] - ORDRE[b.gravite]);
   }, [files, recettes, marketplaceARebuild]);
 
-  const critiques = alertes.filter((a) => a.gravite === "critique").length;
+  // Le total porté par la pastille d'en-tête est le nombre de **dossiers**, pas
+  // de lignes : trois lignes peuvent cacher quarante dossiers à traiter, et
+  // c'est ce volume-là qui décide si l'on s'y met maintenant.
+  const dossiers = alertes.reduce((n, a) => n + a.compte, 0);
+  const enAlerte = !loading && alertes.length > 0;
 
   return (
     <motion.div variants={fadeUp} className="min-w-0">
-      <Card className="h-full">
+      <Card tone={enAlerte ? "alert" : "default"} className="h-full">
         <CardHeader>
           <div className="min-w-0">
             <CardTitle>Actions requises</CardTitle>
             <CardDescription>Ce qui attend une décision de l&apos;agence.</CardDescription>
           </div>
           <CardAction>
-            {!loading && alertes.length > 0 && (
-              <Badge tone={critiques > 0 ? "danger" : "warning"}>
-                {alertes.length} en attente
-              </Badge>
+            {enAlerte && (
+              <span className="flex items-center gap-2 text-[12px] font-semibold text-brick-foreground">
+                <CountBadge tone="inverse" value={dossiers} />
+                {dossiers > 1 ? "dossiers" : "dossier"}
+              </span>
             )}
           </CardAction>
         </CardHeader>
 
-        <div className="min-h-0 flex-1 px-2 pb-2">
+        <div className="min-h-0 flex-1 px-2 pb-2 pt-2">
           {loading ? (
             <div className="space-y-1.5 px-3 pb-3">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -184,13 +200,14 @@ export function AlertCenter({
                 const Icon = a.icon;
                 const contenu = (
                   <>
-                    <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", s.fond)}>
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-brick/15 bg-card">
                       <Icon className={cn("size-4", s.puce)} aria-hidden />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] font-semibold text-foreground">{a.titre}</span>
                       <span className="block truncate text-[12px] text-muted-foreground">{a.detail}</span>
                     </span>
+                    <CountBadge tone={s.pastille} value={a.compte} />
                   </>
                 );
 
@@ -217,7 +234,7 @@ export function AlertCenter({
                   <motion.li key={a.id} variants={fadeUp}>
                     <Link
                       href={a.href}
-                      className="group flex items-center gap-3 rounded-lg px-3 py-2.5 outline-none transition-colors hover:bg-inset focus-visible:ring-2 focus-visible:ring-ring/50"
+                      className="group flex items-center gap-3 rounded-lg px-3 py-2.5 outline-none transition-colors hover:bg-brick/10 focus-visible:ring-2 focus-visible:ring-ring/50"
                     >
                       {contenu}
                       <ChevronRight

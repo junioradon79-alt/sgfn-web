@@ -33,6 +33,49 @@ function Badge({
   return <Comp data-slot="badge" className={cn(badgeVariants({ tone }), className)} {...props} />;
 }
 
+/**
+ * Pastille compteur : un nombre, rond, plein, lisible à un mètre de l'écran.
+ *
+ * Le `Badge` classique porte un libellé et se lit ; celle-ci porte un volume et
+ * se compte d'un coup d'œil — « combien de dossiers m'attendent ici ». Les deux
+ * cohabitent : la pastille sur la ligne, le badge pour qualifier un statut.
+ *
+ * `inverse` est le ton à utiliser **sur** un bandeau brique (`Card tone="alert"`),
+ * où un aplat coloré de plus serait illisible : on inverse, blanc plein/chiffre
+ * brique.
+ */
+function CountBadge({
+  value,
+  tone = "brick",
+  className,
+}: {
+  value: number;
+  tone?: "brick" | "danger" | "warning" | "accent" | "inverse";
+  className?: string;
+}) {
+  const fond = {
+    brick: "bg-brick text-brick-foreground",
+    danger: "bg-danger text-white",
+    warning: "bg-warning text-white",
+    accent: "bg-accent text-accent-foreground",
+    inverse: "bg-brick-foreground text-brick",
+  }[tone];
+  return (
+    <span
+      data-slot="count-badge"
+      className={cn(
+        "inline-flex h-[22px] min-w-[22px] shrink-0 items-center justify-center rounded-full px-1.5 text-[12px] leading-none font-bold tabular",
+        fond,
+        className,
+      )}
+    >
+      {/* Au-delà de 99 le rond s'étirerait en ovale et le chiffre exact
+          n'apporte plus rien : c'est déjà « beaucoup ». */}
+      {value > 99 ? "99+" : value}
+    </span>
+  );
+}
+
 /** Pastille de statut : point coloré + libellé, pour les tableaux denses. */
 function StatusDot({ tone = "neutral", className }: { tone?: "neutral" | "accent" | "success" | "warning" | "danger"; className?: string }) {
   const color = {
@@ -45,4 +88,4 @@ function StatusDot({ tone = "neutral", className }: { tone?: "neutral" | "accent
   return <span aria-hidden className={cn("inline-block size-1.5 shrink-0 rounded-full", color, className)} />;
 }
 
-export { Badge, badgeVariants, StatusDot };
+export { Badge, badgeVariants, CountBadge, StatusDot };

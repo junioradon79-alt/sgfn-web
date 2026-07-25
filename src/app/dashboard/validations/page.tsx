@@ -7,7 +7,8 @@ import { ArrowLeft, CheckCircle2, FileSignature, ScrollText, ShieldAlert } from 
 
 import { AppShell } from "@/components/pilotage/AppShell";
 import { Button } from "@/components/ds/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ds/card";
+import { Card, CardAction, CardDescription, CardHeader, CardTitle } from "@/components/ds/card";
+import { CountBadge } from "@/components/ds/badge";
 import { EmptyState } from "@/components/ds/empty-state";
 import { ScrollArea } from "@/components/ds/scroll-area";
 import { createClient } from "@/utils/supabase/client";
@@ -205,15 +206,24 @@ export default function ValidationsPage() {
       <motion.div variants={stagger(0.05, 0.06)} initial="hidden" animate="show" className="flex flex-col gap-5">
         {/* Attestations de cession à valider */}
         <motion.div variants={fadeUp}>
-          <Card id="cessions" className="scroll-mt-6 overflow-hidden">
+          <Card
+            id="cessions"
+            tone={!chargement && attestations.length > 0 ? "alert" : "default"}
+            className="scroll-mt-6 overflow-hidden"
+          >
             <CardHeader>
-              <div>
+              <div className="min-w-0">
                 <CardTitle>Attestations de cession — en attente de votre validation</CardTitle>
-                <CardDescription>
-                  Validez après vérification de la cession hors-système
-                  {!chargement && attestations.length > 0 && ` · ${attestations.length} en attente`}
-                </CardDescription>
+                <CardDescription>Validez après vérification de la cession hors-système</CardDescription>
               </div>
+              {/* Le compte vivait en queue de description (« · 4 en attente ») :
+                  noyé dans une phrase, il ne se lisait pas. Il devient une
+                  pastille — même convention que le Centre de pilotage. */}
+              {!chargement && attestations.length > 0 && (
+                <CardAction>
+                  <CountBadge tone="inverse" value={attestations.length} />
+                </CardAction>
+              )}
             </CardHeader>
             {attestations.length === 0 ? (
               <EmptyState
@@ -269,15 +279,23 @@ export default function ValidationsPage() {
 
         {/* Attestations d'Attribution de Lot — signature Chefferie payante */}
         <motion.div variants={fadeUp}>
-          <Card id="attributions" className="scroll-mt-6 overflow-hidden">
+          <Card
+            id="attributions"
+            tone={!chargement && attributionsLot.length > 0 ? "alert" : "default"}
+            className="scroll-mt-6 overflow-hidden"
+          >
             <CardHeader>
-              <div>
+              <div className="min-w-0">
                 <CardTitle>Attestations d&apos;Attribution de Lot — en attente de votre signature</CardTitle>
                 <CardDescription>
                   Signature conditionnée au paiement (500 000 FCFA chefferie + 50 000 FCFA commission SGNF)
-                  {!chargement && attributionsLot.length > 0 && ` · ${attributionsLot.length} en attente`}
                 </CardDescription>
               </div>
+              {!chargement && attributionsLot.length > 0 && (
+                <CardAction>
+                  <CountBadge tone="inverse" value={attributionsLot.length} />
+                </CardAction>
+              )}
             </CardHeader>
             {attributionsLot.length === 0 ? (
               <EmptyState

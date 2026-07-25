@@ -15,6 +15,7 @@ import { fadeUp, stagger } from "@/lib/motion";
 import type { Profile } from "@/components/dashboard/chefferie/types";
 import { AppShell } from "@/components/pilotage/AppShell";
 import { Button } from "@/components/ds/button";
+import { CountBadge } from "@/components/ds/badge";
 import { Card, CardAction, CardDescription, CardHeader, CardTitle } from "@/components/ds/card";
 import { EmptyState } from "@/components/ds/empty-state";
 import { Kpi } from "@/components/ds/kpi";
@@ -84,6 +85,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
     action: string;
     href: string;
     icon: LucideIcon;
+    compte: number;
   };
 
   const priorites: Priorite[] = [
@@ -94,6 +96,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
       action: "Signer",
       href: "/dashboard/validations",
       icon: ShieldCheck,
+      compte: apfcPending,
     },
     cessionsPending > 0 && {
       cle: "cessions",
@@ -102,6 +105,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
       action: "Examiner",
       href: "/dashboard/validations",
       icon: Banknote,
+      compte: cessionsPending,
     },
     litigesActifsCount > 0 && {
       cle: "litiges",
@@ -110,8 +114,14 @@ function ChefVillageView({ profile }: { profile: Profile }) {
       action: "Médier",
       href: "/dashboard/litiges",
       icon: FileWarning,
+      compte: litigesActifsCount,
     },
   ].filter((p): p is Priorite => p !== false);
+
+  // Même convention que le Centre de pilotage national : la carte ne prend la
+  // teinte brique que si la file est non vide, et la pastille d'en-tête compte
+  // les dossiers, pas les lignes.
+  const dossiersEnAttente = priorites.reduce((n, p) => n + p.compte, 0);
 
   if (loading) {
     return (
@@ -204,22 +214,28 @@ function ChefVillageView({ profile }: { profile: Profile }) {
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)] xl:items-start">
         <motion.div variants={fadeUp} initial="hidden" animate="show" className="min-w-0">
-          <Card className="h-full">
+          <Card tone={priorites.length > 0 ? "alert" : "default"} className="h-full">
             <CardHeader>
               <div>
                 <CardTitle>À traiter en priorité</CardTitle>
                 <CardDescription>Ce qui attend une décision de la chefferie</CardDescription>
               </div>
               {priorites.length > 0 && (
-                <CardAction>
-                  <Button asChild variant="ghost" size="sm">
+                <CardAction className="gap-2.5">
+                  <CountBadge tone="inverse" value={dossiersEnAttente} />
+                  <Button
+                    asChild
+                    variant="ghost"
+                    size="sm"
+                    className="text-brick-foreground hover:bg-brick-foreground/15 hover:text-brick-foreground"
+                  >
                     <Link href="/dashboard/validations">Tout voir</Link>
                   </Button>
                 </CardAction>
               )}
             </CardHeader>
 
-            <div className="px-5 pb-5">
+            <div className="px-5 pt-4 pb-5">
               {priorites.length === 0 ? (
                 <EmptyState
                   icon={ShieldCheck}
@@ -234,17 +250,22 @@ function ChefVillageView({ profile }: { profile: Profile }) {
                       <li key={p.cle}>
                         <Link
                           href={p.href}
-                          className="group flex items-center gap-3 rounded-xl border border-border p-3 transition-all hover:-translate-y-0.5 hover:border-primary/40"
+                          className="group flex items-center gap-3 rounded-xl border border-brick/20 bg-card p-3 transition-all hover:-translate-y-0.5 hover:border-brick/50"
                         >
-                          <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-warning-subtle text-warning">
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-brick text-brick-foreground">
                             <Icone className="size-[18px]" aria-hidden />
                           </span>
                           <span className="flex min-w-0 flex-col">
                             <span className="text-[13px] font-semibold text-foreground">{p.titre}</span>
                             <span className="truncate text-[11.5px] text-muted-2">{p.detail}</span>
                           </span>
-                          <span className="ml-auto shrink-0 text-[12px] font-semibold text-primary">
-                            {p.action} →
+                          <span className="ml-auto flex shrink-0 items-center gap-2.5">
+                            <CountBadge value={p.compte} />
+                            {/* `text-primary` (bleu marine) disparaissait sur le
+                                fond de carte en thème sombre : le libellé
+                                d'action était quasi invisible. La ligne entière
+                                est cliquable, la flèche suffit à l'affordance. */}
+                            <span className="text-[12px] font-semibold text-foreground">{p.action} →</span>
                           </span>
                         </Link>
                       </li>

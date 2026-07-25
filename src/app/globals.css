@@ -129,6 +129,16 @@ h1, h2, h3, h4, h5, h6 {
   --danger: #DC2626;
   --danger-subtle: #FBEBEB;
 
+  /* Rouge brique — « une décision vous attend ».
+     Volontairement distinct de --danger (#DC2626), qui signale une anomalie :
+     ici rien n'est cassé, une file de travail attend simplement une action.
+     Confondre les deux, c'est user le rouge d'alerte jusqu'à ce qu'il ne veuille
+     plus rien dire. La teinte n'apparaît QUE si la file est non vide — une carte
+     brique sur un écran est donc toujours une carte sur laquelle cliquer. */
+  --brick: #B23A2E;
+  --brick-foreground: #FFFFFF;
+  --brick-subtle: #FBF0EE;
+
   /* Data-viz — 5 teintes distinctes en clair comme en sombre */
   --chart-1: #0B4D88;
   --chart-2: #1E88E5;
@@ -184,6 +194,13 @@ h1, h2, h3, h4, h5, h6 {
   --danger: #DC2626;
   --danger-subtle: #2A1416;
 
+  /* Brique : la teinte pleine et son texte ne bougent pas (règle handoff sur les
+     sémantiques) — blanc sur #B23A2E reste à 5,9:1 sur fond nuit comme en clair.
+     Seul le lavis de fond bascule, comme toutes les surfaces. */
+  --brick: #B23A2E;
+  --brick-foreground: #FFFFFF;
+  --brick-subtle: #2A1512;
+
   /* Data-viz éclairée pour rester lisible sur fond nuit (hors périmètre handoff). */
   --chart-1: #5AA9D6;
   --chart-2: #8EC5E3;
@@ -227,6 +244,9 @@ h1, h2, h3, h4, h5, h6 {
   --color-warning-subtle: var(--warning-subtle);
   --color-danger: var(--danger);
   --color-danger-subtle: var(--danger-subtle);
+  --color-brick: var(--brick);
+  --color-brick-foreground: var(--brick-foreground);
+  --color-brick-subtle: var(--brick-subtle);
 
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);

@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { PenLine, Handshake, FileWarning, FolderOpen, ChevronRight, ExternalLink } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { CountBadge } from "@/components/ds/badge";
 import type { AdminOverview } from "@/hooks/useAdminOverview";
 
 export function FilesScreen({
@@ -14,10 +15,10 @@ export function FilesScreen({
 }) {
   const { files } = overview;
 
-  const queues: { icon: LucideIcon; label: string; count: number; path: string; tone?: "danger" }[] = [
+  const queues: { icon: LucideIcon; label: string; count: number; path: string }[] = [
     { icon: PenLine, label: "Saisies à valider", count: files.saisieAValider, path: "/dashboard/saisie/" },
     { icon: Handshake, label: "Demandes à traiter", count: files.demandesATraiter, path: "/dashboard/demandes-acquisition/" },
-    { icon: FileWarning, label: "Litiges ouverts", count: files.litigesOuverts, path: "/dashboard/litiges/", tone: "danger" },
+    { icon: FileWarning, label: "Litiges ouverts", count: files.litigesOuverts, path: "/dashboard/litiges/" },
     { icon: FolderOpen, label: "Dossiers ADU en cours", count: files.dossiersAduEnCours, path: "/dashboard/dossiers-adu/" },
   ];
 
@@ -30,30 +31,35 @@ export function FilesScreen({
 
       <div className="sgnf-scroll flex-1 overflow-y-auto px-[18px] pb-6">
         <div className="flex flex-col gap-2.5">
+          {/* La teinte suit la file, pas le type de dossier : un litige à zéro
+              n'a rien d'alarmant, une file de saisies à trente attend bel et
+              bien quelqu'un. Auparavant seuls les litiges viraient au rouge,
+              quel que soit leur nombre. */}
           {queues.map((q) => {
             const Icon = q.icon;
+            const aTraiter = q.count > 0;
             return (
               <button
                 key={q.label}
                 type="button"
                 onClick={() => openWeb(q.path)}
-                className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-panel"
+                className={`flex items-center gap-3 rounded-2xl border p-4 text-left shadow-panel ${
+                  aTraiter ? "border-brick/45 bg-brick-subtle" : "border-border bg-card"
+                }`}
               >
                 <span
                   className={`flex size-10 flex-none items-center justify-center rounded-xl ${
-                    q.tone === "danger" && q.count > 0 ? "bg-danger-subtle text-danger" : "bg-inset text-primary"
+                    aTraiter ? "bg-brick text-brick-foreground" : "bg-inset text-primary"
                   }`}
                 >
                   <Icon className="size-5" strokeWidth={1.9} />
                 </span>
                 <span className="min-w-0 flex-1 text-[14px] font-semibold text-foreground">{q.label}</span>
-                <span
-                  className={`tabular text-[20px] font-extrabold ${
-                    q.tone === "danger" && q.count > 0 ? "text-danger" : "text-foreground"
-                  }`}
-                >
-                  {q.count}
-                </span>
+                {aTraiter ? (
+                  <CountBadge value={q.count} />
+                ) : (
+                  <span className="tabular text-[20px] font-extrabold text-muted-2">0</span>
+                )}
                 <ExternalLink className="size-4 flex-none text-muted-2" />
               </button>
             );

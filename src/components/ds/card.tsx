@@ -6,13 +6,32 @@ import { cn } from "@/lib/utils";
 /**
  * Surface de base du Design System. Toute donnée affichée dans le dashboard vit
  * dans un `Card` — c'est la seule primitive autorisée à porter une ombre.
+ *
+ * `tone="alert"` habille la carte en rouge brique : bandeau d'en-tête plein,
+ * corps en lavis, bordure marquée. Réservé aux **files qui attendent une
+ * décision de l'utilisateur**, et **seulement quand elles sont non vides** —
+ * sinon la teinte devient un décor et cesse d'être un signal. Une carte brique
+ * à l'écran est toujours une carte sur laquelle il faut cliquer.
+ *
+ * Le ton descend par attribut de données (`group-data-[tone=alert]/card:`) :
+ * `CardHeader`, `CardTitle` et `CardDescription` s'adaptent d'eux-mêmes, et un
+ * appelant n'a qu'une seule chose à écrire — `tone={n > 0 ? "alert" : "default"}`.
  */
-function Card({ className, ...props }: React.ComponentProps<"div">) {
+function Card({
+  className,
+  tone = "default",
+  ...props
+}: React.ComponentProps<"div"> & { tone?: "default" | "alert" }) {
   return (
     <div
       data-slot="card"
+      data-tone={tone}
       className={cn(
-        "flex flex-col rounded-xl border border-border bg-card text-foreground shadow-panel",
+        "group/card flex flex-col rounded-xl border text-foreground shadow-panel",
+        tone === "alert"
+          ? // `overflow-hidden` : sans lui le bandeau plein déborde des angles arrondis.
+            "overflow-hidden border-brick/45 bg-brick-subtle"
+          : "border-border bg-card",
         className,
       )}
       {...props}
@@ -30,6 +49,7 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
         // pas côte à côte — sans lui, le titre se comprime jusqu'à s'écrire à la
         // verticale. Les actions passent sous le titre plutôt que de l'écraser.
         "flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-5 pt-5 pb-4 has-data-[slot=card-action]:items-center",
+        "group-data-[tone=alert]/card:bg-brick group-data-[tone=alert]/card:pb-5",
         className,
       )}
       {...props}
@@ -41,7 +61,11 @@ function CardTitle({ className, ...props }: React.ComponentProps<"h3">) {
   return (
     <h3
       data-slot="card-title"
-      className={cn("font-display text-[15px] leading-tight font-bold tracking-tight", className)}
+      className={cn(
+        "font-display text-[15px] leading-tight font-bold tracking-tight",
+        "group-data-[tone=alert]/card:text-brick-foreground",
+        className,
+      )}
       {...props}
     />
   );
@@ -51,7 +75,11 @@ function CardDescription({ className, ...props }: React.ComponentProps<"p">) {
   return (
     <p
       data-slot="card-description"
-      className={cn("mt-1 text-[13px] leading-snug text-muted-foreground", className)}
+      className={cn(
+        "mt-1 text-[13px] leading-snug text-muted-foreground",
+        "group-data-[tone=alert]/card:text-brick-foreground/85",
+        className,
+      )}
       {...props}
     />
   );

@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 import { AppShell } from "@/components/pilotage/AppShell";
-import { Badge } from "@/components/ds/badge";
+import { Badge, CountBadge } from "@/components/ds/badge";
 import { Button } from "@/components/ds/button";
 import {
   Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -276,23 +276,27 @@ export default function DemandesAcquisitionPage() {
         </p>
       </div>
 
-      {/* Compteur d'actions à faire — bandeau très visible pour ne rien rater. */}
+      {/* Compteur d'actions à faire — bandeau très visible pour ne rien rater.
+          Rouge brique et pastille compteur, comme partout ailleurs : ce bandeau
+          portait auparavant le rouge `danger`, qui signale une anomalie. Ici
+          rien n'est cassé — des dossiers attendent, c'est autre chose. */}
       {!loading && (
         <div
-          className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
-            nbAFaire > 0 ? "border-danger/30 bg-danger-subtle" : "border-success/30 bg-success-subtle"
+          className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border px-4 py-3 ${
+            nbAFaire > 0 ? "border-brick/40 bg-brick-subtle" : "border-success/30 bg-success-subtle"
           }`}
         >
           {nbAFaire > 0 ? (
             <>
               <span className="relative flex h-2.5 w-2.5 shrink-0">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-danger opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-danger" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brick opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brick" />
               </span>
-              <span className="text-sm font-semibold text-danger">
-                {nbAFaire} action{nbAFaire > 1 ? "s" : ""} à faire
+              <CountBadge value={nbAFaire} />
+              <span className="text-sm font-semibold text-foreground">
+                action{nbAFaire > 1 ? "s" : ""} à faire
               </span>
-              <span className="text-sm text-muted-foreground">— traitez les cartes marquées en rouge ci-dessous.</span>
+              <span className="text-sm text-muted-foreground">— traitez les cartes marquées en brique ci-dessous.</span>
             </>
           ) : (
             <>
@@ -344,8 +348,8 @@ export default function DemandesAcquisitionPage() {
             return (
               <div
                 key={d.id}
-                className={`rounded-xl border bg-card p-5 shadow-panel ${
-                  action ? "border-danger/40 ring-1 ring-danger/20" : "border-border"
+                className={`rounded-xl border p-5 shadow-panel ${
+                  action ? "border-brick/45 bg-brick-subtle ring-1 ring-brick/20" : "border-border bg-card"
                 }`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -361,7 +365,7 @@ export default function DemandesAcquisitionPage() {
                   </div>
                   <div className="flex flex-col items-end gap-1.5">
                     {action && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-danger px-2.5 py-1 text-xs font-bold text-white shadow-panel">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-brick px-2.5 py-1 text-xs font-bold text-brick-foreground shadow-panel">
                         <span className="relative flex h-1.5 w-1.5">
                           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
                           <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />

@@ -77,6 +77,7 @@ Texte      --foreground --muted-foreground --muted-2
 Lignes     --border --border-strong --ring
 Marque     --primary --primary-700 --accent --accent-subtle
 Sémantique --success --warning --danger  (+ variantes -subtle)
+Action     --brick --brick-foreground --brick-subtle
 Data-viz   --chart-1 … --chart-5
 ```
 
@@ -91,6 +92,31 @@ Data-viz   --chart-1 … --chart-5
 Exposés à Tailwind via `@theme inline` — donc `bg-card`, `text-muted-foreground`,
 `border-border` résolvent la variable **au point d'usage**, ce qui rend le mode
 sombre gratuit.
+
+### Rouge brique (`--brick`, 25/07) — « une décision vous attend »
+
+Ajouté à la demande du user : les cartes d'action ne se distinguaient pas d'une
+carte ordinaire, on pouvait traverser le tableau de bord sans voir qu'un litige
+attendait.
+
+**Pourquoi un jeton de plus et pas `--danger`.** Le rouge `#DC2626` signale
+partout ailleurs une **anomalie** (litige, échec de paiement, statut rejeté).
+Une file qui attend n'est pas une anomalie : rien n'est cassé, il y a du travail.
+Réutiliser le même rouge pour les deux use le signal jusqu'à ce qu'il ne veuille
+plus rien dire. Le brique (`#B23A2E`) est plus sombre et plus terreux — il reste
+dans la famille du rouge, sans se confondre.
+
+**La règle, en une phrase :** la teinte n'apparaît **que si la file est non
+vide**. Une carte brique à l'écran est toujours une carte sur laquelle il faut
+cliquer ; si elle était permanente, elle redeviendrait un décor.
+
+Conforme à la règle de sombre ci-dessous : `--brick` et `--brick-foreground` ne
+bougent pas d'un thème à l'autre (blanc sur `#B23A2E` = **5,9:1**, mesuré au
+navigateur), seul le lavis `--brick-subtle` bascule comme toute surface.
+
+⚠️ **Ne jamais écrire `text-brick` sur `bg-brick-subtle`** : le contraste tombe
+à 2,3:1 en sombre. Sur le lavis, le texte est `text-foreground` et le chiffre
+vit dans une pastille pleine.
 
 ### Typographie
 
@@ -160,6 +186,52 @@ ne doit pas devenir un prétexte à tout charger dans le navigateur.
 `AppShell` · `AppSidebar` · `AppHeader` · `CommandPalette` · `KpiRow` ·
 `TerritoryMap` (+ `TerritoryCanvas`) · `AlertCenter` · `ActivityCenter` ·
 `WorkQueues` · `AduDialog`
+
+### Cartes d'action — `Card tone="alert"` + `CountBadge` (25/07)
+
+Deux primitives commandent tout le dispositif « rouge brique » :
+
+```tsx
+<Card tone={file.length > 0 ? "alert" : "default"}>   // un seul endroit à écrire
+  <CardHeader>
+    <div><CardTitle>…</CardTitle><CardDescription>…</CardDescription></div>
+    <CardAction><CountBadge tone="inverse" value={dossiers} /></CardAction>
+  </CardHeader>
+  …
+</Card>
+```
+
+Le ton **descend par attribut de données** (`data-tone` sur la carte, sélecteurs
+`group-data-[tone=alert]/card:` dans `CardHeader` / `CardTitle` /
+`CardDescription`). Un appelant n'écrit donc **jamais** les classes brique
+lui-même : il pose `tone`, et l'en-tête, le titre et la description basculent
+seuls. C'est ce qui rend la convention tenable sur cinq écrans — et ce qui rend
+une divergence immédiatement visible en revue.
+
+`CountBadge` porte un **volume**, là où `Badge` porte un **libellé** : rond,
+plein, `tabular`, `99+` au-delà de 99 pour ne pas s'ovaliser. Ton `inverse`
+(blanc plein, chiffre brique) sur un bandeau brique, où un aplat coloré de plus
+serait illisible.
+
+**Où c'est appliqué** (toujours conditionné à une file non vide) :
+
+- `AlertCenter` — Centre de pilotage, « Actions requises » ; pastille par ligne,
+  colorée par gravité, et pastille d'en-tête comptant les **dossiers**, pas les
+  lignes (six lignes peuvent cacher vingt-neuf dossiers).
+- `/dashboard/chefferie` — « À traiter en priorité ».
+- `/dashboard/validations` — les deux files de signature. Le compte quittait la
+  description en fin de phrase (« · 4 en attente ») où il ne se lisait pas.
+- `/dashboard/demandes-acquisition` — bandeau + cartes marquées, **rebasculés de
+  `danger` vers brick** : ils portaient le rouge d'anomalie pour dire « à faire ».
+- App mobile admin — `PilotageScreen` (« À faire ») et `FilesScreen`. Sur ce
+  dernier, la teinte suit désormais **la file** et non le type de dossier : un
+  litige à zéro n'a rien d'alarmant, trente saisies en attente si.
+
+**Voir l'état plein sans fabriquer de dossiers** : `/apercu-cartes` (route de
+développement, neutralisée dans le build de production — elle n'y sert qu'un
+message de 10 Ko). En production les files sont vides, donc l'état qui compte est
+invisible ; cette page alimente les **vrais composants** avec des compteurs
+simulés, sans lire ni écrire en base. Contrôlée par `scripts/e2e-cartes-action.mjs`.
 
 ---
 
@@ -297,6 +369,27 @@ réseau NAT64 du poste, pas le code : dès le 2ᵉ chargement, 15 tuiles peintes
   → cibler le nœud réel (`p[role="alert"]`).
 - `trailingSlash: true` fait rendre les `<Link>` en `/contact/` : un sélecteur
   `a[href="/contact"]` ne matche rien. → `a[href^="/contact"]`.
+
+**Deux autres, ajoutés le 25/07 (cartes d'action) :**
+
+- **Un débordement global n'accuse pas le composant qu'on vient d'écrire.** Le
+  Centre de pilotage déborde de **9 px** en 390 px — mesuré **identique en
+  production**, donc antérieur (tuiles Leaflet + grille `min-w-[34rem]` des files
+  de traitement). Un contrôle `document.scrollWidth` l'aurait imputé aux cartes.
+  → mesurer **la carte elle-même** (358 px), le seul périmètre dont le script
+  répond. Comparer au build en ligne est le moyen le plus rapide de trancher
+  « ancien ou introduit ».
+- **`/dashboard/validations` renvoie « Accès réservé » à un compte admin** (c'est
+  un écran de chefferie). Un contrôle qui y cherchait la carte échouait sur une
+  garde qui fonctionne. → assertion retournée sur la garde, et la carte vérifiée
+  là où elle est visible : `/apercu-cartes`.
+
+⚠️ **Une classe Tailwind inconnue ne lève aucune erreur — elle ne peint rien.**
+Un jeton neuf ne se vérifie donc pas au typecheck ni au lint, mais sur les
+**couleurs calculées** (`getComputedStyle`), et le contraste se mesure plutôt
+que s'estimer à l'œil : c'est ce qui a révélé `text-primary` illisible sur fond
+de carte sombre dans les lignes de l'espace Chefferie (défaut **antérieur**,
+corrigé au passage en `text-foreground`).
 
 ---
 
