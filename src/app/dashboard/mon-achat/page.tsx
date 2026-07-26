@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { AppShell } from "@/components/pilotage/AppShell";
+import { CountBadge } from "@/components/ds/badge";
 import { Button } from "@/components/ds/button";
 import { Card } from "@/components/ds/card";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
@@ -57,6 +58,14 @@ type VenteRow = { id: string; statut: string; type_vente: string; prix_total: nu
 type LotLabel = { lotissement: string | null; ilot: string | null; lot: string | null; village: string | null; commune: string | null };
 type Paie = { id: string; statut: string; montant_total: number | null };
 type Doc = { reference: string; qr_token: string | null };
+
+/**
+ * « C'est à moi de payer » — le même critère que le bouton « Payer » des cartes
+ * plus bas : un paiement `initie` est un tunnel abandonné en route, il attend
+ * toujours l'acquéreur. `en_attente_validation` est le tour du guichet, pas le
+ * sien : le rouge dit « on m'attend », jamais « j'attends l'agence ».
+ */
+const aRegler = (p: Paie | undefined) => !!p && (p.statut === "en_attente" || p.statut === "initie");
 
 function MonAchatContenu() {
   const supabase = useMemo(() => createClient(), []);
@@ -136,6 +145,8 @@ function MonAchatContenu() {
 
   const { isLoading: loading, recharger } = useChargement(load);
 
+  const paiementsARegler = [...Object.values(ventePaies), ...Object.values(attPaies)].filter(aRegler).length;
+
   // Paiement en ligne (CinetPay). Réutilisé pour le terrain et l'attestation.
   const payerEnLigne = async (paiementId: string) => {
     setPayingId(paiementId);
@@ -182,6 +193,21 @@ function MonAchatContenu() {
         <p className="mt-1 text-[13.5px] text-muted-foreground">
           Suivez les terrains qui vous intéressent et l&apos;avancement de vos achats.
         </p>
+        {/* La barre latérale annonce « N à traiter » à l'acquéreur, et il arrivait
+            ici sans rien voir : le bouton « Payer » pouvait être à trois écrans de
+            défilement plus bas. Même bandeau que l'espace Propriétaire terrien. */}
+        {!loading && paiementsARegler > 0 && (
+          <div className="mt-2.5">
+            <a
+              href="#mes-achats"
+              className="inline-flex items-center gap-2 rounded-full border border-brick/40 bg-brick-subtle py-1.5 pr-3.5 pl-2 text-xs font-semibold text-foreground transition-opacity hover:opacity-80"
+            >
+              <CountBadge value={paiementsARegler} />
+              paiement{paiementsARegler > 1 ? "s" : ""} en attente de votre part
+            </a>
+          </div>
+        )}
+
         <Button asChild variant="link" size="sm" className="mt-2 h-auto px-0">
           <Link href="/guide-achat">
             <HelpCircle className="size-4" aria-hidden />
@@ -205,10 +231,11 @@ function MonAchatContenu() {
           affiché seulement s'il existe une demande/vente réelle. */}
       {loading ? null : demandes.length > 0 ? (
         <motion.section
+          id="mes-achats"
           variants={stagger(0, 0.05)}
           initial="hidden"
           animate="show"
-          className="flex flex-col gap-4"
+          className="flex scroll-mt-6 flex-col gap-4"
         >
           <h2 className="text-[11px] font-bold tracking-[0.18em] text-muted-foreground uppercase">
             Mes achats en cours

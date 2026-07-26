@@ -406,6 +406,9 @@ export function ProprietaireTerrienView({
           }
         />
 
+        {/* Ces deux chiffres sont ceux des cartes « APFC » et « PV de famille »
+            plus bas, qui passent en brique dès que la file se remplit : le même
+            compte ne peut pas s'écrire en deux couleurs sur un même écran. */}
         {estChefDeFamille && (
           <Kpi
             icon={PenLine}
@@ -413,7 +416,7 @@ export function ProprietaireTerrienView({
             href="#apfc"
             loading={loading}
             value={apfcNonSignees}
-            tone={apfcNonSignees > 0 ? "warning" : "neutral"}
+            tone={apfcNonSignees > 0 ? "alert" : "neutral"}
             legende={
               apfcNonSignees > 0 ? (
                 <>en attente de votre signature</>
@@ -431,7 +434,7 @@ export function ProprietaireTerrienView({
             href="#pv"
             loading={loading}
             value={pvs.length}
-            tone={pvAFournir > 0 ? "warning" : "neutral"}
+            tone={pvAFournir > 0 ? "alert" : "neutral"}
             legende={pvAFournir > 0 ? <>{pvAFournir} à régulariser</> : <>aucun PV à régulariser</>}
           />
         )}

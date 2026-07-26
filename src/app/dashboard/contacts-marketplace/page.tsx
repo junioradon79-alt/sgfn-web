@@ -222,12 +222,22 @@ export default function ContactsMarketplacePage() {
         />
       </motion.section>
 
+      {/* Rouge brique et point clignotant, comme le bandeau « N actions à faire »
+          des Demandes d'acquisition : c'est exactement ce que compte la pastille
+          du menu, et l'ambre en disait autre chose. Le bandeau ne s'affiche que
+          si le site est en retard — à jour, l'écran ne porte aucune teinte. */}
       {!siteAJour && (
-        <div className="flex flex-col gap-3 rounded-xl border border-warning/25 bg-warning-subtle px-4 py-3 text-sm text-warning sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            Une annonce a été publiée ou modifiée depuis le dernier déploiement du site. Pensez à
-            reconstruire et redéployer <strong>monterrain-web</strong> (export statique, aucune mise à
-            jour automatique).
+        <div className="flex flex-col gap-3 rounded-xl border border-brick/40 bg-brick-subtle px-4 py-3 text-sm text-foreground sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex items-start gap-2.5 sm:items-center">
+            <span className="relative mt-1 flex h-2.5 w-2.5 shrink-0 sm:mt-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brick opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brick" />
+            </span>
+            <span>
+              Une annonce a été publiée ou modifiée depuis le dernier déploiement du site. Pensez à
+              reconstruire et redéployer <strong>monterrain-web</strong> (export statique, aucune mise à
+              jour automatique).
+            </span>
           </p>
           <Button
             type="button"

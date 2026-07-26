@@ -298,7 +298,18 @@ export default function DossiersAduPage() {
         aria-label="Indicateurs des dossiers"
       >
         <Kpi icon={FileText} label="Total" loading={loading} value={nbTotal} legende={<>dossiers enregistrés</>} />
-        <Kpi icon={Clock} label="En cours" loading={loading} value={nbEnCours} legende={<>déposés ou en instruction</>} />
+        {/* Seul signal de l'écran : c'est cette file que la pastille brique du
+            menu annonce, et l'on arrivait ici sans rien voir. Le rejet, lui,
+            reste en ambre — c'est une issue, pas une file : elle ne se vide
+            jamais d'elle-même, et la teindre reviendrait à la peindre à demeure. */}
+        <Kpi
+          icon={Clock}
+          label="En cours"
+          loading={loading}
+          value={nbEnCours}
+          tone={!loading && nbEnCours > 0 ? "alert" : "neutral"}
+          legende={<>déposés ou en instruction</>}
+        />
         <Kpi icon={CheckCircle2} label="Délivrés / ACD" loading={loading} value={nbDelivres} legende={<>ADU délivrée ou ACD obtenu</>} />
         <Kpi
           icon={XCircle}

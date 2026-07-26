@@ -215,12 +215,16 @@ export default function LitigesPage() {
         className="grid gap-4 sm:grid-cols-3"
         aria-label="Indicateurs des litiges"
       >
+        {/* Seul signal de l'écran : la barre latérale annonce « N à traiter » sur
+            les litiges non clos, et l'on arrivait ici sans rien voir. Un dossier
+            ouvert ou en médiation attend une décision — c'est une file, pas un
+            état, d'où la brique plutôt que l'ambre. */}
         <Kpi
           icon={Gavel}
           label="En cours d'arbitrage"
           loading={dataLoading}
           value={ouverts}
-          tone={ouverts > 0 ? "warning" : "neutral"}
+          tone={!dataLoading && ouverts > 0 ? "alert" : "neutral"}
           legende={<>ouverts ou en médiation</>}
         />
         <Kpi

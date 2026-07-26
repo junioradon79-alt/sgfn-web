@@ -244,8 +244,63 @@ if (apercu.total > 0) {
   );
   verifier("Aperçu : les deux états coexistent", apercu.neutres > 0, `${apercu.neutres} carte(s) neutre(s)`);
   await page.screenshot({ path: chemin("apercu.png"), fullPage: true });
+
+  // 🔴 Piège corrigé le 25/07 : les contrôles de contraste ci-dessus (§2-3)
+  // ne s'exécutaient que `if (ton === "alert")` — vrai nulle part en
+  // production, puisque les files y sont vides. Le script annonçait donc
+  // « tout est vert » sans jamais avoir mesuré un seul contraste. `/apercu-cartes`
+  // garantit au moins une carte en alerte : c'est là, et seulement là, que ces
+  // mesures ont une chance de s'exécuter à chaque run — y compris en CI contre
+  // un build de production, où le Centre de pilotage réel ne le permettrait pas.
+  const carteApercu = page.locator('[data-slot="card"][data-tone="alert"]').first();
+  const mesureApercu = await carteApercu.evaluate((el) => {
+    const cs = getComputedStyle;
+    const header = el.querySelector('[data-slot="card-header"]');
+    const titre = el.querySelector('[data-slot="card-title"]');
+    return {
+      bandeauFond: header ? cs(header).backgroundColor : null,
+      titreCouleur: titre ? cs(titre).color : null,
+      pastilles: [...el.querySelectorAll('[data-slot="count-badge"]')].map((p) => {
+        const r = p.getBoundingClientRect();
+        return { texte: p.textContent.trim(), fond: cs(p).backgroundColor, couleur: cs(p).color, w: Math.round(r.width), h: Math.round(r.height) };
+      }),
+    };
+  });
+  verifier("Aperçu : bandeau d'en-tête peint en brique", mesureApercu.bandeauFond === "rgb(178, 58, 46)", mesureApercu.bandeauFond);
+  const cTitreApercu = contraste(mesureApercu.titreCouleur, mesureApercu.bandeauFond);
+  verifier("Aperçu : titre lisible sur le bandeau (≥ 4,5:1)", cTitreApercu >= 4.5, `${cTitreApercu.toFixed(2)}:1`);
+  verifier(
+    "Aperçu : pastilles rondes ou capsules, jamais écrasées",
+    mesureApercu.pastilles.every((p) => p.w >= 22 && p.h >= 20 && p.w <= 3 * p.h),
+    mesureApercu.pastilles.map((p) => `${p.texte}:${p.w}×${p.h}`).join(" "),
+  );
+  // Chaque pastille se mesure — pas seulement la première : `AlertCenter` en
+  // aligne jusqu'à six par ligne, colorées différemment avant le 25/07.
+  const contrastesPastilles = mesureApercu.pastilles.map((p) => contraste(p.couleur, p.fond));
+  verifier(
+    "Aperçu : chaque pastille est lisible (≥ 4,5:1)",
+    contrastesPastilles.every((c) => c >= 4.5),
+    contrastesPastilles.map((c) => `${c.toFixed(2)}:1`).join(" "),
+  );
+
+  // Même carte, en sombre : la teinte pleine ne doit pas bouger.
+  await page.evaluate(() => document.documentElement.classList.add("dark"));
+  await page.waitForTimeout(400);
+  const sombreApercu = await carteApercu.evaluate((el) => {
+    const cs = getComputedStyle;
+    const header = el.querySelector('[data-slot="card-header"]');
+    const titre = el.querySelector('[data-slot="card-title"]');
+    return { bandeauFond: header ? cs(header).backgroundColor : null, titreCouleur: titre ? cs(titre).color : null };
+  });
+  verifier("Aperçu sombre : bandeau brique inchangé", sombreApercu.bandeauFond === "rgb(178, 58, 46)", sombreApercu.bandeauFond);
+  const cSombreApercu = contraste(sombreApercu.titreCouleur, sombreApercu.bandeauFond);
+  verifier("Aperçu sombre : titre lisible (≥ 4,5:1)", cSombreApercu >= 4.5, `${cSombreApercu.toFixed(2)}:1`);
+  await page.evaluate(() => document.documentElement.classList.remove("dark"));
 } else {
-  console.log("  ⏭️  /apercu-cartes indisponible (build de production) — contrôle ignoré");
+  // Sans /apercu-cartes (build de production), aucune carte en alerte n'est
+  // jamais garantie : les contrôles de contraste sont donc structurellement
+  // ignorables ici, pas silencieusement « verts » comme avant le 25/07.
+  console.log("  ⏭️  /apercu-cartes indisponible (build de production) — contrôles de contraste ignorés, pas simulés");
 }
 
 // ── 6. Console ──

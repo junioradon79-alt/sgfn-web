@@ -142,12 +142,16 @@ export default function ConsultationsQrPage() {
           value={consultations.length}
           legende={<>200 dernières demandes</>}
         />
+        {/* Jumelle de la vue « À valider » des paiements, qui est en brique :
+            chaque ligne comptée ici porte un bouton « Marquer payée » que
+            personne d'autre ne cliquera. Seul signal de file de l'écran — le
+            registre, lui, mêle tous les statuts et reste neutre. */}
         <Kpi
           icon={Clock}
           label="En attente de paiement"
           loading={chargement}
           value={enAttente}
-          tone={enAttente > 0 ? "warning" : "neutral"}
+          tone={!chargement && enAttente > 0 ? "alert" : "neutral"}
           legende={<>à valider au guichet</>}
         />
         <Kpi

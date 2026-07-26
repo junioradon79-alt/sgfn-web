@@ -167,13 +167,16 @@ function ChefVillageView({ profile }: { profile: Profile }) {
           value={lotissementsCount}
           legende={<>sous votre juridiction</>}
         />
+        {/* Ces deux chiffres sont ceux de la carte « À traiter en priorité »
+            ci-dessous : les écrire en ambre ici et en brique là-bas ferait de la
+            couleur un hasard. Une même file, une seule couleur. */}
         <Kpi
           icon={ShieldCheck}
           label="APFC"
           href="/dashboard/validations"
           loading={loading}
           value={apfcTotal}
-          tone={apfcPending > 0 ? "warning" : "neutral"}
+          tone={apfcPending > 0 ? "alert" : "neutral"}
           legende={apfcPending > 0 ? <>{apfcPending} à co-signer</> : <>toutes co-signées</>}
         />
         <Kpi
@@ -182,7 +185,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
           href="/dashboard/validations"
           loading={loading}
           value={cessionsPending}
-          tone={cessionsPending > 0 ? "warning" : "neutral"}
+          tone={cessionsPending > 0 ? "alert" : "neutral"}
           legende={cessionsPending > 0 ? <>en attente de votre validation</> : <>aucune cession en attente</>}
         />
         <Kpi

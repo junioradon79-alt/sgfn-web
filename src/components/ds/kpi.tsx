@@ -38,6 +38,14 @@ export type KpiDelta = {
  * Anatomie alignée sur le handoff design du 18/07 : pastille d'icône 42px en
  * haut à gauche, delta optionnel en haut à droite, puis label → valeur →
  * légende → micro-visualisation.
+ *
+ * Trois tons, et la nuance entre les deux derniers est tout l'intérêt :
+ * `warning` décrit un **état** (des brouillons, des lots sans coordonnées) —
+ * l'ambre y reste juste ; `alert` dit « **on m'attend** », et n'a de sens que
+ * sur une file non vide qui appelle une décision de l'utilisateur. Il reprend
+ * la teinte de `Card tone="alert"` pour qu'une tuile et la carte qui porte la
+ * même file ne s'écrivent pas en deux couleurs. À vide, toujours `neutral` :
+ * une teinte permanente redevient un décor.
  */
 export function Kpi({
   icon: Icon,
@@ -58,7 +66,7 @@ export function Kpi({
   value: number;
   format?: (n: number) => string;
   legende: React.ReactNode;
-  tone?: "neutral" | "warning";
+  tone?: "neutral" | "warning" | "alert";
   delta?: KpiDelta;
   children?: React.ReactNode;
 }) {
@@ -67,8 +75,13 @@ export function Kpi({
       <div className="flex items-start gap-2">
         <span
           className={cn(
-            "flex size-[42px] shrink-0 items-center justify-center rounded-xl bg-inset",
-            tone === "warning" ? "text-warning" : "text-primary",
+            "flex size-[42px] shrink-0 items-center justify-center rounded-xl",
+            // Sur le lavis brique, une pastille teintée se confondrait avec le
+            // fond de la tuile (même écueil que dans `AlertCenter`) : c'est un
+            // aplat plein qui porte le signal, comme la pastille compteur.
+            tone === "alert" ? "bg-brick text-brick-foreground" : "bg-inset",
+            tone === "warning" && "text-warning",
+            tone === "neutral" && "text-primary",
           )}
         >
           <Icon className="size-5" aria-hidden />
@@ -85,7 +98,16 @@ export function Kpi({
         </div>
       </div>
 
-      <p className="mt-4 text-[13px] font-medium text-muted-foreground">{label}</p>
+      {/* Sur le lavis brique, `muted-foreground` passe sous le seuil AA à 13 px :
+          le libellé nomme la file, il doit se lire du premier coup d'œil. */}
+      <p
+        className={cn(
+          "mt-4 text-[13px] font-medium",
+          tone === "alert" ? "text-foreground" : "text-muted-foreground",
+        )}
+      >
+        {label}
+      </p>
 
       {loading ? (
         <Skeleton className="mt-1.5 h-9 w-24" />
@@ -93,6 +115,9 @@ export function Kpi({
         <p
           className={cn(
             "tabular mt-1 font-display text-[30px] leading-none font-extrabold tracking-tight",
+            // En `alert` le chiffre reste en `text-foreground` : `text-brick` sur
+            // le lavis brique tombe à 2,3:1 en thème sombre. C'est la surface qui
+            // porte la teinte, pas le chiffre.
             tone === "warning" ? "text-warning" : "text-foreground",
           )}
         >
@@ -103,7 +128,16 @@ export function Kpi({
       {loading ? (
         <Skeleton className="mt-2 h-3.5 w-32" />
       ) : (
-        <p className="mt-1.5 text-[12px] leading-snug text-muted-2">{legende}</p>
+        <p
+          className={cn(
+            "mt-1.5 text-[12px] leading-snug",
+            // `muted-2` s'efface sur le lavis brique : la légende y dit ce qui est
+            // attendu, elle doit rester lisible (même choix que `AlertCenter`).
+            tone === "alert" ? "text-muted-foreground" : "text-muted-2",
+          )}
+        >
+          {legende}
+        </p>
       )}
 
       <div className="mt-auto pt-3.5">{loading ? <Skeleton className="h-10" /> : children}</div>
@@ -112,7 +146,7 @@ export function Kpi({
 
   return (
     <motion.div variants={fadeUp}>
-      <Card className="group h-full">
+      <Card tone={tone === "alert" ? "alert" : "default"} className="group h-full">
         {href ? (
           <Link
             href={href}
