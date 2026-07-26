@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, ScanLine, MessageSquare, ShieldQuestion } from "lucide-react";
+import { AlertTriangle, Loader2, ScanLine, MessageSquare, ShieldQuestion } from "lucide-react";
 import { PrimaryHeader } from "../components/MobileHeader";
 import { ScoreGauge } from "../components/ScoreGauge";
 import { useParcelleDetail } from "../data/useMobileData";
@@ -12,9 +12,10 @@ type Props = {
   onVerify: () => void;
   onContact: () => void;
   onPurchase: (lotId: string) => void;
+  onReport: (lotId: string) => void;
 };
 
-export function ParcelDetailScreen({ lotId, onBack, onVerify, onContact, onPurchase }: Props) {
+export function ParcelDetailScreen({ lotId, onBack, onVerify, onContact, onPurchase, onReport }: Props) {
   const { loading, lot, litiges, score } = useParcelleDetail(lotId);
 
   const attr = (lot?.attributions ?? []).find((a) => a.actuel) ?? lot?.attributions?.[0];
@@ -162,6 +163,16 @@ export function ParcelDetailScreen({ lotId, onBack, onVerify, onContact, onPurch
                   Contacter
                 </button>
               </div>
+              {/* En retrait des actions courantes : signaler engage un
+                  traitement humain, ce n'est pas un geste à faire par erreur. */}
+              <button
+                type="button"
+                onClick={() => onReport(lotId)}
+                className="flex w-full items-center justify-center gap-1.5 rounded-[14px] border border-danger/30 bg-danger-subtle px-4 py-3 text-[14px] font-semibold text-danger"
+              >
+                <AlertTriangle className="size-[17px]" strokeWidth={2} />
+                Signaler un problème
+              </button>
             </div>
           </>
         )}

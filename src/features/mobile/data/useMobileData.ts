@@ -17,11 +17,15 @@ import type { NotifRow } from "./mappers";
 export type MobileProfile = {
   id: string;
   nom_complet: string | null;
+  telephone: string | null;
   groupe: string | null;
   famille_id: string | null;
   autorite_coutumiere_id: string | null;
   attributaire_id: string | null;
 };
+
+const PROFILE_SELECT =
+  "id, nom_complet, telephone, groupe, famille_id, autorite_coutumiere_id, attributaire_id";
 
 export type Parcelle = {
   lotId: string;
@@ -71,6 +75,12 @@ type AttributionRow = {
 
 const SANS_LOTISSEMENT = "Lotissement non renseigné";
 
+/** Appel RPC vers une fonction pas encore présente dans les types générés. */
+type RpcNonTypee = (
+  fn: string,
+  args: Record<string, unknown>,
+) => Promise<{ error: { message: string } | null }>;
+
 function aplatir(rows: AttributionRow[], collectif: boolean): Parcelle[] {
   return rows
     .filter((a) => a.lot?.id)
@@ -111,6 +121,13 @@ export type MobileData = {
   ) => Promise<{ ok: boolean; convId?: string; error?: string }>;
   marquerLu: (conv: Convo) => Promise<void>;
   suivreParcelle: (lotId: string) => Promise<boolean>;
+  majProfil: (nom: string, telephone: string) => Promise<{ ok: boolean; error?: string }>;
+  changerMotDePasse: (nouveau: string) => Promise<{ ok: boolean; error?: string }>;
+  signalerProbleme: (
+    lotId: string,
+    objet: string,
+    description: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
   connexion: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   validerCode: (code: string) => Promise<{ valide: boolean; groupe?: string; message?: string; erreur?: boolean }>;
   inscrire: (p: InscriptionPayload) => Promise<{ ok: boolean; error?: string; needsConfirm?: boolean }>;
@@ -138,6 +155,16 @@ export function useMobileData(): MobileData {
   const [parcelles, setParcelles] = useState<Parcelle[]>([]);
   const [convos, setConvos] = useState<Convo[]>([]);
   const [notifs, setNotifs] = useState<NotifRow[]>([]);
+
+  // Lecture seule du profil, sans pose d'état : le montage et `majProfil` la
+  // rejouent tous deux, mais seul le premier décide aussi de `authed`.
+  const lireProfil = useCallback(
+    async (uid: string): Promise<MobileProfile | null> => {
+      const { data } = await supabase.from("profiles").select(PROFILE_SELECT).eq("id", uid).single();
+      return (data ?? null) as MobileProfile | null;
+    },
+    [supabase],
+  );
 
   const chargerParcelles = useCallback(
     async (p: MobileProfile) => {
@@ -212,12 +239,7 @@ export function useMobileData(): MobileData {
     let annule = false;
 
     const load = async (u: { id: string; email?: string | null }) => {
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("id, nom_complet, groupe, famille_id, autorite_coutumiere_id, attributaire_id")
-        .eq("id", u.id)
-        .single();
-      const p = (prof ?? null) as MobileProfile | null;
+      const p = await lireProfil(u.id);
       if (annule) return;
       setUserId(u.id);
       setEmail(u.email ?? null);
@@ -250,7 +272,7 @@ export function useMobileData(): MobileData {
       annule = true;
       sub.subscription.unsubscribe();
     };
-  }, [supabase, chargerParcelles, chargerConvos, chargerNotifs]);
+  }, [supabase, lireProfil, chargerParcelles, chargerConvos, chargerNotifs]);
 
   const reloadMessages = useCallback(async () => {
     if (userId) await chargerConvos(userId);
@@ -342,6 +364,74 @@ export function useMobileData(): MobileData {
     [supabase, userId]
   );
 
+  // ── Profil (édition dans l'app) ───────────────────────────────────────────────
+
+  // ⚠️ N'envoyer QUE `nom_complet` et `telephone`. La policy
+  // `profiles_self_update` n'ouvre la ligne qu'à son propriétaire, et le
+  // trigger `trg_protect_profile_privileged_columns` rejette toute tentative
+  // de toucher `groupe` ou les colonnes de rattachement : joindre l'une
+  // d'elles au payload, même inchangée, ferait échouer l'update entier.
+  //
+  // Le profil est **rechargé** ensuite : sans cela l'écran Profil continuerait
+  // d'afficher l'ancien nom jusqu'à la prochaine ouverture de l'app, donnant
+  // l'impression que l'enregistrement n'a pas pris.
+  const majProfil = useCallback(
+    async (nom: string, telephone: string) => {
+      if (!userId) return { ok: false, error: "Session expirée." };
+      const n = nom.trim();
+      if (!n) return { ok: false, error: "Le nom complet est obligatoire." };
+      const { error } = await supabase
+        .from("profiles")
+        .update({ nom_complet: n, telephone: telephone.trim() || null })
+        .eq("id", userId);
+      if (error) return { ok: false, error: error.message };
+      const p = await lireProfil(userId);
+      if (p) setProfile(p);
+      return { ok: true };
+    },
+    [supabase, userId, lireProfil],
+  );
+
+  // Supabase renouvelle la session au passage : l'utilisateur reste connecté.
+  // En revanche le mot de passe éventuellement gardé dans le coffre biométrique
+  // devient caduc — c'est `handleBiometricLogin` (MobileApp) qui s'en aperçoit
+  // et retire l'entrée, plutôt que de désactiver ici une commodité que la
+  // personne n'a pas demandé à perdre.
+  const changerMotDePasse = useCallback(
+    async (nouveau: string) => {
+      const { error } = await supabase.auth.updateUser({ password: nouveau });
+      return error ? { ok: false, error: error.message } : { ok: true };
+    },
+    [supabase],
+  );
+
+  // ── Signalement d'un problème sur une parcelle ────────────────────────────────
+  // ⚠️ La fonction `signaler_probleme_parcelle()` n'existe pas encore en base :
+  // l'appel échoue tant que sa migration n'est pas passée en production, et
+  // c'est assumé. Aucun repli n'écrit ailleurs — un signalement rangé dans une
+  // autre table serait invisible de ceux qui doivent le traiter, donc pire
+  // qu'une erreur affichée franchement.
+  const signalerProbleme = useCallback(
+    async (lotId: string, objet: string, description: string) => {
+      if (!userId) return { ok: false, error: "Session expirée." };
+      const o = objet.trim();
+      if (!o) return { ok: false, error: "L'objet du signalement est obligatoire." };
+      // La fonction étant absente du schéma, elle l'est aussi de
+      // `database.types.ts` (régénéré depuis la base réelle). On désigne cet
+      // appel — et lui seul — comme non typé, plutôt que de maquiller les
+      // types générés : il redeviendra vérifié à la première régénération
+      // suivant la migration.
+      const appelerRpc = supabase.rpc as unknown as RpcNonTypee;
+      const { error } = await appelerRpc("signaler_probleme_parcelle", {
+        p_lot_id: lotId,
+        p_objet: o,
+        p_description: description.trim(),
+      });
+      return error ? { ok: false, error: error.message } : { ok: true };
+    },
+    [supabase, userId],
+  );
+
   // ── Authentification (connexion / inscription) ────────────────────────────────
   // Mêmes appels que les pages web /login et /inscription, mais internes à l'app.
   // La sécurité tient côté base : `handle_new_user()` ignore le `groupe` client
@@ -408,6 +498,9 @@ export function useMobileData(): MobileData {
     creerConversation,
     marquerLu,
     suivreParcelle,
+    majProfil,
+    changerMotDePasse,
+    signalerProbleme,
     connexion,
     validerCode,
     inscrire,

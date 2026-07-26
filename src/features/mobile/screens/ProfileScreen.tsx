@@ -12,7 +12,7 @@ type Props = {
   dark: boolean;
   onToggleDark: () => void;
   onLogout: () => void;
-  onOpenProfilComplet: () => void;
+  onEditProfile: () => void;
   biometricEnabled?: boolean;
   onDisableBiometric?: () => void;
 };
@@ -23,12 +23,13 @@ export function ProfileScreen({
   dark,
   onToggleDark,
   onLogout,
-  onOpenProfilComplet,
+  onEditProfile,
   biometricEnabled = false,
   onDisableBiometric,
 }: Props) {
   const rows: { label: string; value: string }[] = [
     { label: "Nom complet", value: profile?.nom_complet ?? "—" },
+    { label: "Téléphone", value: profile?.telephone || "—" },
     { label: "Adresse e-mail", value: email ?? "—" },
     { label: "Rôle", value: groupeLabel(profile?.groupe) },
   ];
@@ -63,7 +64,7 @@ export function ProfileScreen({
           ))}
           <button
             type="button"
-            onClick={onOpenProfilComplet}
+            onClick={onEditProfile}
             className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
           >
             <span className="flex-1 text-[14px] font-medium text-foreground">Gérer mon profil</span>

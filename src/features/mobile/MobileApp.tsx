@@ -143,7 +143,8 @@ export function MobileApp() {
   const openMarket = useCallback(() => {
     if (typeof window !== "undefined") window.open(MARKET_URL, "_blank", "noopener,noreferrer");
   }, []);
-  const openProfilComplet = useCallback(() => goWeb("/dashboard/profil/"), [goWeb]);
+  // Plus de passerelle vers /dashboard/profil : le profil s'édite désormais
+  // dans l'app (EditProfileScreen), sans quitter la WebView.
 
   // Déconnexion manuelle (bouton Profil) : toujours vers Landing.
   const logout = useCallback(async () => {
@@ -271,7 +272,6 @@ export function MobileApp() {
     verify,
     openMarket,
     logout,
-    openProfilComplet,
     biometricEnabled: bioEnabled,
     onDisableBiometric: handleDisableBiometric,
   };

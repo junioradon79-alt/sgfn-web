@@ -9,17 +9,51 @@ import type { AdminOverview } from "@/hooks/useAdminOverview";
 export function FilesScreen({
   overview,
   openWeb,
+  onOpenSoumissions,
 }: {
   overview: AdminOverview;
   openWeb: (path: string) => void;
+  /**
+   * Ouvre la file des saisies DANS l'app (SoumissionsScreen). Optionnel le temps
+   * que la coquille le câble : sans lui, la ligne retombe sur l'ancien renvoi
+   * vers le web plutôt que d'offrir un bouton mort.
+   */
+  onOpenSoumissions?: () => void;
 }) {
   const { files } = overview;
 
-  const queues: { icon: LucideIcon; label: string; count: number; path: string }[] = [
-    { icon: PenLine, label: "Saisies à valider", count: files.saisieAValider, path: "/dashboard/saisie/" },
-    { icon: Handshake, label: "Demandes à traiter", count: files.demandesATraiter, path: "/dashboard/demandes-acquisition/" },
-    { icon: FileWarning, label: "Litiges ouverts", count: files.litigesOuverts, path: "/dashboard/litiges/" },
-    { icon: FolderOpen, label: "Dossiers ADU en cours", count: files.dossiersAduEnCours, path: "/dashboard/dossiers-adu/" },
+  // `externe` n'est pas un détail décoratif : il dit si le tap fait SORTIR de
+  // l'app. Les saisies se traitent désormais sur place, les trois autres files
+  // demandent encore le dashboard web.
+  const queues: { icon: LucideIcon; label: string; count: number; onPress: () => void; externe: boolean }[] = [
+    {
+      icon: PenLine,
+      label: "Saisies à valider",
+      count: files.saisieAValider,
+      onPress: onOpenSoumissions ?? (() => openWeb("/dashboard/saisie/")),
+      externe: !onOpenSoumissions,
+    },
+    {
+      icon: Handshake,
+      label: "Demandes à traiter",
+      count: files.demandesATraiter,
+      onPress: () => openWeb("/dashboard/demandes-acquisition/"),
+      externe: true,
+    },
+    {
+      icon: FileWarning,
+      label: "Litiges ouverts",
+      count: files.litigesOuverts,
+      onPress: () => openWeb("/dashboard/litiges/"),
+      externe: true,
+    },
+    {
+      icon: FolderOpen,
+      label: "Dossiers ADU en cours",
+      count: files.dossiersAduEnCours,
+      onPress: () => openWeb("/dashboard/dossiers-adu/"),
+      externe: true,
+    },
   ];
 
   return (
@@ -42,7 +76,7 @@ export function FilesScreen({
               <button
                 key={q.label}
                 type="button"
-                onClick={() => openWeb(q.path)}
+                onClick={q.onPress}
                 className={`flex items-center gap-3 rounded-2xl border p-4 text-left shadow-panel ${
                   aTraiter ? "border-brick/45 bg-brick-subtle" : "border-border bg-card"
                 }`}
@@ -60,7 +94,11 @@ export function FilesScreen({
                 ) : (
                   <span className="tabular text-[20px] font-extrabold text-muted-2">0</span>
                 )}
-                <ExternalLink className="size-4 flex-none text-muted-2" />
+                {q.externe ? (
+                  <ExternalLink className="size-4 flex-none text-muted-2" />
+                ) : (
+                  <ChevronRight className="size-4 flex-none text-muted-2" />
+                )}
               </button>
             );
           })}

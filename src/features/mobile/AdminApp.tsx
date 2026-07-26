@@ -2,14 +2,16 @@
 
 // Expérience Admin (Centre National de Pilotage). Même mécanique d'onglets que
 // CitizenApp, mais alimentée par `useAdminOverview` (cockpit national) + le socle
-// partagé (messages/notifs/profil). Sous-ensemble mobile ciblé : les actions
-// lourdes ouvrent la page web du dashboard.
+// partagé (messages/notifs/profil). Sous-ensemble mobile ciblé : la file des
+// saisies se traite désormais dans l'app ; les trois autres files ouvrent
+// encore la page web du dashboard.
 
 import { useCallback, useState } from "react";
 import { Gauge, ClipboardList, ScanLine, MessageSquare, User } from "lucide-react";
 
 import { useAdminOverview } from "@/hooks/useAdminOverview";
 import { useBackHandler } from "@/lib/android-back";
+import { lireNotifsLues, marquerNotifsLues } from "@/lib/notifs-lues";
 import { TabBar, type TabItem } from "./components/TabBar";
 import { useWebNav } from "./data/useWebNav";
 import { MessagesScreen } from "./screens/MessagesScreen";
@@ -17,17 +19,22 @@ import { ChatScreen } from "./screens/ChatScreen";
 import { NewChatScreen } from "./screens/NewChatScreen";
 import { NotificationsScreen } from "./screens/NotificationsScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
+import { EditProfileScreen } from "./screens/EditProfileScreen";
 import { PilotageScreen } from "./screens/admin/PilotageScreen";
 import { FilesScreen } from "./screens/admin/FilesScreen";
 import { PerimetresScreen } from "./screens/admin/PerimetresScreen";
+import { SoumissionsScreen } from "./screens/admin/SoumissionsScreen";
 import type { ExperienceProps } from "./CitizenApp";
 
 type Tab = "pilotage" | "files" | "messages" | "profile";
 type Overlay =
   | { kind: "chat"; convId: string }
   | { kind: "newchat" }
-  | { kind: "notifications" }
+  // L'état de lecture est figé ici, à l'ouverture : voir `openNotifications`.
+  | { kind: "notifications"; dejaLues: Set<string> }
   | { kind: "perimetres" }
+  | { kind: "editprofile" }
+  | { kind: "soumissions" }
   | null;
 
 export function AdminApp({
@@ -37,7 +44,6 @@ export function AdminApp({
   flash,
   verify,
   logout,
-  openProfilComplet,
   biometricEnabled,
   onDisableBiometric,
 }: ExperienceProps) {
@@ -45,6 +51,9 @@ export function AdminApp({
   const overview = useAdminOverview(true);
   const [tab, setTab] = useState<Tab>("pilotage");
   const [overlay, setOverlay] = useState<Overlay>(null);
+  // Même mécanique que l'expérience citoyen : l'état de lecture des
+  // notifications vit sur l'appareil (cf. `@/lib/notifs-lues`).
+  const [notifsLues, setNotifsLues] = useState<Set<string>>(() => lireNotifsLues(data.userId));
 
   const goTab = useCallback((t: string) => {
     setOverlay(null);
@@ -67,8 +76,15 @@ export function AdminApp({
       return false;
     }, [overlay, tab]),
   );
-  const openNotifications = useCallback(() => setOverlay({ kind: "notifications" }), []);
+  // Ouvrir vaut lecture ; l'état est figé dans le calque avant d'être mis à
+  // jour, sinon la distinction non-lu disparaîtrait à l'ouverture même.
+  const openNotifications = useCallback(() => {
+    setOverlay({ kind: "notifications", dejaLues: notifsLues });
+    setNotifsLues(marquerNotifsLues(data.userId, data.notifs.map((n) => n.id)));
+  }, [notifsLues, data.userId, data.notifs]);
   const openPerimetres = useCallback(() => setOverlay({ kind: "perimetres" }), []);
+  const openSoumissions = useCallback(() => setOverlay({ kind: "soumissions" }), []);
+  const openEditProfile = useCallback(() => setOverlay({ kind: "editprofile" }), []);
   const openNewChat = useCallback(() => setOverlay({ kind: "newchat" }), []);
   const openChat = useCallback(
     (convId: string) => {
@@ -83,7 +99,9 @@ export function AdminApp({
     (n, c) => n + (c.messages || []).filter((m) => !m.lu && m.expediteur !== data.userId).length,
     0
   );
-  const unreadNotif = data.notifs.some((n) => Date.now() - new Date(n.cree_le).getTime() < 48 * 3600 * 1000);
+  // « Nouvelle » = jamais ouverte, et non « datée de moins de 48 h » :
+  // l'ancienne heuristique rallumait la pastille sur du déjà-lu.
+  const unreadNotif = data.notifs.some((n) => !notifsLues.has(n.id));
   const aFaire =
     overview.files.saisieAValider +
     overview.files.demandesATraiter +
@@ -123,8 +141,25 @@ export function AdminApp({
             }}
           />
         )}
-        {overlay?.kind === "notifications" && <NotificationsScreen notifs={data.notifs} onBack={back} />}
+        {overlay?.kind === "notifications" && (
+          <NotificationsScreen notifs={data.notifs} lues={overlay.dejaLues} onBack={back} />
+        )}
         {overlay?.kind === "perimetres" && <PerimetresScreen overview={overview} onBack={back} />}
+        {/* `overview.refresh` est stable : c'est lui qui remet à jour le
+            compteur « À faire » de la barre d'onglets après une décision. */}
+        {overlay?.kind === "soumissions" && (
+          <SoumissionsScreen onBack={back} onTraite={overview.refresh} />
+        )}
+        {overlay?.kind === "editprofile" && (
+          <EditProfileScreen
+            profile={data.profile}
+            email={data.email}
+            onBack={back}
+            onSave={data.majProfil}
+            onChangePassword={data.changerMotDePasse}
+            flash={flash}
+          />
+        )}
 
         {!overlay && tab === "pilotage" && (
           <PilotageScreen
@@ -136,7 +171,9 @@ export function AdminApp({
             onOpenPerimetres={openPerimetres}
           />
         )}
-        {!overlay && tab === "files" && <FilesScreen overview={overview} openWeb={openWeb} />}
+        {!overlay && tab === "files" && (
+          <FilesScreen overview={overview} openWeb={openWeb} onOpenSoumissions={openSoumissions} />
+        )}
         {!overlay && tab === "messages" && (
           <MessagesScreen
             convos={data.convos}
@@ -152,7 +189,7 @@ export function AdminApp({
             dark={dark}
             onToggleDark={toggleDark}
             onLogout={logout}
-            onOpenProfilComplet={openProfilComplet}
+            onEditProfile={openEditProfile}
             biometricEnabled={biometricEnabled}
             onDisableBiometric={onDisableBiometric}
           />

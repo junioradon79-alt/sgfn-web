@@ -6,6 +6,7 @@
 import { useCallback, useState } from "react";
 import { Home, Boxes, ScanLine, MessageSquare, User } from "lucide-react";
 import { useBackHandler } from "@/lib/android-back";
+import { lireNotifsLues, marquerNotifsLues } from "@/lib/notifs-lues";
 import { TabBar, type TabItem } from "./components/TabBar";
 import { HomeScreen } from "./screens/HomeScreen";
 import { ParcelsScreen } from "./screens/ParcelsScreen";
@@ -15,16 +16,21 @@ import { ChatScreen } from "./screens/ChatScreen";
 import { NewChatScreen } from "./screens/NewChatScreen";
 import { NotificationsScreen } from "./screens/NotificationsScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
+import { EditProfileScreen } from "./screens/EditProfileScreen";
 import { PurchaseScreen } from "./screens/PurchaseScreen";
+import { ReportIssueScreen } from "./screens/ReportIssueScreen";
 import type { MobileData } from "./data/useMobileData";
 
 type Tab = "home" | "parcels" | "messages" | "profile";
 type Overlay =
   | { kind: "detail"; lotId: string }
   | { kind: "purchase"; lotId: string }
+  | { kind: "report"; lotId: string }
   | { kind: "chat"; convId: string }
   | { kind: "newchat" }
-  | { kind: "notifications" }
+  // L'état de lecture est figé ici, à l'ouverture : voir `openNotifications`.
+  | { kind: "notifications"; dejaLues: Set<string> }
+  | { kind: "editprofile" }
   | null;
 
 export type ExperienceProps = {
@@ -35,7 +41,6 @@ export type ExperienceProps = {
   verify: () => void;
   openMarket: () => void;
   logout: () => void;
-  openProfilComplet: () => void;
   biometricEnabled: boolean;
   onDisableBiometric: () => void;
 };
@@ -48,25 +53,39 @@ export function CitizenApp({
   verify,
   openMarket,
   logout,
-  openProfilComplet,
   biometricEnabled,
   onDisableBiometric,
 }: ExperienceProps) {
   const [tab, setTab] = useState<Tab>("home");
   const [overlay, setOverlay] = useState<Overlay>(null);
+  // État de lecture des notifications : local à l'appareil (la table
+  // `notifications` est en lecture seule, cf. `@/lib/notifs-lues`). Lu une
+  // seule fois au montage — l'expérience n'est montée qu'une fois la session
+  // établie, `data.userId` est donc déjà connu.
+  const [notifsLues, setNotifsLues] = useState<Set<string>>(() => lireNotifsLues(data.userId));
 
   const goTab = useCallback((t: string) => {
     setOverlay(null);
     setTab(t as Tab);
   }, []);
   const back = useCallback(() => setOverlay(null), []);
+  // Retour du signalement : on revient au détail de la parcelle dont il est
+  // issu, jamais à la liste. Le lot est relu depuis le calque courant pour que
+  // le rappel reste stable d'un rendu à l'autre.
+  const backToDetail = useCallback(
+    () => setOverlay((o) => (o?.kind === "report" ? { kind: "detail", lotId: o.lotId } : null)),
+    [],
+  );
 
   // Geste de retour Android : d'abord fermer le calque, puis revenir à
   // l'accueil. Ce n'est qu'au-delà que la coquille propose de quitter.
   useBackHandler(
     useCallback(() => {
       if (overlay) {
-        setOverlay(null);
+        // Le signalement s'ouvre *depuis* le détail d'une parcelle : le
+        // refermer doit y ramener, sinon le geste de retour renverrait à la
+        // liste et l'on perdrait la parcelle qu'on était en train de consulter.
+        setOverlay(overlay.kind === "report" ? { kind: "detail", lotId: overlay.lotId } : null);
         return true;
       }
       if (tab !== "home") {
@@ -78,7 +97,16 @@ export function CitizenApp({
   );
   const openDetail = useCallback((lotId: string) => setOverlay({ kind: "detail", lotId }), []);
   const openPurchase = useCallback((lotId: string) => setOverlay({ kind: "purchase", lotId }), []);
-  const openNotifications = useCallback(() => setOverlay({ kind: "notifications" }), []);
+  const openReport = useCallback((lotId: string) => setOverlay({ kind: "report", lotId }), []);
+  const openEditProfile = useCallback(() => setOverlay({ kind: "editprofile" }), []);
+
+  // Ouvrir l'écran vaut lecture. L'état de lecture est **figé** dans le calque
+  // avant d'être mis à jour : marquer et afficher depuis la même source ferait
+  // disparaître la distinction non-lu à la seconde où l'on entre.
+  const openNotifications = useCallback(() => {
+    setOverlay({ kind: "notifications", dejaLues: notifsLues });
+    setNotifsLues(marquerNotifsLues(data.userId, data.notifs.map((n) => n.id)));
+  }, [notifsLues, data.userId, data.notifs]);
   const openChat = useCallback(
     (convId: string) => {
       const conv = data.convos.find((c) => c.id === convId);
@@ -96,11 +124,16 @@ export function CitizenApp({
     (n, c) => n + (c.messages || []).filter((m) => !m.lu && m.expediteur !== data.userId).length,
     0
   );
-  const unreadNotif = data.notifs.some((n) => Date.now() - new Date(n.cree_le).getTime() < 48 * 3600 * 1000);
+  // Une notification est « nouvelle » tant qu'elle n'a pas été ouverte, et non
+  // parce qu'elle date de moins de 48 h : l'ancienne heuristique rallumait la
+  // pastille sur des messages déjà lus et l'éteignait sur ceux jamais vus.
+  const unreadNotif = data.notifs.some((n) => !notifsLues.has(n.id));
 
   const conv = overlay?.kind === "chat" ? data.convos.find((c) => c.id === overlay.convId) ?? null : null;
   const purchaseParcelle =
     overlay?.kind === "purchase" ? data.parcelles.find((p) => p.lotId === overlay.lotId) ?? null : null;
+  const reportParcelle =
+    overlay?.kind === "report" ? data.parcelles.find((p) => p.lotId === overlay.lotId) ?? null : null;
 
   const items: TabItem[] = [
     { key: "home", label: "Accueil", icon: Home },
@@ -120,10 +153,23 @@ export function CitizenApp({
             onVerify={verify}
             onContact={contact}
             onPurchase={openPurchase}
+            onReport={openReport}
           />
         )}
         {overlay?.kind === "purchase" && (
           <PurchaseScreen parcelle={purchaseParcelle} onBack={back} onConfirm={data.suivreParcelle} />
+        )}
+        {overlay?.kind === "report" && (
+          <ReportIssueScreen
+            lotId={overlay.lotId}
+            parcelle={reportParcelle}
+            onBack={backToDetail}
+            onSubmit={data.signalerProbleme}
+            onDone={() => {
+              backToDetail();
+              flash("Signalement transmis");
+            }}
+          />
         )}
         {overlay?.kind === "chat" && conv && (
           <ChatScreen
@@ -145,7 +191,19 @@ export function CitizenApp({
             }}
           />
         )}
-        {overlay?.kind === "notifications" && <NotificationsScreen notifs={data.notifs} onBack={back} />}
+        {overlay?.kind === "notifications" && (
+          <NotificationsScreen notifs={data.notifs} lues={overlay.dejaLues} onBack={back} />
+        )}
+        {overlay?.kind === "editprofile" && (
+          <EditProfileScreen
+            profile={data.profile}
+            email={data.email}
+            onBack={back}
+            onSave={data.majProfil}
+            onChangePassword={data.changerMotDePasse}
+            flash={flash}
+          />
+        )}
 
         {!overlay && tab === "home" && (
           <HomeScreen
@@ -176,7 +234,7 @@ export function CitizenApp({
             dark={dark}
             onToggleDark={toggleDark}
             onLogout={logout}
-            onOpenProfilComplet={openProfilComplet}
+            onEditProfile={openEditProfile}
             biometricEnabled={biometricEnabled}
             onDisableBiometric={onDisableBiometric}
           />
