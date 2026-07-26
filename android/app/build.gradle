@@ -1,5 +1,30 @@
 apply plugin: 'com.android.application'
 
+// 🔴 Filet structurel, posé le 25/07 après incident : un `npx cap sync android`
+// (ou `cap copy`) lancé SEUL — sans passer par `npm run android:prepare` —
+// réécrase `assets/public/index.html` avec celui du SITE PUBLIC, et
+// réintroduit `sw.js`. L'app démarre alors sur le site au lieu de l'app
+// mobile, sans la moindre erreur. Le recâblage des scripts npm
+// (`cap:sync`/`build:mobile` → `android:prepare`) ne protège que CES DEUX
+// commandes — pas un `cap sync` tapé à la main, ni un build lancé depuis
+// Android Studio. Cette tâche corrige les assets AVANT chaque fusion, quelle
+// que soit la façon dont le build a été déclenché : la protection ne dépend
+// plus de s'en souvenir.
+tasks.register("fixWebAssets", Exec) {
+    description = "Corrige index.html (site public → /app.html) et retire sw.js — cf. scripts/android-webdir.mjs"
+    workingDir = "${projectDir}/../.."
+    commandLine "node", "scripts/android-webdir.mjs"
+    // Best-effort : ne bloque pas un build sans Node dans le PATH (CI native
+    // pure) plutôt que de casser toute compilation pour une protection web.
+    ignoreExitValue = true
+}
+
+afterEvaluate {
+    tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
+        dependsOn "fixWebAssets"
+    }
+}
+
 android {
     namespace = "ci.sgnf.app"
     compileSdk = rootProject.ext.compileSdkVersion

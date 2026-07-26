@@ -31,11 +31,18 @@ export type BackHandler = () => boolean;
 const pile: BackHandler[] = [];
 let listenerInstalle = false;
 let demandeSortie: (() => void) | null = null;
+let surConsommation: (() => void) | null = null;
 
 function traiterRetour() {
   // Du plus récemment monté au plus ancien : le calque avant l'onglet.
   for (let i = pile.length - 1; i >= 0; i -= 1) {
-    if (pile[i]()) return;
+    if (pile[i]()) {
+      // Un retour consommé signifie qu'on a navigué : toute confirmation de
+      // sortie en cours doit être désarmée, sinon un appui ultérieur à la
+      // racine quitterait l'application sans avertissement visible.
+      surConsommation?.();
+      return;
+    }
   }
   demandeSortie?.();
 }
@@ -97,6 +104,24 @@ export function useSortieApplication(onDemandeSortie: () => void) {
     void installerListener();
     return () => {
       demandeSortie = null;
+    };
+  }, []);
+}
+
+/**
+ * Notifie que le retour a été **consommé** par un écran. Sert à annuler une
+ * confirmation de sortie en attente : sans cela, l'armement survivrait à une
+ * navigation et l'appui suivant à la racine quitterait sans avertissement.
+ */
+export function useBackConsomme(onConsomme: () => void) {
+  const ref = useRef(onConsomme);
+  useEffect(() => {
+    ref.current = onConsomme;
+  });
+  useEffect(() => {
+    surConsommation = () => ref.current();
+    return () => {
+      surConsommation = null;
     };
   }, []);
 }

@@ -427,10 +427,7 @@ export type Contact = { id: string; nom_complet: string | null; groupe: string |
 export function useContactsMessagerie(actif: boolean, moiId: string | null) {
   const [supabase] = useState(() => createClient());
   const [contacts, setContacts] = useState<Contact[]>([]);
-  // Vrai dès le montage : le hook n'est appelé que sur l'écran de rédaction,
-  // qui s'ouvre en chargeant. Le passer à `true` depuis l'effet ferait un rendu
-  // en cascade pour un état qu'on connaît d'avance.
-  const [loading, setLoading] = useState(true);
+  const [charge, setCharge] = useState(false);
 
   useEffect(() => {
     if (!actif || !moiId) return;
@@ -443,14 +440,17 @@ export function useContactsMessagerie(actif: boolean, moiId: string | null) {
         .order("nom_complet");
       if (annule) return;
       setContacts((data ?? []) as Contact[]);
-      setLoading(false);
+      setCharge(true);
     })();
     return () => {
       annule = true;
     };
   }, [supabase, actif, moiId]);
 
-  return { contacts, loading };
+  // `loading` est **dérivé**, jamais posé depuis l'effet : sans session il n'y
+  // a rien à charger ni à attendre, et une sortie anticipée de l'effet laissait
+  // auparavant un spinner éternel. Le dériver rend ce cas impossible à oublier.
+  return { contacts, loading: actif && !!moiId && !charge };
 }
 
 // ─── Détail d'une parcelle (chargé à la demande) ────────────────────────────────

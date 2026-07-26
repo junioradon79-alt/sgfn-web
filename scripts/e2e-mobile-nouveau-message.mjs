@@ -90,8 +90,15 @@ verifier("Session ouverte dans l'app (barre d'onglets présente)", barrePresente
 // ── Onglet Messages ──
 await page.getByRole("button", { name: /^messages$/i }).first().click();
 await page.waitForTimeout(2500);
-const surMessages = await corps();
-verifier("Écran Messages affiché", /messages/i.test(surMessages));
+// ⚠️ Ne PAS tester `/messages/i` sur le corps : la barre d'onglets contient
+// « Messages » sur TOUS les écrans, le contrôle passerait même si l'onglet
+// était cassé. On cible le titre de l'écran lui-même, qui n'existe qu'ici.
+const titreMessages = page.locator("div").filter({ hasText: /^Messages$/ }).first();
+verifier(
+  "Écran Messages affiché (titre propre à l'écran)",
+  (await titreMessages.count()) > 0 &&
+    /vos échanges avec les agents/i.test(await corps()),
+);
 
 const bouton = page.getByRole("button", { name: /nouveau message|écrire un message/i }).first();
 verifier("Point d'entrée « Nouveau message » présent", (await bouton.count()) > 0);
@@ -107,7 +114,6 @@ verifier(
   (surRedaction.match(/Nouveau message[\s\S]{0,60}/i) || [""])[0].replace(/\n/g, " · ").slice(0, 70),
 );
 
-const lignes = page.locator('div[class*="absolute"] button').filter({ hasNot: page.locator("svg.lucide-search") });
 const champRecherche = page.getByPlaceholder(/rechercher un correspondant/i);
 verifier("Champ de recherche présent", (await champRecherche.count()) > 0);
 

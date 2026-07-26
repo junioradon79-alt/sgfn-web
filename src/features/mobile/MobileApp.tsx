@@ -10,7 +10,7 @@ import { Loader2 } from "lucide-react";
 
 import { useMobileData } from "./data/useMobileData";
 import { useWebNav } from "./data/useWebNav";
-import { useBackHandler, useSortieApplication, quitterApplication } from "@/lib/android-back";
+import { useBackHandler, useBackConsomme, useSortieApplication, quitterApplication } from "@/lib/android-back";
 import {
   activerBiometrie,
   biometrieActive,
@@ -30,6 +30,8 @@ import { AdminApp } from "./AdminApp";
 
 const MARKET_URL = "https://monterrain.sgfn.ci";
 const THEME_KEY = "sgnf-mobile-theme";
+/** Durée du toast — et donc de la fenêtre de confirmation de sortie. */
+const TOAST_MS = 2800;
 
 export function MobileApp() {
   const goWeb = useWebNav();
@@ -85,7 +87,7 @@ export function MobileApp() {
   // Toast auto-disparaissant.
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2800);
+    const t = setTimeout(() => setToast(null), TOAST_MS);
     return () => clearTimeout(t);
   }, [toast]);
   const flash = useCallback((msg: string) => setToast(msg), []);
@@ -108,6 +110,10 @@ export function MobileApp() {
     }, [data.authed, unauthView]),
   );
 
+  // La fenêtre de confirmation dure exactement le temps du toast qui l'annonce
+  // (2800 ms) : désynchronisées, le message pouvait rester affiché ~600 ms après
+  // que l'armement avait expiré — l'utilisateur lisait « appuyez à nouveau »
+  // alors qu'un nouvel appui ne faisait que réarmer.
   useSortieApplication(
     useCallback(() => {
       if (sortieArmee.current) {
@@ -118,7 +124,17 @@ export function MobileApp() {
       setToast("Appuyez à nouveau pour quitter");
       setTimeout(() => {
         sortieArmee.current = false;
-      }, 2200);
+      }, TOAST_MS);
+    }, []),
+  );
+
+  // 🔴 L'armement ne doit pas survivre à une navigation. Sans ce désarmement,
+  // armer à la racine puis naviguer puis revenir dans les 2,8 s faisait sortir
+  // l'application **sans nouvel avertissement** — le geste précédent ayant été
+  // consommé par un écran, l'utilisateur n'avait rien vu venir.
+  useBackConsomme(
+    useCallback(() => {
+      sortieArmee.current = false;
     }, []),
   );
 
