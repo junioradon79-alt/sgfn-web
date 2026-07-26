@@ -368,9 +368,13 @@ export function useMobileData(): MobileData {
 
   // ⚠️ N'envoyer QUE `nom_complet` et `telephone`. La policy
   // `profiles_self_update` n'ouvre la ligne qu'à son propriétaire, et le
-  // trigger `trg_protect_profile_privileged_columns` rejette toute tentative
-  // de toucher `groupe` ou les colonnes de rattachement : joindre l'une
-  // d'elles au payload, même inchangée, ferait échouer l'update entier.
+  // trigger `trg_protect_profile_privileged_columns` rejette l'update entier
+  // dès qu'une colonne réservée (`groupe`, rattachements, `actif`) *change* de
+  // valeur. Il compare avec `is distinct from` : une valeur identique passerait
+  // donc sans encombre — mais la joindre au payload reviendrait à réécrire un
+  // état lu plus tôt, et il suffirait que l'administration l'ait modifié
+  // entre-temps pour que l'enregistrement du nom échoue, sur une colonne que
+  // l'écran ne montre même pas. Le payload minimal supprime la question.
   //
   // Le profil est **rechargé** ensuite : sans cela l'écran Profil continuerait
   // d'afficher l'ancien nom jusqu'à la prochaine ouverture de l'app, donnant
@@ -393,10 +397,11 @@ export function useMobileData(): MobileData {
   );
 
   // Supabase renouvelle la session au passage : l'utilisateur reste connecté.
-  // En revanche le mot de passe éventuellement gardé dans le coffre biométrique
-  // devient caduc — c'est `handleBiometricLogin` (MobileApp) qui s'en aperçoit
-  // et retire l'entrée, plutôt que de désactiver ici une commodité que la
-  // personne n'a pas demandé à perdre.
+  //
+  // ⚠️ Ne s'appelle pas directement depuis un écran. Le mot de passe gardé
+  // dans le coffre biométrique devient caduc au même instant, et c'est
+  // `MobileApp.handleChangePassword` qui l'y réécrit ensuite — la couche de
+  // données n'a ni l'état de la biométrie ni à connaître le coffre natif.
   const changerMotDePasse = useCallback(
     async (nouveau: string) => {
       const { error } = await supabase.auth.updateUser({ password: nouveau });
@@ -406,21 +411,21 @@ export function useMobileData(): MobileData {
   );
 
   // ── Signalement d'un problème sur une parcelle ────────────────────────────────
-  // ⚠️ La fonction `signaler_probleme_parcelle()` n'existe pas encore en base :
-  // l'appel échoue tant que sa migration n'est pas passée en production, et
-  // c'est assumé. Aucun repli n'écrit ailleurs — un signalement rangé dans une
-  // autre table serait invisible de ceux qui doivent le traiter, donc pire
-  // qu'une erreur affichée franchement.
+  // `signaler_probleme_parcelle()` est en production depuis le 26/07
+  // (SECURITY DEFINER, `execute` accordé à `authenticated` et refusé à `anon`).
+  // Elle est le seul chemin d'écriture : aucun repli n'insère ailleurs — un
+  // signalement rangé dans une autre table serait invisible de ceux qui doivent
+  // le traiter, donc pire qu'une erreur affichée franchement.
   const signalerProbleme = useCallback(
     async (lotId: string, objet: string, description: string) => {
       if (!userId) return { ok: false, error: "Session expirée." };
       const o = objet.trim();
       if (!o) return { ok: false, error: "L'objet du signalement est obligatoire." };
-      // La fonction étant absente du schéma, elle l'est aussi de
-      // `database.types.ts` (régénéré depuis la base réelle). On désigne cet
-      // appel — et lui seul — comme non typé, plutôt que de maquiller les
-      // types générés : il redeviendra vérifié à la première régénération
-      // suivant la migration.
+      // La fonction existe en base mais pas dans `database.types.ts`, qui n'a
+      // pas été régénéré depuis sa migration. On désigne cet appel — et lui
+      // seul — comme non typé, plutôt que de maquiller à la main des types
+      // censés venir de la base : il redeviendra vérifié à la prochaine
+      // régénération.
       const appelerRpc = supabase.rpc as unknown as RpcNonTypee;
       const { error } = await appelerRpc("signaler_probleme_parcelle", {
         p_lot_id: lotId,

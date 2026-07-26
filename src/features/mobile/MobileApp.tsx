@@ -195,10 +195,41 @@ export function MobileApp() {
     flash("Connexion biométrique désactivée");
   }, [flash]);
 
+  // Changement de mot de passe : le coffre natif garde le mot de passe en clair
+  // pour rejouer un `signInWithPassword`, il devient donc faux à la seconde du
+  // changement. Sans cette remise à jour, c'est `handleBiometricLogin` qui s'en
+  // apercevait — au lancement suivant, en supprimant l'entrée : la personne
+  // perdait sa connexion biométrique **en différé**, sans avoir jamais su que
+  // les deux étaient liées. Le branchement est ici et non dans `useMobileData`
+  // parce que l'état de la biométrie appartient à la coquille ; la couche de
+  // données n'a pas à connaître le coffre de l'appareil.
+  const handleChangePassword = useCallback(
+    async (nouveau: string) => {
+      const res = await data.changerMotDePasse(nouveau);
+      if (!res.ok || !bioEnabled) return res;
+      const ok = data.email ? await activerBiometrie(data.email, nouveau) : false;
+      if (ok) return res;
+      // Réécriture impossible (invite refusée, coffre indisponible, e-mail de
+      // session inconnu) : on désarme MAINTENANT et on le dit, plutôt que de
+      // laisser un coffre périmé échouer plus tard sans explication. Jamais
+      // d'erreur remontée pour autant — le mot de passe, lui, a bien changé
+      // côté serveur, et l'annoncer raté pousserait à le changer une seconde
+      // fois avec l'ancien qui ne marche déjà plus.
+      await desactiverBiometrie();
+      setBioEnabled(false);
+      return {
+        ...res,
+        avis: "Mot de passe mis à jour. Réactivez la connexion biométrique depuis votre profil.",
+      };
+    },
+    [data, bioEnabled],
+  );
+
   // Connexion biométrique : invite native → identifiants stockés → même appel
-  // que la connexion par mot de passe. Si le mot de passe stocké a été rendu
-  // caduc (changé depuis le web), on retire l'entrée biométrique plutôt que
-  // de la laisser échouer silencieusement à chaque tentative.
+  // que la connexion par mot de passe. Le mot de passe stocké peut encore être
+  // caduc s'il a été changé **ailleurs** (dashboard web, réinitialisation par
+  // e-mail) : dans ce cas on retire l'entrée plutôt que de la laisser échouer
+  // silencieusement à chaque tentative.
   const handleBiometricLogin = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
     const creds = await connexionBiometrique();
     if (!creds) return { ok: false, error: "Authentification biométrique annulée ou échouée." };
@@ -274,6 +305,7 @@ export function MobileApp() {
     logout,
     biometricEnabled: bioEnabled,
     onDisableBiometric: handleDisableBiometric,
+    onChangePassword: handleChangePassword,
   };
   const isAdmin = data.profile?.groupe === "admin";
 

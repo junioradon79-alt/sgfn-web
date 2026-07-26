@@ -95,7 +95,7 @@ export function NotificationsScreen({
                     {/* `text-muted-2` mesurait 2,37:1 sur cette ligne — sous AA
                         de très loin, pour une information qu'on lit vraiment.
                         `muted-foreground` est le jeton de texte secondaire du
-                        DS ; il plafonne à 4,48:1 en thème clair, soit le
+                        DS ; il plafonne à 4,39:1 en thème clair, soit le
                         maximum atteignable ici sans changer le jeton pour
                         toute l'application (309 usages). */}
                     <span className="flex-none text-[10.5px] text-muted-foreground">{n.time}</span>

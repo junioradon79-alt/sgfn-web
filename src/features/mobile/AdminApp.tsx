@@ -46,6 +46,7 @@ export function AdminApp({
   logout,
   biometricEnabled,
   onDisableBiometric,
+  onChangePassword,
 }: ExperienceProps) {
   const openWeb = useWebNav();
   const overview = useAdminOverview(true);
@@ -156,7 +157,7 @@ export function AdminApp({
             email={data.email}
             onBack={back}
             onSave={data.majProfil}
-            onChangePassword={data.changerMotDePasse}
+            onChangePassword={onChangePassword}
             flash={flash}
           />
         )}

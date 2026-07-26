@@ -16,6 +16,7 @@
 import { useState, type ReactNode } from "react";
 import { KeyRound, Loader2, Eye, EyeOff, Save, ShieldCheck } from "lucide-react";
 
+import { useRetourFormulaire } from "@/lib/android-back";
 import { BarHeader } from "../components/MobileHeader";
 import { groupeLabel } from "../data/mappers";
 import type { MobileProfile } from "../data/useMobileData";
@@ -28,7 +29,13 @@ type Props = {
   email: string | null;
   onBack: () => void;
   onSave: (nom: string, telephone: string) => Promise<{ ok: boolean; error?: string }>;
-  onChangePassword: (nouveau: string) => Promise<{ ok: boolean; error?: string }>;
+  /**
+   * `avis` remplace le message de succès quand le changement a réussi mais que
+   * quelque chose mérite d'être dit (biométrie qu'il faut réactiver). Le
+   * distinguer d'`error` évite l'unique confusion qui compte ici : laisser
+   * croire que le mot de passe n'a pas changé alors qu'il a changé.
+   */
+  onChangePassword: (nouveau: string) => Promise<{ ok: boolean; error?: string; avis?: string }>;
   flash: (msg: string) => void;
 };
 
@@ -58,6 +65,13 @@ export function EditProfileScreen({ profile, email, onBack, onSave, onChangePass
   const modifie =
     !!profile &&
     (nom.trim() !== (profile.nom_complet ?? "") || telephone.trim() !== (profile.telephone ?? ""));
+
+  // Les deux sections s'enregistrent séparément, mais un geste de bord les
+  // emporte toutes les deux : la garde couvre donc l'écran entier. Les champs
+  // de mot de passe comptent même vides de sens (deux fois « aa ») — ils sont
+  // masqués, personne ne peut vérifier d'un coup d'œil ce qu'il perdrait.
+  const saisieEnCours = modifie || mdp !== "" || mdp2 !== "";
+  useRetourFormulaire(saisieEnCours, () => flash("Appuyez à nouveau pour quitter sans enregistrer"));
 
   const enregistrerInfos = async () => {
     if (enregistre) return;
@@ -93,7 +107,7 @@ export function EditProfileScreen({ profile, email, onBack, onSave, onChangePass
     }
     setMdp("");
     setMdp2("");
-    flash("Mot de passe mis à jour");
+    flash(res.avis ?? "Mot de passe mis à jour");
   };
 
   return (

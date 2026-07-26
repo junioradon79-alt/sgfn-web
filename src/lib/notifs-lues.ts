@@ -62,6 +62,12 @@ export function lireNotifsLues(userId: string | null): Set<string> {
  */
 export function marquerNotifsLues(userId: string | null, ids: string[]): Set<string> {
   const anciens = lireIds(userId);
+  // Sans utilisateur, il n'y a pas de clé où écrire : on rend l'ensemble vide
+  // sans rien persister, donc la pastille resterait allumée pour toujours.
+  // Inatteignable aujourd'hui — `userId` et l'état connecté sont posés dans le
+  // même lot, et les deux appelants ne montent qu'une fois la session établie —
+  // mais l'écrire évite qu'un futur appel plus tôt dans le cycle de vie casse
+  // silencieusement l'état de lecture.
   if (!userId) return new Set(anciens);
   const frais = new Set(ids);
   // Les identifiants qu'on vient de lire passent en tête : le plafond écarte

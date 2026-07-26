@@ -59,8 +59,11 @@ console.log("\n▶ RPC signaler_probleme_parcelle — garde fail-closed\n");
     tentative = { error };
   }
   const err = tentative?.error;
-  const refus =
-    !!err && (err.code === "42501" || /permission denied|not find the function|does not exist/i.test(err.message));
+  // ⚠️ On n'accepte QUE la signature d'un refus de droit. Tolérer « could not
+  // find the function » serait complaisant : c'est la signature d'une fonction
+  // ABSENTE, soit exactement la panne que ce contrôle est censé détecter — il
+  // passerait au vert si la migration n'avait jamais été appliquée.
+  const refus = !!err && (err.code === "42501" || /permission denied/i.test(err.message));
   verifier(
     "Un appel anonyme est refusé (EXECUTE révoqué pour anon)",
     refus,

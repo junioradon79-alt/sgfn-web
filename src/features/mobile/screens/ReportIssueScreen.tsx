@@ -8,14 +8,14 @@
 // borne ») rend les signalements triables par ceux qui les traitent. « Autre »
 // ouvre le champ libre pour ne rien perdre de ce qui sort du cadre.
 //
-// ⚠️ La fonction base `signaler_probleme_parcelle()` n'est pas encore
-// déployée : l'envoi échoue tant que sa migration n'est pas passée. L'erreur
-// est affichée telle quelle — un signalement avalé en silence laisserait
-// croire qu'un litige a été porté à la connaissance de l'administration.
+// L'erreur d'envoi est affichée telle quelle, sans repli d'aucune sorte : un
+// signalement avalé en silence laisserait croire qu'un litige a été porté à la
+// connaissance de l'administration.
 
 import { useState } from "react";
 import { AlertTriangle, Loader2, Send } from "lucide-react";
 
+import { useRetourFormulaire } from "@/lib/android-back";
 import { BarHeader } from "../components/MobileHeader";
 import type { Parcelle } from "../data/useMobileData";
 
@@ -36,9 +36,11 @@ type Props = {
   onBack: () => void;
   onSubmit: (lotId: string, objet: string, description: string) => Promise<{ ok: boolean; error?: string }>;
   onDone: () => void;
+  /** Sert à prévenir avant d'abandonner une saisie — cf. `useRetourFormulaire`. */
+  flash: (msg: string) => void;
 };
 
-export function ReportIssueScreen({ lotId, parcelle, onBack, onSubmit, onDone }: Props) {
+export function ReportIssueScreen({ lotId, parcelle, onBack, onSubmit, onDone, flash }: Props) {
   const [choix, setChoix] = useState<string | null>(null);
   const [objetLibre, setObjetLibre] = useState("");
   const [description, setDescription] = useState("");
@@ -48,6 +50,14 @@ export function ReportIssueScreen({ lotId, parcelle, onBack, onSubmit, onDone }:
   // Objet **dérivé** du couple (pastille, champ libre) : le déduire évite un
   // état de plus à resynchroniser, et donc de poser un état dans un effet.
   const objet = choix === AUTRE ? objetLibre.trim() : (choix ?? "");
+
+  // Tout ce qui serait perdu par un geste de bord : la pastille choisie coûte
+  // un tap, la description peut coûter plusieurs centaines de caractères tapés
+  // au pouce. On les traite pareil — c'est le fait d'avoir commencé qui compte,
+  // pas le volume, et doser la friction au nombre de caractères serait
+  // inexplicable à qui la subit.
+  const saisieEnCours = !!choix || objetLibre.trim() !== "" || description.trim() !== "";
+  useRetourFormulaire(saisieEnCours, () => flash("Appuyez à nouveau pour abandonner ce signalement"));
 
   const nom = parcelle
     ? `Lot ${parcelle.numeroLot ?? "—"}${parcelle.ilotNumero ? ` · Îlot ${parcelle.ilotNumero}` : ""}`

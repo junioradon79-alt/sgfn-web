@@ -91,6 +91,57 @@ export function useBackHandler(handler: BackHandler, actif = true) {
 }
 
 /**
+ * Fenêtre de confirmation d'un retour sur formulaire. Calée sur la durée du
+ * toast qui la porte (`TOAST_MS` dans MobileApp) : désynchronisées, le message
+ * « appuyez à nouveau » survivrait à l'armement qu'il annonce, et le second
+ * appui ne ferait que réarmer sous les yeux de quelqu'un qui croit confirmer.
+ */
+const FENETRE_CONFIRMATION_MS = 2800;
+
+/**
+ * Retour sur un écran qui porte une **saisie en cours**.
+ *
+ * Le geste de bord se déclenche d'un frôlement, sans intention : sur un
+ * formulaire à moitié rempli il coûte tout ce qui a été tapé. On reprend donc
+ * la grammaire déjà posée à la racine par la sortie d'application — un premier
+ * geste consommé qui prévient par un toast, un second qui laisse passer —
+ * plutôt qu'une boîte de dialogue, forme qui n'existe nulle part ailleurs dans
+ * l'app et qu'il faudrait styler, piéger au clavier et refermer.
+ *
+ * Le second geste ne referme **pas** l'écran lui-même : il renvoie `false` et
+ * laisse le calque parent décider où revenir (le signalement retourne au détail
+ * de sa parcelle, pas à la liste). Un écran qui se fermerait tout seul
+ * dupliquerait cette règle de navigation et finirait par en diverger.
+ *
+ * Rien de saisi ⇒ aucun frein : le retour passe du premier coup.
+ *
+ * ⚠️ Ne couvre que le geste/bouton système. La flèche de la barre de titre
+ * reste immédiate : c'est une visée délibérée, pas un réflexe de bord.
+ */
+export function useRetourFormulaire(saisieEnCours: boolean, avertir: () => void) {
+  const arme = useRef(false);
+  const minuteur = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (minuteur.current) clearTimeout(minuteur.current);
+    },
+    [],
+  );
+
+  useBackHandler(() => {
+    // Déjà averti : on laisse filer vers le calque parent, qui referme.
+    if (!saisieEnCours || arme.current) return false;
+    arme.current = true;
+    avertir();
+    minuteur.current = setTimeout(() => {
+      arme.current = false;
+    }, FENETRE_CONFIRMATION_MS);
+    return true;
+  });
+}
+
+/**
  * Branche la sortie d'application, appelée quand aucun écran n'a consommé le
  * retour. Confiée à la coquille, seule à disposer du toast de confirmation.
  */

@@ -6,7 +6,9 @@ import Link from "next/link";
 import { EditProfileScreen } from "@/features/mobile/screens/EditProfileScreen";
 import { ReportIssueScreen } from "@/features/mobile/screens/ReportIssueScreen";
 import { NotificationsScreen } from "@/features/mobile/screens/NotificationsScreen";
+import { SoumissionsVue } from "@/features/mobile/screens/admin/SoumissionsScreen";
 import type { MobileProfile, Parcelle } from "@/features/mobile/data/useMobileData";
+import type { FileSoumissions, SoumissionEnAttente } from "@/features/mobile/data/useSoumissions";
 import type { NotifRow } from "@/features/mobile/data/mappers";
 
 /**
@@ -89,12 +91,87 @@ const DEJA_LUES = new Set(["n3", "n4"]);
 /** Rien ne part : l'aperçu ne parle jamais à la base. */
 const NEANT = async () => ({ ok: true as const });
 
-type Ecran = "profil" | "signalement" | "notifications";
+/**
+ * File des saisies **simulée**. La file réelle est vide en production (0 en
+ * attente), si bien que l'écran ne montrait jamais autre chose que son état
+ * vide — alors que c'est celui qui porte les deux actes irréversibles de l'app.
+ *
+ * Les compteurs de `resume` sont ceux, réels, de `ResumeMaj`/`ResumeCreation`
+ * (`@/lib/saisie`) : des clés inventées feraient afficher des puces vides et
+ * l'aperçu mentirait sur ce que voit l'admin. Les volumes couvrent les deux cas
+ * d'accord (12 → « nouveaux », 1 → « nouvel ») et la seconde soumission est
+ * volontairement **sans titre**, pour montrer le repli sur le libellé de type.
+ *
+ * 🔴 `approuver`/`rejeter` n'écrivent rien et **échouent volontairement** : la
+ * base de ce projet est la production, et une réussite simulée entraînerait à
+ * lire un « appliqué » qui n'a rien appliqué. L'erreur dit ce qui se passe.
+ */
+const SOUMISSIONS: SoumissionEnAttente[] = [
+  {
+    id: "s1",
+    type: "maj_attributions",
+    titre: "Brignan Extension — guide de répartition, pages 12 à 18",
+    resume: {
+      nouvelles_attributions: 24,
+      reassignations: 3,
+      remises_libre: 1,
+      inchanges: 7,
+      nouveaux_attributaires: 12,
+    },
+    cree_le: ilYA(3),
+  },
+  {
+    id: "s2",
+    type: "creation_structure",
+    titre: null,
+    resume: {
+      nom_lotissement: "Koelea-Accor Extension 2",
+      nb_ilots: 14,
+      nb_lots: 386,
+      nb_equipements: 5,
+    },
+    cree_le: ilYA(29),
+  },
+  {
+    id: "s3",
+    type: "maj_attributions",
+    titre: "Ebimpe — régularisation d'un lot après succession",
+    resume: {
+      nouvelles_attributions: 1,
+      reassignations: 0,
+      remises_libre: 0,
+      inchanges: 0,
+      nouveaux_attributaires: 1,
+    },
+    cree_le: ilYA(50),
+  },
+];
+
+const INERTE = async () => ({
+  ok: false as const,
+  error: "Aperçu : aucune décision n'est envoyée à la base.",
+});
+
+const FILE_SOUMISSIONS: FileSoumissions = {
+  soumissions: SOUMISSIONS,
+  loading: false,
+  erreur: null,
+  recharger: async () => {},
+  approuver: INERTE,
+  rejeter: INERTE,
+};
+
+type Ecran = "profil" | "signalement" | "notifications" | "soumissions";
 
 const ECRANS: { cle: Ecran; libelle: string; note: string }[] = [
   { cle: "profil", libelle: "Gérer mon profil", note: "Nom, téléphone, mot de passe — remplace la sortie vers le web" },
   { cle: "signalement", libelle: "Signaler un problème", note: "Création d'un litige depuis le détail d'une parcelle" },
   { cle: "notifications", libelle: "Notifications", note: "2 non lues sur 4 — teinte et compteur" },
+  {
+    cle: "soumissions",
+    libelle: "Saisies à valider",
+    note: "3 en attente (file réelle vide en prod) — approuver/rejeter sont inertes ici",
+  },
 ];
 
 export default function ApercuMobilePage() {
@@ -176,11 +253,13 @@ export default function ApercuMobilePage() {
               onBack={() => {}}
               onSubmit={NEANT}
               onDone={() => {}}
+              flash={() => {}}
             />
           )}
           {ecran === "notifications" && (
             <NotificationsScreen notifs={NOTIFS} lues={DEJA_LUES} onBack={() => {}} />
           )}
+          {ecran === "soumissions" && <SoumissionsVue file={FILE_SOUMISSIONS} onBack={() => {}} />}
         </div>
       </div>
     </main>

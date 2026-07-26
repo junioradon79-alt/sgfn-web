@@ -15,6 +15,13 @@
 //     à la fois pour qu'on sache toujours de quelle soumission on parle ;
 //   • le détail lot par lot n'est pas chargé (cf. `useSoumissions`) : la carte
 //     montre le résumé pré-calculé, et le dit franchement avant de confirmer.
+//
+// L'écran est scindé en **conteneur** (branche la file réelle) et **vue** (ne
+// connaît qu'un `FileSoumissions`). C'est ce qui le rend montable dans
+// `/apercu-mobile` avec une file simulée : la file de production est vide et le
+// seul compte de test est administrateur, si bien que l'écran qui porte les
+// actes les plus irréversibles de l'app était aussi le seul qu'on ne pouvait
+// pas regarder avant de le livrer.
 
 import { useCallback, useState } from "react";
 import { CheckCircle2, ClipboardCheck, Loader2, ShieldAlert, TriangleAlert } from "lucide-react";
@@ -25,6 +32,7 @@ import type { ResumeCreation, ResumeMaj, TypeSoumission } from "@/lib/saisie";
 import { BarHeader } from "../../components/MobileHeader";
 import {
   useSoumissions,
+  type FileSoumissions,
   type ResultatApplication,
   type SoumissionEnAttente,
 } from "../../data/useSoumissions";
@@ -72,8 +80,14 @@ function puces(soumission: SoumissionEnAttente): Puce[] {
       liste.push({ texte: `${m.reassignations} réassignation${s(m.reassignations)}`, ton: "warning" });
     if (m.remises_libre > 0)
       liste.push({ texte: `${m.remises_libre} remise${s(m.remises_libre)} en disponibilité`, ton: "neutral" });
+    // « nouvel » ne se pluralise pas en « nouvels » : au-delà de un, c'est
+    // « nouveaux ». Le cas se présente dès le second attributaire créé, donc
+    // sur à peu près tout import de guide de répartition.
     if (m.nouveaux_attributaires > 0)
-      liste.push({ texte: `${m.nouveaux_attributaires} nouvel${m.nouveaux_attributaires > 1 ? "s" : ""} attributaire${s(m.nouveaux_attributaires)}`, ton: "accent" });
+      liste.push({
+        texte: `${m.nouveaux_attributaires} ${m.nouveaux_attributaires > 1 ? "nouveaux" : "nouvel"} attributaire${s(m.nouveaux_attributaires)}`,
+        ton: "accent",
+      });
     if (m.inchanges > 0) liste.push({ texte: `${m.inchanges} sans effet`, ton: "neutral" });
     return liste;
   }
@@ -100,22 +114,50 @@ function resultatLisible(r: ResultatApplication | null): string {
   return bouts.length ? ` ${bouts.join(", ")}.` : "";
 }
 
+// 🔴 Le texte reste en `text-foreground`, jamais dans la couleur du ton.
+// Mesuré : `text-warning` sur `bg-warning-subtle` donne **2,83:1** en thème
+// clair et `text-accent` sur `bg-accent-subtle` **3,95:1** en sombre — très
+// en dessous d'AA, sur des chiffres qui décident d'une validation foncière.
+// C'est la même conclusion que les cartes d'action : **la couleur porte la
+// catégorie (le fond et la pastille), le texte porte l'information et doit
+// rester lisible.**
 const TON_PUCE: Record<Puce["ton"], string> = {
-  success: "bg-success-subtle text-success",
-  warning: "bg-warning-subtle text-warning",
-  accent: "bg-accent-subtle text-accent",
-  neutral: "bg-inset text-muted-foreground",
+  success: "bg-success-subtle text-foreground",
+  warning: "bg-warning-subtle text-foreground",
+  accent: "bg-accent-subtle text-foreground",
+  neutral: "bg-inset text-foreground",
 };
 
+/** La saturation pleine ne survit que dans la pastille, où rien ne se lit. */
+const TON_POINT: Record<Puce["ton"], string> = {
+  success: "bg-success",
+  warning: "bg-warning",
+  accent: "bg-accent",
+  neutral: "bg-muted-2",
+};
+
+type PropsVue = {
+  /** File déjà chargée — réelle dans l'app, simulée dans `/apercu-mobile`. */
+  file: FileSoumissions;
+  onBack: () => void;
+  /** Une soumission traitée change le compteur « À faire » de la coquille. */
+  onTraite?: () => void;
+};
+
+/** Conteneur : c'est lui, et lui seul, qui parle à la base. */
 export function SoumissionsScreen({
   onBack,
   onTraite,
 }: {
   onBack: () => void;
-  /** Une soumission traitée change le compteur « À faire » de la coquille. */
   onTraite?: () => void;
 }) {
-  const { soumissions, loading, erreur, recharger, approuver, rejeter } = useSoumissions(true);
+  const file = useSoumissions(true);
+  return <SoumissionsVue file={file} onBack={onBack} onTraite={onTraite} />;
+}
+
+export function SoumissionsVue({ file, onBack, onTraite }: PropsVue) {
+  const { soumissions, loading, erreur, recharger, approuver, rejeter } = file;
 
   // Une seule confirmation ouverte à la fois : deux panneaux dépliés sur un
   // écran de téléphone, et l'on ne sait plus lequel on confirme.
@@ -239,20 +281,37 @@ export function SoumissionsScreen({
             </div>
 
             <div className="flex flex-col gap-3">
-              {soumissions.map((item) => (
-                <CarteSoumission
-                  key={item.id}
-                  soumission={item}
-                  acte={confirmation?.id === item.id ? confirmation.acte : null}
-                  commentaire={commentaire}
-                  onCommentaire={setCommentaire}
-                  busy={enCours === item.id}
-                  gele={enCours !== null && enCours !== item.id}
-                  onDemander={(a) => demander(item.id, a)}
-                  onAnnuler={() => setConfirmation(null)}
-                  onConfirmer={() => void confirmer()}
-                />
-              ))}
+              {soumissions.map((item) => {
+                // Deux raisons distinctes de figer les boutons d'une carte :
+                //   • un envoi est en vol ailleurs — en lancer un second
+                //     rendrait le message de retour impossible à rattacher ;
+                //   • une confirmation est ouverte ailleurs ET porte déjà du
+                //     texte : `demander()` remet le commentaire à vide, donc un
+                //     tap ici jetterait un motif de rejet en cours de rédaction
+                //     sans rien demander. Geler plutôt que redemander — l'écran
+                //     n'a qu'un commentaire à la fois, et empiler une question
+                //     par-dessus un acte qui en pose déjà deux ferait de la
+                //     confirmation un réflexe, exactement ce qu'elle doit
+                //     empêcher. Tant que rien n'est tapé, rien n'est figé : on
+                //     ne paie la contrainte que quand il y a à perdre.
+                const envoiAilleurs = enCours !== null && enCours !== item.id;
+                const motifAilleurs =
+                  confirmation !== null && confirmation.id !== item.id && commentaire.trim() !== "";
+                return (
+                  <CarteSoumission
+                    key={item.id}
+                    soumission={item}
+                    acte={confirmation?.id === item.id ? confirmation.acte : null}
+                    commentaire={commentaire}
+                    onCommentaire={setCommentaire}
+                    busy={enCours === item.id}
+                    gele={envoiAilleurs || motifAilleurs}
+                    onDemander={(a) => demander(item.id, a)}
+                    onAnnuler={() => setConfirmation(null)}
+                    onConfirmer={() => void confirmer()}
+                  />
+                );
+              })}
             </div>
           </>
         )}
@@ -278,7 +337,10 @@ function CarteSoumission({
   commentaire: string;
   onCommentaire: (v: string) => void;
   busy: boolean;
-  /** Une autre carte est en cours de traitement — on n'en lance pas un second. */
+  /**
+   * Une autre carte monopolise l'écran : envoi en vol, ou confirmation ouverte
+   * avec un texte qu'un tap ici effacerait. Détail du calcul chez l'appelant.
+   */
   gele: boolean;
   onDemander: (a: Acte) => void;
   onAnnuler: () => void;
@@ -291,8 +353,14 @@ function CarteSoumission({
       <div className="text-[14.5px] font-bold text-foreground">
         {soumission.titre ?? TYPE_LABEL[soumission.type]}
       </div>
+      {/* Sans titre, c'est le libellé de type qui monte en titre : le répéter
+          en sous-titre remplirait deux lignes pour une seule information, sur
+          une carte où la place sert à décider. Reste la date, qui distingue
+          deux soumissions du même type. */}
       <div className="mt-0.5 text-[11.5px] text-muted-foreground">
-        {TYPE_LABEL[soumission.type]} · {dateLisible(soumission.cree_le)}
+        {soumission.titre
+          ? `${TYPE_LABEL[soumission.type]} · ${dateLisible(soumission.cree_le)}`
+          : dateLisible(soumission.cree_le)}
       </div>
 
       <div className="mt-2.5 flex flex-wrap gap-1.5">
@@ -300,8 +368,9 @@ function CarteSoumission({
           liste.map((p) => (
             <span
               key={p.texte}
-              className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${TON_PUCE[p.ton]}`}
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${TON_PUCE[p.ton]}`}
             >
+              <span className={`size-[6px] flex-none rounded-full ${TON_POINT[p.ton]}`} />
               {p.texte}
             </span>
           ))
@@ -369,6 +438,17 @@ function CarteSoumission({
             }
             className="mt-2.5 w-full resize-none rounded-xl border border-border bg-card px-3 py-2 text-[13px] text-foreground outline-none"
           />
+
+          {/* Le gel des autres cartes est invisible depuis ici — elles sont
+              plus bas, hors du champ de vision. On l'annonce donc là où on
+              tape, sans quoi des boutons éteints sans raison ailleurs
+              passeraient pour une panne. */}
+          {commentaire.trim() !== "" && (
+            <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+              Les autres soumissions restent figées tant que ce texte n&apos;est pas envoyé ou
+              annulé : passer à une autre carte l&apos;effacerait.
+            </p>
+          )}
 
           <div className="mt-2.5 flex gap-2">
             <button

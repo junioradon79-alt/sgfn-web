@@ -43,6 +43,12 @@ export type ExperienceProps = {
   logout: () => void;
   biometricEnabled: boolean;
   onDisableBiometric: () => void;
+  /**
+   * Passe par la coquille et non par `data.changerMotDePasse` : elle seule
+   * connaît l'état de la biométrie, dont le coffre doit être réécrit dans la
+   * foulée (cf. `MobileApp.handleChangePassword`).
+   */
+  onChangePassword: (nouveau: string) => Promise<{ ok: boolean; error?: string; avis?: string }>;
 };
 
 export function CitizenApp({
@@ -55,6 +61,7 @@ export function CitizenApp({
   logout,
   biometricEnabled,
   onDisableBiometric,
+  onChangePassword,
 }: ExperienceProps) {
   const [tab, setTab] = useState<Tab>("home");
   const [overlay, setOverlay] = useState<Overlay>(null);
@@ -169,6 +176,7 @@ export function CitizenApp({
               backToDetail();
               flash("Signalement transmis");
             }}
+            flash={flash}
           />
         )}
         {overlay?.kind === "chat" && conv && (
@@ -200,7 +208,7 @@ export function CitizenApp({
             email={data.email}
             onBack={back}
             onSave={data.majProfil}
-            onChangePassword={data.changerMotDePasse}
+            onChangePassword={onChangePassword}
             flash={flash}
           />
         )}
