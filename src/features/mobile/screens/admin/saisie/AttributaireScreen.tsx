@@ -1,0 +1,423 @@
+"use client";
+
+// Attributaire — créer une fiche, ou en corriger une existante.
+//
+// Jusqu'ici un attributaire ne pouvait naître que comme **effet de bord** d'une
+// mise à jour d'attributions (le tableau `nouveaux_attributaires`), et rien ne
+// permettait d'en corriger un : pas même une faute de frappe sur un nom, alors
+// que ce nom est imprimé sur les attestations délivrées.
+//
+// Type de soumission `maj_attributaire`. Sa migration
+// (`20260726150000_soumission_maj_attributaire.sql`) est **exécutée en
+// production** — vérifié le 26/07/2026 : la contrainte de type de
+// `soumissions_saisie` énumère bien les cinq types, et `soumettre_saisie` comme
+// `approuver_soumission` connaissent le nouveau.
+//
+// L'échec d'envoi reste affiché tel quel, message serveur compris : un écran
+// qui avalerait cette erreur laisserait croire à une correction enregistrée.
+
+import { useEffect, useState } from "react";
+import { UserPlus, UserSearch } from "lucide-react";
+
+import { useRetourFormulaire } from "@/lib/android-back";
+import {
+  TYPE_ATTRIBUTAIRE_OPTIONS,
+  labelTypeAttributaire,
+  type PayloadMajAttributaire,
+  type ResumeAttributaire,
+  type TypeAttributaire,
+} from "@/lib/saisie";
+import type { AttributaireFiche, SaisieRegistre } from "../../../data/useSaisieRegistre";
+import {
+  Avertissement,
+  BoutonEnvoyer,
+  Carte,
+  Champ,
+  ChampRecherche,
+  Chargement,
+  EchecEnvoi,
+  EcranSaisie,
+  EnvoiConfirme,
+  LigneChoix,
+  Pastilles,
+  RappelFile,
+  SectionLabel,
+  Texte,
+  aideTypeInvalide,
+  useEnvoi,
+} from "./champs";
+
+type Mode = "creer" | "corriger";
+
+/** En dessous, la recherche ramènerait la moitié du registre. */
+const MIN_RECHERCHE = 2;
+
+/** Champs comparés pour compter ce qui bouge réellement dans une correction. */
+const CHAMPS_COMPARES = [
+  "nom",
+  "type",
+  "piece_nature",
+  "piece_num",
+  "telephone",
+  "email",
+  "adresse",
+] as const;
+
+/** `null` et `""` disent la même chose côté base (`nullif(btrim(…), '')`). */
+const vide = (v: string | null) => (v ?? "").trim();
+
+export function AttributaireScreen({
+  api,
+  onBack,
+  flash,
+}: {
+  api: SaisieRegistre;
+  onBack: () => void;
+  flash: (msg: string) => void;
+}) {
+  const { chercherAttributaires } = api;
+  const envoi = useEnvoi(api.soumettre);
+
+  const [mode, setMode] = useState<Mode>("creer");
+  const [recherche, setRecherche] = useState("");
+  const motif = recherche.trim();
+  // La réponse porte le motif qui l'a produite : c'est ce qui permet de
+  // **dériver** l'état « recherche en cours » au lieu de le poser dans un effet
+  // (règle `react-hooks/set-state-in-effect`), et donc de ne jamais le laisser
+  // allumé sur une sortie anticipée.
+  const [reponse, setReponse] = useState<{
+    pour: string;
+    liste: AttributaireFiche[];
+    erreur: string | null;
+  } | null>(null);
+
+  /** Fiche d'origine en correction — la référence du diff. `null` = création. */
+  const [base, setBase] = useState<AttributaireFiche | null>(null);
+
+  const [nom, setNom] = useState("");
+  const [type, setType] = useState<TypeAttributaire>("personne_physique");
+  const [pieceNature, setPieceNature] = useState("");
+  const [pieceNum, setPieceNum] = useState("");
+  const [telephone, setTelephone] = useState("");
+  const [email, setEmail] = useState("");
+  const [adresse, setAdresse] = useState("");
+
+  useEffect(() => {
+    if (mode !== "corriger" || motif.length < MIN_RECHERCHE) return;
+    let vivant = true;
+    // Débounce : la frappe au pouce déclencherait sinon une requête par lettre.
+    const t = setTimeout(() => {
+      void (async () => {
+        const res = await chercherAttributaires(motif);
+        if (!vivant) return;
+        setReponse(
+          res.ok
+            ? { pour: motif, liste: res.valeur, erreur: null }
+            : { pour: motif, liste: [], erreur: res.error },
+        );
+      })();
+    }, 250);
+    return () => {
+      vivant = false;
+      clearTimeout(t);
+    };
+  }, [mode, motif, chercherAttributaires]);
+
+  const viderChamps = () => {
+    setNom("");
+    setType("personne_physique");
+    setPieceNature("");
+    setPieceNum("");
+    setTelephone("");
+    setEmail("");
+    setAdresse("");
+  };
+
+  const choisirMode = (m: Mode) => {
+    setMode(m);
+    setBase(null);
+    setRecherche("");
+    setReponse(null);
+    viderChamps();
+    envoi.oublierErreur();
+  };
+
+  const choisirFiche = (f: AttributaireFiche) => {
+    setBase(f);
+    setNom(f.nom);
+    setType(f.type);
+    setPieceNature(f.piece_nature ?? "");
+    setPieceNum(f.piece_num ?? "");
+    setTelephone(f.telephone ?? "");
+    setEmail(f.email ?? "");
+    setAdresse(f.adresse ?? "");
+  };
+
+  const valeurs = {
+    nom: nom.trim(),
+    type,
+    piece_nature: pieceNature.trim(),
+    piece_num: pieceNum.trim(),
+    telephone: telephone.trim(),
+    email: email.trim(),
+    adresse: adresse.trim(),
+  };
+
+  const champsModifies = base
+    ? CHAMPS_COMPARES.filter((c) =>
+        c === "type" ? valeurs.type !== base.type : valeurs[c] !== vide(base[c] as string | null),
+      ).length
+    : 0;
+
+  // En création, « saisie en cours » = le moindre champ rempli. En correction,
+  // sélectionner une fiche ne coûte rien à refaire : seul un champ *changé*
+  // mérite qu'on freine le geste de retour.
+  const saisieEnCours = base
+    ? champsModifies > 0
+    : Object.values(valeurs).some((v) => v !== "" && v !== "personne_physique");
+  useRetourFormulaire(saisieEnCours, () => flash("Appuyez à nouveau pour abandonner cette saisie"));
+
+  if (envoi.confirme) {
+    return (
+      <EnvoiConfirme
+        titre="Fiche attributaire"
+        onBack={onBack}
+        recapitulatif={envoi.confirme}
+        onNouvelle={() => {
+          envoi.reprendre();
+          choisirMode(mode);
+        }}
+      />
+    );
+  }
+
+  const pret =
+    valeurs.nom.length > 0 && (base ? champsModifies > 0 : true) && (mode === "creer" || !!base);
+
+  const envoyer = () => {
+    if (!pret) return;
+    // 🔴 Convention de `_appliquer_maj_attributaire` : **clé absente = valeur
+    // inchangée, clé présente à `null` = effacement**. On envoie donc TOUJOURS
+    // les sept clés, avec `null` pour un champ laissé vide : ce que l'écran
+    // montre est exactement ce que la fiche vaudra. Envoyer seulement les
+    // champs modifiés marcherait aussi, mais rendrait impossible d'effacer un
+    // numéro de pièce erroné — or c'est précisément l'un des cas qui motivent
+    // cet écran.
+    const payload: PayloadMajAttributaire = {
+      ...(base ? { attributaire_id: base.id } : {}),
+      nom: valeurs.nom,
+      type: valeurs.type,
+      piece_nature: valeurs.piece_nature || null,
+      piece_num: valeurs.piece_num || null,
+      telephone: valeurs.telephone || null,
+      email: valeurs.email || null,
+      adresse: valeurs.adresse || null,
+    };
+    const resume: ResumeAttributaire = {
+      nom: valeurs.nom,
+      type_attributaire: valeurs.type,
+      creation: !base,
+      ...(base ? { champs_modifies: champsModifies } : {}),
+    };
+    void envoi.envoyer(
+      {
+        type: "maj_attributaire",
+        lotissementId: null,
+        titre: base
+          ? `Correction de fiche — ${valeurs.nom}`
+          : `Nouvel attributaire — ${valeurs.nom}`,
+        payload,
+        resume,
+      },
+      base
+        ? `${champsModifies} champ${champsModifies > 1 ? "s" : ""} de la fiche de ${valeurs.nom} ${champsModifies > 1 ? "seront corrigés" : "sera corrigé"} après approbation.`
+        : `La fiche de ${valeurs.nom} (${labelTypeAttributaire(valeurs.type)}) sera créée après approbation.`,
+    );
+  };
+
+  const chargementRecherche =
+    mode === "corriger" && motif.length >= MIN_RECHERCHE && reponse?.pour !== motif;
+
+  return (
+    <EcranSaisie
+      titre="Attributaire"
+      sousTitre={base ? `Correction — ${base.nom}` : "Créer une fiche"}
+      onBack={onBack}
+      action={
+        <BoutonEnvoyer onClick={envoyer} disabled={!pret} enCours={envoi.enCours} />
+      }
+    >
+      <RappelFile />
+
+      <div className="mb-4 flex gap-2">
+        <BoutonMode
+          actif={mode === "creer"}
+          onClick={() => choisirMode("creer")}
+          libelle="Créer une fiche"
+        />
+        <BoutonMode
+          actif={mode === "corriger"}
+          onClick={() => choisirMode("corriger")}
+          libelle="Corriger une fiche"
+        />
+      </div>
+
+      {mode === "corriger" && !base && (
+        <>
+          <SectionLabel>Quelle fiche corriger ?</SectionLabel>
+          <ChampRecherche
+            value={recherche}
+            onChange={setRecherche}
+            placeholder="Nom de l'attributaire…"
+          />
+          {motif.length > 0 && motif.length < MIN_RECHERCHE && (
+            <p className="mt-2 px-1 text-[11.5px] text-muted-foreground">
+              Encore {MIN_RECHERCHE - motif.length} caractère
+              {MIN_RECHERCHE - motif.length > 1 ? "s" : ""} pour lancer la recherche.
+            </p>
+          )}
+          {chargementRecherche && <Chargement texte="Recherche…" />}
+          {reponse?.pour === motif && reponse.erreur && (
+            <div className="mt-3">
+              <Avertissement>Recherche impossible : {reponse.erreur}</Avertissement>
+            </div>
+          )}
+          {reponse?.pour === motif && !reponse.erreur && (
+            <div className="mt-3 rounded-[18px] border border-border bg-card px-3 shadow-panel">
+              {reponse.liste.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+                  <UserSearch className="size-7 text-muted-2" />
+                  <div className="text-[13.5px] font-semibold text-foreground">Aucune fiche</div>
+                  <div className="text-[12px] text-muted-foreground">
+                    Aucun attributaire ne porte ce nom. Passez par « Créer une fiche ».
+                  </div>
+                </div>
+              ) : (
+                reponse.liste.map((f) => (
+                  <LigneChoix
+                    key={f.id}
+                    titre={f.nom}
+                    detail={[
+                      labelTypeAttributaire(f.type),
+                      f.piece_num ? `Pièce ${f.piece_num}` : null,
+                      f.telephone,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                    onClick={() => choisirFiche(f)}
+                  />
+                ))
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {(mode === "creer" || base) && (
+        <>
+          {base && (
+            <div className="mb-3">
+              <Avertissement>
+                Vous corrigez une fiche existante. <b>Ce que montre l&apos;écran est ce que la
+                fiche vaudra</b>{" "}
+                : un champ laissé vide sera effacé du registre.
+              </Avertissement>
+            </div>
+          )}
+
+          <SectionLabel>Identité</SectionLabel>
+          <Carte>
+            <Champ label="Nom" obligatoire>
+              <Texte
+                value={nom}
+                onChange={setNom}
+                placeholder="Prénom NOM, ou raison sociale"
+                autoCapitalize="words"
+              />
+            </Champ>
+            <Champ label="Type">
+              <Pastilles options={TYPE_ATTRIBUTAIRE_OPTIONS} value={type} onChange={setType} />
+            </Champ>
+          </Carte>
+
+          <SectionLabel className="mt-5">Pièce d&apos;identité</SectionLabel>
+          <Carte>
+            <Champ label="Nature de la pièce">
+              <Texte value={pieceNature} onChange={setPieceNature} placeholder="CNI, passeport…" />
+            </Champ>
+            <Champ label="Numéro de la pièce">
+              <Texte value={pieceNum} onChange={setPieceNum} placeholder="Ex. CI002123456789" />
+            </Champ>
+          </Carte>
+
+          <SectionLabel className="mt-5">Coordonnées</SectionLabel>
+          <Carte>
+            <Champ label="Téléphone">
+              <Texte
+                value={telephone}
+                onChange={setTelephone}
+                type="tel"
+                inputMode="tel"
+                placeholder="+225 07 00 00 00 00"
+              />
+            </Champ>
+            <Champ label="Adresse e-mail">
+              <Texte
+                value={email}
+                onChange={setEmail}
+                type="email"
+                inputMode="email"
+                placeholder="nom@exemple.ci"
+              />
+            </Champ>
+            <Champ label="Adresse">
+              <Texte value={adresse} onChange={setAdresse} placeholder="Quartier, commune…" />
+            </Champ>
+          </Carte>
+
+          {base && (
+            <p className="mt-3 px-1 text-[12px] text-muted-foreground">
+              {champsModifies === 0
+                ? "Aucun changement pour l'instant : la soumission n'aurait rien à appliquer."
+                : `${champsModifies} champ${champsModifies > 1 ? "s" : ""} modifié${champsModifies > 1 ? "s" : ""}.`}
+            </p>
+          )}
+
+          {envoi.erreur && (
+            <div className="mt-4">
+              <EchecEnvoi erreur={envoi.erreur} aide={aideTypeInvalide(envoi.erreur)} />
+            </div>
+          )}
+        </>
+      )}
+    </EcranSaisie>
+  );
+}
+
+function BoutonMode({
+  actif,
+  onClick,
+  libelle,
+}: {
+  actif: boolean;
+  onClick: () => void;
+  libelle: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={actif}
+      className={`flex flex-1 items-center justify-center gap-2 rounded-2xl border py-3 text-[13.5px] font-semibold transition-colors ${
+        actif ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground"
+      }`}
+    >
+      {libelle === "Créer une fiche" ? (
+        <UserPlus className="size-[18px]" strokeWidth={1.9} />
+      ) : (
+        <UserSearch className="size-[18px]" strokeWidth={1.9} />
+      )}
+      {libelle}
+    </button>
+  );
+}

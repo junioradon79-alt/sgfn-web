@@ -45,8 +45,10 @@ export function PurchaseScreen({
             </span>
             <div className="text-[20px] font-extrabold text-foreground">Demande envoyée</div>
             <div className="max-w-[280px] text-[13.5px] leading-relaxed text-muted-foreground">
-              Votre intérêt pour <b className="text-foreground">{nom}</b> est enregistré. La cellule SGNF vous
-              recontactera avec les pièces à fournir.
+              {/* `{" "}` explicite : sans lui le transpileur JSX colle le nom de
+                  la parcelle au mot suivant (« Lot 142est enregistré »). */}
+              Votre intérêt pour <b className="text-foreground">{nom}</b>{" "}
+              est enregistré. La cellule SGNF vous recontactera avec les pièces à fournir.
             </div>
             <button
               type="button"

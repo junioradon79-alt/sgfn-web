@@ -20,14 +20,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createClient } from "@/utils/supabase/client";
-import type { ResumeCreation, ResumeMaj, TypeSoumission } from "@/lib/saisie";
+import type { ResumeSoumission, TypeSoumission } from "@/lib/saisie";
 
 /** Une soumission en attente, réduite à ce que la file affiche. */
 export type SoumissionEnAttente = {
   id: string;
   type: TypeSoumission;
   titre: string | null;
-  resume: ResumeMaj | ResumeCreation | null;
+  /**
+   * Forme dictée par `type` (cf. `ResumeSoumission`). Le champ était typé sur
+   * les deux seuls résumés d'origine, si bien que les trois types ajoutés
+   * depuis se faisaient lire comme des `ResumeCreation` : la file affichait
+   * « undefined îlot, undefined lot ». C'est `puces()` qui fait le tri, et le
+   * type l'y oblige désormais.
+   */
+  resume: ResumeSoumission | null;
   cree_le: string | null;
 };
 

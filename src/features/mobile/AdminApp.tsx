@@ -21,9 +21,14 @@ import { NotificationsScreen } from "./screens/NotificationsScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { EditProfileScreen } from "./screens/EditProfileScreen";
 import { PilotageScreen } from "./screens/admin/PilotageScreen";
-import { FilesScreen } from "./screens/admin/FilesScreen";
+import { FilesScreen, type EcranSaisie } from "./screens/admin/FilesScreen";
 import { PerimetresScreen } from "./screens/admin/PerimetresScreen";
 import { SoumissionsScreen } from "./screens/admin/SoumissionsScreen";
+import { useSaisieRegistre } from "./data/useSaisieRegistre";
+import { AttributaireScreen } from "./screens/admin/saisie/AttributaireScreen";
+import { LotScreen } from "./screens/admin/saisie/LotScreen";
+import { LotissementScreen } from "./screens/admin/saisie/LotissementScreen";
+import { StructureScreen } from "./screens/admin/saisie/StructureScreen";
 import type { ExperienceProps } from "./CitizenApp";
 
 type Tab = "pilotage" | "files" | "messages" | "profile";
@@ -35,6 +40,10 @@ type Overlay =
   | { kind: "perimetres" }
   | { kind: "editprofile" }
   | { kind: "soumissions" }
+  // Les quatre formulaires de saisie partagent un seul calque : ils partagent
+  // aussi une seule couche de données (`useSaisieRegistre`), et rien ne
+  // justifierait quatre entrées d'union pour quatre écrans interchangeables.
+  | { kind: "saisie"; ecran: EcranSaisie }
   | null;
 
 export function AdminApp({
@@ -52,6 +61,10 @@ export function AdminApp({
   const overview = useAdminOverview(true);
   const [tab, setTab] = useState<Tab>("pilotage");
   const [overlay, setOverlay] = useState<Overlay>(null);
+  // Référentiels (lotissements, chefferies, opérateurs, familles) chargés
+  // seulement quand un formulaire de saisie est ouvert : ils ne servent qu'à
+  // eux, et se paient sur un forfait téléphone.
+  const saisie = useSaisieRegistre(overlay?.kind === "saisie");
   // Même mécanique que l'expérience citoyen : l'état de lecture des
   // notifications vit sur l'appareil (cf. `@/lib/notifs-lues`).
   const [notifsLues, setNotifsLues] = useState<Set<string>>(() => lireNotifsLues(data.userId));
@@ -64,10 +77,20 @@ export function AdminApp({
 
   // Geste de retour Android — même règle que l'expérience citoyen, à ceci près
   // que l'écran racine est ici le Pilotage.
+  //
+  // Ce gestionnaire est enregistré par la coquille, donc **sous** celui de
+  // l'écran affiché : un formulaire de saisie consomme le premier geste pour
+  // avertir (`useRetourFormulaire`), et c'est seulement le second qui descend
+  // jusqu'ici pour refermer le calque.
+  const rafraichirCockpit = overview.refresh;
   useBackHandler(
     useCallback(() => {
       if (overlay) {
         setOverlay(null);
+        // Sortir par le geste doit avoir exactement le même effet que sortir
+        // par la flèche : sinon le compteur « À faire » serait à jour ou non
+        // selon la façon dont on a quitté l'écran.
+        if (overlay.kind === "saisie") rafraichirCockpit();
         return true;
       }
       if (tab !== "pilotage") {
@@ -75,7 +98,7 @@ export function AdminApp({
         return true;
       }
       return false;
-    }, [overlay, tab]),
+    }, [overlay, tab, rafraichirCockpit]),
   );
   // Ouvrir vaut lecture ; l'état est figé dans le calque avant d'être mis à
   // jour, sinon la distinction non-lu disparaîtrait à l'ouverture même.
@@ -85,6 +108,18 @@ export function AdminApp({
   }, [notifsLues, data.userId, data.notifs]);
   const openPerimetres = useCallback(() => setOverlay({ kind: "perimetres" }), []);
   const openSoumissions = useCallback(() => setOverlay({ kind: "soumissions" }), []);
+  const openSaisie = useCallback((ecran: EcranSaisie) => setOverlay({ kind: "saisie", ecran }), []);
+  /**
+   * Fermer un formulaire de saisie rafraîchit le cockpit : une soumission
+   * venant d'être envoyée fait monter « Saisies à valider », et laisser la
+   * pastille au chiffre d'avant donnerait à croire que rien n'est parti. Le
+   * coût est une lecture par fermeture, y compris quand rien n'a été soumis —
+   * face au risque de croire une saisie perdue, c'est bon marché.
+   */
+  const fermerSaisie = useCallback(() => {
+    setOverlay(null);
+    rafraichirCockpit();
+  }, [rafraichirCockpit]);
   const openEditProfile = useCallback(() => setOverlay({ kind: "editprofile" }), []);
   const openNewChat = useCallback(() => setOverlay({ kind: "newchat" }), []);
   const openChat = useCallback(
@@ -151,6 +186,18 @@ export function AdminApp({
         {overlay?.kind === "soumissions" && (
           <SoumissionsScreen onBack={back} onTraite={overview.refresh} />
         )}
+        {overlay?.kind === "saisie" && overlay.ecran === "lot" && (
+          <LotScreen api={saisie} onBack={fermerSaisie} flash={flash} />
+        )}
+        {overlay?.kind === "saisie" && overlay.ecran === "attributaire" && (
+          <AttributaireScreen api={saisie} onBack={fermerSaisie} flash={flash} />
+        )}
+        {overlay?.kind === "saisie" && overlay.ecran === "lotissement" && (
+          <LotissementScreen api={saisie} onBack={fermerSaisie} flash={flash} />
+        )}
+        {overlay?.kind === "saisie" && overlay.ecran === "structure" && (
+          <StructureScreen api={saisie} onBack={fermerSaisie} flash={flash} />
+        )}
         {overlay?.kind === "editprofile" && (
           <EditProfileScreen
             profile={data.profile}
@@ -173,7 +220,12 @@ export function AdminApp({
           />
         )}
         {!overlay && tab === "files" && (
-          <FilesScreen overview={overview} openWeb={openWeb} onOpenSoumissions={openSoumissions} />
+          <FilesScreen
+            overview={overview}
+            openWeb={openWeb}
+            onOpenSoumissions={openSoumissions}
+            onOuvrirSaisie={openSaisie}
+          />
         )}
         {!overlay && tab === "messages" && (
           <MessagesScreen

@@ -1,15 +1,62 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { PenLine, Handshake, FileWarning, FolderOpen, ChevronRight, ExternalLink } from "lucide-react";
+import {
+  PenLine,
+  Handshake,
+  FileWarning,
+  FolderOpen,
+  ChevronRight,
+  ExternalLink,
+  Building2,
+  LandPlot,
+  Layers,
+  UserCog,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { CountBadge } from "@/components/ds/badge";
 import type { AdminOverview } from "@/hooks/useAdminOverview";
+
+/** Les quatre formulaires de saisie du registre, tels que la coquille les ouvre. */
+export type EcranSaisie = "lot" | "attributaire" | "lotissement" | "structure";
+
+/**
+ * Les quatre entrées de saisie, dans l'ordre de leur fréquence réelle sur le
+ * terrain : on constate un changement d'attributaire tous les jours, on crée un
+ * lotissement quelques fois par an.
+ */
+const SAISIES: { cle: EcranSaisie; icon: LucideIcon; label: string; detail: string }[] = [
+  {
+    cle: "lot",
+    icon: LandPlot,
+    label: "Attribuer un lot",
+    detail: "Désigner un attributaire, ou rendre le lot libre",
+  },
+  {
+    cle: "attributaire",
+    icon: UserCog,
+    label: "Fiche d'attributaire",
+    detail: "Créer une fiche, ou corriger une fiche existante",
+  },
+  {
+    cle: "lotissement",
+    icon: Building2,
+    label: "Fiche de lotissement",
+    detail: "Créer ou corriger la fiche d'un lotissement",
+  },
+  {
+    cle: "structure",
+    icon: Layers,
+    label: "Nouveau lotissement",
+    detail: "Fiche seule, sans îlot ni lot",
+  },
+];
 
 export function FilesScreen({
   overview,
   openWeb,
   onOpenSoumissions,
+  onOuvrirSaisie,
 }: {
   overview: AdminOverview;
   openWeb: (path: string) => void;
@@ -19,6 +66,8 @@ export function FilesScreen({
    * vers le web plutôt que d'offrir un bouton mort.
    */
   onOpenSoumissions?: () => void;
+  /** Ouvre l'un des quatre formulaires de saisie. Absent = section masquée. */
+  onOuvrirSaisie?: (ecran: EcranSaisie) => void;
 }) {
   const { files } = overview;
 
@@ -103,6 +152,51 @@ export function FilesScreen({
             );
           })}
         </div>
+
+        {/* Saisir dans le registre.
+            Placé ici, sous les files, et non dans un onglet à part : ce que
+            l'on saisit atterrit dans « Saisies à valider », deux centimètres
+            plus haut. La boucle maker-checker — je soumets, un administrateur
+            approuve — tient donc sur un seul écran, et le compteur du haut
+            monte sous les yeux de celui qui vient d'envoyer. Un cinquième
+            onglet aurait séparé l'acte de sa conséquence. */}
+        {onOuvrirSaisie && (
+          <>
+            <SectionTitle>Saisir dans le registre</SectionTitle>
+            <p className="-mt-1.5 mb-2.5 text-[11.5px] leading-snug text-muted-foreground">
+              Toute saisie part dans « Saisies à valider » ci-dessus. Rien n&apos;est écrit dans le
+              registre avant approbation, même pour un administrateur.
+            </p>
+            <div className="rounded-[18px] border border-border bg-card px-4 shadow-panel">
+              {SAISIES.map((s, i, arr) => {
+                const Icon = s.icon;
+                return (
+                  <button
+                    key={s.cle}
+                    type="button"
+                    onClick={() => onOuvrirSaisie(s.cle)}
+                    className={`flex w-full items-center gap-3 py-3 text-left ${
+                      i < arr.length - 1 ? "border-b border-border" : ""
+                    }`}
+                  >
+                    <span className="flex size-9 flex-none items-center justify-center rounded-xl bg-inset text-primary">
+                      <Icon className="size-[18px]" strokeWidth={1.9} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13.5px] font-semibold text-foreground">
+                        {s.label}
+                      </span>
+                      <span className="block truncate text-[11.5px] text-muted-foreground">
+                        {s.detail}
+                      </span>
+                    </span>
+                    <ChevronRight className="size-4 flex-none text-muted-2" />
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         {/* Litiges récents */}
         {files.litiges.length > 0 && (

@@ -1,0 +1,399 @@
+"use client";
+
+// Couche de données des écrans de saisie du registre (app mobile, expérience
+// admin).
+//
+// 🔴 Un seul chemin d'écriture : la RPC `soumettre_saisie`. Les cinq tables du
+// registre (`lotissements`, `ilots`, `lots`, `attributaires`, `attributions`)
+// n'ont qu'une policy d'écriture, `est_admin()` — un administrateur *pourrait*
+// donc écrire directement depuis le téléphone. On ne le fait pas : le
+// maker-checker est la seule trace de qui a changé quoi, et une écriture
+// directe la perdrait. Le propriétaire du projet a tranché en ce sens : tout
+// passe par la file de validation, administrateur compris.
+//
+// D'où la forme de ce module : il **lit** le registre pour alimenter les
+// formulaires, et n'en **écrit** rien. La seule fonction sortante est
+// `soumettre`, qui dépose dans `soumissions_saisie`.
+//
+// Client porteur de session (`@/utils/supabase/client`), jamais le singleton
+// `@/lib/supabase` : ce dernier interroge en anonyme, et comme la plupart des
+// tables du registre sont lisibles publiquement, la panne serait invisible en
+// lecture pour ne se manifester qu'à l'écriture.
+
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { createClient } from "@/utils/supabase/client";
+import type {
+  LotEtat,
+  PayloadCreationStructure,
+  PayloadLotissement,
+  PayloadMajAttributaire,
+  PayloadMajAttributions,
+  PayloadModificationLotissement,
+  Qualite,
+  ResumeAttributaire,
+  ResumeCreation,
+  ResumeLotissement,
+  ResumeMaj,
+  TypeAttributaire,
+} from "@/lib/saisie";
+import type { Json } from "../../../../database.types";
+
+/** Une réponse réseau ne se réduit jamais à `null` : l'erreur doit remonter. */
+export type Resultat<T> = { ok: true; valeur: T } | { ok: false; error: string };
+
+export type LotissementOption = {
+  id: string;
+  nom: string;
+  village: string | null;
+  commune: string | null;
+};
+
+export type AttributaireFiche = {
+  id: string;
+  nom: string;
+  type: TypeAttributaire;
+  piece_nature: string | null;
+  piece_num: string | null;
+  telephone: string | null;
+  email: string | null;
+  adresse: string | null;
+};
+
+/**
+ * La fiche complète d'un lotissement, telle qu'il faut la **renvoyer entière**
+ * en modification (cf. le piège documenté sur `PayloadModificationLotissement`).
+ * Tous les champs écrits par la fonction d'application y figurent, y compris
+ * ceux que le formulaire n'affiche qu'en second plan.
+ */
+export type FicheLotissement = {
+  id: string;
+  nom: string;
+  village: string | null;
+  commune: string | null;
+  district: string | null;
+  superficie_texte: string | null;
+  nb_lots: number | null;
+  nb_ilots: number | null;
+  guide_reference: string | null;
+  autorite_coutumiere_id: string | null;
+  /** Pour l'affichage seul : la modification ne touche pas ce rattachement. */
+  autorite_nom: string | null;
+  pv_identification_physique_numero: string | null;
+  pv_identification_physique_date: string | null;
+  pv_identification_physique_scan_url: string | null;
+};
+
+/**
+ * Un rattachement proposé dans un sélecteur (autorité coutumière, opérateur,
+ * famille). Trois listes de même forme : ce sont des identités à désigner, pas
+ * des valeurs métier — d'où un type unique plutôt que trois copies.
+ */
+export type RefOption = { id: string; nom: string };
+/** Conservé sous son nom d'origine : il est déjà employé par les écrans. */
+export type AutoriteOption = RefOption;
+
+/**
+ * Ce qui part dans la file. Le type discrimine le triplet
+ * (type, payload, resume) : c'est ce qui empêche d'envoyer un payload de
+ * lotissement sous le type `maj_attributions`, erreur qui ne se verrait qu'à
+ * l'approbation, c'est-à-dire trop tard.
+ *
+ * `lotissementId` alimente la colonne `lotissement_id` de la file (elle sert au
+ * rattachement et, pour une chefferie, au contrôle de juridiction) : `null`
+ * partout où la soumission ne porte pas sur un lotissement déjà existant.
+ */
+export type EnvoiSaisie =
+  | {
+      type: "maj_attributaire";
+      lotissementId: null;
+      titre: string;
+      payload: PayloadMajAttributaire;
+      resume: ResumeAttributaire;
+    }
+  | {
+      type: "maj_attributions";
+      lotissementId: string;
+      titre: string;
+      payload: PayloadMajAttributions;
+      resume: ResumeMaj;
+    }
+  | {
+      type: "creation_lotissement";
+      lotissementId: null;
+      titre: string;
+      payload: PayloadLotissement;
+      resume: ResumeLotissement;
+    }
+  | {
+      type: "modification_lotissement";
+      lotissementId: string;
+      titre: string;
+      payload: PayloadModificationLotissement;
+      resume: ResumeLotissement;
+    }
+  | {
+      type: "creation_structure";
+      lotissementId: null;
+      titre: string;
+      payload: PayloadCreationStructure;
+      resume: ResumeCreation;
+    };
+
+export type SaisieRegistre = {
+  lotissements: LotissementOption[];
+  autorites: AutoriteOption[];
+  /** Rattachements proposés à la création d'une structure (`creation_structure`). */
+  operateurs: RefOption[];
+  familles: RefOption[];
+  /** Vrai tant que les référentiels des sélecteurs n'ont pas répondu. */
+  loading: boolean;
+  erreur: string | null;
+  recharger: () => Promise<void>;
+  chercherAttributaires: (q: string) => Promise<Resultat<AttributaireFiche[]>>;
+  chargerFiche: (lotissementId: string) => Promise<Resultat<FicheLotissement>>;
+  chercherLots: (lotissementId: string, q: string) => Promise<Resultat<LotEtat[]>>;
+  soumettre: (envoi: EnvoiSaisie) => Promise<Resultat<string>>;
+};
+
+/**
+ * Un `%`, un `_` ou un `*` tapé dans une recherche deviendrait un joker : la
+ * liste renverrait alors tout le registre au lieu de rien, ce qui ressemble à
+ * un résultat et n'en est pas. Aucun numéro de lot ni nom d'attributaire ne
+ * contient ces caractères — les retirer est sans perte.
+ */
+function nettoyerRecherche(q: string): string {
+  return q.trim().replace(/[%_*\\]/g, "");
+}
+
+/** Au-delà, la liste ne se parcourt plus au pouce : c'est la recherche qui doit affiner. */
+const LIMITE_RESULTATS = 25;
+
+const COLONNES_FICHE =
+  "id, nom, village, commune, district, superficie_texte, nb_lots, nb_ilots, guide_reference, " +
+  "autorite_coutumiere_id, pv_identification_physique_numero, pv_identification_physique_date, " +
+  "pv_identification_physique_scan_url, autorites_coutumieres(nom)";
+
+type LigneLot = {
+  id: string;
+  numero_lot: string | null;
+  statut: string | null;
+  ilots: { numero: string | null } | null;
+};
+
+type LigneAttribution = {
+  lot_id: string | null;
+  attributaire_id: string | null;
+  qualite: string | null;
+  attributaires: { nom: string | null } | null;
+};
+
+/**
+ * `actif` évite de charger les référentiels tant que l'écran n'est pas ouvert :
+ * ils vivent derrière un calque, et la liste des lotissements se paie sur un
+ * forfait téléphone.
+ */
+export function useSaisieRegistre(actif: boolean): SaisieRegistre {
+  const [supabase] = useState(() => createClient());
+  // `null` = jamais chargé, ce qui distingue « on attend » de « il n'y en a
+  // pas ». Même raison que dans `useSoumissions` : un booléen de chargement
+  // posé depuis l'effet reste bloqué à `true` sur toute sortie anticipée.
+  const [referentiels, setReferentiels] = useState<{
+    lotissements: LotissementOption[];
+    autorites: AutoriteOption[];
+    operateurs: RefOption[];
+    familles: RefOption[];
+  } | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  // Une réponse peut revenir après que l'admin a quitté l'écran.
+  const monte = useRef(true);
+  useEffect(() => {
+    monte.current = true;
+    return () => {
+      monte.current = false;
+    };
+  }, []);
+
+  const charger = useCallback(async () => {
+    const [lots, auts, ops, fams] = await Promise.all([
+      supabase.from("lotissements").select("id, nom, village, commune").order("nom"),
+      supabase.from("autorites_coutumieres").select("id, nom").order("nom"),
+      supabase.from("operateurs").select("id, nom").order("nom"),
+      supabase.from("familles").select("id, nom").order("nom"),
+    ]);
+    if (!monte.current) return;
+    // Seule la liste des lotissements est bloquante : sans elle, ni la
+    // modification de fiche ni l'attribution d'un lot ne sont possibles. Les
+    // trois listes de rattachement, elles, sont facultatives dans le payload
+    // (`creation_structure` accepte un lotissement sans autorité, sans opérateur
+    // et sans famille) : une liste vide dégrade le formulaire sans l'empêcher.
+    if (lots.error) {
+      setErreur(lots.error.message);
+      return;
+    }
+    setErreur(null);
+    setReferentiels({
+      lotissements: (lots.data ?? []) as LotissementOption[],
+      autorites: (auts.data ?? []) as AutoriteOption[],
+      operateurs: (ops.data ?? []) as RefOption[],
+      familles: (fams.data ?? []) as RefOption[],
+    });
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!actif) return;
+    // Enveloppé dans une fonction asynchrone : le premier `setState` n'a lieu
+    // qu'au retour du réseau, jamais pendant le rendu de l'effet (règle
+    // `react-hooks/set-state-in-effect`).
+    void (async () => {
+      await charger();
+    })();
+  }, [actif, charger]);
+
+  const chercherAttributaires = useCallback(
+    async (q: string): Promise<Resultat<AttributaireFiche[]>> => {
+      const motif = nettoyerRecherche(q);
+      if (!motif) return { ok: true, valeur: [] };
+      const { data, error } = await supabase
+        .from("attributaires")
+        .select("id, nom, type, piece_nature, piece_num, telephone, email, adresse")
+        .ilike("nom", `%${motif}%`)
+        .order("nom")
+        .limit(LIMITE_RESULTATS);
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, valeur: (data ?? []) as AttributaireFiche[] };
+    },
+    [supabase],
+  );
+
+  const chargerFiche = useCallback(
+    async (lotissementId: string): Promise<Resultat<FicheLotissement>> => {
+      const { data, error } = await supabase
+        .from("lotissements")
+        .select(COLONNES_FICHE)
+        .eq("id", lotissementId)
+        .single();
+      if (error) return { ok: false, error: error.message };
+      if (!data) return { ok: false, error: "Lotissement introuvable." };
+      const r = data as unknown as Omit<FicheLotissement, "autorite_nom"> & {
+        autorites_coutumieres: { nom: string | null } | null;
+      };
+      return {
+        ok: true,
+        valeur: {
+          id: r.id,
+          nom: r.nom,
+          village: r.village,
+          commune: r.commune,
+          district: r.district,
+          superficie_texte: r.superficie_texte,
+          nb_lots: r.nb_lots,
+          nb_ilots: r.nb_ilots,
+          guide_reference: r.guide_reference,
+          autorite_coutumiere_id: r.autorite_coutumiere_id,
+          autorite_nom: r.autorites_coutumieres?.nom ?? null,
+          pv_identification_physique_numero: r.pv_identification_physique_numero,
+          pv_identification_physique_date: r.pv_identification_physique_date,
+          pv_identification_physique_scan_url: r.pv_identification_physique_scan_url,
+        },
+      };
+    },
+    [supabase],
+  );
+
+  /**
+   * Lots d'un lotissement filtrés par numéro, avec leur attribution **actuelle**.
+   *
+   * Deux requêtes à plat plutôt qu'un embed `lots → attributions →
+   * attributaires` : cet embed imbriqué a déjà provoqué un timeout à 8 s (donc
+   * un HTTP 500 rendu en « liste vide », le pire des retours) sur Brignan et ses
+   * 846 lots. Ici la recherche borne déjà le nombre de lots, mais on garde la
+   * forme éprouvée — la volumétrie du registre ne fera que croître.
+   */
+  const chercherLots = useCallback(
+    async (lotissementId: string, q: string): Promise<Resultat<LotEtat[]>> => {
+      const motif = nettoyerRecherche(q);
+      let requete = supabase
+        .from("lots")
+        .select("id, numero_lot, statut, ilots!inner(numero, lotissement_id)")
+        .eq("ilots.lotissement_id", lotissementId);
+      if (motif) requete = requete.ilike("numero_lot", `%${motif}%`);
+      const { data, error } = await requete
+        .order("numero_lot", { ascending: true })
+        .limit(LIMITE_RESULTATS);
+      if (error) return { ok: false, error: error.message };
+
+      const lignes = (data ?? []) as unknown as LigneLot[];
+      if (lignes.length === 0) return { ok: true, valeur: [] };
+
+      const { data: attrs, error: e2 } = await supabase
+        .from("attributions")
+        .select("lot_id, attributaire_id, qualite, attributaires(nom)")
+        .in(
+          "lot_id",
+          lignes.map((l) => l.id),
+        )
+        .eq("actuel", true);
+      // L'attribution en cours n'est pas un détail décoratif : c'est elle qui
+      // dit si l'opération sera une nouvelle attribution ou une réassignation.
+      // Sans elle, l'écran mentirait sur la nature de l'acte.
+      if (e2) return { ok: false, error: e2.message };
+
+      const parLot = new Map<string, LigneAttribution>();
+      for (const a of (attrs ?? []) as unknown as LigneAttribution[]) {
+        if (a.lot_id) parLot.set(a.lot_id, a);
+      }
+
+      return {
+        ok: true,
+        valeur: lignes.map((l) => {
+          const a = parLot.get(l.id);
+          return {
+            lot_id: l.id,
+            ilot: l.ilots?.numero ?? "—",
+            numero_lot: l.numero_lot ?? "—",
+            statut: l.statut ?? "—",
+            attributaire_id: a?.attributaire_id ?? null,
+            attributaire_nom: a?.attributaires?.nom ?? null,
+            qualite: (a?.qualite as Qualite | undefined) ?? null,
+          };
+        }),
+      };
+    },
+    [supabase],
+  );
+
+  const soumettre = useCallback(
+    async (envoi: EnvoiSaisie): Promise<Resultat<string>> => {
+      const { data, error } = await supabase.rpc("soumettre_saisie", {
+        p_type: envoi.type,
+        // La fonction SQL accepte `null` (soumission sans lotissement existant) ;
+        // le générateur de types Supabase rend ce paramètre non-null faute de
+        // DEFAULT. Même cast que côté web (`proposerLotissement`).
+        p_lotissement_id: envoi.lotissementId as string,
+        p_titre: envoi.titre,
+        p_payload: envoi.payload as unknown as Json,
+        p_resume: envoi.resume as unknown as Json,
+      });
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, valeur: (data ?? "") as string };
+    },
+    [supabase],
+  );
+
+  return {
+    lotissements: referentiels?.lotissements ?? [],
+    autorites: referentiels?.autorites ?? [],
+    operateurs: referentiels?.operateurs ?? [],
+    familles: referentiels?.familles ?? [],
+    // Dérivé, jamais posé dans un effet : impossible d'oublier de le redescendre.
+    loading: actif && referentiels === null && erreur === null,
+    erreur,
+    recharger: charger,
+    chercherAttributaires,
+    chargerFiche,
+    chercherLots,
+    soumettre,
+  };
+}

@@ -28,7 +28,14 @@ import { CheckCircle2, ClipboardCheck, Loader2, ShieldAlert, TriangleAlert } fro
 
 import { useBackHandler } from "@/lib/android-back";
 import { CountBadge } from "@/components/ds/badge";
-import type { ResumeCreation, ResumeMaj, TypeSoumission } from "@/lib/saisie";
+import {
+  labelTypeAttributaire,
+  type ResumeAttributaire,
+  type ResumeCreation,
+  type ResumeLotissement,
+  type ResumeMaj,
+  type TypeSoumission,
+} from "@/lib/saisie";
 import { BarHeader } from "../../components/MobileHeader";
 import {
   useSoumissions,
@@ -39,9 +46,15 @@ import {
 
 type Acte = "approuver" | "rejeter";
 
+// `Record<TypeSoumission, …>` est délibérément exhaustif : ajouter un type de
+// soumission sans lui donner de libellé casse la compilation ici plutôt que de
+// faire apparaître une carte sans nom dans la file de l'administrateur.
 const TYPE_LABEL: Record<TypeSoumission, string> = {
   maj_attributions: "Mise à jour d'attributions",
   creation_structure: "Création de structure",
+  creation_lotissement: "Création de lotissement",
+  modification_lotissement: "Modification de lotissement",
+  maj_attributaire: "Fiche d'attributaire",
 };
 
 /** Pluriel simple — les libellés de la file n'ont pas de cas irrégulier. */
@@ -66,40 +79,92 @@ type Puce = { texte: string; ton: "success" | "warning" | "accent" | "neutral" }
  * « 3 / 1 / 2 » ne dit rien de ce qui va changer dans le registre. On nomme
  * chaque volume, et on n'affiche que ce qui est non nul — un zéro n'apporte
  * aucune information à qui doit décider.
+ *
+ * 🔴 L'aiguillage se fait sur `type`, **type de soumission par type de
+ * soumission et sans repli**. Le repli précédent traitait tout ce qui n'était
+ * pas `maj_attributions` comme une création de structure : les trois types
+ * ajoutés depuis y affichaient « undefined îlot, undefined lot » sur la carte
+ * qui sert à décider. Un type sans branche casse désormais la compilation
+ * (`switch` exhaustif sur `TypeSoumission`).
  */
 function puces(soumission: SoumissionEnAttente): Puce[] {
   const r = soumission.resume;
   if (!r) return [];
 
-  if (soumission.type === "maj_attributions") {
-    const m = r as ResumeMaj;
-    const liste: Puce[] = [];
-    if (m.nouvelles_attributions > 0)
-      liste.push({ texte: `${m.nouvelles_attributions} nouvelle${s(m.nouvelles_attributions)} attribution${s(m.nouvelles_attributions)}`, ton: "success" });
-    if (m.reassignations > 0)
-      liste.push({ texte: `${m.reassignations} réassignation${s(m.reassignations)}`, ton: "warning" });
-    if (m.remises_libre > 0)
-      liste.push({ texte: `${m.remises_libre} remise${s(m.remises_libre)} en disponibilité`, ton: "neutral" });
-    // « nouvel » ne se pluralise pas en « nouvels » : au-delà de un, c'est
-    // « nouveaux ». Le cas se présente dès le second attributaire créé, donc
-    // sur à peu près tout import de guide de répartition.
-    if (m.nouveaux_attributaires > 0)
-      liste.push({
-        texte: `${m.nouveaux_attributaires} ${m.nouveaux_attributaires > 1 ? "nouveaux" : "nouvel"} attributaire${s(m.nouveaux_attributaires)}`,
-        ton: "accent",
-      });
-    if (m.inchanges > 0) liste.push({ texte: `${m.inchanges} sans effet`, ton: "neutral" });
-    return liste;
-  }
+  switch (soumission.type) {
+    case "maj_attributions": {
+      const m = r as ResumeMaj;
+      const liste: Puce[] = [];
+      if (m.nouvelles_attributions > 0)
+        liste.push({ texte: `${m.nouvelles_attributions} nouvelle${s(m.nouvelles_attributions)} attribution${s(m.nouvelles_attributions)}`, ton: "success" });
+      if (m.reassignations > 0)
+        liste.push({ texte: `${m.reassignations} réassignation${s(m.reassignations)}`, ton: "warning" });
+      if (m.remises_libre > 0)
+        liste.push({ texte: `${m.remises_libre} remise${s(m.remises_libre)} en disponibilité`, ton: "neutral" });
+      // « nouvel » ne se pluralise pas en « nouvels » : au-delà de un, c'est
+      // « nouveaux ». Le cas se présente dès le second attributaire créé, donc
+      // sur à peu près tout import de guide de répartition.
+      if (m.nouveaux_attributaires > 0)
+        liste.push({
+          texte: `${m.nouveaux_attributaires} ${m.nouveaux_attributaires > 1 ? "nouveaux" : "nouvel"} attributaire${s(m.nouveaux_attributaires)}`,
+          ton: "accent",
+        });
+      if (m.inchanges > 0) liste.push({ texte: `${m.inchanges} sans effet`, ton: "neutral" });
+      return liste;
+    }
 
-  const c = r as ResumeCreation;
-  const liste: Puce[] = [
-    { texte: `${c.nb_ilots} îlot${s(c.nb_ilots)}`, ton: "accent" },
-    { texte: `${c.nb_lots} lot${s(c.nb_lots)}`, ton: "success" },
-  ];
-  if (c.nb_equipements > 0)
-    liste.push({ texte: `${c.nb_equipements} équipement${s(c.nb_equipements)}`, ton: "neutral" });
-  return liste;
+    case "creation_structure": {
+      const c = r as ResumeCreation;
+      const liste: Puce[] = [
+        { texte: `${c.nb_ilots} îlot${s(c.nb_ilots)}`, ton: "accent" },
+        { texte: `${c.nb_lots} lot${s(c.nb_lots)}`, ton: "success" },
+      ];
+      if (c.nb_equipements > 0)
+        liste.push({ texte: `${c.nb_equipements} équipement${s(c.nb_equipements)}`, ton: "neutral" });
+      // Une coquille (0 îlot, 0 lot) est ce que produit la création de
+      // structure depuis le téléphone. Le dire, sinon deux zéros passent pour
+      // une soumission ratée alors que c'est le résultat attendu.
+      if (c.nb_ilots === 0 && c.nb_lots === 0)
+        liste.push({ texte: "fiche seule, à peupler ensuite", ton: "warning" });
+      return liste;
+    }
+
+    case "creation_lotissement":
+    case "modification_lotissement": {
+      const l = r as ResumeLotissement;
+      const liste: Puce[] = [];
+      if (l.localisation) liste.push({ texte: l.localisation, ton: "accent" });
+      // Volumes **déclarés** sur la fiche, pas comptés en base : ils ne créent
+      // aucun lot. Le mot « annoncés » évite de les lire comme un contenu.
+      if (l.nb_ilots != null || l.nb_lots != null)
+        liste.push({
+          texte: `${l.nb_ilots ?? 0} îlot${s(l.nb_ilots ?? 0)}, ${l.nb_lots ?? 0} lot${s(l.nb_lots ?? 0)} annoncés`,
+          ton: "neutral",
+        });
+      liste.push(
+        soumission.type === "creation_lotissement"
+          ? { texte: "nouvelle fiche", ton: "success" }
+          : {
+              texte: `${l.champs_modifies ?? 0} champ${s(l.champs_modifies ?? 0)} modifié${s(l.champs_modifies ?? 0)}`,
+              ton: "warning",
+            },
+      );
+      return liste;
+    }
+
+    case "maj_attributaire": {
+      const a = r as ResumeAttributaire;
+      return [
+        a.creation
+          ? { texte: "nouvelle fiche", ton: "success" }
+          : {
+              texte: `${a.champs_modifies ?? 0} champ${s(a.champs_modifies ?? 0)} corrigé${s(a.champs_modifies ?? 0)}`,
+              ton: "warning",
+            },
+        { texte: labelTypeAttributaire(a.type_attributaire), ton: "accent" },
+      ];
+    }
+  }
 }
 
 /** Ce que la base a réellement écrit — plus honnête que le résumé annoncé. */

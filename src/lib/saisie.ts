@@ -28,6 +28,16 @@ export type TypeAttributaire =
   | "collectif_ayants_droit"
   | "personne_morale";
 
+export const TYPE_ATTRIBUTAIRE_OPTIONS: { value: TypeAttributaire; label: string }[] = [
+  { value: "personne_physique", label: "Personne physique" },
+  { value: "collectif_ayants_droit", label: "Collectif d'ayants droit" },
+  { value: "personne_morale", label: "Personne morale" },
+];
+
+export function labelTypeAttributaire(t: string | null | undefined): string {
+  return TYPE_ATTRIBUTAIRE_OPTIONS.find((o) => o.value === t)?.label ?? t ?? "—";
+}
+
 // Un attributaire à créer au moment de l'approbation (référencé par `ref` dans les opérations).
 export type NouvelAttributaire = {
   ref: string;
@@ -86,7 +96,80 @@ export type PayloadCreationStructure = {
   ilots: { numero: string; lots: LotStructure[] }[];
 };
 
-export type TypeSoumission = "maj_attributions" | "creation_structure";
+// ── Fiche d'un lotissement (creation_lotissement / modification_lotissement) ──
+//
+// Clés **à plat**, jamais imbriquées sous `lotissement` : les deux fonctions
+// `_appliquer_creation_lotissement` / `_appliquer_modification_lotissement`
+// lisent `p_payload->>'village'` directement. C'est `creation_structure`, et
+// elle seule, qui imbrique (cf. `PayloadCreationStructure`).
+//
+// La liste est **fermée** : ce sont exactement les colonnes que les deux
+// fonctions SQL écrivent. Ajouter une clé ici sans l'ajouter en base la ferait
+// disparaître en silence à l'approbation.
+export type PayloadLotissement = {
+  nom: string;
+  village?: string | null;
+  commune?: string | null;
+  district?: string | null;
+  superficie_texte?: string | null;
+  nb_lots?: number | null;
+  nb_ilots?: number | null;
+  guide_reference?: string | null;
+  /**
+   * ⚠️ Écrite à la **création** seulement — `_appliquer_modification_lotissement`
+   * ne touche pas cette colonne. Et pour un appelant `chefferie`,
+   * `soumettre_saisie` écrase de toute façon la valeur envoyée par sa propre
+   * juridiction : ne pas la renseigner côté client pour ce rôle.
+   */
+  autorite_coutumiere_id?: string | null;
+  pv_identification_physique_numero?: string | null;
+  pv_identification_physique_date?: string | null;
+  pv_identification_physique_scan_url?: string | null;
+};
+
+/**
+ * 🔴 PIÈGE — `_appliquer_modification_lotissement` fait
+ * `village = nullif(btrim(payload->>'village'), '')` **sans `coalesce`**, et
+ * pareil pour commune, district, superficie_texte, nb_lots, nb_ilots,
+ * guide_reference et les trois champs de PV. Autrement dit **toute clé absente
+ * du payload est remise à NULL en base**. Seul `nom` est protégé (il passe par
+ * un `coalesce`).
+ *
+ * Conséquence pour tout écran qui produit ce payload : il doit **charger la
+ * fiche complète et la renvoyer entière**, champs non modifiés compris. Un
+ * formulaire qui n'enverrait que le champ corrigé viderait la fiche.
+ */
+export type PayloadModificationLotissement = PayloadLotissement & {
+  lotissement_id: string;
+};
+
+/**
+ * Fiche d'un attributaire (`maj_attributaire`). Sans `attributaire_id` la
+ * soumission **crée** ; avec, elle **corrige**.
+ *
+ * Convention de la fonction d'application, différente de celle du lotissement
+ * ci-dessus : **clé absente = valeur inchangée, clé présente à `null` =
+ * effacement**. En JSON, `undefined` disparaît de la sérialisation — c'est donc
+ * `undefined` qui signifie « ne touche pas » et `null` qui signifie « efface ».
+ * Les deux ne sont pas interchangeables ici.
+ */
+export type PayloadMajAttributaire = {
+  attributaire_id?: string;
+  nom: string;
+  type: TypeAttributaire;
+  piece_nature?: string | null;
+  piece_num?: string | null;
+  telephone?: string | null;
+  email?: string | null;
+  adresse?: string | null;
+};
+
+export type TypeSoumission =
+  | "maj_attributions"
+  | "creation_structure"
+  | "creation_lotissement"
+  | "modification_lotissement"
+  | "maj_attributaire";
 export type StatutSoumission = "en_attente" | "approuvee" | "rejetee";
 
 // ── Diff côté front : classification d'un changement vs l'état courant en base ──
@@ -153,3 +236,38 @@ export type ResumeCreation = {
   nb_lots: number;
   nb_equipements: number;
 };
+
+/**
+ * Résumé d'une soumission creation_lotissement / modification_lotissement.
+ *
+ * Le `resume` est **tout ce que l'admin lit dans la file** (le payload n'y est
+ * délibérément pas chargé, cf. `useSoumissions`). Sur une correction, savoir
+ * combien de champs bougent réellement est la seule information qui distingue
+ * une faute de frappe d'une refonte de fiche.
+ */
+export type ResumeLotissement = {
+  nom_lotissement: string;
+  /** « Village · Commune · District », déjà assemblé — `null` si rien de tout ça. */
+  localisation: string | null;
+  nb_ilots: number | null;
+  nb_lots: number | null;
+  /** Modification seulement : champs dont la valeur change vraiment. */
+  champs_modifies?: number;
+};
+
+/** Résumé d'une soumission maj_attributaire. */
+export type ResumeAttributaire = {
+  nom: string;
+  type_attributaire: TypeAttributaire;
+  /** `true` = nouvelle fiche, `false` = correction d'une fiche existante. */
+  creation: boolean;
+  /** Correction seulement : champs dont la valeur change vraiment. */
+  champs_modifies?: number;
+};
+
+/** Tout ce qu'un `resume` peut valoir, selon le `type` de la soumission. */
+export type ResumeSoumission =
+  | ResumeMaj
+  | ResumeCreation
+  | ResumeLotissement
+  | ResumeAttributaire;

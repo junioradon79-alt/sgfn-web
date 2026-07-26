@@ -7,8 +7,19 @@ import { EditProfileScreen } from "@/features/mobile/screens/EditProfileScreen";
 import { ReportIssueScreen } from "@/features/mobile/screens/ReportIssueScreen";
 import { NotificationsScreen } from "@/features/mobile/screens/NotificationsScreen";
 import { SoumissionsVue } from "@/features/mobile/screens/admin/SoumissionsScreen";
+import { AttributaireScreen } from "@/features/mobile/screens/admin/saisie/AttributaireScreen";
+import { LotScreen } from "@/features/mobile/screens/admin/saisie/LotScreen";
+import { LotissementScreen } from "@/features/mobile/screens/admin/saisie/LotissementScreen";
+import { StructureScreen } from "@/features/mobile/screens/admin/saisie/StructureScreen";
 import type { MobileProfile, Parcelle } from "@/features/mobile/data/useMobileData";
 import type { FileSoumissions, SoumissionEnAttente } from "@/features/mobile/data/useSoumissions";
+import type {
+  AttributaireFiche,
+  FicheLotissement,
+  LotissementOption,
+  SaisieRegistre,
+} from "@/features/mobile/data/useSaisieRegistre";
+import type { LotEtat } from "@/lib/saisie";
 import type { NotifRow } from "@/features/mobile/data/mappers";
 
 /**
@@ -145,6 +156,47 @@ const SOUMISSIONS: SoumissionEnAttente[] = [
     },
     cree_le: ilYA(50),
   },
+  // Les trois types ajoutés depuis (fiche de lotissement, fiche d'attributaire,
+  // coquille) : ils étaient lus comme des créations de structure et affichaient
+  // « undefined îlot, undefined lot ». Ils restent ici pour que la régression ne
+  // puisse pas revenir sans se voir.
+  {
+    id: "s4",
+    type: "modification_lotissement",
+    titre: "Koelea-Accor — PV d'identification physique renseigné",
+    resume: {
+      nom_lotissement: "Koelea-Accor",
+      localisation: "Koelea · Anyama",
+      nb_ilots: 14,
+      nb_lots: 386,
+      champs_modifies: 3,
+    },
+    cree_le: ilYA(6),
+  },
+  {
+    id: "s5",
+    type: "maj_attributaire",
+    titre: null,
+    resume: {
+      nom: "Konan Yao Bernard",
+      type_attributaire: "personne_physique",
+      creation: false,
+      champs_modifies: 1,
+    },
+    cree_le: ilYA(11),
+  },
+  {
+    id: "s6",
+    type: "creation_structure",
+    titre: "Ebimpe Extension — fiche créée depuis le terrain",
+    resume: {
+      nom_lotissement: "Ebimpe Extension",
+      nb_ilots: 0,
+      nb_lots: 0,
+      nb_equipements: 0,
+    },
+    cree_le: ilYA(14),
+  },
 ];
 
 const INERTE = async () => ({
@@ -161,7 +213,217 @@ const FILE_SOUMISSIONS: FileSoumissions = {
   rejeter: INERTE,
 };
 
-type Ecran = "profil" | "signalement" | "notifications" | "soumissions";
+// ── Saisie du registre ───────────────────────────────────────────────────────
+//
+// Les quatre formulaires de saisie sont, eux aussi, invisibles autrement : ils
+// vivent derrière l'onglet « À faire » de l'expérience admin, et surtout ils
+// **lisent le registre de production** dès leur ouverture. Les monter ici avec
+// un registre simulé est la seule façon de les parcourir sans interroger — ni,
+// pire, alimenter — la vraie base.
+
+const LOTISSEMENTS: LotissementOption[] = [
+  { id: "apc-lot-1", nom: "Brignan Extension", village: "Brignan", commune: "Songon" },
+  { id: "apc-lot-2", nom: "Koelea-Accor", village: "Koelea", commune: "Anyama" },
+  { id: "apc-lot-3", nom: "Ebimpe Résidentiel", village: "Ebimpe", commune: "Anyama" },
+];
+
+/**
+ * Fiches complètes, telles que `chargerFiche` les renvoie. La première est
+ * pleine et la seconde pleine de trous : c'est sur celle-là que se voit le
+ * piège du `NULL` implicite — un champ vide à l'écran est un champ vide en
+ * base, et il repartira vide.
+ */
+const FICHES: Record<string, FicheLotissement> = {
+  "apc-lot-1": {
+    id: "apc-lot-1",
+    nom: "Brignan Extension",
+    village: "Brignan",
+    commune: "Songon",
+    district: "Abidjan",
+    superficie_texte: "42 ha 18 a",
+    nb_lots: 846,
+    nb_ilots: 31,
+    guide_reference: "GR-2023-004",
+    autorite_coutumiere_id: "apc-aut-1",
+    autorite_nom: "Chefferie de Brignan",
+    pv_identification_physique_numero: "PV-2023-117",
+    pv_identification_physique_date: "2023-09-14",
+    pv_identification_physique_scan_url: "https://exemple.ci/pv/2023-117.pdf",
+  },
+  "apc-lot-2": {
+    id: "apc-lot-2",
+    nom: "Koelea-Accor",
+    village: "Koelea",
+    commune: "Anyama",
+    district: null,
+    superficie_texte: null,
+    nb_lots: 386,
+    nb_ilots: 14,
+    guide_reference: null,
+    autorite_coutumiere_id: null,
+    autorite_nom: null,
+    pv_identification_physique_numero: null,
+    pv_identification_physique_date: null,
+    pv_identification_physique_scan_url: null,
+  },
+  "apc-lot-3": {
+    id: "apc-lot-3",
+    nom: "Ebimpe Résidentiel",
+    village: "Ebimpe",
+    commune: "Anyama",
+    district: "Abidjan",
+    superficie_texte: "8 ha",
+    nb_lots: 142,
+    nb_ilots: 6,
+    guide_reference: "GR-2025-021",
+    autorite_coutumiere_id: "apc-aut-2",
+    autorite_nom: "Chefferie d'Ebimpe",
+    pv_identification_physique_numero: null,
+    pv_identification_physique_date: null,
+    pv_identification_physique_scan_url: null,
+  },
+};
+
+/**
+ * Lots de « Brignan Extension ». Les trois états que `classifier` distingue y
+ * sont représentés : un lot libre (→ nouvelle attribution), un lot attribué
+ * (→ réassignation, ou remise en disponibilité), et de quoi retomber sur
+ * « aucun changement » en réattribuant à l'identique.
+ */
+const LOTS: LotEtat[] = [
+  {
+    lot_id: "apc-l-1",
+    ilot: "7",
+    numero_lot: "142",
+    statut: "attribue",
+    attributaire_id: "apc-att-1",
+    attributaire_nom: "Konan Yao Bernard",
+    qualite: "ayant_droit",
+  },
+  {
+    lot_id: "apc-l-2",
+    ilot: "7",
+    numero_lot: "143",
+    statut: "libre",
+    attributaire_id: null,
+    attributaire_nom: null,
+    qualite: null,
+  },
+  {
+    lot_id: "apc-l-3",
+    ilot: "12",
+    numero_lot: "308",
+    statut: "attribue",
+    attributaire_id: "apc-att-2",
+    attributaire_nom: "SCI Les Palmiers",
+    qualite: "acquereur",
+  },
+  {
+    lot_id: "apc-l-4",
+    ilot: "12",
+    numero_lot: "309",
+    statut: "reserve_equipement",
+    attributaire_id: null,
+    attributaire_nom: null,
+    qualite: null,
+  },
+];
+
+const ATTRIBUTAIRES: AttributaireFiche[] = [
+  {
+    id: "apc-att-1",
+    nom: "Konan Yao Bernard",
+    type: "personne_physique",
+    piece_nature: "CNI",
+    piece_num: "CI002123456789",
+    telephone: "+225 07 00 00 00 00",
+    email: null,
+    adresse: "Songon, Abidjan",
+  },
+  {
+    id: "apc-att-2",
+    nom: "SCI Les Palmiers",
+    type: "personne_morale",
+    piece_nature: "RCCM",
+    piece_num: "CI-ABJ-2019-B-1234",
+    telephone: null,
+    email: "contact@lespalmiers.ci",
+    adresse: null,
+  },
+  {
+    id: "apc-att-3",
+    nom: "Collectif Ako Djebe",
+    type: "collectif_ayants_droit",
+    piece_nature: null,
+    piece_num: null,
+    telephone: "+225 05 11 22 33 44",
+    email: null,
+    adresse: null,
+  },
+];
+
+const contient = (valeur: string, motif: string) =>
+  valeur.toLowerCase().includes(motif.trim().toLowerCase());
+
+/**
+ * Registre simulé. Les recherches filtrent réellement les tableaux ci-dessus :
+ * un `chercherLots` qui renverrait tout ferait passer pour fonctionnel un
+ * écran dont la recherche est cassée.
+ *
+ * 🔴 `soumettre` n'écrit rien et renvoie un identifiant factice. Ce choix
+ * diffère volontairement de `approuver`/`rejeter` plus haut, qui échouent :
+ * approuver annonce « appliqué », donc un faux succès mentirait sur l'état du
+ * registre ; soumettre n'annonce que « parti en validation », et c'est
+ * précisément l'écran de confirmation — celui qui porte la distinction entre
+ * « envoyé » et « appliqué » — qu'il faut pouvoir relire avant de livrer. Le
+ * bandeau de la page rappelle qu'aucune soumission ne part.
+ */
+const SAISIE: SaisieRegistre = {
+  lotissements: LOTISSEMENTS,
+  autorites: [
+    { id: "apc-aut-1", nom: "Chefferie de Brignan" },
+    { id: "apc-aut-2", nom: "Chefferie d'Ebimpe" },
+  ],
+  operateurs: [
+    { id: "apc-ope-1", nom: "SODECI Aménagement" },
+    { id: "apc-ope-2", nom: "Groupe Accor CI" },
+  ],
+  familles: [
+    { id: "apc-fam-1", nom: "Famille Ako Djebe" },
+    { id: "apc-fam-2", nom: "Famille Brou" },
+  ],
+  loading: false,
+  erreur: null,
+  recharger: async () => {},
+  chercherAttributaires: async (q) => ({
+    ok: true,
+    valeur: ATTRIBUTAIRES.filter((a) => contient(a.nom, q)),
+  }),
+  chargerFiche: async (id) => {
+    const f = FICHES[id];
+    return f ? { ok: true, valeur: f } : { ok: false, error: "Lotissement introuvable." };
+  },
+  chercherLots: async (lotissementId, q) => ({
+    ok: true,
+    // Seul « Brignan Extension » a des lots : les deux autres montrent l'état
+    // vide, qui est celui d'un lotissement dont les lots n'ont pas été importés.
+    valeur:
+      lotissementId === "apc-lot-1"
+        ? LOTS.filter((l) => !q.trim() || contient(l.numero_lot, q))
+        : [],
+  }),
+  soumettre: async () => ({ ok: true, valeur: "apercu-aucune-soumission" }),
+};
+
+type Ecran =
+  | "profil"
+  | "signalement"
+  | "notifications"
+  | "soumissions"
+  | "saisie-lot"
+  | "saisie-attributaire"
+  | "saisie-lotissement"
+  | "saisie-structure";
 
 const ECRANS: { cle: Ecran; libelle: string; note: string }[] = [
   { cle: "profil", libelle: "Gérer mon profil", note: "Nom, téléphone, mot de passe — remplace la sortie vers le web" },
@@ -170,7 +432,27 @@ const ECRANS: { cle: Ecran; libelle: string; note: string }[] = [
   {
     cle: "soumissions",
     libelle: "Saisies à valider",
-    note: "3 en attente (file réelle vide en prod) — approuver/rejeter sont inertes ici",
+    note: "6 en attente, un par type de soumission (file réelle vide en prod) — approuver/rejeter sont inertes ici",
+  },
+  {
+    cle: "saisie-lot",
+    libelle: "Attribuer un lot",
+    note: "Lotissement → lot → cible. Seul « Brignan Extension » porte des lots ; les autres montrent l'état vide.",
+  },
+  {
+    cle: "saisie-attributaire",
+    libelle: "Fiche d'attributaire",
+    note: "Créer ou corriger. Tapez « ko », « sci » ou « ako » pour voir la recherche répondre.",
+  },
+  {
+    cle: "saisie-lotissement",
+    libelle: "Fiche de lotissement",
+    note: "« Koelea-Accor » est volontairement pleine de trous : c'est là que se voit le piège du champ vidé.",
+  },
+  {
+    cle: "saisie-structure",
+    libelle: "Nouveau lotissement",
+    note: "Coquille : 1 lotissement, 0 îlot, 0 lot — plus les rattachements créés à l'approbation.",
   },
 ];
 
@@ -198,6 +480,14 @@ export default function ApercuMobilePage() {
           <h1 className="text-2xl font-bold text-foreground">Aperçu — écrans mobiles</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Composants réels, données simulées. Aucune requête, aucune écriture.
+          </p>
+          {/* Dit une fois, en clair : les écrans de saisie affichent bien leur
+              confirmation d'envoi, et pourtant rien ne part. Sans ce rappel, la
+              page ferait exactement l'erreur qu'elle sert à éviter. */}
+          <p className="mt-2 rounded-xl border border-warning/45 bg-warning-subtle px-3 py-2 text-[13px] text-foreground">
+            Les formulaires de saisie affichent leur écran de confirmation, mais{" "}
+            <b>aucune soumission n&apos;est envoyée</b>{" "}
+            à la base — la production n&apos;a pas d&apos;environnement de test.
           </p>
         </header>
 
@@ -260,6 +550,18 @@ export default function ApercuMobilePage() {
             <NotificationsScreen notifs={NOTIFS} lues={DEJA_LUES} onBack={() => {}} />
           )}
           {ecran === "soumissions" && <SoumissionsVue file={FILE_SOUMISSIONS} onBack={() => {}} />}
+          {ecran === "saisie-lot" && (
+            <LotScreen api={SAISIE} onBack={() => {}} flash={() => {}} />
+          )}
+          {ecran === "saisie-attributaire" && (
+            <AttributaireScreen api={SAISIE} onBack={() => {}} flash={() => {}} />
+          )}
+          {ecran === "saisie-lotissement" && (
+            <LotissementScreen api={SAISIE} onBack={() => {}} flash={() => {}} />
+          )}
+          {ecran === "saisie-structure" && (
+            <StructureScreen api={SAISIE} onBack={() => {}} flash={() => {}} />
+          )}
         </div>
       </div>
     </main>

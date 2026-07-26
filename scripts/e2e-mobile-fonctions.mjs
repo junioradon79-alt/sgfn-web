@@ -318,6 +318,51 @@ if (connecte) {
   await page.screenshot({ path: chemin("app-soumissions.png") });
   console.log("  🛑 Aucune approbation ni rejet déclenché (dossiers fonciers réels).");
 
+  // ── Saisir dans le registre : les 4 écrans s'ouvrent DANS l'app ──
+  //
+  // 🔴 Ce câblage n'est vérifiable QU'ICI. `/apercu-mobile` monte les écrans
+  // isolément, jamais `AdminApp` ni `FilesScreen` : une entrée qui n'ouvrirait
+  // rien s'y verrait parfaitement rendue. On exige donc, pour chacune, un
+  // repère de CONTENU propre à l'écran atteint — l'URL ne bouge jamais dans
+  // une app à page unique, elle ne prouve rien.
+  await page.locator("button").first().click();
+  await page.waitForTimeout(1200);
+
+  const SAISIES = [
+    ["Attribuer un lot", /quel lotissement|choisir un lot|lotissement concern/i],
+    // ⚠️ Ne jamais viser un `placeholder` : il ne fait pas partie de
+    // `innerText`. Première rédaction fautive ici — l'écran s'ouvrait bien.
+    ["Fiche d'attributaire", /corriger une fiche|nature de la pièce|numéro de la pièce/i],
+    ["Fiche de lotissement", /quel lotissement|nom du lotissement|superficie/i],
+    ["Nouveau lotissement", /nom du lotissement|coquille|peupler|superficie/i],
+  ];
+
+  verifier(
+    "Section « Saisir dans le registre » présente dans « À faire »",
+    /saisir dans le registre/i.test(await corps()),
+  );
+
+  for (const [libelle, attendu] of SAISIES) {
+    const entree = page.getByRole("button", { name: new RegExp(`^${libelle}`, "i") }).first();
+    if ((await entree.count()) === 0) {
+      verifier(`« ${libelle} » ouvre son écran dans l'app`, false, "entrée introuvable");
+      continue;
+    }
+    await entree.click();
+    await page.waitForTimeout(2200);
+    const vu = await corps();
+    verifier(
+      `« ${libelle} » ouvre son écran dans l'app`,
+      attendu.test(vu) && page.url() === urlFiles,
+      (vu.split("\n").find((l) => l.trim().length > 3) ?? "").slice(0, 48),
+    );
+    // Retour par la flèche de la barre de titre, pour revenir à la liste.
+    await page.locator("button").first().click();
+    await page.waitForTimeout(1400);
+  }
+  await page.screenshot({ path: chemin("app-saisie.png") });
+  console.log("  🛑 Aucune soumission envoyée (elle irait dans une vraie file).");
+
   // ── L'état de lecture des notifications n'appartient qu'à SON compte ──
   //
   // C'est la propriété qui compte vraiment : un même téléphone sert souvent à
@@ -327,10 +372,10 @@ if (connecte) {
   const AUTRE = "sgnf.notifs-lues.00000000-1111-2222-3333-444444444444";
   await page.evaluate((k) => localStorage.setItem(k, JSON.stringify(["intrus-1", "intrus-2"])), AUTRE);
 
-  // ⚠️ La barre d'onglets est masquée tant qu'un calque est ouvert : il faut
-  // refermer la file avant de pouvoir revenir au Pilotage.
-  await page.locator("button").first().click();
-  await page.waitForTimeout(1200);
+  // ⚠️ La boucle ci-dessus s'est déjà refermée sur « À faire », calque fermé et
+  // barre d'onglets visible. Un retour de plus cliquerait la première entrée de
+  // la liste et rouvrirait un calque — c'est ce qui faisait disparaître
+  // l'onglet Pilotage et échouer la suite.
   await page.getByRole("button", { name: /^pilotage$/i }).first().click();
   await page.waitForTimeout(1500);
   await page.getByRole("button", { name: /^notifications$/i }).first().click();
