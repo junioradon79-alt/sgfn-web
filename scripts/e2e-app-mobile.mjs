@@ -13,7 +13,11 @@ const env = Object.fromEntries(
     .map((l) => { const i = l.indexOf("="); return [l.slice(0, i).trim(), l.slice(i + 1).trim()]; })
 );
 const PWD = env.MANUEL_TEST_PASSWORD;
-const EMAIL = process.env.E2E_EMAIL || "manuel.proprietaire-terrien@sgfn.ci";
+// ⚠️ `manuel.proprietaire@sgfn.ci` (12 parcelles) et NON
+// `manuel.proprietaire-terrien@sgfn.ci`, qui n'en possède plus aucune : l'étape
+// « detail » ouvre une carte de parcelle, et échouait donc depuis que les
+// données de ce compte ont changé — un échec sans rapport avec le code testé.
+const EMAIL = process.env.E2E_EMAIL || "manuel.proprietaire@sgfn.ci";
 const BASE = process.env.E2E_BASE || "http://localhost:3000";
 const DIR = join(tmpdir(), "sgnf-app-mobile");
 mkdirSync(DIR, { recursive: true });

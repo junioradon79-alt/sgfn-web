@@ -12,8 +12,9 @@ import { LotScreen } from "@/features/mobile/screens/admin/saisie/LotScreen";
 import { LotissementScreen } from "@/features/mobile/screens/admin/saisie/LotissementScreen";
 import { StructureScreen } from "@/features/mobile/screens/admin/saisie/StructureScreen";
 import { SaisieScreen } from "@/features/mobile/screens/pro/SaisieScreen";
+import { ParcelsScreen } from "@/features/mobile/screens/ParcelsScreen";
 import { saisiesPour } from "@/features/mobile/roles";
-import type { MobileProfile, Parcelle } from "@/features/mobile/data/useMobileData";
+import type { MobileProfile, Parcelle, Suivi } from "@/features/mobile/data/useMobileData";
 import type { FileSoumissions, SoumissionEnAttente } from "@/features/mobile/data/useSoumissions";
 import type {
   AttributaireFiche,
@@ -83,6 +84,33 @@ const PARCELLE: Parcelle = {
 };
 
 const ilYA = (heures: number) => new Date(Date.now() - heures * 3600 * 1000).toISOString();
+
+/**
+ * Terrains suivis d'un acquéreur. Le premier est **en vente** : cet état
+ * n'existe sur aucun des quatre suivis réels de la production (tous issus d'un
+ * scan QR, aucun rattaché à une annonce active), il ne se verrait donc nulle
+ * part ailleurs. Le second couvre le cas ordinaire.
+ */
+const SUIVIS: Suivi[] = [
+  {
+    lot_id: "apercu-suivi-0001",
+    numero_lot: "06",
+    ilot_numero: "2",
+    lotissement: "Koelea-Accor revu",
+    en_vente: true,
+    annonce_id: "apercu-annonce-0001",
+    cree_le: ilYA(24 * 10),
+  },
+  {
+    lot_id: "apercu-suivi-0002",
+    numero_lot: "17",
+    ilot_numero: null,
+    lotissement: "Koelea-Accor revu",
+    en_vente: false,
+    annonce_id: null,
+    cree_le: ilYA(24 * 3),
+  },
+];
 
 /**
  * Types et paramètres **réels**, tels que `decrireNotif` les traduit
@@ -476,6 +504,7 @@ type Ecran =
   | "signalement"
   | "notifications"
   | "soumissions"
+  | "suivis"
   | "saisie-accueil"
   | "saisie-bloquee"
   | "saisie-lot"
@@ -491,6 +520,11 @@ const ECRANS: { cle: Ecran; libelle: string; note: string }[] = [
     cle: "soumissions",
     libelle: "Saisies à valider",
     note: "6 en attente, un par type de soumission (file réelle vide en prod) — approuver/rejeter sont inertes ici",
+  },
+  {
+    cle: "suivis",
+    libelle: "Terrains suivis (acquéreur)",
+    note: "Un terrain « En vente », l'autre non. 🔴 L'état « en vente » n'existe sur AUCUN des 4 suivis réels : il ne se voit que là.",
   },
   {
     cle: "saisie-accueil",
@@ -618,6 +652,16 @@ export default function ApercuMobilePage() {
             <NotificationsScreen notifs={NOTIFS} lues={DEJA_LUES} onBack={() => {}} />
           )}
           {ecran === "soumissions" && <SoumissionsVue file={FILE_SOUMISSIONS} onBack={() => {}} />}
+          {ecran === "suivis" && (
+            <ParcelsScreen
+              parcelles={[]}
+              suivis={SUIVIS}
+              onOpenParcel={() => {}}
+              onNePlusSuivre={() => {}}
+              onVoirAnnonce={() => {}}
+              onDecouvrir={() => {}}
+            />
+          )}
           {ecran === "saisie-accueil" && (
             <SaisieScreen
               profile={PROFIL_OPERATEUR_SAISIE}

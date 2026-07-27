@@ -100,6 +100,30 @@ function aplatir(rows: AttributionRow[], collectif: boolean): Parcelle[] {
 const ATTR_SELECT =
   "rang, qualite, lot:lot_id(id, numero_lot, statut, ilots(numero, lotissements(nom, commune, village)))";
 
+/**
+ * Une parcelle **suivie** — captage de leads : on suit après avoir scanné le QR
+ * d'un document, pour être prévenu si le terrain passe en vente.
+ *
+ * Rien à voir avec `Parcelle`, qui décrit un bien qu'on **possède** (via une
+ * attribution). La distinction n'est pas cosmétique : un acquéreur n'a
+ * généralement aucune attribution — les quatre comptes acquéreur de la
+ * production n'en ont aucune — et son onglet « Parcelles » restait donc vide
+ * alors qu'il suit réellement des terrains.
+ *
+ * Forme calquée sur la RPC `mes_suivis()` (SECURITY DEFINER, scopée à
+ * `auth.uid()`), déjà utilisée par `/dashboard/mon-achat`.
+ */
+export type Suivi = {
+  lot_id: string;
+  numero_lot: string | null;
+  ilot_numero: string | null;
+  lotissement: string | null;
+  /** Une annonce active existe sur ce lot — c'est l'information qu'on attend. */
+  en_vente: boolean;
+  annonce_id: string | null;
+  cree_le: string;
+};
+
 // ─── Orchestrateur principal ────────────────────────────────────────────────────
 
 export type MobileData = {
@@ -109,6 +133,8 @@ export type MobileData = {
   email: string | null;
   profile: MobileProfile | null;
   parcelles: Parcelle[];
+  /** Parcelles suivies (captage QR). Vide pour qui n'en suit aucune. */
+  suivis: Suivi[];
   convos: Convo[];
   notifs: NotifRow[];
   reloadMessages: () => Promise<void>;
@@ -121,6 +147,7 @@ export type MobileData = {
   ) => Promise<{ ok: boolean; convId?: string; error?: string }>;
   marquerLu: (conv: Convo) => Promise<void>;
   suivreParcelle: (lotId: string) => Promise<boolean>;
+  nePlusSuivre: (lotId: string) => Promise<boolean>;
   majProfil: (nom: string, telephone: string) => Promise<{ ok: boolean; error?: string }>;
   changerMotDePasse: (nouveau: string) => Promise<{ ok: boolean; error?: string }>;
   signalerProbleme: (
@@ -153,6 +180,7 @@ export function useMobileData(): MobileData {
   const [email, setEmail] = useState<string | null>(null);
   const [profile, setProfile] = useState<MobileProfile | null>(null);
   const [parcelles, setParcelles] = useState<Parcelle[]>([]);
+  const [suivis, setSuivis] = useState<Suivi[]>([]);
   const [convos, setConvos] = useState<Convo[]>([]);
   const [notifs, setNotifs] = useState<NotifRow[]>([]);
 
@@ -195,6 +223,17 @@ export function useMobileData(): MobileData {
     },
     [supabase]
   );
+
+  /**
+   * Parcelles suivies. Passe par la RPC `mes_suivis()` et non par une lecture
+   * de `suivis_parcelle` : elle joint déjà lot/îlot/lotissement et surtout
+   * l'annonce active du marketplace (`en_vente`), que la RLS ne laisserait pas
+   * assembler aussi simplement côté client.
+   */
+  const chargerSuivis = useCallback(async () => {
+    const { data } = await supabase.rpc("mes_suivis");
+    setSuivis((data ?? []) as Suivi[]);
+  }, [supabase]);
 
   const chargerConvos = useCallback(
     async (uid: string) => {
@@ -245,7 +284,13 @@ export function useMobileData(): MobileData {
       setEmail(u.email ?? null);
       setProfile(p);
       setAuthed(true);
-      if (p) await Promise.all([chargerParcelles(p), chargerConvos(u.id), chargerNotifs(u.id)]);
+      if (p)
+        await Promise.all([
+          chargerParcelles(p),
+          chargerSuivis(),
+          chargerConvos(u.id),
+          chargerNotifs(u.id),
+        ]);
       if (!annule) setLoading(false);
     };
 
@@ -272,7 +317,7 @@ export function useMobileData(): MobileData {
       annule = true;
       sub.subscription.unsubscribe();
     };
-  }, [supabase, lireProfil, chargerParcelles, chargerConvos, chargerNotifs]);
+  }, [supabase, lireProfil, chargerParcelles, chargerSuivis, chargerConvos, chargerNotifs]);
 
   const reloadMessages = useCallback(async () => {
     if (userId) await chargerConvos(userId);
@@ -359,9 +404,31 @@ export function useMobileData(): MobileData {
           { profile_id: userId, lot_id: lotId, source: "annonce" },
           { onConflict: "profile_id,lot_id", ignoreDuplicates: true }
         );
+      // Relire tout de suite : la liste des suivis est affichée dans l'onglet
+      // Parcelles, et un terrain qu'on vient de suivre doit y figurer sans
+      // qu'il faille relancer l'application.
+      if (!error) await chargerSuivis();
       return !error;
     },
-    [supabase, userId]
+    [supabase, userId, chargerSuivis]
+  );
+
+  /**
+   * Ne plus suivre. La policy de `suivis_parcelle` scope la suppression à
+   * `profile_id = auth.uid()` ; le filtre sur `lot_id` suffit donc côté client.
+   *
+   * L'état local n'est pas mis à jour à l'aveugle : on relit après coup, pour
+   * qu'une suppression refusée n'efface pas la ligne à l'écran — elle
+   * réapparaîtrait au prochain lancement, et l'utilisateur croirait avoir agi.
+   */
+  const nePlusSuivre = useCallback(
+    async (lotId: string) => {
+      if (!userId) return false;
+      const { error } = await supabase.from("suivis_parcelle").delete().eq("lot_id", lotId);
+      await chargerSuivis();
+      return !error;
+    },
+    [supabase, userId, chargerSuivis]
   );
 
   // ── Profil (édition dans l'app) ───────────────────────────────────────────────
@@ -495,6 +562,7 @@ export function useMobileData(): MobileData {
     email,
     profile,
     parcelles,
+    suivis,
     convos,
     notifs,
     reloadMessages,
@@ -503,6 +571,7 @@ export function useMobileData(): MobileData {
     creerConversation,
     marquerLu,
     suivreParcelle,
+    nePlusSuivre,
     majProfil,
     changerMotDePasse,
     signalerProbleme,

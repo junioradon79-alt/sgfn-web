@@ -19,6 +19,7 @@ import { ProfileScreen } from "./screens/ProfileScreen";
 import { EditProfileScreen } from "./screens/EditProfileScreen";
 import { PurchaseScreen } from "./screens/PurchaseScreen";
 import { ReportIssueScreen } from "./screens/ReportIssueScreen";
+import { urlAnnonce } from "./marketplace";
 import type { MobileData } from "./data/useMobileData";
 
 type Tab = "home" | "parcels" | "messages" | "profile";
@@ -123,6 +124,25 @@ export function CitizenApp({
     [data]
   );
   const openNewChat = useCallback(() => setOverlay({ kind: "newchat" }), []);
+
+  // Ne plus suivre : la couche de données relit la liste après coup plutôt que
+  // de retirer la ligne à l'aveugle — une suppression refusée par la RLS
+  // réapparaîtrait au lancement suivant, et l'on croirait avoir agi.
+  const nePlusSuivre = useCallback(
+    (lotId: string) => {
+      void (async () => {
+        const ok = await data.nePlusSuivre(lotId);
+        flash(ok ? "Terrain retiré de votre suivi" : "Retrait impossible pour le moment");
+      })();
+    },
+    [data, flash],
+  );
+
+  // L'annonce vit sur TerraCI Market, hors de l'application.
+  const voirAnnonce = useCallback((annonceId: string | null) => {
+    if (typeof window === "undefined") return;
+    window.open(urlAnnonce(annonceId), "_blank", "noopener,noreferrer");
+  }, []);
   // « Contacter » depuis le détail d'une parcelle : autant ouvrir directement la
   // rédaction — c'est ce que la personne veut faire, pas consulter une liste.
   const contact = useCallback(() => setOverlay({ kind: "newchat" }), []);
@@ -226,7 +246,16 @@ export function CitizenApp({
             onOpenMarket={openMarket}
           />
         )}
-        {!overlay && tab === "parcels" && <ParcelsScreen parcelles={data.parcelles} onOpenParcel={openDetail} />}
+        {!overlay && tab === "parcels" && (
+          <ParcelsScreen
+            parcelles={data.parcelles}
+            suivis={data.suivis}
+            onOpenParcel={openDetail}
+            onNePlusSuivre={nePlusSuivre}
+            onVoirAnnonce={voirAnnonce}
+            onDecouvrir={openMarket}
+          />
+        )}
         {!overlay && tab === "messages" && (
           <MessagesScreen
             convos={data.convos}

@@ -29,8 +29,8 @@ import { BiometricLockScreen } from "./screens/BiometricLockScreen";
 import { CitizenApp, type ExperienceProps } from "./CitizenApp";
 import { ProApp } from "./ProApp";
 import { experiencePour } from "./roles";
+import { MARKET_URL } from "./marketplace";
 
-const MARKET_URL = "https://monterrain.sgfn.ci";
 const THEME_KEY = "sgnf-mobile-theme";
 /** Durée du toast — et donc de la fenêtre de confirmation de sortie. */
 const TOAST_MS = 2800;
