@@ -63,6 +63,12 @@
 
 **Triggers d'audit et de cohérence** : `enregistrer_audit()` (journalise sur `journal_audit`, doit être `SECURITY DEFINER` — bug corrigé le 02/07, voir §5), `bloquer_double_cession`, `verrouiller_lot_vendu`, `ventes_before_insert`/`ventes_after_insert` (verrouille le lot + génère le certificat), `set_updated_at()`.
 
+**Saisie du registre (maker-checker)** : `soumettre_saisie` (RPC, dépose dans `soumissions_saisie` — **seul chemin d'écriture** pour qui n'est pas admin ; sa liste blanche de types est dans le corps de la fonction, la contrainte `soumissions_saisie_type_check` doit être élargie **en même temps**, sans quoi l'INSERT est rejeté après acceptation), `approuver_soumission` / `rejeter_soumission`, et les fonctions d'application `_appliquer_maj_attributions`, `_appliquer_creation_structure`, `_appliquer_creation_lotissement`, `_appliquer_modification_lotissement`, `_appliquer_maj_attributaire`.
+
+- 🔴 **Gel juridique (27/07)** : `_appliquer_maj_attributions` **refuse** toute opération sur un lot dont `lots.verrouille` est vrai (`Lot X sous gel juridique : opération refusée`). Le refus est levé **dans la boucle** des opérations — un seul lot gelé fait donc échouer la soumission entière, d'où le contrôle en amont côté écrans et import Excel.
+- ⚠️ **`_appliquer_modification_lotissement` remet à `NULL` tout champ absent du payload** (seul `nom` est protégé) : un payload partiel **vide la fiche**. Les appelants doivent renvoyer la fiche entière. Défaut connu, non corrigé — il concerne aussi le flux chefferie du web.
+- ⚠️ **`_appliquer_maj_attributaire` suit la convention inverse** : clé **absente** = valeur inchangée, clé **présente à `null`** = effacement (`p_payload ? 'champ'`). Les deux conventions coexistent, ne pas les confondre.
+
 **Paiements** : `traiter_paiement_confirme()` (déclenche génération d'attestation/quittance à la confirmation), `marquer_paiement_recu` (RPC, bascule auto/validation manuelle selon `parametres_paiement`), `valider_paiement_manuel` (RPC), `generer_reference_quittance()` (trigger BEFORE, séquence `QUIT-AAAA-NNNNN`), `paiements_trigger_generation()` (appelle l'edge fn `generation-document`), `paiements_notifier_payeur()` (file une notification email).
 
 **QR / vérification publique** : `generer_qr_token()` (jeton hex 16 octets auto sur `attestations_cession`/`certificats_vente`), `verifier_document()` (RPC unifiée utilisée par l'edge fn `verification-qr`), `detecter_clone_qr()` (alerte si ≥5 IP distinctes/24h ou 2 scans >100 km à <1h, dédupliquée 1×/référence/24h).
