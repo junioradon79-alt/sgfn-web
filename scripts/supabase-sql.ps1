@@ -47,8 +47,15 @@ $sql = [System.IO.File]::ReadAllText($SqlFile)
 # Désormais il enveloppe réellement la requête dans une transaction que
 # PostgreSQL refusera d'écrire, et qui est annulée dans tous les cas.
 if ($ReadOnly) {
+  # Le refus est volontairement LARGE, et il attrape aussi le `begin` d'un
+  # corps plpgsql (`as $$ ... begin ... end $$`) — qui n'est pourtant pas une
+  # instruction de transaction. C'est assume : distinguer les deux demanderait
+  # d'analyser le SQL, et se tromper dans ce sens-la ferait croire a une
+  # protection qui n'envelopperait rien. Mieux vaut refuser un script legitime
+  # que d'en laisser passer un en pretendant le proteger.
+  # (Les commentaires `-- begin ...` ne matchent pas : le mot doit ouvrir la ligne.)
   if ($sql -match '(?im)^\s*(begin|commit|rollback|start\s+transaction)\b') {
-    Write-Error "-ReadOnly refuse un script qui pilote lui-meme sa transaction (begin/commit/rollback). Retirez -ReadOnly ou les instructions de transaction."
+    Write-Error "-ReadOnly refuse un script contenant 'begin', 'commit', 'rollback' ou 'start transaction' en debut de ligne : l'enveloppe read only ne pourrait pas garantir son effet. Cela inclut le 'begin' d'un corps plpgsql. Retirez -ReadOnly (et pilotez vous-meme begin/rollback), ou passez une requete simple."
     exit 1
   }
   $sql = "begin;`nset transaction read only;`n$sql`nrollback;"

@@ -299,6 +299,18 @@ export default function SaisiePage() {
   // Application d'une cible au lot sélectionné → ajoute/écrase dans mods.
   const appliquerAuLot = () => {
     if (!lotSel) return;
+    // 🔴 Garde en dur, et pas seulement dans l'affichage. Le panneau d'action
+    // est déjà masqué sur un lot gelé, mais un garde-fou qui ne vit que dans
+    // une interface disparaît au premier réagencement — c'est exactement le
+    // défaut que tout ce chantier corrige. La base refuse l'opération ; rien ne
+    // doit pouvoir l'ajouter au panier.
+    if (lotSel.verrouille) {
+      setMessage({
+        kind: "err",
+        text: `Lot ${lotSel.numero_lot} sous gel juridique : opération refusée. Levez le gel avant de le saisir.`,
+      });
+      return;
+    }
     let cible: CibleChoisie;
     if (action === "libre") {
       cible = { type: "libre" };
