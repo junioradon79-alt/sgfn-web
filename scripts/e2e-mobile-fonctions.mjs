@@ -162,8 +162,41 @@ console.log("  🛑 Envoi volontairement non déclenché (base de production).")
 await page.locator('[data-apercu="notifications"]').click();
 await page.waitForTimeout(700);
 const surNotifs = await corps();
-verifier("Écran Notifications rendu", /notifications/i.test(surNotifs));
+// ⚠️ Pas /notifications/i : la pastille de NAVIGATION porte ce mot et reste
+// dans le DOM en permanence — sondé vrai avec l'écran Profil affiché. On vise
+// donc le compteur, qui n'existe que sur l'écran atteint.
+verifier("Écran Notifications rendu", /nouvelle\w*\s*$|\d+\s*nouvelle/im.test(surNotifs));
 verifier("Le nombre de non-lues est annoncé", /2\s*nouvelle/i.test(surNotifs), (surNotifs.match(/\d+\s*nouvelle\w*/i) || [""])[0]);
+
+// ── Gel juridique : un lot verrouillé se voit et bloque l'envoi ──
+//
+// 🔴 Le défaut d'origine : `lots.verrouille` n'était chargé nulle part, si bien
+// qu'un lot sous gel juridique se présentait comme n'importe quel autre et
+// pouvait être réattribué d'un pouce. 6 lots sont dans cet état en production.
+// La base le refuse désormais à l'approbation ; ce contrôle-ci porte sur ce que
+// l'opérateur VOIT, qui est l'autre moitié de la correction.
+await page.locator('[data-apercu="saisie-lot"]').click();
+await page.waitForTimeout(700);
+await cadre.getByRole("button", { name: /brignan extension/i }).first().click();
+await page.waitForTimeout(900);
+const listeLots = await cadre.innerText();
+verifier(
+  "Un lot sous gel juridique est signalé dès la liste",
+  /gel juridique/i.test(listeLots) && listeLots.includes("🔒"),
+  (listeLots.split("\n").find((l) => l.includes("🔒")) ?? "aucune ligne verrouillée").slice(0, 46),
+);
+
+await cadre.getByRole("button", { name: /🔒/ }).first().click();
+await page.waitForTimeout(900);
+const surLotGele = await cadre.innerText();
+const btnEnvoyerLot = cadre.getByRole("button", { name: /envoyer/i }).first();
+verifier(
+  "L'écran refuse d'attribuer un lot gelé",
+  /sous gel juridique/i.test(surLotGele) && (await btnEnvoyerLot.isDisabled()),
+  `avertissement ${/sous gel juridique/i.test(surLotGele) ? "présent" : "ABSENT"}, ` +
+    `envoi ${(await btnEnvoyerLot.isDisabled()) ? "désactivé" : "ACTIF"}`,
+);
+await page.screenshot({ path: chemin("lot-gel-juridique.png") });
 
 // Contrastes sur les deux thèmes — c'est ici qu'une classe fantôme se voit.
 //
@@ -217,6 +250,7 @@ for (const theme of ["clair", "sombre"]) {
 
   let pire = { ratio: 99, texte: "", ecran: "" };
   let mesures = 0;
+  const sousAA = [];
 
   for (const nom of ecransApercu) {
     await page.locator(`[data-apercu="${nom}"]`).click();
@@ -224,7 +258,13 @@ for (const theme of ["clair", "sombre"]) {
     const cibles = await cadre.locator("div,span,p").filter({ hasText: /.+/ }).all();
     for (const el of cibles.slice(0, 80)) {
       const txt = (await el.innerText().catch(() => "")).trim();
-      if (!txt || txt.length > 60) continue;
+      // 🔴 Plus de coupure à 60 caractères. Elle écartait silencieusement TOUS
+      // les textes d'aide — exactement ceux que ce chantier a corrigés pour un
+      // défaut de contraste. Sondé : un texte à 2,83:1 (71 caractères) n'était
+      // pas mesuré, et le contrôle annonçait « rien sous le plancher » avec ce
+      // texte à l'écran. Le filtre `enfantsTextuels` ci-dessous suffit à écarter
+      // les conteneurs, qui étaient la vraie raison d'être de cette limite.
+      if (!txt) continue;
       const infos = await el.evaluate((e) => ({
         taille: parseFloat(getComputedStyle(e).fontSize),
         // ⚠️ On ne compte que les enfants PORTEURS DE TEXTE. Écarter tout nœud
@@ -238,18 +278,35 @@ for (const theme of ["clair", "sombre"]) {
       if (infos.enfantsTextuels > 0 || infos.taille >= 18) continue;
       const m = await el.evaluate(CONTRASTE);
       mesures += 1;
+      if (m.ratio < 4.5 - 0.01) sousAA.push({ ratio: m.ratio, texte: txt.slice(0, 40), ecran: nom });
       if (m.ratio < pire.ratio) pire = { ratio: m.ratio, texte: txt.slice(0, 26), ecran: nom };
     }
   }
 
+  // ⚠️ Ceci n'est PAS un contrôle AA, et son libellé ne doit pas le laisser
+  // croire. Le seuil est le plancher que le design system assume lui-même
+  // (`--muted-foreground` sur `inset`), qui vaut 4,39:1 en thème clair — donc
+  // sous AA. C'est un fait du DS, antérieur à ce chantier et commun à ses ~309
+  // usages ; le rôle du test est de détecter une RÉGRESSION sous ce plancher.
   const seuil = Math.min(4.5, plancherDS);
   verifier(
-    `Contraste en thème ${theme} — rien sous le plancher du DS (${plancherDS}:1)`,
+    `Contraste thème ${theme} — aucune régression sous le plancher du DS (${plancherDS}:1)`,
     mesures > 0 && pire.ratio >= seuil - 0.01,
     `${mesures} mesures sur ${ecransApercu.length} écrans, pire ${pire.ratio}:1 sur ` +
-      `« ${pire.texte} » (${pire.ecran})` +
-      (plancherDS < 4.5 ? ` · ⚠️ le DS lui-même est sous AA (4,5:1)` : ""),
+      `« ${pire.texte} » (${pire.ecran})`,
   );
+
+  // Rapporté séparément, jamais confondu avec le contrôle ci-dessus : combien
+  // d'éléments sont réellement sous AA. Informatif — la décision de vivre avec
+  // le plancher du DS est un choix produit — mais dorénavant chiffré et nommé,
+  // plutôt que dissous dans un seuil assoupli.
+  if (sousAA.length > 0) {
+    const pires = [...sousAA].sort((a, b) => a.ratio - b.ratio).slice(0, 3);
+    console.log(
+      `  ⚠️  ${sousAA.length}/${mesures} élément(s) sous AA (4,5:1) en thème ${theme} — ` +
+        pires.map((p) => `${p.ratio}:1 « ${p.texte} » (${p.ecran})`).join(" · "),
+    );
+  }
 }
 await page.screenshot({ path: chemin("notifications.png") });
 
@@ -328,13 +385,32 @@ if (connecte) {
   await page.locator("button").first().click();
   await page.waitForTimeout(1200);
 
+  // 🔴 Chaque repère doit être ABSENT de `FilesScreen`, sinon il est déjà vrai
+  // avant le clic. `AdminApp` rend la liste sous `{!overlay && …}` : si le clic
+  // n'ouvrait rien, la liste resterait à l'écran, et un repère qui matche l'un
+  // de ses sous-titres passerait au vert sur un bouton mort. C'est exactement
+  // ce qui se produisait pour « Fiche d'attributaire », dont le sous-titre de
+  // liste — « Créer une fiche, ou corriger une fiche existante » — contenait le
+  // « corriger une fiche » que le test cherchait. Démontré par sonde.
+  //
+  // Ils doivent aussi se distinguer ENTRE EUX : « Fiche de lotissement » et
+  // « Nouveau lotissement » partageaient « nom du lotissement » et
+  // « superficie », si bien qu'une inversion du câblage des deux entrées
+  // passait le contrôle.
+  //
+  // ⚠️ Ne jamais viser un `placeholder` : il ne fait pas partie de
+  // `innerText`. Première rédaction fautive ici — l'écran s'ouvrait bien.
   const SAISIES = [
-    ["Attribuer un lot", /quel lotissement|choisir un lot|lotissement concern/i],
-    // ⚠️ Ne jamais viser un `placeholder` : il ne fait pas partie de
-    // `innerText`. Première rédaction fautive ici — l'écran s'ouvrait bien.
-    ["Fiche d'attributaire", /corriger une fiche|nature de la pièce|numéro de la pièce/i],
-    ["Fiche de lotissement", /quel lotissement|nom du lotissement|superficie/i],
-    ["Nouveau lotissement", /nom du lotissement|coquille|peupler|superficie/i],
+    // Sous-titre de l'écran ; la liste dit « Désigner un attributaire… ».
+    ["Attribuer un lot", /choisir le lotissement/i],
+    // Libellé de champ ; la liste ne nomme aucune pièce d'identité.
+    ["Fiche d'attributaire", /nature de la pièce/i],
+    // Avertissement propre à l'écran de fiche.
+    ["Fiche de lotissement", /cette fiche décrit un lotissement/i],
+    // Avertissement propre à la coquille ; le sous-titre « Fiche seule, sans
+    // îlot ni lot » serait inutilisable : c'est mot pour mot le détail affiché
+    // par l'entrée de liste.
+    ["Nouveau lotissement", /la fiche du lotissement seulement/i],
   ];
 
   verifier(
@@ -396,15 +472,27 @@ if (connecte) {
     cles[AUTRE] === JSON.stringify(["intrus-1", "intrus-2"]),
     cles[AUTRE] ?? "(clé disparue !)",
   );
+  // 🔴 `every()` seul est VACUEMENT vrai : si l'app n'écrivait jamais aucune
+  // clé, `noms` ne contiendrait que celle plantée par le test six lignes plus
+  // haut — qui satisfait le motif — et l'assertion passerait au vert sur une
+  // fonctionnalité entièrement morte. On exige donc qu'une clé AUTRE que
+  // l'intruse existe, et c'est elle qu'on vérifie.
+  const ecrites = noms.filter((k) => k !== AUTRE);
   verifier(
     "L'état de lecture est bien nominatif (clé propre au compte connecté)",
-    noms.every((k) => /^sgnf\.notifs-lues\.[0-9a-f-]{36}$/i.test(k)),
-    `${noms.length} clé(s) : ${noms.map((k) => k.replace("sgnf.notifs-lues.", "").slice(0, 8)).join(", ")}`,
+    ecrites.length > 0 && ecrites.every((k) => /^sgnf\.notifs-lues\.[0-9a-f-]{36}$/i.test(k)),
+    ecrites.length === 0
+      ? "aucune clé écrite par l'app (l'intruse ne compte pas)"
+      : `${ecrites.length} clé(s) : ${ecrites.map((k) => k.replace("sgnf.notifs-lues.", "").slice(0, 8)).join(", ")}`,
   );
   await page.evaluate((k) => localStorage.removeItem(k), AUTRE);
 }
 
-const bruit = erreurs.filter((e) => !/favicon|DevTools|Fast Refresh|manifest|404/i.test(e));
+// ⚠️ `404` n'est plus filtré en bloc : il avalait aussi les
+// « Failed to load resource: 404 » d'un endpoint applicatif réellement
+// manquant. Seules les ressources dont l'absence est attendue en dev sont
+// écartées, et elles le sont par leur NOM, pas par leur code.
+const bruit = erreurs.filter((e) => !/favicon|DevTools|Fast Refresh|manifest|apple-touch-icon/i.test(e));
 verifier("Aucune erreur console", bruit.length === 0, bruit.slice(0, 3).join(" | "));
 
 await browser.close();

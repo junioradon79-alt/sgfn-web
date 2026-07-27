@@ -19,7 +19,7 @@
 // périmé — si quelqu'un a modifié le lot entre-temps, la cible reste valable.
 
 import { useEffect, useState } from "react";
-import { LandPlot, PackageSearch, UserPlus, UserSearch } from "lucide-react";
+import { LandPlot, Lock, PackageSearch, UserPlus, UserSearch } from "lucide-react";
 
 import { useRetourFormulaire } from "@/lib/android-back";
 import {
@@ -217,12 +217,22 @@ export function LotScreen({
   // Une opération « inchangée » serait comptée `n_skip` par la base : la
   // soumission occuperait la file d'un administrateur pour n'appliquer
   // strictement rien. On l'arrête ici plutôt qu'à l'approbation.
-  const pret = !!lot && !!cibleChoisie && classe !== null && classe !== "inchange";
+  //
+  // Un lot sous **gel juridique** est refusé pour une autre raison : ce n'est
+  // pas un acte inutile, c'est un acte interdit. La base le refuse désormais à
+  // l'approbation ; l'arrêter ici évite de faire porter à un administrateur une
+  // soumission qui ne pourra jamais aboutir.
+  const pret =
+    !!lot && !lot.verrouille && !!cibleChoisie && classe !== null && classe !== "inchange";
 
   // Atteindre un lot a coûté un choix de lotissement puis une recherche par
   // numéro, et tout ce qui suit en dépend : c'est à partir de là qu'un
   // effleurement du bord de l'écran fait perdre du travail.
-  useRetourFormulaire(!!lot, () => flash("Appuyez à nouveau pour abandonner cette saisie"));
+  // `&& !envoi.confirme` : après l'envoi le lot reste sélectionné, donc la
+  // garde restait armée sur l'écran de confirmation et y annonçait un abandon.
+  useRetourFormulaire(!!lot && !envoi.confirme, () =>
+    flash("Appuyez à nouveau pour abandonner cette saisie"),
+  );
 
   if (envoi.confirme) {
     return (
@@ -331,6 +341,7 @@ export function LotScreen({
           onChoisir={choisirLotissement}
           loading={api.loading}
           erreur={api.erreur}
+          recharger={api.recharger}
         />
       </EcranSaisie>
     );
@@ -373,11 +384,15 @@ export function LotScreen({
               lots.liste.map((l) => (
                 <LigneChoix
                   key={l.lot_id}
-                  titre={`Lot ${l.numero_lot} · îlot ${l.ilot}`}
+                  // Le gel se lit dès la liste : le voir seulement après avoir
+                  // ouvert le lot, c'est le découvrir une fois le geste engagé.
+                  titre={`${l.verrouille ? "🔒 " : ""}Lot ${l.numero_lot} · îlot ${l.ilot}`}
                   detail={
-                    l.attributaire_nom
-                      ? `${l.attributaire_nom} — ${labelQualite(l.qualite)}`
-                      : `Libre (${l.statut})`
+                    l.verrouille
+                      ? `Gel juridique — ${l.attributaire_nom ?? `statut « ${l.statut} »`}`
+                      : l.attributaire_nom
+                        ? `${l.attributaire_nom} — ${labelQualite(l.qualite)}`
+                        : `Libre (${l.statut})`
                   }
                   onClick={() => choisirLot(l)}
                 />
@@ -411,7 +426,11 @@ export function LotScreen({
       <Carte>
         <div className="flex items-start gap-3">
           <span className="flex size-10 flex-none items-center justify-center rounded-xl bg-inset text-primary">
-            <LandPlot className="size-5" strokeWidth={1.9} />
+            {lot.verrouille ? (
+              <Lock className="size-5" strokeWidth={1.9} />
+            ) : (
+              <LandPlot className="size-5" strokeWidth={1.9} />
+            )}
           </span>
           <div className="min-w-0">
             <div className="text-[14px] font-semibold text-foreground">
@@ -425,6 +444,19 @@ export function LotScreen({
           </div>
         </div>
       </Carte>
+
+      {/* Le gel n'est pas une nuance d'affichage : il ferme l'écran. Placé
+          juste sous la situation actuelle, avant les choix, pour qu'on ne
+          renseigne pas une cible qui ne partira jamais. */}
+      {lot.verrouille && (
+        <div className="mt-3">
+          <Avertissement>
+            <b>Ce lot est sous gel juridique.</b> Il ne peut être ni réattribué ni remis en
+            disponibilité depuis l&apos;application. Le gel se lève sur le dashboard web, par
+            un administrateur, une fois le litige tranché.
+          </Avertissement>
+        </div>
+      )}
 
       <SectionLabel className="mt-5">Que doit devenir ce lot ?</SectionLabel>
       <Bascule
@@ -642,7 +674,7 @@ export function LotScreen({
 
       {envoi.erreur && (
         <div className="mt-4">
-          <EchecEnvoi erreur={envoi.erreur} />
+          <EchecEnvoi erreur={envoi.erreur} incertain={envoi.erreurIncertaine} />
         </div>
       )}
     </EcranSaisie>

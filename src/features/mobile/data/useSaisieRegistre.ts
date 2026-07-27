@@ -40,7 +40,22 @@ import type {
 import type { Json } from "../../../../database.types";
 
 /** Une réponse réseau ne se réduit jamais à `null` : l'erreur doit remonter. */
-export type Resultat<T> = { ok: true; valeur: T } | { ok: false; error: string };
+export type Resultat<T> =
+  | { ok: true; valeur: T }
+  | {
+      ok: false;
+      error: string;
+      /**
+       * 🔴 « L'envoi n'a produit aucun effet » est une affirmation, pas un
+       * constat. Un refus du serveur (« Type de soumission invalide », « Action
+       * réservée… ») la garantit : la fonction s'est exécutée et a dit non. Une
+       * réponse **perdue en vol** ne garantit rien du tout — la soumission peut
+       * très bien avoir été enregistrée avant que la connexion ne tombe.
+       * Ce drapeau distingue les deux ; `undefined` vaut « refus certain », le
+       * cas des lectures, où la question ne se pose pas.
+       */
+      incertain?: boolean;
+    };
 
 export type LotissementOption = {
   id: string;
@@ -149,6 +164,12 @@ export type SaisieRegistre = {
   /** Vrai tant que les référentiels des sélecteurs n'ont pas répondu. */
   loading: boolean;
   erreur: string | null;
+  /**
+   * Libellés des listes **facultatives** dont le chargement a échoué. Une liste
+   * vide par échec et une liste vide par nature se ressemblent à l'écran ; seul
+   * ce champ les distingue.
+   */
+  listesEnEchec: string[];
   recharger: () => Promise<void>;
   chercherAttributaires: (q: string) => Promise<Resultat<AttributaireFiche[]>>;
   chargerFiche: (lotissementId: string) => Promise<Resultat<FicheLotissement>>;
@@ -178,6 +199,7 @@ type LigneLot = {
   id: string;
   numero_lot: string | null;
   statut: string | null;
+  verrouille: boolean | null;
   ilots: { numero: string | null } | null;
 };
 
@@ -205,6 +227,8 @@ export function useSaisieRegistre(actif: boolean): SaisieRegistre {
     familles: RefOption[];
   } | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  /** Listes facultatives dont le chargement a échoué (vides, mais pas vides en base). */
+  const [listesEnEchec, setListesEnEchec] = useState<string[]>([]);
 
   // Une réponse peut revenir après que l'admin a quitté l'écran.
   const monte = useRef(true);
@@ -233,6 +257,16 @@ export function useSaisieRegistre(actif: boolean): SaisieRegistre {
       return;
     }
     setErreur(null);
+    // 🔴 Une liste facultative en échec revenait `[]` — indistinguable d'un
+    // référentiel réellement vide. Le formulaire affichait « Liste
+    // indisponible » sans que personne ne puisse savoir s'il n'y a aucune
+    // autorité coutumière en base ou si la requête a échoué. On garde donc la
+    // trace de celles qui ont échoué, pour que l'écran puisse le dire.
+    const echecs: string[] = [];
+    if (auts.error) echecs.push("autorités coutumières");
+    if (ops.error) echecs.push("opérateurs");
+    if (fams.error) echecs.push("familles");
+    setListesEnEchec(echecs);
     setReferentiels({
       lotissements: (lots.data ?? []) as LotissementOption[],
       autorites: (auts.data ?? []) as AutoriteOption[],
@@ -316,7 +350,10 @@ export function useSaisieRegistre(actif: boolean): SaisieRegistre {
       const motif = nettoyerRecherche(q);
       let requete = supabase
         .from("lots")
-        .select("id, numero_lot, statut, ilots!inner(numero, lotissement_id)")
+        // `verrouille` = gel juridique. Le web le montre partout (cadenas,
+        // « Gel juridique ») ; ne pas le charger ici, c'est proposer un lot
+        // gelé à la réattribution sans le moindre signal.
+        .select("id, numero_lot, statut, verrouille, ilots!inner(numero, lotissement_id)")
         .eq("ilots.lotissement_id", lotissementId);
       if (motif) requete = requete.ilike("numero_lot", `%${motif}%`);
       const { data, error } = await requete
@@ -357,6 +394,9 @@ export function useSaisieRegistre(actif: boolean): SaisieRegistre {
             attributaire_id: a?.attributaire_id ?? null,
             attributaire_nom: a?.attributaires?.nom ?? null,
             qualite: (a?.qualite as Qualite | undefined) ?? null,
+            // `null` en base (colonne nullable) se lit ici comme « non gelé » :
+            // c'est bien le défaut de la colonne, pas une supposition.
+            verrouille: l.verrouille === true,
           };
         }),
       };
@@ -376,7 +416,19 @@ export function useSaisieRegistre(actif: boolean): SaisieRegistre {
         p_payload: envoi.payload as unknown as Json,
         p_resume: envoi.resume as unknown as Json,
       });
-      if (error) return { ok: false, error: error.message };
+      if (error) {
+        // PostgREST renseigne `code` (`P0001` pour un `raise exception`, `42501`
+        // pour un refus de droits…) : la requête est arrivée, la base a
+        // répondu non, rien n'a été écrit. Sans `code`, l'échec est survenu
+        // dans le transport — `Failed to fetch`, coupure, délai dépassé — et
+        // l'état du serveur est alors **inconnu**.
+        const codePostgrest = (error as { code?: string | null }).code;
+        return {
+          ok: false,
+          error: error.message,
+          incertain: !codePostgrest,
+        };
+      }
       return { ok: true, valeur: (data ?? "") as string };
     },
     [supabase],
@@ -390,6 +442,7 @@ export function useSaisieRegistre(actif: boolean): SaisieRegistre {
     // Dérivé, jamais posé dans un effet : impossible d'oublier de le redescendre.
     loading: actif && referentiels === null && erreur === null,
     erreur,
+    listesEnEchec,
     recharger: charger,
     chercherAttributaires,
     chargerFiche,

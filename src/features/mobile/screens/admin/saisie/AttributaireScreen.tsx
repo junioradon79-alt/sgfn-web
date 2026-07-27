@@ -23,6 +23,7 @@ import { useRetourFormulaire } from "@/lib/android-back";
 import {
   TYPE_ATTRIBUTAIRE_OPTIONS,
   labelTypeAttributaire,
+  normaliserNom,
   type PayloadMajAttributaire,
   type ResumeAttributaire,
   type TypeAttributaire,
@@ -123,6 +124,52 @@ export function AttributaireScreen({
     };
   }, [mode, motif, chercherAttributaires]);
 
+  /**
+   * Détection d'homonyme en **création**. L'écran sait déjà chercher des
+   * attributaires — il ne le faisait qu'en mode correction. Créer une seconde
+   * fiche pour une personne qui en a déjà une passe inaperçu jusqu'au jour où
+   * il faut délivrer une attestation : la base compte déjà des homonymes, et
+   * `attributaires.nom` ne porte aucune contrainte d'unicité.
+   */
+  const nomCherche = nom.trim();
+  // Même motif que `reponse` plus haut : la réponse **porte le nom qui l'a
+  // produite**, et l'affichage se dérive de la comparaison. Poser `[]` dans le
+  // corps de l'effet quand le nom redevient trop court enfreindrait
+  // `react-hooks/set-state-in-effect` — la règle que ce fichier respecte
+  // partout ailleurs.
+  const [repHomonymes, setRepHomonymes] = useState<{
+    pour: string;
+    liste: AttributaireFiche[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (mode !== "creer" || nomCherche.length < MIN_RECHERCHE) return;
+    let vivant = true;
+    const t = setTimeout(() => {
+      void (async () => {
+        const res = await chercherAttributaires(nomCherche);
+        if (!vivant) return;
+        // Égalité stricte sur le nom normalisé : la recherche serveur est un
+        // `ilike %motif%`, elle ramène « Konan » pour « Konan Yao Bernard ».
+        // Signaler une ressemblance partielle ferait crier au loup à chaque
+        // patronyme courant, et l'avertissement cesserait d'être lu.
+        setRepHomonymes({
+          pour: nomCherche,
+          liste: res.ok
+            ? res.valeur.filter((a) => normaliserNom(a.nom) === normaliserNom(nomCherche))
+            : [],
+        });
+      })();
+    }, 400);
+    return () => {
+      vivant = false;
+      clearTimeout(t);
+    };
+  }, [mode, nomCherche, chercherAttributaires]);
+
+  const homonymes =
+    mode === "creer" && repHomonymes?.pour === nomCherche ? repHomonymes.liste : [];
+
   const viderChamps = () => {
     setNom("");
     setType("personne_physique");
@@ -175,7 +222,11 @@ export function AttributaireScreen({
   const saisieEnCours = base
     ? champsModifies > 0
     : Object.values(valeurs).some((v) => v !== "" && v !== "personne_physique");
-  useRetourFormulaire(saisieEnCours, () => flash("Appuyez à nouveau pour abandonner cette saisie"));
+  // `&& !envoi.confirme` : les champs survivent à l'envoi, la garde restait
+  // donc armée sur l'écran de confirmation et y annonçait un abandon.
+  useRetourFormulaire(saisieEnCours && !envoi.confirme, () =>
+    flash("Appuyez à nouveau pour abandonner cette saisie"),
+  );
 
   if (envoi.confirme) {
     return (
@@ -340,6 +391,23 @@ export function AttributaireScreen({
             </Champ>
           </Carte>
 
+          {mode === "creer" && homonymes.length > 0 && (
+            <div className="mt-3">
+              <Avertissement>
+                <b>
+                  {homonymes.length === 1
+                    ? "Une fiche porte déjà ce nom"
+                    : `${homonymes.length} fiches portent déjà ce nom`}
+                </b>{" "}
+                au registre
+                {homonymes[0].piece_num ? ` (pièce ${homonymes[0].piece_num})` : ""}. S&apos;il
+                s&apos;agit de la même personne, passez par «&nbsp;Corriger une fiche&nbsp;» :
+                deux fiches pour un même attributaire se fusionnent mal, et les attestations
+                déjà délivrées restent attachées à la première.
+              </Avertissement>
+            </div>
+          )}
+
           <SectionLabel className="mt-5">Pièce d&apos;identité</SectionLabel>
           <Carte>
             <Champ label="Nature de la pièce">
@@ -385,7 +453,11 @@ export function AttributaireScreen({
 
           {envoi.erreur && (
             <div className="mt-4">
-              <EchecEnvoi erreur={envoi.erreur} aide={aideTypeInvalide(envoi.erreur)} />
+              <EchecEnvoi
+                erreur={envoi.erreur}
+                aide={aideTypeInvalide(envoi.erreur)}
+                incertain={envoi.erreurIncertaine}
+              />
             </div>
           )}
         </>
@@ -406,7 +478,11 @@ function BoutonMode({
   return (
     <button
       type="button"
-      onClick={onClick}
+      // Onglet déjà actif = aucun effet. `choisirMode` vide les champs sans
+      // rien demander : le re-toucher effaçait la saisie en cours.
+      onClick={() => {
+        if (!actif) onClick();
+      }}
       aria-pressed={actif}
       className={`flex flex-1 items-center justify-center gap-2 rounded-2xl border py-3 text-[13.5px] font-semibold transition-colors ${
         actif ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground"

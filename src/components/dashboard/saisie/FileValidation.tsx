@@ -13,21 +13,43 @@ import {
   type ClasseChangement,
   type LotEtat,
   type OperationCible,
+  labelTypeAttributaire,
   type PayloadCreationStructure,
   type PayloadMajAttributions,
   type Qualite,
+  type ResumeAttributaire,
   type ResumeCreation,
+  type ResumeLotissement,
   type ResumeMaj,
+  type ResumeSoumission,
   type StatutSoumission,
   type TypeSoumission,
 } from "@/lib/saisie";
+
+/**
+ * Libellé de repli quand `soumissions_saisie.titre` est vide.
+ *
+ * 🔴 `Record<TypeSoumission, …>` et non un ternaire : la version précédente
+ * affichait « Création de structure » pour **tout** type qui n'était pas
+ * `maj_attributions`. Les trois types ajoutés en juillet s'y sont fondus en
+ * silence — un admin lisait « Création de structure » au-dessus d'une
+ * correction de nom d'attributaire. Ici, un sixième type ne compilera pas tant
+ * qu'on ne lui aura pas donné son libellé.
+ */
+const LIBELLE_TYPE: Record<TypeSoumission, string> = {
+  maj_attributions: "Mise à jour d'attributions",
+  creation_structure: "Création de structure",
+  creation_lotissement: "Création de lotissement",
+  modification_lotissement: "Correction de fiche de lotissement",
+  maj_attributaire: "Fiche d'attributaire",
+};
 
 type Soumission = {
   id: string;
   type: TypeSoumission;
   titre: string | null;
   statut: StatutSoumission;
-  resume: ResumeMaj | ResumeCreation | null;
+  resume: ResumeSoumission | null;
   resultat: Record<string, unknown> | null;
   commentaire_admin: string | null;
   cree_le: string | null;
@@ -39,6 +61,7 @@ type LotRow = {
   id: string;
   numero_lot: string | null;
   statut: string | null;
+  verrouille: boolean | null;
   ilots: { numero: string | null } | null;
   attributions: {
     attributaire_id: string | null;
@@ -155,7 +178,7 @@ export function FileValidation() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-slate-700">
-                        {s.titre ?? (s.type === "maj_attributions" ? "Mise à jour d'attributions" : "Création de structure")}
+                        {s.titre ?? LIBELLE_TYPE[s.type]}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-400">
                         {s.traite_le ? new Date(s.traite_le).toLocaleString("fr-FR") : ""}
@@ -175,6 +198,120 @@ export function FileValidation() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Ligne de résumé sous le titre, pour **tous** les types.
+ *
+ * `switch` exhaustif sans `default` : c'est le compilateur qui garantit qu'un
+ * nouveau type de soumission ne pourra pas arriver ici muet, comme les trois
+ * ajoutés en juillet l'ont fait.
+ */
+function resumeLisible(type: TypeSoumission, r: ResumeSoumission | null): string {
+  if (!r) return "";
+  switch (type) {
+    case "maj_attributions": {
+      const m = r as ResumeMaj;
+      return ` · ${m.nouvelles_attributions} nouvelle(s), ${m.reassignations} réassign., ${m.remises_libre} libre${
+        m.nouveaux_attributaires ? `, ${m.nouveaux_attributaires} nouvel(s) attributaire(s)` : ""
+      }`;
+    }
+    case "creation_structure": {
+      const c = r as ResumeCreation;
+      return ` · ${c.nb_ilots} îlot(s), ${c.nb_lots} lot(s)`;
+    }
+    case "creation_lotissement":
+    case "modification_lotissement": {
+      const l = r as ResumeLotissement;
+      const bouts = [l.localisation, `${l.nb_ilots ?? 0} îlot(s), ${l.nb_lots ?? 0} lot(s) annoncés`];
+      if (type === "modification_lotissement") bouts.push(`${l.champs_modifies ?? 0} champ(s) modifié(s)`);
+      return ` · ${bouts.filter(Boolean).join(" · ")}`;
+    }
+    case "maj_attributaire": {
+      const a = r as ResumeAttributaire;
+      return ` · ${a.creation ? "nouvelle fiche" : `${a.champs_modifies ?? 0} champ(s) corrigé(s)`} · ${labelTypeAttributaire(
+        a.type_attributaire,
+      )}`;
+    }
+  }
+}
+
+/** Libellés des champs de fiche, pour lire un payload sans deviner les clés. */
+const LIBELLE_CHAMP: Record<string, string> = {
+  nom: "Nom",
+  village: "Village",
+  commune: "Commune",
+  district: "District",
+  superficie_texte: "Superficie",
+  nb_lots: "Nombre de lots",
+  nb_ilots: "Nombre d'îlots",
+  guide_reference: "Référence du guide",
+  pv_identification_physique_numero: "PV d'identification — numéro",
+  pv_identification_physique_date: "PV d'identification — date",
+  pv_identification_physique_scan_url: "PV d'identification — scan",
+  type: "Type",
+  piece_nature: "Nature de la pièce",
+  piece_num: "Numéro de pièce",
+  telephone: "Téléphone",
+  email: "E-mail",
+  adresse: "Adresse",
+};
+
+/** Clés techniques, jamais montrées : elles ne disent rien à qui approuve. */
+const CHAMPS_MASQUES = new Set(["lotissement_id", "attributaire_id", "autorite_coutumiere_id"]);
+
+/**
+ * Détail d'une soumission de **fiche** (lotissement ou attributaire) : le
+ * payload, champ par champ, tel qu'il sera appliqué.
+ *
+ * Sans lui, l'admin approuvait un titre et une date. Or ces payloads portent le
+ * nom qui figure sur les attestations délivrées.
+ *
+ * ⚠️ La distinction « clé absente » / « clé à `null` » n'est pas cosmétique :
+ * pour `maj_attributaire`, une clé absente laisse la valeur inchangée tandis
+ * qu'une clé à `null` **efface** le champ. Les deux se lisent différemment ici.
+ */
+function DetailFiche({ type, payload }: { type: TypeSoumission; payload: unknown }) {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const correction = type === "modification_lotissement" || (type === "maj_attributaire" && "attributaire_id" in p);
+  const lignes = Object.entries(p).filter(([k]) => !CHAMPS_MASQUES.has(k));
+
+  if (lignes.length === 0) {
+    return <p className="text-sm text-slate-500">Payload vide — rien à appliquer.</p>;
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {type === "maj_attributaire" && correction && (
+        <p className="mb-2 text-xs text-slate-500">
+          Correction de fiche : les champs absents de cette liste restent inchangés, ceux marqués
+          «&nbsp;effacé&nbsp;» seront vidés.
+        </p>
+      )}
+      {type === "modification_lotissement" && (
+        <p className="mb-2 text-xs text-slate-500">
+          Correction de fiche : la fiche vaudra <b>exactement</b> ce qui suit — tout champ absent
+          de la liste sera vidé.
+        </p>
+      )}
+      <table className="w-full text-sm">
+        <tbody>
+          {lignes.map(([cle, valeur]) => (
+            <tr key={cle} className="border-b border-slate-100 last:border-0">
+              <td className="py-1.5 pr-3 align-top text-slate-500">{LIBELLE_CHAMP[cle] ?? cle}</td>
+              <td className="py-1.5 align-top font-medium text-slate-800">
+                {valeur === null || valeur === "" ? (
+                  <span className="text-amber-700">effacé</span>
+                ) : (
+                  String(valeur)
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -245,7 +382,7 @@ function CarteSoumission({
 
     const { data: lotsData } = await supabase
       .from("lots")
-      .select("id, numero_lot, statut, ilots(numero), attributions(attributaire_id, qualite, actuel, attributaires(nom))")
+      .select("id, numero_lot, statut, verrouille, ilots(numero), attributions(attributaire_id, qualite, actuel, attributaires(nom))")
       .in("id", lotIds.length ? lotIds : ["00000000-0000-0000-0000-000000000000"]);
     const rows = (lotsData ?? []) as unknown as LotRow[];
     const etatByLot = new Map<string, LotEtat>();
@@ -259,6 +396,7 @@ function CarteSoumission({
         attributaire_id: act?.attributaire_id ?? null,
         attributaire_nom: act?.attributaires?.nom ?? null,
         qualite: (act?.qualite as Qualite) ?? null,
+        verrouille: r.verrouille === true,
       });
     });
 
@@ -277,7 +415,10 @@ function CarteSoumission({
     const lignesCalc: LigneDiff[] = ops.map((op: OperationCible) => {
       const etat =
         etatByLot.get(op.lot_id) ??
-        ({ lot_id: op.lot_id, ilot: "?", numero_lot: "?", statut: "?", attributaire_id: null, attributaire_nom: null, qualite: null } as LotEtat);
+        // Lot introuvable : tout est « ? », y compris implicitement le gel.
+        // `false` n'affirme rien ici — c'est l'absence de lot que les « ? »
+        // signalent, et inventer un gel serait un mensonge d'un autre genre.
+        ({ lot_id: op.lot_id, ilot: "?", numero_lot: "?", statut: "?", attributaire_id: null, attributaire_nom: null, qualite: null, verrouille: false } as LotEtat);
       let cible: CibleChoisie;
       let apres: string;
       if (op.cible === "libre") {
@@ -300,7 +441,12 @@ function CarteSoumission({
       }
       return {
         lotId: op.lot_id,
-        label: `Îlot ${etat.ilot} · Lot ${etat.numero_lot}`,
+        // Le gel juridique se lit sur la ligne que l'admin approuve. La base
+        // refusera l'opération de toute façon ; l'afficher ici évite qu'il
+        // approuve pour découvrir le refus après coup.
+        label: `${etat.verrouille ? "🔒 " : ""}Îlot ${etat.ilot} · Lot ${etat.numero_lot}${
+          etat.verrouille ? " — gel juridique" : ""
+        }`,
         avant: etat.attributaire_nom ? `${etat.attributaire_nom} (${labelQualite(etat.qualite)})` : "libre",
         apres,
         classe: classifier(etat, cible),
@@ -310,10 +456,18 @@ function CarteSoumission({
     setDetailLoading(false);
   };
 
+  // Les soumissions de **fiche** n'ont rien à charger : leur payload se lit tel
+  // quel, il ne se recoupe avec aucun état en base.
+  const detailFiche =
+    soumission.type === "creation_lotissement" ||
+    soumission.type === "modification_lotissement" ||
+    soumission.type === "maj_attributaire";
+
   const toggle = () => {
     const next = !open;
     setOpen(next);
     if (!next) return;
+    if (detailFiche) return;
     if (soumission.type === "creation_structure") void chargerDetailCreation();
     else void chargerDetail();
   };
@@ -352,33 +506,31 @@ function CarteSoumission({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-slate-800">
-            {soumission.titre ??
-              (soumission.type === "maj_attributions" ? "Mise à jour d'attributions" : "Création de structure")}
+            {soumission.titre ?? LIBELLE_TYPE[soumission.type]}
           </p>
           <p className="mt-0.5 text-xs text-slate-400">
             {soumission.cree_le ? new Date(soumission.cree_le).toLocaleString("fr-FR") : ""}
-            {r && soumission.type === "maj_attributions" && (() => {
-              const m = r as ResumeMaj;
-              return ` · ${m.nouvelles_attributions} nouvelle(s), ${m.reassignations} réassign., ${m.remises_libre} libre${
-                m.nouveaux_attributaires ? `, ${m.nouveaux_attributaires} nouvel(s) attributaire(s)` : ""
-              }`;
-            })()}
-            {r && soumission.type === "creation_structure" &&
-              ` · ${(r as ResumeCreation).nb_ilots} îlot(s), ${(r as ResumeCreation).nb_lots} lot(s)`}
+            {resumeLisible(soumission.type, r)}
           </p>
         </div>
         <Badge status="en_validation">En attente</Badge>
       </div>
 
-      {(soumission.type === "maj_attributions" || soumission.type === "creation_structure") && (
-        <button
-          type="button"
-          onClick={toggle}
-          className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-[#1E6091] hover:underline"
-        >
-          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          {open ? "Masquer le détail" : "Voir le détail"}
-        </button>
+      {/* Le détail est ouvrable pour TOUS les types : approuver sans pouvoir
+          lire ce qu'on approuve était le défaut, pas une simplification. */}
+      <button
+        type="button"
+        onClick={toggle}
+        className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-[#1E6091] hover:underline"
+      >
+        {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        {open ? "Masquer le détail" : "Voir le détail"}
+      </button>
+
+      {open && detailFiche && (
+        <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200/70 px-4 py-3">
+          <DetailFiche type={soumission.type} payload={soumission.payload} />
+        </div>
       )}
 
       {open && soumission.type === "maj_attributions" && (

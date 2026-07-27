@@ -30,12 +30,13 @@ import { useState } from "react";
 import { Layers } from "lucide-react";
 
 import { useRetourFormulaire } from "@/lib/android-back";
-import type {
-  NouvelOperateur,
-  NouvelleAutorite,
-  NouvelleFamille,
-  PayloadCreationStructure,
-  ResumeCreation,
+import {
+  normaliserNom,
+  type NouvelOperateur,
+  type NouvelleAutorite,
+  type NouvelleFamille,
+  type PayloadCreationStructure,
+  type ResumeCreation,
 } from "@/lib/saisie";
 import type { RefOption, SaisieRegistre } from "../../../data/useSaisieRegistre";
 import {
@@ -43,6 +44,7 @@ import {
   Bascule,
   BoutonEnvoyer,
   Carte,
+  BoutonReessayer,
   Champ,
   EchecEnvoi,
   EcranSaisie,
@@ -138,6 +140,12 @@ export function StructureScreen({
 
   const pret = nomLotissement.length > 0 && !manqueNom;
 
+  // Détection d'homonyme : la liste des lotissements est déjà chargée pour les
+  // autres écrans, le contrôle est gratuit. Il avertit sans bloquer.
+  const homonyme = nomLotissement
+    ? (api.lotissements.find((l) => normaliserNom(l.nom) === normaliserNom(nomLotissement)) ?? null)
+    : null;
+
   /** Entités qui naîtront à l'approbation — annoncées avant l'envoi. */
   const aCreer = [
     modeAutorite === "nouveau" ? "chefferie" : null,
@@ -150,7 +158,13 @@ export function StructureScreen({
     modeAutorite !== "aucun" ||
     modeOperateur !== "aucun" ||
     modeFamille !== "aucun";
-  useRetourFormulaire(saisieEnCours, () => flash("Appuyez à nouveau pour abandonner cette saisie"));
+  // `&& !envoi.confirme` : après un envoi réussi les champs restent remplis,
+  // donc `saisieEnCours` reste vrai. Sans cette condition, le geste de retour
+  // proposait « abandonner cette saisie » sur l'écran dont la fonction unique
+  // est d'annoncer qu'elle est **partie** — au pire endroit possible.
+  useRetourFormulaire(saisieEnCours && !envoi.confirme, () =>
+    flash("Appuyez à nouveau pour abandonner cette saisie"),
+  );
 
   const reinitialiser = () => {
     setNom("");
@@ -294,6 +308,19 @@ export function StructureScreen({
         </Avertissement>
       </div>
 
+      {/* Une liste de rattachement vide par échec ressemble trait pour trait à
+          une liste vide par nature. Le dire, et proposer le réessai : sinon on
+          crée la fiche sans rattachement en croyant qu'il n'y en avait aucun. */}
+      {api.listesEnEchec.length > 0 && (
+        <div className="mb-4 space-y-2">
+          <Avertissement>
+            Liste des <b>{api.listesEnEchec.join(", ")}</b> non chargée. Les sélecteurs
+            correspondants sont vides <b>par erreur</b>, pas parce que le référentiel l&apos;est.
+          </Avertissement>
+          <BoutonReessayer onClick={() => void api.recharger()} />
+        </div>
+      )}
+
       <SectionLabel>Le lotissement</SectionLabel>
       <Carte>
         <Champ label="Nom du lotissement" obligatoire>
@@ -304,6 +331,17 @@ export function StructureScreen({
             autoCapitalize="words"
           />
         </Champ>
+        {homonyme && (
+          <div className="mb-3">
+            <Avertissement>
+              <b>«&nbsp;{homonyme.nom}&nbsp;» existe déjà</b> au registre
+              {[homonyme.village, homonyme.commune].filter(Boolean).length > 0 &&
+                ` (${[homonyme.village, homonyme.commune].filter(Boolean).join(" · ")})`}
+              . Rien en base n&apos;interdit un second lotissement du même nom, mais deux fiches
+              homonymes se distinguent mal ensuite.
+            </Avertissement>
+          </div>
+        )}
         <Champ label="Village">
           <Texte value={village} onChange={setVillage} autoCapitalize="words" />
         </Champ>
@@ -381,7 +419,7 @@ export function StructureScreen({
 
       {envoi.erreur && (
         <div className="mt-4">
-          <EchecEnvoi erreur={envoi.erreur} />
+          <EchecEnvoi erreur={envoi.erreur} incertain={envoi.erreurIncertaine} />
         </div>
       )}
     </EcranSaisie>

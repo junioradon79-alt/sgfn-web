@@ -184,13 +184,16 @@ export default function SaisiePage() {
     if (!lotissementId) return;
     let active = true;
     void (async () => {
-      type LotFlat = { id: string; numero_lot: string | null; statut: string | null; ilots: { numero: string | null } | null };
+      type LotFlat = { id: string; numero_lot: string | null; statut: string | null; verrouille: boolean | null; ilots: { numero: string | null } | null };
       type AttrFlat = { lot_id: string | null; attributaire_id: string | null; qualite: string | null; attributaires: { nom: string | null } | null };
       const [lotsData, attrsData] = await Promise.all([
         fetchAllPages<LotFlat>((from, to) =>
           supabase
             .from("lots")
-            .select("id, numero_lot, statut, ilots!inner(numero, lotissement_id)")
+            // `verrouille` = gel juridique : la base refuse désormais d'appliquer
+            // une opération sur un lot gelé, l'écran doit donc pouvoir le dire
+            // AVANT que l'opérateur ne construise sa soumission.
+            .select("id, numero_lot, statut, verrouille, ilots!inner(numero, lotissement_id)")
             .eq("ilots.lotissement_id", lotissementId)
             .order("numero_lot", { ascending: true })
             .order("id", { ascending: true })
@@ -218,6 +221,7 @@ export default function SaisiePage() {
           attributaire_id: act?.attributaire_id ?? null,
           attributaire_nom: act?.attributaires?.nom ?? null,
           qualite: (act?.qualite as Qualite) ?? null,
+          verrouille: r.verrouille === true,
         };
       });
       setEtats(list);

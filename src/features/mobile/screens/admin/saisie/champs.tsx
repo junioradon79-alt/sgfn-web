@@ -188,7 +188,9 @@ export function Pastilles<T extends string>({
           <button
             key={o.value}
             type="button"
-            onClick={() => onChange(o.value)}
+            onClick={() => {
+              if (!actif) onChange(o.value);
+            }}
             aria-pressed={actif}
             className={`rounded-full border px-3.5 py-2 text-[13px] font-semibold transition-colors ${
               actif
@@ -204,7 +206,17 @@ export function Pastilles<T extends string>({
   );
 }
 
-/** Bascule à deux positions (créer / corriger, libre / attribué…). */
+/**
+ * Bascule à deux positions (créer / corriger, libre / attribué…).
+ *
+ * 🔴 Re-toucher la position **déjà active** ne déclenche rien. Ce n'est pas une
+ * micro-optimisation : les appelants réinitialisent leur état dans `onChange`
+ * (choix de mode, attributaire retrouvé, fiche chargée), et la barre reste
+ * affichée au-dessus du formulaire pendant toute la saisie, à quelques
+ * millimètres des champs. Un effleurement sur la position courante — le geste
+ * qu'on fait pour faire retomber le clavier — effaçait le travail en cours,
+ * sans confirmation ni retour arrière.
+ */
 export function Bascule<T extends string>({
   options,
   value,
@@ -220,7 +232,9 @@ export function Bascule<T extends string>({
         <button
           key={o.value}
           type="button"
-          onClick={() => onChange(o.value)}
+          onClick={() => {
+            if (value !== o.value) onChange(o.value);
+          }}
           aria-pressed={value === o.value}
           className={`flex-1 rounded-full py-2 text-[13px] font-semibold transition-colors ${
             value === o.value ? "bg-card text-foreground shadow-panel" : "text-muted-foreground"
@@ -293,11 +307,14 @@ export function ChoixLotissement({
   onChoisir,
   loading,
   erreur,
+  recharger,
 }: {
   lotissements: { id: string; nom: string; village: string | null; commune: string | null }[];
   onChoisir: (id: string) => void;
   loading: boolean;
   erreur: string | null;
+  /** Réessai explicite. Sans lui, la seule issue était de quitter l'écran. */
+  recharger?: () => void;
 }) {
   const [filtre, setFiltre] = useState("");
   const motif = filtre.trim().toLowerCase();
@@ -305,11 +322,31 @@ export function ChoixLotissement({
     ? lotissements.filter((l) => l.nom.toLowerCase().includes(motif))
     : lotissements;
 
-  if (erreur) return <Avertissement>Liste des lotissements illisible : {erreur}</Avertissement>;
+  // 🔴 L'erreur ne masque plus une liste **utilisable**. Un rechargement qui
+  // échoue après un premier succès laissait en mémoire une liste parfaitement
+  // exploitable, remplacée à l'écran par un message d'erreur : on perdait une
+  // capacité qu'on avait encore.
+  if (erreur && lotissements.length === 0) {
+    return (
+      <div className="space-y-2">
+        <Avertissement>Liste des lotissements illisible : {erreur}</Avertissement>
+        {recharger && <BoutonReessayer onClick={recharger} />}
+      </div>
+    );
+  }
   if (loading) return <Chargement texte="Chargement des lotissements…" />;
 
   return (
     <>
+      {erreur && (
+        <div className="mb-3 space-y-2">
+          <Avertissement>
+            Liste peut-être incomplète — le rechargement a échoué ({erreur}). Ce qui s&apos;affiche
+            est le dernier état connu.
+          </Avertissement>
+          {recharger && <BoutonReessayer onClick={recharger} />}
+        </div>
+      )}
       <ChampRecherche value={filtre} onChange={setFiltre} placeholder="Nom du lotissement…" />
       <div className="mt-3 rounded-[18px] border border-border bg-card px-3 shadow-panel">
         {visibles.length === 0 ? (
@@ -360,6 +397,19 @@ export function RappelFile({ children }: { children?: ReactNode }) {
   );
 }
 
+/** Réessai explicite d'un chargement manqué, hors du chemin de saisie. */
+export function BoutonReessayer({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full rounded-2xl border border-border-strong bg-card py-2.5 text-[13px] font-semibold text-foreground"
+    >
+      Réessayer
+    </button>
+  );
+}
+
 /** Avertissement de contexte (portée limitée d'un écran, doublon probable…). */
 export function Avertissement({ children }: { children: ReactNode }) {
   return (
@@ -374,15 +424,39 @@ export function Avertissement({ children }: { children: ReactNode }) {
  * Échec d'envoi. Le message de la base est repris **tel quel** : « Action
  * réservée aux opérateurs de saisie » ou « Type de soumission invalide » disent
  * précisément ce qui bloque, là où un message maison ne dirait que « erreur ».
+ *
+ * 🔴 Le titre dépend de ce qu'on sait réellement. « Rien n'a été envoyé » n'est
+ * vrai que si le serveur a **répondu** non. Quand la réponse s'est perdue en
+ * vol (réseau coupé, délai dépassé), la soumission a pu être enregistrée : le
+ * dire quand même pousse à renvoyer, et deux soumissions identiques approuvées
+ * créent deux lotissements ou deux fiches homonymes — ni `lotissements.nom` ni
+ * `attributaires.nom` ne portent de contrainte d'unicité.
  */
-export function EchecEnvoi({ erreur, aide }: { erreur: string; aide?: ReactNode }) {
+export function EchecEnvoi({
+  erreur,
+  aide,
+  incertain,
+}: {
+  erreur: string;
+  aide?: ReactNode;
+  incertain?: boolean;
+}) {
   return (
     <div role="alert" className="rounded-2xl border border-danger/45 bg-danger-subtle px-3.5 py-3">
       <div className="flex gap-2.5">
         <TriangleAlert className="mt-px size-4 flex-none text-danger" strokeWidth={2} />
         <div className="min-w-0">
-          <div className="text-[13px] font-bold text-foreground">Rien n&apos;a été envoyé.</div>
+          <div className="text-[13px] font-bold text-foreground">
+            {incertain ? "Envoi interrompu — issue inconnue." : "Rien n'a été envoyé."}
+          </div>
           <div className="mt-1 text-[11.5px] leading-snug break-words text-foreground opacity-90">{erreur}</div>
+          {incertain && (
+            <div className="mt-2 text-[11.5px] leading-snug text-foreground opacity-90">
+              La connexion a été perdue avant la réponse : la soumission <b>a peut-être été
+              enregistrée</b>. Ouvrez «&nbsp;Saisies à valider&nbsp;» pour vérifier avant de
+              renvoyer — un envoi en double crée deux dossiers à approuver.
+            </div>
+          )}
           {aide && <div className="mt-2 text-[11.5px] leading-snug text-muted-foreground">{aide}</div>}
         </div>
       </div>
@@ -495,6 +569,8 @@ export function Chargement({ texte }: { texte: string }) {
 export type Envoi = {
   enCours: boolean;
   erreur: string | null;
+  /** Vrai quand la réponse s'est perdue : l'échec n'est pas un refus prouvé. */
+  erreurIncertaine: boolean;
   /** Récapitulatif affiché par `EnvoiConfirme`, `null` tant que rien n'est parti. */
   confirme: string | null;
   envoyer: (envoi: EnvoiSaisie, recapitulatif: string) => Promise<void>;
@@ -513,16 +589,19 @@ export type Envoi = {
 export function useEnvoi(soumettre: (e: EnvoiSaisie) => Promise<Resultat<string>>): Envoi {
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [erreurIncertaine, setErreurIncertaine] = useState(false);
   const [confirme, setConfirme] = useState<string | null>(null);
 
   const envoyer = async (envoi: EnvoiSaisie, recapitulatif: string) => {
     if (enCours) return;
     setEnCours(true);
     setErreur(null);
+    setErreurIncertaine(false);
     const res = await soumettre(envoi);
     setEnCours(false);
     if (!res.ok) {
       setErreur(res.error);
+      setErreurIncertaine(res.incertain === true);
       return;
     }
     setConfirme(recapitulatif);
@@ -531,13 +610,18 @@ export function useEnvoi(soumettre: (e: EnvoiSaisie) => Promise<Resultat<string>
   return {
     enCours,
     erreur,
+    erreurIncertaine,
     confirme,
     envoyer,
     reprendre: () => {
       setConfirme(null);
       setErreur(null);
+      setErreurIncertaine(false);
     },
-    oublierErreur: () => setErreur(null),
+    oublierErreur: () => {
+      setErreur(null);
+      setErreurIncertaine(false);
+    },
   };
 }
 

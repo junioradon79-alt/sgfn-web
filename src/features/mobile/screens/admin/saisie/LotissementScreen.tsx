@@ -32,10 +32,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Building2, FilePlus2, FileSearch } from "lucide-react";
 
 import { useRetourFormulaire } from "@/lib/android-back";
-import type {
-  PayloadLotissement,
-  PayloadModificationLotissement,
-  ResumeLotissement,
+import {
+  normaliserNom,
+  type PayloadLotissement,
+  type PayloadModificationLotissement,
+  type ResumeLotissement,
 } from "@/lib/saisie";
 import type { FicheLotissement, SaisieRegistre } from "../../../data/useSaisieRegistre";
 import {
@@ -168,21 +169,34 @@ export function LotissementScreen({
     fiche: null,
     champs: VIDE,
   });
-  const [demande, setDemande] = useState<string | null>(null);
+  /**
+   * 🔴 `essai` n'est pas décoratif. Avec une simple chaîne, re-choisir **le
+   * même** lotissement après un échec de chargement — le geste naturel pour
+   * réessayer — reposait une valeur identique : React ne changeait pas l'état,
+   * l'effet ne rejouait pas, mais `setReponse(null)` suffisait à afficher
+   * « Chargement de la fiche… ». Une roue tournait sans qu'aucune requête ne
+   * soit partie, et rien n'en sortait. Le compteur rend chaque tentative
+   * distincte de la précédente.
+   */
+  const [demande, setDemande] = useState<{ id: string; essai: number } | null>(null);
   const [reponse, setReponse] = useState<{ pour: string; erreur: string | null } | null>(null);
+  const cleDemande = (d: { id: string; essai: number }) => `${d.id}#${d.essai}`;
 
   useEffect(() => {
     if (mode !== "modifier" || !demande) return;
     let vivant = true;
+    // La clé porte la tentative : sans elle, la réponse d'un essai précédent
+    // satisferait le suivant et masquerait un second échec.
+    const cle = cleDemande(demande);
     void (async () => {
-      const res = await chargerFiche(demande);
+      const res = await chargerFiche(demande.id);
       if (!vivant) return;
       if (res.ok) {
         setEdition({ fiche: res.valeur, champs: depuisFiche(res.valeur) });
-        setReponse({ pour: demande, erreur: null });
+        setReponse({ pour: cle, erreur: null });
         return;
       }
-      setReponse({ pour: demande, erreur: res.error });
+      setReponse({ pour: cle, erreur: res.error });
     })();
     return () => {
       vivant = false;
@@ -213,7 +227,19 @@ export function LotissementScreen({
   const saisieEnCours = origine
     ? champsModifies > 0
     : Object.values(champs).some((v) => t(v) !== "");
-  useRetourFormulaire(saisieEnCours, () => flash("Appuyez à nouveau pour abandonner cette saisie"));
+
+  // Détection d'homonyme, création seulement : la liste est déjà en mémoire,
+  // le contrôle ne coûte aucun aller-retour. Il **avertit sans bloquer** — deux
+  // lotissements peuvent légitimement porter le même nom dans deux communes.
+  const homonyme =
+    mode === "creer" && t(champs.nom)
+      ? (api.lotissements.find((l) => normaliserNom(l.nom) === normaliserNom(champs.nom)) ?? null)
+      : null;
+  // `&& !envoi.confirme` : les champs survivent à l'envoi, la garde restait
+  // donc armée sur l'écran de confirmation et y annonçait un abandon.
+  useRetourFormulaire(saisieEnCours && !envoi.confirme, () =>
+    flash("Appuyez à nouveau pour abandonner cette saisie"),
+  );
 
   if (envoi.confirme) {
     return (
@@ -296,7 +322,7 @@ export function LotissementScreen({
 
   // ── Choix de la fiche à corriger ───────────────────────────────────────────
   if (mode === "modifier" && !edition) {
-    const chargement = demande !== null && reponse?.pour !== demande;
+    const chargement = demande !== null && reponse?.pour !== cleDemande(demande);
     return (
       <EcranSaisie titre="Lotissement" sousTitre="Corriger une fiche" onBack={onBack}>
         <RappelFile />
@@ -314,11 +340,12 @@ export function LotissementScreen({
             <ChoixLotissement
               lotissements={api.lotissements}
               onChoisir={(id) => {
-                setDemande(id);
+                setDemande((d) => ({ id, essai: d && d.id === id ? d.essai + 1 : 0 }));
                 setReponse(null);
               }}
               loading={api.loading}
               erreur={api.erreur}
+              recharger={api.recharger}
             />
           </>
         )}
@@ -370,6 +397,19 @@ export function LotissementScreen({
           />
         </Champ>
       </Carte>
+
+      {homonyme && (
+        <div className="mt-3">
+          <Avertissement>
+            <b>«&nbsp;{homonyme.nom}&nbsp;» existe déjà</b> au registre
+            {[homonyme.village, homonyme.commune].filter(Boolean).length > 0 &&
+              ` (${[homonyme.village, homonyme.commune].filter(Boolean).join(" · ")})`}
+            . Créer un second lotissement du même nom est possible mais rarement voulu : deux
+            fiches homonymes se distinguent mal ensuite, et rien en base ne les empêche. Pour
+            corriger la fiche existante, passez par «&nbsp;Corriger une fiche&nbsp;».
+          </Avertissement>
+        </div>
+      )}
 
       <SectionLabel className="mt-5">Localisation</SectionLabel>
       <Carte>
@@ -489,7 +529,7 @@ export function LotissementScreen({
 
       {envoi.erreur && (
         <div className="mt-4">
-          <EchecEnvoi erreur={envoi.erreur} />
+          <EchecEnvoi erreur={envoi.erreur} incertain={envoi.erreurIncertaine} />
         </div>
       )}
     </EcranSaisie>
@@ -529,7 +569,12 @@ function Onglet({
   return (
     <button
       type="button"
-      onClick={onClick}
+      // Onglet déjà actif = aucun effet. `choisirMode` repose `edition` à
+      // `{fiche: null, champs: VIDE}` : le re-toucher effaçait la fiche
+      // chargée et toutes les corrections apportées.
+      onClick={() => {
+        if (!actif) onClick();
+      }}
       aria-pressed={actif}
       className={`flex flex-1 items-center justify-center gap-2 rounded-2xl border py-3 text-[13.5px] font-semibold transition-colors ${
         actif

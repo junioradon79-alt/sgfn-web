@@ -299,6 +299,7 @@ const LOTS: LotEtat[] = [
     attributaire_id: "apc-att-1",
     attributaire_nom: "Konan Yao Bernard",
     qualite: "ayant_droit",
+    verrouille: false,
   },
   {
     lot_id: "apc-l-2",
@@ -308,6 +309,7 @@ const LOTS: LotEtat[] = [
     attributaire_id: null,
     attributaire_nom: null,
     qualite: null,
+    verrouille: false,
   },
   {
     lot_id: "apc-l-3",
@@ -317,6 +319,7 @@ const LOTS: LotEtat[] = [
     attributaire_id: "apc-att-2",
     attributaire_nom: "SCI Les Palmiers",
     qualite: "acquereur",
+    verrouille: false,
   },
   {
     lot_id: "apc-l-4",
@@ -326,6 +329,20 @@ const LOTS: LotEtat[] = [
     attributaire_id: null,
     attributaire_nom: null,
     qualite: null,
+    verrouille: false,
+  },
+  // Un lot sous gel juridique : sans lui, l'écran refusant l'acte n'est
+  // atteignable dans l'aperçu par aucun chemin, et le garde-fou ne se voit
+  // jamais. 6 lots sont dans cet état en production.
+  {
+    lot_id: "apc-l-5",
+    ilot: "12",
+    numero_lot: "310",
+    statut: "vendu",
+    attributaire_id: "apc-att-2",
+    attributaire_nom: "SCI Les Palmiers",
+    qualite: "acquereur",
+    verrouille: true,
   },
 ];
 
@@ -377,6 +394,11 @@ const contient = (valeur: string, motif: string) =>
  * précisément l'écran de confirmation — celui qui porte la distinction entre
  * « envoyé » et « appliqué » — qu'il faut pouvoir relire avant de livrer. Le
  * bandeau de la page rappelle qu'aucune soumission ne part.
+ *
+ * ⚠️ Il **inspecte** en revanche ce qu'on lui passe. Un succès inconditionnel
+ * ne teste rien : c'est le seul endroit où le payload construit par les écrans
+ * peut encore être vu (l'e2e ne soumet jamais, `verif-rpc-saisie` n'envoie que
+ * `null`), et il passait sans être regardé.
  */
 const SAISIE: SaisieRegistre = {
   lotissements: LOTISSEMENTS,
@@ -394,6 +416,7 @@ const SAISIE: SaisieRegistre = {
   ],
   loading: false,
   erreur: null,
+  listesEnEchec: [],
   recharger: async () => {},
   chercherAttributaires: async (q) => ({
     ok: true,
@@ -412,7 +435,18 @@ const SAISIE: SaisieRegistre = {
         ? LOTS.filter((l) => !q.trim() || contient(l.numero_lot, q))
         : [],
   }),
-  soumettre: async () => ({ ok: true, valeur: "apercu-aucune-soumission" }),
+  // 🔴 Le payload est **inspecté**, pas ignoré. La version précédente ne lisait
+  // aucun de ses arguments : un écran qui aurait construit un payload vide, ou
+  // sous le mauvais type, affichait le même succès. C'était le seul endroit où
+  // le payload pouvait encore être vu, et il ne l'était pas.
+  soumettre: async (envoi) => {
+    const vide =
+      !envoi.payload ||
+      (typeof envoi.payload === "object" && Object.keys(envoi.payload).length === 0);
+    if (vide) return { ok: false, error: "Aperçu : l'écran a produit un payload vide." };
+    if (!envoi.titre?.trim()) return { ok: false, error: "Aperçu : soumission sans titre." };
+    return { ok: true, valeur: "apercu-aucune-soumission" };
+  },
 };
 
 type Ecran =

@@ -2,13 +2,20 @@
 // Contrat aligné sur les RPC SQL soumettre_saisie / approuver_soumission
 // (migrations 20260710_operateur_saisie_*). Voir aussi la page /dashboard/saisie.
 
+// ⚠️ Cette liste doit énumérer l'enum `qualite_attribution` **en entier**. Une
+// valeur qui existe en base sans figurer ici ne s'affiche pas (`labelQualite`
+// retombe sur le code brut) et surtout ne peut plus être **reconduite** : qui
+// corrige une attribution portant cette qualité en change nécessairement la
+// nature juridique — celle-là même qui figure sur l'attestation. C'est ce qui
+// est arrivé à `legs`, ajouté en base le 13/07 et resté absent d'ici.
 export type Qualite =
   | "ayant_droit"
   | "ayant_droit_transmission"
   | "acquereur"
   | "operateur"
   | "entrepreneur"
-  | "reservataire";
+  | "reservataire"
+  | "legs";
 
 export const QUALITE_OPTIONS: { value: Qualite; label: string }[] = [
   { value: "ayant_droit", label: "Propriétaire d'origine" },
@@ -17,6 +24,7 @@ export const QUALITE_OPTIONS: { value: Qualite; label: string }[] = [
   { value: "operateur", label: "Opérateur" },
   { value: "entrepreneur", label: "Entrepreneur" },
   { value: "reservataire", label: "Réservataire" },
+  { value: "legs", label: "Legs" },
 ];
 
 export function labelQualite(q: string | null | undefined): string {
@@ -186,6 +194,28 @@ export const CLASSE_LABELS: Record<ClasseChangement, string> = {
   inchange: "Aucun changement",
 };
 
+/**
+ * Forme comparable d'un nom propre : minuscules, sans accent, espaces
+ * normalisés. « KOELEA-ACCOR  Extension » et « Koelea-Accor Extension » sont
+ * le même lotissement pour un humain ; ni `lotissements.nom` ni
+ * `attributaires.nom` ne portant de contrainte d'unicité, c'est au moment de
+ * saisir qu'on peut encore l'apercevoir.
+ */
+export function normaliserNom(nom: string): string {
+  return (
+    nom
+      .normalize("NFD")
+      // `\p{Diacritic}` plutôt qu'une plage de caractères écrite en clair : les
+      // diacritiques combinants sont invisibles dans le source, et un éditeur
+      // qui renormalise le fichier à l'enregistrement changerait la regex sans
+      // que personne ne le voie.
+      .replace(/\p{Diacritic}/gu, "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim()
+  );
+}
+
 /** État actuel d'un lot (chargé depuis la base) pour construire le diff. */
 export type LotEtat = {
   lot_id: string;
@@ -195,6 +225,14 @@ export type LotEtat = {
   attributaire_id: string | null;
   attributaire_nom: string | null;
   qualite: Qualite | null;
+  /**
+   * Gel juridique (`lots.verrouille`). **Obligatoire, et volontairement pas
+   * optionnel** : un champ facultatif se serait omis en silence à chaque
+   * nouveau point de saisie, et c'est exactement ainsi que le garde-fou a
+   * manqué. Ici, ne pas le renseigner ne compile pas — l'appelant est forcé de
+   * dire s'il l'a chargé.
+   */
+  verrouille: boolean;
 };
 
 /** Cible choisie par l'opérateur pour un lot. */

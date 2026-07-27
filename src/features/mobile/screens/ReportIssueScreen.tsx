@@ -86,8 +86,14 @@ export function ReportIssueScreen({ lotId, parcelle, onBack, onSubmit, onDone, f
       />
 
       <div className="sgnf-scroll flex-1 overflow-y-auto px-[18px] pt-4 pb-6">
-        <div className="flex gap-2.5 rounded-[14px] bg-warning-subtle px-3.5 py-3 text-[12px] leading-snug text-warning">
-          <AlertTriangle className="mt-px size-[18px] flex-none" strokeWidth={2} />
+        {/* Le texte est en `text-foreground`, pas en `text-warning` : ce dernier
+            sur `bg-warning-subtle` mesurait 2,83:1 en thème clair, très en
+            dessous d'AA. C'est l'icône qui porte la couleur d'alerte — même
+            règle que la primitive `Avertissement` des écrans de saisie, et même
+            principe que pour les marqueurs d'obligation : le sens ne repose
+            jamais sur la seule couleur. */}
+        <div className="flex gap-2.5 rounded-[14px] bg-warning-subtle px-3.5 py-3 text-[12px] leading-snug text-foreground">
+          <AlertTriangle className="mt-px size-[18px] flex-none text-warning" strokeWidth={2} />
           <span>
             Votre signalement est transmis à la cellule SGNF, qui vous recontacte. Il ne remplace pas une
             procédure judiciaire.
