@@ -38,6 +38,22 @@ if ($token -notlike "sbp_*") { throw "Token inattendu (ne commence pas par sbp_)
 
 # --- Construire le body JSON { query: <contenu du fichier> } ---
 $sql = [System.IO.File]::ReadAllText($SqlFile)
+
+# --- -ReadOnly : garantie exécutée, plus une simple intention ---
+#
+# 🔴 Ce commutateur était DÉCLARÉ mais jamais lu : toute requête partait telle
+# quelle sur la production, y compris passée avec -ReadOnly. Relevé le
+# 27/07/2026 par un vérificateur, après que je m'y étais fié moi-même.
+# Désormais il enveloppe réellement la requête dans une transaction que
+# PostgreSQL refusera d'écrire, et qui est annulée dans tous les cas.
+if ($ReadOnly) {
+  if ($sql -match '(?im)^\s*(begin|commit|rollback|start\s+transaction)\b') {
+    Write-Error "-ReadOnly refuse un script qui pilote lui-meme sa transaction (begin/commit/rollback). Retirez -ReadOnly ou les instructions de transaction."
+    exit 1
+  }
+  $sql = "begin;`nset transaction read only;`n$sql`nrollback;"
+}
+
 $body = @{ query = $sql } | ConvertTo-Json -Depth 4
 $bodyFile = Join-Path $env:TEMP "sb-query-body.json"
 [System.IO.File]::WriteAllText($bodyFile, $body, (New-Object System.Text.UTF8Encoding($false)))

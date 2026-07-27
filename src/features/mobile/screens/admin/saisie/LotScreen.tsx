@@ -209,10 +209,14 @@ export function LotScreen({
    * statut = 'libre'` : l'écran refuserait un acte qui en est un. On corrige
    * ici plutôt que dans `classifier`, dont le web dépend aussi.
    */
-  const classe =
+  const classeCalculee =
     classeBrute === "inchange" && cible === "libre" && lot && lot.statut !== "libre"
       ? ("remise_libre" as const)
       : classeBrute;
+  // Un lot gelé n'aura AUCUN acte : annoncer « Remise en disponibilité » deux
+  // blocs sous l'avertissement qui dit que le lot ne peut pas être remis en
+  // disponibilité, c'est se contredire sur l'écran qui porte la règle.
+  const classe = lot?.verrouille ? null : classeCalculee;
 
   // Une opération « inchangée » serait comptée `n_skip` par la base : la
   // soumission occuperait la file d'un administrateur pour n'appliquer

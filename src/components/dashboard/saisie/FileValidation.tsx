@@ -290,6 +290,11 @@ function DetailFiche({ type, payload }: { type: TypeSoumission; payload: unknown
           «&nbsp;effacé&nbsp;» seront vidés.
         </p>
       )}
+      {type === "maj_attributaire" && !correction && (
+        <p className="mb-2 text-xs text-slate-500">
+          Création d&apos;une fiche : les champs sans valeur resteront simplement vides.
+        </p>
+      )}
       {type === "modification_lotissement" && (
         <p className="mb-2 text-xs text-slate-500">
           Correction de fiche : la fiche vaudra <b>exactement</b> ce qui suit — tout champ absent
@@ -302,8 +307,16 @@ function DetailFiche({ type, payload }: { type: TypeSoumission; payload: unknown
             <tr key={cle} className="border-b border-slate-100 last:border-0">
               <td className="py-1.5 pr-3 align-top text-slate-500">{LIBELLE_CHAMP[cle] ?? cle}</td>
               <td className="py-1.5 align-top font-medium text-slate-800">
+                {/* « effacé » n'a de sens que sur une CORRECTION. Sur une
+                    création, l'écran mobile envoie les 7 clés dont celles
+                    laissées vides : les marquer en ambre alertait l'admin sur
+                    la disparition d'une valeur qui n'a jamais existé. */}
                 {valeur === null || valeur === "" ? (
-                  <span className="text-amber-700">effacé</span>
+                  correction ? (
+                    <span className="text-amber-700">effacé</span>
+                  ) : (
+                    <span className="text-slate-400">—</span>
+                  )
                 ) : (
                   String(valeur)
                 )}

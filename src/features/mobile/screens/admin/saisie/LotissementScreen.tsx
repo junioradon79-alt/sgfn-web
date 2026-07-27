@@ -41,6 +41,7 @@ import {
 import type { FicheLotissement, SaisieRegistre } from "../../../data/useSaisieRegistre";
 import {
   Avertissement,
+  BoutonReessayer,
   BoutonEnvoyer,
   Carte,
   Champ,
@@ -364,6 +365,30 @@ export function LotissementScreen({
       <RappelFile />
       <Onglets mode={mode} onMode={choisirMode} />
 
+      {/* 🔴 Sortie explicite pour changer de fiche. L'onglet actif est devenu
+          inerte (il vidait le formulaire sans rien demander) ; sans ce bouton,
+          une fiche ouverte par erreur ne pouvait plus être quittée. */}
+      {fiche && (
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-3.5 py-2.5">
+          <div className="min-w-0">
+            <div className="text-[11.5px] text-muted-foreground">Fiche corrigée</div>
+            <div className="truncate text-[13.5px] font-semibold text-foreground">{fiche.nom}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setDemande(null);
+              setReponse(null);
+              setEdition(null);
+              envoi.oublierErreur();
+            }}
+            className="flex-none rounded-full border border-border-strong px-3 py-1.5 text-[12.5px] font-semibold text-foreground"
+          >
+            Changer
+          </button>
+        </div>
+      )}
+
       <div className="mb-4">
         {fiche ? (
           <Avertissement>
@@ -497,6 +522,19 @@ export function LotissementScreen({
               vide="Aucun rattachement"
             />
           </Champ>
+          {/* Même règle que dans `StructureScreen` : « Liste indisponible » ne
+              dit pas si le référentiel est vide ou si son chargement a échoué.
+              Créer la fiche sans rattachement en croyant qu'il n'y en avait
+              aucun n'est pas un choix, c'est une méprise. */}
+          {api.listesEnEchec.includes("autorités coutumières") && (
+            <div className="mt-2 space-y-2">
+              <Avertissement>
+                Liste des chefferies <b>non chargée</b> : le sélecteur est vide par erreur, pas
+                parce qu&apos;il n&apos;existe aucune chefferie.
+              </Avertissement>
+              <BoutonReessayer onClick={() => void api.recharger()} />
+            </div>
+          )}
         </Carte>
       )}
 

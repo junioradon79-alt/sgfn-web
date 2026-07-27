@@ -229,8 +229,12 @@ export type LotEtat = {
    * Gel juridique (`lots.verrouille`). **Obligatoire, et volontairement pas
    * optionnel** : un champ facultatif se serait omis en silence à chaque
    * nouveau point de saisie, et c'est exactement ainsi que le garde-fou a
-   * manqué. Ici, ne pas le renseigner ne compile pas — l'appelant est forcé de
-   * dire s'il l'a chargé.
+   * manqué. Un littéral qui l'oublie ne compile pas.
+   *
+   * ⚠️ La garantie **ne tient pas** derrière une assertion : `{…} as LotEtat`
+   * passe sans le champ. `FileValidation.tsx` emploie ce motif. Le filet
+   * attrape l'oubli ordinaire, pas l'assertion — n'en écrivez pas de nouvelle
+   * sur ce type.
    */
   verrouille: boolean;
 };

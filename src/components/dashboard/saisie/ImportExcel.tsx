@@ -86,11 +86,24 @@ export function ImportExcel({
       const { lignes: parsees, erreurs: erreursFormat } = parserFeuilleImport(matrice);
 
       // Vérifie que chaque lot référencé existe bien dans le lotissement sélectionné.
+      //
+      // 🔴 Et qu'aucun n'est sous **gel juridique**. `_appliquer_maj_attributions`
+      // lève une exception dès le premier lot gelé, à l'intérieur de sa boucle :
+      // la soumission entière est alors rejetée à l'approbation, après que
+      // l'opérateur a préparé son fichier et qu'un administrateur l'a validée.
+      // Un import porte couramment 400 opérations — laisser passer ce cas, c'est
+      // faire perdre tout le lot pour une ligne, et sans dire laquelle.
       const erreursLot: string[] = [];
       for (const l of parsees) {
         const cle = `${normaliserNumero(l.ilot)}/${normaliserNumero(l.numeroLot)}`;
-        if (!lotParCle.has(cle)) {
+        const lot = lotParCle.get(cle);
+        if (!lot) {
           erreursLot.push(`Ligne ${l.ligne} : lot introuvable (Îlot ${l.ilot} / Lot ${l.numeroLot}).`);
+        } else if (lot.verrouille) {
+          erreursLot.push(
+            `Ligne ${l.ligne} : lot sous gel juridique (Îlot ${l.ilot} / Lot ${l.numeroLot}) — ` +
+              `la base refusera toute la soumission. Levez le gel, ou retirez cette ligne.`,
+          );
         }
       }
       setErreurs([...erreursFormat, ...erreursLot]);

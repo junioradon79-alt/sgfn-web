@@ -646,10 +646,13 @@ export default function SaisiePage() {
                                   className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-inset"
                                 >
                                   <span className="font-medium text-foreground">
+                                    {e.verrouille && "🔒 "}
                                     Îlot {e.ilot} · Lot {e.numero_lot}
                                   </span>
                                   <span className="truncate text-xs text-muted-2">
-                                    {e.attributaire_nom ?? "libre"}
+                                    {e.verrouille
+                                      ? "gel juridique"
+                                      : (e.attributaire_nom ?? "libre")}
                                     {mods[e.lot_id] ? " · déjà modifié" : ""}
                                   </span>
                                 </button>
@@ -660,7 +663,20 @@ export default function SaisiePage() {
                       )}
                     </div>
 
-                    {lotSel && (
+                    {/* Gel juridique : la base refuse l'opération à
+                        l'approbation. Le dire ICI, avant que l'opérateur ne
+                        construise sa soumission — et surtout avant qu'un seul
+                        lot gelé ne fasse échouer un lot de 400 opérations. */}
+                    {lotSel?.verrouille && (
+                      <div className="rounded-xl border border-warning/40 bg-warning-subtle px-3 py-2.5 text-sm text-foreground">
+                        🔒 <b>Lot {lotSel.numero_lot} sous gel juridique.</b> Il ne peut être ni
+                        réattribué ni remis en disponibilité : la base refusera l&apos;opération à
+                        l&apos;approbation. Levez le gel depuis la fiche du lot avant de le saisir
+                        ici.
+                      </div>
+                    )}
+
+                    {lotSel && !lotSel.verrouille && (
                       <>
                         {/* Action */}
                         <div className="flex flex-wrap gap-2">

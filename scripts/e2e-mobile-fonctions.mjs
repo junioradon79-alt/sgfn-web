@@ -162,10 +162,18 @@ console.log("  🛑 Envoi volontairement non déclenché (base de production).")
 await page.locator('[data-apercu="notifications"]').click();
 await page.waitForTimeout(700);
 const surNotifs = await corps();
-// ⚠️ Pas /notifications/i : la pastille de NAVIGATION porte ce mot et reste
-// dans le DOM en permanence — sondé vrai avec l'écran Profil affiché. On vise
-// donc le compteur, qui n'existe que sur l'écran atteint.
-verifier("Écran Notifications rendu", /nouvelle\w*\s*$|\d+\s*nouvelle/im.test(surNotifs));
+// ⚠️ Deux pièges cumulés, tous deux sondés. `/notifications/i` matche la
+// pastille de NAVIGATION, présente en permanence — vrai avec l'écran Profil
+// affiché. Et un motif sur « n nouvelle(s) » matche l'écran « Saisies à
+// valider », dont le résumé dit « 2 nouvelle(s), 1 réassign. ». On sort donc
+// du texte : `aria-label="Non lue"` n'existe QUE dans `NotificationsScreen`
+// (une seule occurrence dans tout `src/`), et l'état vide a son propre libellé.
+const pastillesNonLues = await cadre.locator('[aria-label="Non lue"]').count();
+verifier(
+  "Écran Notifications rendu",
+  pastillesNonLues > 0 || /aucune notification/i.test(surNotifs),
+  `${pastillesNonLues} pastille(s) « non lue »`,
+);
 verifier("Le nombre de non-lues est annoncé", /2\s*nouvelle/i.test(surNotifs), (surNotifs.match(/\d+\s*nouvelle\w*/i) || [""])[0]);
 
 // ── Gel juridique : un lot verrouillé se voit et bloque l'envoi ──
@@ -186,15 +194,34 @@ verifier(
   (listeLots.split("\n").find((l) => l.includes("🔒")) ?? "aucune ligne verrouillée").slice(0, 46),
 );
 
-await cadre.getByRole("button", { name: /🔒/ }).first().click();
-await page.waitForTimeout(900);
-const surLotGele = await cadre.innerText();
-const btnEnvoyerLot = cadre.getByRole("button", { name: /envoyer/i }).first();
+// 🔴 Il ne suffit PAS de mesurer le bouton sur un lot fraîchement ouvert : il
+// y est désactivé sur TOUT lot, gelé ou non, tant qu'aucune cible n'est
+// choisie. Sondé — retirer la garde `!lot.verrouille` laissait le contrôle
+// vert. On choisit donc une cible d'abord, puis on compare les deux lots :
+// c'est l'écart entre eux qui prouve quelque chose, pas l'état isolé.
+const etatApresCible = async (nomLot) => {
+  await cadre.getByRole("button", { name: nomLot }).first().click();
+  await page.waitForTimeout(900);
+  await cadre.getByRole("button", { name: /^libre$/i }).first().click();
+  await page.waitForTimeout(500);
+  const texte = await cadre.innerText();
+  const desactive = await cadre.getByRole("button", { name: /envoyer/i }).first().isDisabled();
+  await cadre.locator("button").first().click(); // retour à la liste des lots
+  await page.waitForTimeout(800);
+  return { texte, desactive };
+};
+
+const lotGele = await etatApresCible(/🔒/);
+const lotNormal = await etatApresCible(/^Lot 142/);
+
 verifier(
-  "L'écran refuse d'attribuer un lot gelé",
-  /sous gel juridique/i.test(surLotGele) && (await btnEnvoyerLot.isDisabled()),
-  `avertissement ${/sous gel juridique/i.test(surLotGele) ? "présent" : "ABSENT"}, ` +
-    `envoi ${(await btnEnvoyerLot.isDisabled()) ? "désactivé" : "ACTIF"}`,
+  "Cible « Libre » choisie : un lot gelé reste refusé, un lot normal passe",
+  /sous gel juridique/i.test(lotGele.texte) &&
+    lotGele.desactive &&
+    !lotNormal.desactive,
+  `gelé → ${lotGele.desactive ? "refusé" : "ACCEPTÉ"} ` +
+    `(avertissement ${/sous gel juridique/i.test(lotGele.texte) ? "présent" : "ABSENT"}), ` +
+    `normal → ${lotNormal.desactive ? "REFUSÉ" : "accepté"}`,
 );
 await page.screenshot({ path: chemin("lot-gel-juridique.png") });
 

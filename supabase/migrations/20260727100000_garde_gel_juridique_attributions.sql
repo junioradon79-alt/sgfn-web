@@ -93,9 +93,11 @@ begin
       raise exception 'Lot % absent du lotissement déclaré.', v_lot;
     end if;
 
-    -- `is true` et non `= true` : la colonne est nullable, et `null = true`
-    -- vaut `null`, donc un `if` qui ne se déclenche pas. Un gel manquant à
-    -- cause d'un trois-états, c'est exactement le défaut qu'on ferme ici.
+    -- `is true` et non `= true`. La colonne est aujourd'hui `not null default
+    -- false`, donc les deux formes sont équivalentes en l'état ; `is true` est
+    -- retenu parce qu'il le reste si la contrainte tombait un jour, là où
+    -- `null = true` vaut `null` — un `if` qui ne se déclenche pas. Un gel
+    -- manquant à cause d'un trois-états serait exactement le défaut d'origine.
     if v_verrouille is true then
       raise exception
         'Lot % sous gel juridique : opération refusée. Le gel doit être levé par un administrateur avant toute réattribution.',

@@ -140,6 +140,8 @@ export function AttributaireScreen({
   const [repHomonymes, setRepHomonymes] = useState<{
     pour: string;
     liste: AttributaireFiche[];
+    /** 🔴 Une recherche en échec ne doit pas se lire « aucun homonyme ». */
+    erreur: string | null;
   } | null>(null);
 
   useEffect(() => {
@@ -158,6 +160,7 @@ export function AttributaireScreen({
           liste: res.ok
             ? res.valeur.filter((a) => normaliserNom(a.nom) === normaliserNom(nomCherche))
             : [],
+          erreur: res.ok ? null : res.error,
         });
       })();
     }, 400);
@@ -167,8 +170,10 @@ export function AttributaireScreen({
     };
   }, [mode, nomCherche, chercherAttributaires]);
 
-  const homonymes =
-    mode === "creer" && repHomonymes?.pour === nomCherche ? repHomonymes.liste : [];
+  const repHomonymesUtile =
+    mode === "creer" && repHomonymes?.pour === nomCherche ? repHomonymes : null;
+  const homonymes = repHomonymesUtile?.liste ?? [];
+  const homonymesIndecidable = repHomonymesUtile?.erreur ?? null;
 
   const viderChamps = () => {
     setNom("");
@@ -367,13 +372,42 @@ export function AttributaireScreen({
       {(mode === "creer" || base) && (
         <>
           {base && (
-            <div className="mb-3">
-              <Avertissement>
-                Vous corrigez une fiche existante. <b>Ce que montre l&apos;écran est ce que la
-                fiche vaudra</b>{" "}
-                : un champ laissé vide sera effacé du registre.
-              </Avertissement>
-            </div>
+            <>
+              {/* 🔴 Sortie explicite pour changer de fiche. Avant que l'onglet
+                  actif ne devienne inerte (il vidait le formulaire sans rien
+                  demander), le re-toucher était le geste — accidentel — qui
+                  ramenait au sélecteur. Neutraliser l'onglet sans offrir ce
+                  bouton laissait un cul-de-sac : la fiche ouverte par erreur
+                  ne pouvait plus être quittée que par un détour. */}
+              <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-3.5 py-2.5">
+                <div className="min-w-0">
+                  <div className="text-[11.5px] text-muted-foreground">Fiche corrigée</div>
+                  <div className="truncate text-[13.5px] font-semibold text-foreground">
+                    {base.nom}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBase(null);
+                    setRecherche("");
+                    setReponse(null);
+                    viderChamps();
+                    envoi.oublierErreur();
+                  }}
+                  className="flex-none rounded-full border border-border-strong px-3 py-1.5 text-[12.5px] font-semibold text-foreground"
+                >
+                  Changer
+                </button>
+              </div>
+              <div className="mb-3">
+                <Avertissement>
+                  Vous corrigez une fiche existante. <b>Ce que montre l&apos;écran est ce que la
+                  fiche vaudra</b>{" "}
+                  : un champ laissé vide sera effacé du registre.
+                </Avertissement>
+              </div>
+            </>
           )}
 
           <SectionLabel>Identité</SectionLabel>
@@ -390,6 +424,16 @@ export function AttributaireScreen({
               <Pastilles options={TYPE_ATTRIBUTAIRE_OPTIONS} value={type} onChange={setType} />
             </Champ>
           </Carte>
+
+          {mode === "creer" && homonymesIndecidable && (
+            <div className="mt-3">
+              <Avertissement>
+                Le contrôle d&apos;homonyme n&apos;a pas pu s&apos;exécuter ({homonymesIndecidable}).
+                Une fiche portant ce nom existe <b>peut-être</b> déjà — l&apos;absence
+                d&apos;avertissement ne prouve rien ici.
+              </Avertissement>
+            </div>
+          )}
 
           {mode === "creer" && homonymes.length > 0 && (
             <div className="mt-3">
