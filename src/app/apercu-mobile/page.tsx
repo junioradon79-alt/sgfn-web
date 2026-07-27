@@ -11,6 +11,8 @@ import { AttributaireScreen } from "@/features/mobile/screens/admin/saisie/Attri
 import { LotScreen } from "@/features/mobile/screens/admin/saisie/LotScreen";
 import { LotissementScreen } from "@/features/mobile/screens/admin/saisie/LotissementScreen";
 import { StructureScreen } from "@/features/mobile/screens/admin/saisie/StructureScreen";
+import { SaisieScreen } from "@/features/mobile/screens/pro/SaisieScreen";
+import { saisiesPour } from "@/features/mobile/roles";
 import type { MobileProfile, Parcelle } from "@/features/mobile/data/useMobileData";
 import type { FileSoumissions, SoumissionEnAttente } from "@/features/mobile/data/useSoumissions";
 import type {
@@ -27,7 +29,7 @@ import type { NotifRow } from "@/features/mobile/data/mappers";
  *
  * Raison d'être, la même que `/apercu-cartes` : ces écrans sont **inatteignables
  * autrement**. Le seul compte de test du projet est un administrateur, donc la
- * coquille choisit `AdminApp` et les écrans citoyen (détail de parcelle,
+ * coquille choisit `ProApp` et les écrans citoyen (détail de parcelle,
  * signalement) ne s'ouvrent jamais au navigateur ; et l'état « notification non
  * lue » suppose un état de lecture absent d'une session neuve.
  *
@@ -46,6 +48,26 @@ const PROFIL: MobileProfile = {
   famille_id: null,
   autorite_coutumiere_id: null,
   attributaire_id: null,
+};
+
+/** Rôle métier nominal : trois formulaires, pas de cockpit national. */
+const PROFIL_OPERATEUR_SAISIE: MobileProfile = {
+  ...PROFIL,
+  nom_complet: "Aya Brou Sylvie",
+  groupe: "operateur_saisie",
+};
+
+/**
+ * 🔴 Le cas que la production ne sait pas produire : une chefferie dont le
+ * compte n'est rattaché à aucune autorité coutumière. Les deux comptes réels ne
+ * permettent pas de l'atteindre — l'un a une juridiction, l'autre est inactif —
+ * et sans cet aperçu le garde-fou resterait du code jamais vu à l'écran.
+ */
+const PROFIL_CHEFFERIE_SANS_JURIDICTION: MobileProfile = {
+  ...PROFIL,
+  nom_complet: "N'Cho Koutouan Jules",
+  groupe: "chefferie",
+  autorite_coutumiere_id: null,
 };
 
 const PARCELLE: Parcelle = {
@@ -454,6 +476,8 @@ type Ecran =
   | "signalement"
   | "notifications"
   | "soumissions"
+  | "saisie-accueil"
+  | "saisie-bloquee"
   | "saisie-lot"
   | "saisie-attributaire"
   | "saisie-lotissement"
@@ -467,6 +491,16 @@ const ECRANS: { cle: Ecran; libelle: string; note: string }[] = [
     cle: "soumissions",
     libelle: "Saisies à valider",
     note: "6 en attente, un par type de soumission (file réelle vide en prod) — approuver/rejeter sont inertes ici",
+  },
+  {
+    cle: "saisie-accueil",
+    libelle: "Accueil « Saisie » (opérateur)",
+    note: "Écran racine des rôles métier — 3 formulaires pour un opérateur de saisie, la fiche de lotissement en moins.",
+  },
+  {
+    cle: "saisie-bloquee",
+    libelle: "Chefferie non rattachée",
+    note: "Cas INATTEIGNABLE en prod : le seul compte sans juridiction est inactif. Sans ce garde-fou, la fiche serait remplie puis rejetée à l'envoi.",
   },
   {
     cle: "saisie-lot",
@@ -584,6 +618,24 @@ export default function ApercuMobilePage() {
             <NotificationsScreen notifs={NOTIFS} lues={DEJA_LUES} onBack={() => {}} />
           )}
           {ecran === "soumissions" && <SoumissionsVue file={FILE_SOUMISSIONS} onBack={() => {}} />}
+          {ecran === "saisie-accueil" && (
+            <SaisieScreen
+              profile={PROFIL_OPERATEUR_SAISIE}
+              unreadNotif
+              onOpenNotifications={() => {}}
+              saisies={saisiesPour("operateur_saisie")}
+              onOuvrirSaisie={() => {}}
+            />
+          )}
+          {ecran === "saisie-bloquee" && (
+            <SaisieScreen
+              profile={PROFIL_CHEFFERIE_SANS_JURIDICTION}
+              unreadNotif={false}
+              onOpenNotifications={() => {}}
+              saisies={saisiesPour("chefferie")}
+              onOuvrirSaisie={() => {}}
+            />
+          )}
           {ecran === "saisie-lot" && (
             <LotScreen api={SAISIE} onBack={() => {}} flash={() => {}} />
           )}

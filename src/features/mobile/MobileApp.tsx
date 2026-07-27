@@ -3,7 +3,8 @@
 // Coquille de l'app mobile /app. Responsabilités partagées par TOUS les rôles :
 // garde d'auth, flux public (Landing/Login/Signup), thème sombre, toast, et la
 // colonne « téléphone ». Une fois connecté, elle branche l'expérience selon le
-// rôle du compte (`profiles.groupe`) : Admin → AdminApp, sinon → CitizenApp.
+// rôle du compte (`profiles.groupe`) : les métiers du registre vont dans
+// `ProApp`, tous les autres dans `CitizenApp`. La table est dans `roles.ts`.
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
@@ -26,7 +27,8 @@ import { LoginScreen } from "./screens/LoginScreen";
 import { SignupScreen } from "./screens/SignupScreen";
 import { BiometricLockScreen } from "./screens/BiometricLockScreen";
 import { CitizenApp, type ExperienceProps } from "./CitizenApp";
-import { AdminApp } from "./AdminApp";
+import { ProApp } from "./ProApp";
+import { experiencePour } from "./roles";
 
 const MARKET_URL = "https://monterrain.sgfn.ci";
 const THEME_KEY = "sgnf-mobile-theme";
@@ -94,7 +96,7 @@ export function MobileApp() {
 
   // ── Geste de retour Android ────────────────────────────────────────────────
   // Trois niveaux répondent, du plus haut au plus bas : le calque ou l'onglet
-  // (CitizenApp/AdminApp), puis les écrans de connexion ci-dessous, puis la
+  // (CitizenApp/ProApp), puis les écrans de connexion ci-dessous, puis la
   // sortie. Sur l'écran d'accueil du flux public comme sur l'onglet racine,
   // plus rien ne consomme le retour : on demande alors confirmation. Sortir
   // d'un coup de pouce au milieu d'une inscription serait brutal.
@@ -307,11 +309,13 @@ export function MobileApp() {
     onDisableBiometric: handleDisableBiometric,
     onChangePassword: handleChangePassword,
   };
-  const isAdmin = data.profile?.groupe === "admin";
+  // L'aiguillage n'est plus « admin ou pas » : il se lit dans `roles.ts`, aux
+  // côtés des onglets et des formulaires que chaque métier peut ouvrir.
+  const experience = experiencePour(data.profile?.groupe);
 
   return shell(
     <>
-      {isAdmin ? <AdminApp {...expProps} /> : <CitizenApp {...expProps} />}
+      {experience === "pro" ? <ProApp {...expProps} /> : <CitizenApp {...expProps} />}
       <Toast message={toast} />
       <InactivityLock onExpire={lockForInactivity} />
       {showEnablePrompt && <EnableBiometricPrompt onEnable={handleEnableBiometric} onDismiss={dismissEnablePrompt} />}

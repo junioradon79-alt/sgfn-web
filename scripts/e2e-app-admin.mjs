@@ -68,7 +68,10 @@ await step("admin-messages", async () => {
 
 await step("admin-profile-dark", async () => {
   await page.getByText("Profil", { exact: true }).click();
-  await page.getByText("Administration").waitFor({ timeout: 15000 });
+  // `.first()` : le rôle s'affiche deux fois sur cet écran (en-tête + ligne
+  // « Rôle » de la fiche) depuis 9021f71, ce qui faisait échouer l'assertion en
+  // mode strict — sans que rien ne soit cassé à l'écran.
+  await page.getByText("Administration").first().waitFor({ timeout: 15000 });
   await shot("05-profile.png");
   await page.getByLabel("Basculer le thème sombre").click();
   await page.waitForTimeout(600);

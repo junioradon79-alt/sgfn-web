@@ -214,8 +214,16 @@ type LigneAttribution = {
  * `actif` évite de charger les référentiels tant que l'écran n'est pas ouvert :
  * ils vivent derrière un calque, et la liste des lotissements se paie sur un
  * forfait téléphone.
+ *
+ * `juridictionId` restreint la liste des lotissements à une autorité
+ * coutumière. 🔴 Ce n'est PAS une mesure de sécurité — la table est lisible
+ * publiquement (`lotissements_public_read`, dont se sert la vitrine), et c'est
+ * `soumettre_saisie` qui refuse en dernier ressort tout lotissement hors
+ * juridiction. C'est une mesure d'honnêteté : sans elle, une chefferie se
+ * verrait proposer des fiches qu'elle ne peut pas soumettre, et l'apprendrait
+ * seulement après les avoir remplies. `null` = aucune restriction.
  */
-export function useSaisieRegistre(actif: boolean): SaisieRegistre {
+export function useSaisieRegistre(actif: boolean, juridictionId: string | null = null): SaisieRegistre {
   const [supabase] = useState(() => createClient());
   // `null` = jamais chargé, ce qui distingue « on attend » de « il n'y en a
   // pas ». Même raison que dans `useSoumissions` : un booléen de chargement
@@ -240,8 +248,12 @@ export function useSaisieRegistre(actif: boolean): SaisieRegistre {
   }, []);
 
   const charger = useCallback(async () => {
+    const requeteLotissements = supabase.from("lotissements").select("id, nom, village, commune");
     const [lots, auts, ops, fams] = await Promise.all([
-      supabase.from("lotissements").select("id, nom, village, commune").order("nom"),
+      (juridictionId
+        ? requeteLotissements.eq("autorite_coutumiere_id", juridictionId)
+        : requeteLotissements
+      ).order("nom"),
       supabase.from("autorites_coutumieres").select("id, nom").order("nom"),
       supabase.from("operateurs").select("id, nom").order("nom"),
       supabase.from("familles").select("id, nom").order("nom"),
@@ -273,7 +285,7 @@ export function useSaisieRegistre(actif: boolean): SaisieRegistre {
       operateurs: (ops.data ?? []) as RefOption[],
       familles: (fams.data ?? []) as RefOption[],
     });
-  }, [supabase]);
+  }, [supabase, juridictionId]);
 
   useEffect(() => {
     if (!actif) return;

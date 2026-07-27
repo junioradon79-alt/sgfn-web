@@ -1,13 +1,17 @@
 "use client";
 
-// Expérience Admin (Centre National de Pilotage). Même mécanique d'onglets que
-// CitizenApp, mais alimentée par `useAdminOverview` (cockpit national) + le socle
-// partagé (messages/notifs/profil). Sous-ensemble mobile ciblé : la file des
-// saisies se traite désormais dans l'app ; les trois autres files ouvrent
-// encore la page web du dashboard.
+// Expérience métier, commune à tous les rôles qui travaillent sur le registre
+// (`admin`, `operateur_saisie`, `chefferie`). Les onglets, les formulaires de
+// saisie et le libellé de l'écran racine se composent depuis `roles.ts` ;
+// ouvrir un rôle de plus ne demande pas une coquille de plus.
+//
+// Anciennement `AdminApp`, qui ne servait qu'`admin` : les rôles que la base
+// autorisait pourtant à écrire tombaient dans l'expérience citoyen, sans
+// aucun accès aux écrans de saisie.
 
-import { useCallback, useState } from "react";
-import { Gauge, ClipboardList, ScanLine, MessageSquare, User } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { Gauge, ClipboardList, PenLine, ScanLine, MessageSquare, User } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { useAdminOverview } from "@/hooks/useAdminOverview";
 import { useBackHandler } from "@/lib/android-back";
@@ -21,17 +25,18 @@ import { NotificationsScreen } from "./screens/NotificationsScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { EditProfileScreen } from "./screens/EditProfileScreen";
 import { PilotageScreen } from "./screens/admin/PilotageScreen";
-import { FilesScreen, type EcranSaisie } from "./screens/admin/FilesScreen";
+import { FilesScreen } from "./screens/admin/FilesScreen";
 import { PerimetresScreen } from "./screens/admin/PerimetresScreen";
 import { SoumissionsScreen } from "./screens/admin/SoumissionsScreen";
+import { SaisieScreen } from "./screens/pro/SaisieScreen";
 import { useSaisieRegistre } from "./data/useSaisieRegistre";
 import { AttributaireScreen } from "./screens/admin/saisie/AttributaireScreen";
 import { LotScreen } from "./screens/admin/saisie/LotScreen";
 import { LotissementScreen } from "./screens/admin/saisie/LotissementScreen";
 import { StructureScreen } from "./screens/admin/saisie/StructureScreen";
+import { ongletsPour, saisiesPour, type EcranSaisie, type OngletPro } from "./roles";
 import type { ExperienceProps } from "./CitizenApp";
 
-type Tab = "pilotage" | "files" | "messages" | "profile";
 type Overlay =
   | { kind: "chat"; convId: string }
   | { kind: "newchat" }
@@ -46,7 +51,15 @@ type Overlay =
   | { kind: "saisie"; ecran: EcranSaisie }
   | null;
 
-export function AdminApp({
+const ICONES: Record<OngletPro, { icon: LucideIcon; label: string }> = {
+  pilotage: { icon: Gauge, label: "Pilotage" },
+  files: { icon: ClipboardList, label: "À faire" },
+  saisie: { icon: PenLine, label: "Saisie" },
+  messages: { icon: MessageSquare, label: "Messages" },
+  profile: { icon: User, label: "Profil" },
+};
+
+export function ProApp({
   data,
   dark,
   toggleDark,
@@ -58,25 +71,46 @@ export function AdminApp({
   onChangePassword,
 }: ExperienceProps) {
   const openWeb = useWebNav();
-  const overview = useAdminOverview(true);
-  const [tab, setTab] = useState<Tab>("pilotage");
+  const groupe = data.profile?.groupe;
+  const onglets = useMemo(() => ongletsPour(groupe), [groupe]);
+  const saisies = useMemo(() => saisiesPour(groupe), [groupe]);
+
+  // Le cockpit national n'est chargé que pour qui a le droit de le lire : ses
+  // requêtes portent sur l'ensemble du territoire, et la RLS les renverrait
+  // vides — ou partielles — pour un rôle scopé. Désactivé, le hook laisse ses
+  // compteurs à zéro sans lancer la moindre lecture.
+  const estAdmin = groupe === "admin";
+  const overview = useAdminOverview(estAdmin);
+
+  // L'onglet racine est le premier de la table : « Pilotage » pour l'admin,
+  // « Saisie » pour les rôles métier. C'est aussi lui que le geste de retour
+  // rejoint avant de proposer de quitter.
+  const racine = onglets[0];
+  const [tab, setTab] = useState<OngletPro>(racine);
   const [overlay, setOverlay] = useState<Overlay>(null);
   // Référentiels (lotissements, chefferies, opérateurs, familles) chargés
   // seulement quand un formulaire de saisie est ouvert : ils ne servent qu'à
   // eux, et se paient sur un forfait téléphone.
-  const saisie = useSaisieRegistre(overlay?.kind === "saisie");
+  //
+  // La juridiction filtre la liste des lotissements pour une chefferie : elle
+  // peut TOUS les lire (`lotissements_public_read`, la vitrine s'en sert), mais
+  // `soumettre_saisie` refuse ceux hors juridiction. Sans ce filtre, la liste
+  // proposerait des fiches vouées au rejet.
+  const saisie = useSaisieRegistre(
+    overlay?.kind === "saisie",
+    groupe === "chefferie" ? data.profile?.autorite_coutumiere_id ?? null : null,
+  );
   // Même mécanique que l'expérience citoyen : l'état de lecture des
   // notifications vit sur l'appareil (cf. `@/lib/notifs-lues`).
   const [notifsLues, setNotifsLues] = useState<Set<string>>(() => lireNotifsLues(data.userId));
 
   const goTab = useCallback((t: string) => {
     setOverlay(null);
-    setTab(t as Tab);
+    setTab(t as OngletPro);
   }, []);
   const back = useCallback(() => setOverlay(null), []);
 
-  // Geste de retour Android — même règle que l'expérience citoyen, à ceci près
-  // que l'écran racine est ici le Pilotage.
+  // Geste de retour Android — d'abord le calque, puis l'onglet racine.
   //
   // Ce gestionnaire est enregistré par la coquille, donc **sous** celui de
   // l'écran affiché : un formulaire de saisie consomme le premier geste pour
@@ -90,15 +124,15 @@ export function AdminApp({
         // Sortir par le geste doit avoir exactement le même effet que sortir
         // par la flèche : sinon le compteur « À faire » serait à jour ou non
         // selon la façon dont on a quitté l'écran.
-        if (overlay.kind === "saisie") rafraichirCockpit();
+        if (overlay.kind === "saisie" && estAdmin) rafraichirCockpit();
         return true;
       }
-      if (tab !== "pilotage") {
-        setTab("pilotage");
+      if (tab !== racine) {
+        setTab(racine);
         return true;
       }
       return false;
-    }, [overlay, tab, rafraichirCockpit]),
+    }, [overlay, tab, racine, estAdmin, rafraichirCockpit]),
   );
   // Ouvrir vaut lecture ; l'état est figé dans le calque avant d'être mis à
   // jour, sinon la distinction non-lu disparaîtrait à l'ouverture même.
@@ -115,11 +149,14 @@ export function AdminApp({
    * pastille au chiffre d'avant donnerait à croire que rien n'est parti. Le
    * coût est une lecture par fermeture, y compris quand rien n'a été soumis —
    * face au risque de croire une saisie perdue, c'est bon marché.
+   *
+   * Sans le cockpit (rôles métier), il n'y a pas de compteur à remettre à jour
+   * et `refresh` ne déclencherait qu'une lecture pour rien.
    */
   const fermerSaisie = useCallback(() => {
     setOverlay(null);
-    rafraichirCockpit();
-  }, [rafraichirCockpit]);
+    if (estAdmin) rafraichirCockpit();
+  }, [estAdmin, rafraichirCockpit]);
   const openEditProfile = useCallback(() => setOverlay({ kind: "editprofile" }), []);
   const openNewChat = useCallback(() => setOverlay({ kind: "newchat" }), []);
   const openChat = useCallback(
@@ -146,13 +183,18 @@ export function AdminApp({
 
   const conv = overlay?.kind === "chat" ? data.convos.find((c) => c.id === overlay.convId) ?? null : null;
 
-  const items: TabItem[] = [
-    { key: "pilotage", label: "Pilotage", icon: Gauge },
-    { key: "files", label: "À faire", icon: ClipboardList, badge: aFaire },
-    { key: "verify", label: "Vérifier", icon: ScanLine, fab: true, onPress: verify },
-    { key: "messages", label: "Messages", icon: MessageSquare, badge: unread },
-    { key: "profile", label: "Profil", icon: User },
-  ];
+  // Le FAB « Vérifier » se glisse au milieu des onglets. Pour l'admin (4
+  // onglets) il retrouve exactement sa place d'avant, en 3e position.
+  const items: TabItem[] = useMemo(() => {
+    const base: TabItem[] = onglets.map((cle) => ({
+      key: cle,
+      label: ICONES[cle].label,
+      icon: ICONES[cle].icon,
+      badge: cle === "files" ? aFaire : cle === "messages" ? unread : undefined,
+    }));
+    const fab: TabItem = { key: "verify", label: "Vérifier", icon: ScanLine, fab: true, onPress: verify };
+    return [...base.slice(0, Math.floor(base.length / 2)), fab, ...base.slice(Math.floor(base.length / 2))];
+  }, [onglets, aFaire, unread, verify]);
 
   return (
     <>
@@ -224,6 +266,16 @@ export function AdminApp({
             overview={overview}
             openWeb={openWeb}
             onOpenSoumissions={openSoumissions}
+            onOuvrirSaisie={openSaisie}
+            saisies={saisies}
+          />
+        )}
+        {!overlay && tab === "saisie" && (
+          <SaisieScreen
+            profile={data.profile}
+            unreadNotif={unreadNotif}
+            onOpenNotifications={openNotifications}
+            saisies={saisies}
             onOuvrirSaisie={openSaisie}
           />
         )}
