@@ -65,12 +65,36 @@ $body = @{ query = $sql } | ConvertTo-Json -Depth 4
 $bodyFile = Join-Path $env:TEMP "sb-query-body.json"
 [System.IO.File]::WriteAllText($bodyFile, $body, (New-Object System.Text.UTF8Encoding($false)))
 
-# --- Appel API via NAT64 ---
-$out = & curl.exe -s -w "`nHTTP:%{http_code}" --max-time 60 --ssl-no-revoke `
-  --connect-to "api.supabase.com:443:[64:ff9b::104.20.27.145]:443" `
-  -X POST "https://api.supabase.com/v1/projects/bvdzrhvbiglwrhzpmuwy/database/query" `
-  -H "Authorization: Bearer $token" `
-  -H "Content-Type: application/json" `
-  --data-binary "@$bodyFile"
+# --- Appel API ---
+#
+# 🔴 L'adresse NAT64 etait codee en dur (64:ff9b::104.20.27.145). Cette IP
+# Cloudflare n'est plus celle que resout api.supabase.com : les appels
+# tombaient en timeout (curl 28) de facon intermittente, ce qui se lit comme
+# une panne de base et non comme un probleme de routage. Constate le 28/07/2026.
+#
+# Depuis, la connexion DIRECTE fonctionne. On l'essaie donc en premier, et on
+# ne retombe sur NAT64 qu'en cas d'echec — avec une adresse RESOLUE a chaud, et
+# non gravee dans le script. Le mode d'emploi reste le meme pour l'appelant.
+$appel = {
+  param($extra)
+  & curl.exe -s -w "`nHTTP:%{http_code}" --max-time 60 --ssl-no-revoke @extra `
+    -X POST "https://api.supabase.com/v1/projects/bvdzrhvbiglwrhzpmuwy/database/query" `
+    -H "Authorization: Bearer $token" `
+    -H "Content-Type: application/json" `
+    --data-binary "@$bodyFile"
+}
+
+$out = & $appel @()
+if ($LASTEXITCODE -ne 0) {
+  $ip = $null
+  try {
+    $ip = (Resolve-DnsName api.supabase.com -Type A -ErrorAction Stop |
+             Where-Object { $_.IPAddress } | Select-Object -First 1).IPAddress
+  } catch { }
+  if ($ip) {
+    Write-Warning "Appel direct en echec (curl $LASTEXITCODE) - nouvel essai via NAT64 sur $ip"
+    $out = & $appel @("--connect-to", "api.supabase.com:443:[64:ff9b::$ip]:443")
+  }
+}
 Remove-Item $bodyFile -Force
 $out
