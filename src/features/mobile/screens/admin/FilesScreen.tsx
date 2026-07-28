@@ -8,6 +8,7 @@ import {
   FolderOpen,
   ChevronRight,
   ExternalLink,
+  Stamp,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { CountBadge } from "@/components/ds/badge";
@@ -21,6 +22,8 @@ export function FilesScreen({
   onOpenSoumissions,
   onOuvrirSaisie,
   saisies,
+  onOpenAttestations,
+  attestationsASigner = 0,
 }: {
   overview: AdminOverview;
   openWeb: (path: string) => void;
@@ -38,6 +41,13 @@ export function FilesScreen({
    * jamais codée en dur à deux endroits.
    */
   saisies?: EcranSaisie[];
+  /**
+   * Ouvre les attestations DANS l'app. Absent = le rôle n'a aucun droit
+   * dessus, et la ligne disparaît plutôt que d'offrir un bouton mort.
+   */
+  onOpenAttestations?: () => void;
+  /** Signatures que ce rôle peut encore constater — alimente la pastille. */
+  attestationsASigner?: number;
 }) {
   const { files } = overview;
 
@@ -52,6 +62,19 @@ export function FilesScreen({
       onPress: onOpenSoumissions ?? (() => openWeb("/dashboard/saisie/")),
       externe: !onOpenSoumissions,
     },
+    // Placée juste après les saisies : les deux se traitent désormais sur
+    // place, et ce sont les deux seules files où l'app agit vraiment.
+    ...(onOpenAttestations
+      ? [
+          {
+            icon: Stamp,
+            label: "Signatures à constater",
+            count: attestationsASigner,
+            onPress: onOpenAttestations,
+            externe: false,
+          },
+        ]
+      : []),
     {
       icon: Handshake,
       label: "Demandes à traiter",

@@ -10,12 +10,15 @@
 // aucun accès aux écrans de saisie.
 
 import { useCallback, useMemo, useState } from "react";
-import { Gauge, ClipboardList, PenLine, ScanLine, MessageSquare, User } from "lucide-react";
+import { Bell, Gauge, ClipboardList, PenLine, ScanLine, MessageSquare, Stamp, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { useAdminOverview } from "@/hooks/useAdminOverview";
 import { useBackHandler } from "@/lib/android-back";
 import { lireNotifsLues, marquerNotifsLues } from "@/lib/notifs-lues";
+import { CountBadge } from "@/components/ds/badge";
+import { BarHeader, PrimaryHeader } from "./components/MobileHeader";
+import { prenom } from "./data/mappers";
 import { TabBar, type TabItem } from "./components/TabBar";
 import { useWebNav } from "./data/useWebNav";
 import { MessagesScreen } from "./screens/MessagesScreen";
@@ -29,12 +32,24 @@ import { FilesScreen } from "./screens/admin/FilesScreen";
 import { PerimetresScreen } from "./screens/admin/PerimetresScreen";
 import { SoumissionsScreen } from "./screens/admin/SoumissionsScreen";
 import { SaisieScreen } from "./screens/pro/SaisieScreen";
+import { AttestationsScreen } from "./screens/pro/AttestationsScreen";
+import { GenerationAttestationScreen } from "./screens/pro/GenerationAttestationScreen";
 import { useSaisieRegistre } from "./data/useSaisieRegistre";
+import { useAttestations } from "./data/useAttestations";
 import { AttributaireScreen } from "./screens/admin/saisie/AttributaireScreen";
 import { LotScreen } from "./screens/admin/saisie/LotScreen";
 import { LotissementScreen } from "./screens/admin/saisie/LotissementScreen";
 import { StructureScreen } from "./screens/admin/saisie/StructureScreen";
-import { ongletsPour, saisiesPour, type EcranSaisie, type OngletPro } from "./roles";
+import {
+  attestationsPour,
+  chefferieSansJuridiction,
+  libelleRole,
+  ongletsPour,
+  saisiesPour,
+  voitLesAttestations,
+  type EcranSaisie,
+  type OngletPro,
+} from "./roles";
 import type { ExperienceProps } from "./CitizenApp";
 
 type Overlay =
@@ -49,12 +64,18 @@ type Overlay =
   // aussi une seule couche de données (`useSaisieRegistre`), et rien ne
   // justifierait quatre entrées d'union pour quatre écrans interchangeables.
   | { kind: "saisie"; ecran: EcranSaisie }
+  // L'admin atteint les attestations par « À faire », comme les saisies : ce
+  // qu'on y constate change le compteur qui se trouve juste au-dessus. La
+  // chefferie, elle, n'a pas de hub de files — c'est un onglet pour elle.
+  | { kind: "attestations" }
+  | { kind: "generation" }
   | null;
 
 const ICONES: Record<OngletPro, { icon: LucideIcon; label: string }> = {
   pilotage: { icon: Gauge, label: "Pilotage" },
   files: { icon: ClipboardList, label: "À faire" },
   saisie: { icon: PenLine, label: "Saisie" },
+  attestations: { icon: Stamp, label: "Attestations" },
   messages: { icon: MessageSquare, label: "Messages" },
   profile: { icon: User, label: "Profil" },
 };
@@ -96,9 +117,29 @@ export function ProApp({
   // peut TOUS les lire (`lotissements_public_read`, la vitrine s'en sert), mais
   // `soumettre_saisie` refuse ceux hors juridiction. Sans ce filtre, la liste
   // proposerait des fiches vouées au rejet.
+  // La génération par dérogation part du même couple lotissement → lot que les
+  // écrans de saisie : elle réutilise donc leurs référentiels plutôt que d'en
+  // charger une seconde copie.
   const saisie = useSaisieRegistre(
-    overlay?.kind === "saisie",
+    overlay?.kind === "saisie" || overlay?.kind === "generation",
     groupe === "chefferie" ? data.profile?.autorite_coutumiere_id ?? null : null,
+  );
+
+  // Les attestations sont chargées dès qu'un rôle y a accès, et non à
+  // l'ouverture de l'écran : c'est cette liste qui alimente la pastille de
+  // l'onglet (chefferie) et le compteur de la file « À faire » (admin). Les
+  // rôles sans accès ne paient aucune lecture.
+  const actionsAttestation = useMemo(() => attestationsPour(groupe), [groupe]);
+  // Le rôle est passé au hook : ses compteurs mesurent ce que CE rôle peut
+  // faire, pas l'état brut des documents. Une chefferie qui a constaté toutes
+  // ses signatures doit voir sa pastille tomber à zéro, même si les documents
+  // attendent encore le chef de famille.
+  const attestations = useAttestations(voitLesAttestations(groupe), actionsAttestation);
+  // Sans juridiction, la policy ne renvoie rien ET tout constat serait refusé.
+  // Le même garde-fou que la saisie, pour la même raison.
+  const attestationsBloquees = chefferieSansJuridiction(
+    groupe,
+    data.profile?.autorite_coutumiere_id,
   );
   // Même mécanique que l'expérience citoyen : l'état de lecture des
   // notifications vit sur l'appareil (cf. `@/lib/notifs-lues`).
@@ -142,6 +183,8 @@ export function ProApp({
   }, [notifsLues, data.userId, data.notifs]);
   const openPerimetres = useCallback(() => setOverlay({ kind: "perimetres" }), []);
   const openSoumissions = useCallback(() => setOverlay({ kind: "soumissions" }), []);
+  const openAttestations = useCallback(() => setOverlay({ kind: "attestations" }), []);
+  const openGeneration = useCallback(() => setOverlay({ kind: "generation" }), []);
   const openSaisie = useCallback((ecran: EcranSaisie) => setOverlay({ kind: "saisie", ecran }), []);
   /**
    * Fermer un formulaire de saisie rafraîchit le cockpit : une soumission
@@ -175,11 +218,16 @@ export function ProApp({
   // « Nouvelle » = jamais ouverte, et non « datée de moins de 48 h » :
   // l'ancienne heuristique rallumait la pastille sur du déjà-lu.
   const unreadNotif = data.notifs.some((n) => !notifsLues.has(n.id));
+  // La pastille « À faire » doit compter exactement les lignes que l'écran
+  // affiche : la ligne « Signatures à constater » n'y apparaît que si le rôle
+  // peut réellement constater, son compteur suit donc la même condition.
+  const peutConstater = actionsAttestation.signatures.length > 0;
   const aFaire =
     overview.files.saisieAValider +
     overview.files.demandesATraiter +
     overview.files.litigesOuverts +
-    overview.files.dossiersAduEnCours;
+    overview.files.dossiersAduEnCours +
+    (peutConstater ? attestations.aSigner : 0);
 
   const conv = overlay?.kind === "chat" ? data.convos.find((c) => c.id === overlay.convId) ?? null : null;
 
@@ -190,11 +238,22 @@ export function ProApp({
       key: cle,
       label: ICONES[cle].label,
       icon: ICONES[cle].icon,
-      badge: cle === "files" ? aFaire : cle === "messages" ? unread : undefined,
+      badge:
+        cle === "files"
+          ? aFaire
+          : cle === "messages"
+            ? unread
+            : // `aSigner` est déjà borné aux signatures que CE rôle peut
+              // constater (cf. `signaturesActionnables`) : la pastille tombe
+              // donc à zéro quand il a fini, et non quand les documents sont
+              // complets.
+              cle === "attestations"
+              ? attestations.aSigner
+              : undefined,
     }));
     const fab: TabItem = { key: "verify", label: "Vérifier", icon: ScanLine, fab: true, onPress: verify };
     return [...base.slice(0, Math.floor(base.length / 2)), fab, ...base.slice(Math.floor(base.length / 2))];
-  }, [onglets, aFaire, unread, verify]);
+  }, [onglets, aFaire, unread, attestations.aSigner, verify]);
 
   return (
     <>
@@ -240,6 +299,41 @@ export function ProApp({
         {overlay?.kind === "saisie" && overlay.ecran === "structure" && (
           <StructureScreen api={saisie} onBack={fermerSaisie} flash={flash} />
         )}
+        {/* Attestations en calque — le chemin de l'admin, depuis « À faire ».
+            Barre de retour plutôt que bandeau : c'est un écran empilé, pas un
+            onglet, et la cloche reste accessible depuis Pilotage. */}
+        {overlay?.kind === "attestations" && (
+          <AttestationsScreen
+            file={attestations}
+            actions={actionsAttestation}
+            bloquee={attestationsBloquees}
+            onOuvrirGeneration={openGeneration}
+            header={
+              <BarHeader
+                onBack={back}
+                title={
+                  <div className="min-w-0">
+                    <div className="truncate text-[16px] font-bold text-foreground">Attestations</div>
+                    <div className="truncate text-[11.5px] text-muted-foreground">
+                      {attestations.loading
+                        ? "Chargement…"
+                        : `${attestations.aSigner} signature${attestations.aSigner > 1 ? "s" : ""} à constater`}
+                    </div>
+                  </div>
+                }
+                right={attestations.aSigner > 0 ? <CountBadge value={attestations.aSigner} /> : undefined}
+              />
+            }
+          />
+        )}
+        {overlay?.kind === "generation" && (
+          <GenerationAttestationScreen
+            saisie={saisie}
+            file={attestations}
+            onBack={back}
+            flash={flash}
+          />
+        )}
         {overlay?.kind === "editprofile" && (
           <EditProfileScreen
             profile={data.profile}
@@ -268,6 +362,8 @@ export function ProApp({
             onOpenSoumissions={openSoumissions}
             onOuvrirSaisie={openSaisie}
             saisies={saisies}
+            onOpenAttestations={peutConstater ? openAttestations : undefined}
+            attestationsASigner={attestations.aSigner}
           />
         )}
         {!overlay && tab === "saisie" && (
@@ -277,6 +373,49 @@ export function ProApp({
             onOpenNotifications={openNotifications}
             saisies={saisies}
             onOuvrirSaisie={openSaisie}
+          />
+        )}
+        {/* Attestations en onglet — le chemin de la chefferie, qui n'a pas de
+            hub « À faire » où le loger. Écran racine, donc il DOIT porter la
+            cloche : hors HomeScreen et PilotageScreen, un rôle privé d'onglet
+            porteur n'aurait aucun accès à ses notifications. */}
+        {!overlay && tab === "attestations" && (
+          <AttestationsScreen
+            file={attestations}
+            actions={actionsAttestation}
+            bloquee={attestationsBloquees}
+            onOuvrirGeneration={actionsAttestation.generation ? openGeneration : undefined}
+            header={
+              <PrimaryHeader
+                right={
+                  <button
+                    type="button"
+                    onClick={openNotifications}
+                    aria-label="Notifications"
+                    className="relative flex size-9 items-center justify-center rounded-full bg-white/15 text-white transition-colors hover:bg-white/25"
+                  >
+                    <Bell className="size-5" strokeWidth={1.9} />
+                    {unreadNotif && (
+                      <span className="absolute top-1.5 right-2 size-2.5 rounded-full border-2 border-primary bg-warning" />
+                    )}
+                  </button>
+                }
+              >
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="text-[18px] font-extrabold tracking-[0.12em]">SGNF</span>
+                  <span className="pt-0.5 text-[10px] font-semibold tracking-wide opacity-70">
+                    Attestations
+                  </span>
+                </div>
+                <div className="mt-4">
+                  <div className="text-[13px] opacity-80">Bonjour,</div>
+                  <div className="text-[23px] font-bold leading-tight">
+                    {prenom(data.profile?.nom_complet)}
+                  </div>
+                  <div className="mt-0.5 text-[12px] opacity-75">{libelleRole(groupe)}</div>
+                </div>
+              </PrimaryHeader>
+            }
           />
         )}
         {!overlay && tab === "messages" && (

@@ -12,8 +12,21 @@ import { LotScreen } from "@/features/mobile/screens/admin/saisie/LotScreen";
 import { LotissementScreen } from "@/features/mobile/screens/admin/saisie/LotissementScreen";
 import { StructureScreen } from "@/features/mobile/screens/admin/saisie/StructureScreen";
 import { SaisieScreen } from "@/features/mobile/screens/pro/SaisieScreen";
+import { AttestationsScreen } from "@/features/mobile/screens/pro/AttestationsScreen";
+import { GenerationAttestationScreen } from "@/features/mobile/screens/pro/GenerationAttestationScreen";
+import { BarHeader } from "@/features/mobile/components/MobileHeader";
+import {
+  remisePossible,
+  signaturesActionnables,
+  type AttestationMobile,
+  type FileAttestations,
+} from "@/features/mobile/data/useAttestations";
 import { ParcelsScreen } from "@/features/mobile/screens/ParcelsScreen";
-import { saisiesPour } from "@/features/mobile/roles";
+import {
+  attestationsPour,
+  saisiesPour,
+  type ActionsAttestation,
+} from "@/features/mobile/roles";
 import type { MobileProfile, Parcelle, Suivi } from "@/features/mobile/data/useMobileData";
 import type { FileSoumissions, SoumissionEnAttente } from "@/features/mobile/data/useSoumissions";
 import type {
@@ -499,6 +512,200 @@ const SAISIE: SaisieRegistre = {
   },
 };
 
+/**
+ * Attestations simulées.
+ *
+ * Chaque ligne existe pour un état que la production ne montre pas toute seule :
+ * les 51 attestations réelles sont TOUTES sur un lotissement à deux signatures
+ * requises, et 49 d'entre elles n'en portent aucune. Sans ces lignes, ni la
+ * pastille « non requise », ni la remise possible, ni la mention de dérogation,
+ * ni le cas révoqué ne seraient jamais vus avant d'être livrés.
+ */
+const ATTESTATIONS: AttestationMobile[] = [
+  {
+    id: "apc-at-1",
+    reference: "ATT-CESS-2026-00412",
+    statut: "generee",
+    dateEmission: "2026-07-12",
+    creeLe: "2026-07-12T09:20:00Z",
+    exception: false,
+    exceptionMotif: null,
+    signatures: { proprietaire: null, operateur: null, chefferie: null },
+    // Deux signatures requises — le cas réel de Koelea-Accor revu. L'opérateur
+    // s'affiche donc en pointillés « non requise ».
+    signaturesRequises: ["proprietaire", "chefferie"],
+    delivreeLe: null,
+    titulaire: "Konan Yao Bernard",
+    lotId: "apc-l-1",
+    numeroLot: "112",
+    ilot: "07",
+    lotissement: "Koelea-Accor revu",
+    // Lotissement d'une seule lignée : « proprietaire » se dit « Chef de famille ».
+    lotissementAUneFamille: true,
+  },
+  {
+    id: "apc-at-2",
+    reference: "ATT-CESS-2026-00413",
+    statut: "generee",
+    dateEmission: "2026-07-14",
+    creeLe: "2026-07-14T11:05:00Z",
+    exception: true,
+    exceptionMotif: "Vente constatée au registre du 12/03, APFC en cours de délivrance.",
+    signatures: {
+      proprietaire: "2026-07-15T08:00:00Z",
+      operateur: null,
+      chefferie: "2026-07-16T10:30:00Z",
+    },
+    // Toutes les signatures requises sont là : c'est le seul état où la remise
+    // est proposée, et il n'existe sur aucune des 51 lignes réelles.
+    signaturesRequises: ["proprietaire", "chefferie"],
+    delivreeLe: null,
+    titulaire: "SCI Les Palmiers",
+    lotId: "apc-l-2",
+    numeroLot: "113",
+    ilot: "07",
+    lotissement: "Koelea-Accor revu",
+    lotissementAUneFamille: true,
+  },
+  {
+    id: "apc-at-3",
+    reference: "ATT-CESS-2026-00301",
+    statut: "generee",
+    dateEmission: "2026-06-30",
+    creeLe: "2026-06-30T14:00:00Z",
+    exception: false,
+    exceptionMotif: null,
+    signatures: { proprietaire: "2026-07-02T09:00:00Z", operateur: null, chefferie: null },
+    // Trois signatures requises — le cas de Brignan Kakodji, et un lotissement
+    // multi-familles : « proprietaire » s'y dit « Propriétaire terrien ».
+    signaturesRequises: ["proprietaire", "operateur", "chefferie"],
+    delivreeLe: null,
+    titulaire: "Collectif Ako Djebe",
+    lotId: "apc-l-3",
+    numeroLot: "045",
+    ilot: "02",
+    lotissement: "Brignan Kakodji",
+    lotissementAUneFamille: false,
+  },
+  {
+    // 🔴 L'état que la chefferie PRODUIT en travaillant : elle a constaté sa
+    // signature, le chef de famille manque encore. Sans cette ligne, rien ne
+    // vérifierait qu'une attestation quitte bien la file « À constater » d'une
+    // chefferie qui a fait sa part — c'est exactement le cas où un compteur
+    // aveugle au rôle resterait bloqué.
+    id: "apc-at-6",
+    reference: "ATT-CESS-2026-00450",
+    statut: "generee",
+    dateEmission: "2026-07-20",
+    creeLe: "2026-07-20T09:00:00Z",
+    exception: false,
+    exceptionMotif: null,
+    signatures: { proprietaire: null, operateur: null, chefferie: "2026-07-21T09:00:00Z" },
+    signaturesRequises: ["proprietaire", "chefferie"],
+    delivreeLe: null,
+    titulaire: "Konan Yao Bernard",
+    lotId: "apc-l-6",
+    numeroLot: "128",
+    ilot: "08",
+    lotissement: "Koelea-Accor revu",
+    lotissementAUneFamille: true,
+  },
+  {
+    id: "apc-at-4",
+    reference: "ATT-CESS-2026-00190",
+    statut: "delivree",
+    dateEmission: "2026-05-11",
+    creeLe: "2026-05-11T08:00:00Z",
+    exception: false,
+    exceptionMotif: null,
+    signatures: {
+      proprietaire: "2026-05-12T08:00:00Z",
+      operateur: null,
+      chefferie: "2026-05-13T08:00:00Z",
+    },
+    signaturesRequises: ["proprietaire", "chefferie"],
+    delivreeLe: "2026-05-20T15:00:00Z",
+    titulaire: "Konan Yao Bernard",
+    lotId: "apc-l-4",
+    numeroLot: "099",
+    ilot: "05",
+    lotissement: "Koelea-Accor revu",
+    lotissementAUneFamille: true,
+  },
+  {
+    id: "apc-at-5",
+    reference: "ATT-CESS-2026-00120",
+    statut: "revoquee",
+    dateEmission: "2026-04-02",
+    creeLe: "2026-04-02T08:00:00Z",
+    exception: false,
+    exceptionMotif: null,
+    signatures: { proprietaire: null, operateur: null, chefferie: null },
+    signaturesRequises: ["proprietaire", "chefferie"],
+    delivreeLe: null,
+    titulaire: "SCI Les Palmiers",
+    lotId: "apc-l-5",
+    numeroLot: "021",
+    ilot: "01",
+    lotissement: "Koelea-Accor revu",
+    lotissementAUneFamille: true,
+  },
+];
+
+/**
+ * 🔴 Les compteurs sont dérivés du RÔLE, exactement comme le fait le vrai hook.
+ * Les figer produirait un aperçu où la chefferie verrait les chiffres de
+ * l'admin — c'est-à-dire précisément le défaut qu'on cherche à voir ici.
+ *
+ * 🔴 Et les trois actes ÉCHOUENT, délibérément — même règle que
+ * `approuver`/`rejeter` de la file des saisies : constater une signature et
+ * enregistrer une remise annoncent tous deux une écriture faite. Un faux succès
+ * mentirait sur l'état du registre, et c'est justement le message de refus
+ * qu'il faut pouvoir relire avant de livrer.
+ */
+function fileAttestationsPour(actions: ActionsAttestation): FileAttestations {
+  return {
+    attestations: ATTESTATIONS,
+    loading: false,
+    erreur: null,
+    aSigner: ATTESTATIONS.filter((a) => signaturesActionnables(a, actions).length > 0).length,
+    aRemettre: ATTESTATIONS.filter((a) => remisePossible(a, actions)).length,
+    recharger: async () => {},
+    constater: async () => ({ ok: false, error: "Aperçu : aucun acte n'est envoyé." }),
+    remettre: async () => ({ ok: false, error: "Aperçu : aucun acte n'est envoyé." }),
+    diagnostiquerLot: async () => ({
+      ok: true,
+      valeur: {
+        eligible: false,
+        manques: ["PV de répartition", "APFC délivrée"],
+        existante: null,
+      },
+    }),
+    genererExceptionnelle: async () => ({
+      ok: false,
+      error: "Aperçu : aucune attestation n'est générée.",
+    }),
+  };
+}
+
+const FILE_ADMIN = fileAttestationsPour(attestationsPour("admin"));
+const FILE_CHEFFERIE = fileAttestationsPour(attestationsPour("chefferie"));
+
+/** En-tête léger, suffisant pour l'aperçu — la coquille en pose un vrai. */
+function EnteteApercu({ titre, sousTitre }: { titre: string; sousTitre: string }) {
+  return (
+    <BarHeader
+      onBack={() => {}}
+      title={
+        <div className="min-w-0">
+          <div className="truncate text-[16px] font-bold text-foreground">{titre}</div>
+          <div className="truncate text-[11.5px] text-muted-foreground">{sousTitre}</div>
+        </div>
+      }
+    />
+  );
+}
+
 type Ecran =
   | "profil"
   | "signalement"
@@ -510,7 +717,11 @@ type Ecran =
   | "saisie-lot"
   | "saisie-attributaire"
   | "saisie-lotissement"
-  | "saisie-structure";
+  | "saisie-structure"
+  | "attestations-chefferie"
+  | "attestations-admin"
+  | "attestations-bloquee"
+  | "attestations-generer";
 
 const ECRANS: { cle: Ecran; libelle: string; note: string }[] = [
   { cle: "profil", libelle: "Gérer mon profil", note: "Nom, téléphone, mot de passe — remplace la sortie vers le web" },
@@ -535,6 +746,29 @@ const ECRANS: { cle: Ecran; libelle: string; note: string }[] = [
     cle: "saisie-bloquee",
     libelle: "Chefferie non rattachée",
     note: "Cas INATTEIGNABLE en prod : le seul compte sans juridiction est inactif. Sans ce garde-fou, la fiche serait remplie puis rejetée à l'envoi.",
+  },
+  {
+    cle: "attestations-chefferie",
+    libelle: "Attestations (chefferie)",
+    note: "Une seule signature actionnable — le serveur refuse à la chefferie toute autre que la sienne. « Chef de famille » et « Propriétaire terrien » cohabitent selon le lotissement.",
+  },
+  {
+    cle: "attestations-admin",
+    libelle: "Attestations (admin)",
+    note: "Les trois signatures, la remise, et la dérogation. 🔴 L'état « toutes signatures constatées » n'existe sur AUCUNE des 51 attestations réelles : la remise ne se voit que là.",
+  },
+  {
+    cle: "attestations-bloquee",
+    // ⚠️ Ne PAS renommer en « chefferie non rattachée » : `getByText` matche en
+    // sous-chaîne, et l'entrée « Chefferie non rattachée » (saisie) existe déjà
+    // — deux libellés voisins rendent les deux tests ambigus d'un coup.
+    libelle: "Attestations — compte sans juridiction",
+    note: "Cas INATTEIGNABLE en prod (le seul compte sans juridiction est inactif). Sans ce panneau, une liste vide se lirait « rien à signer », l'inverse de la vérité.",
+  },
+  {
+    cle: "attestations-generer",
+    libelle: "Générer par dérogation",
+    note: "Lotissement → lot → diagnostic documentaire → motif. Le diagnostic simulé renvoie un dossier incomplet, l'état qui justifie la dérogation.",
   },
   {
     cle: "saisie-lot",
@@ -691,6 +925,37 @@ export default function ApercuMobilePage() {
           )}
           {ecran === "saisie-structure" && (
             <StructureScreen api={SAISIE} onBack={() => {}} flash={() => {}} />
+          )}
+          {ecran === "attestations-chefferie" && (
+            <AttestationsScreen
+              file={FILE_CHEFFERIE}
+              actions={attestationsPour("chefferie")}
+              header={<EnteteApercu titre="Attestations" sousTitre="Chefferie · juridiction" />}
+            />
+          )}
+          {ecran === "attestations-admin" && (
+            <AttestationsScreen
+              file={FILE_ADMIN}
+              actions={attestationsPour("admin")}
+              onOuvrirGeneration={() => {}}
+              header={<EnteteApercu titre="Attestations" sousTitre="Administration" />}
+            />
+          )}
+          {ecran === "attestations-bloquee" && (
+            <AttestationsScreen
+              file={{ ...FILE_CHEFFERIE, attestations: [], aSigner: 0, aRemettre: 0 }}
+              actions={attestationsPour("chefferie")}
+              bloquee
+              header={<EnteteApercu titre="Attestations" sousTitre="Chefferie non rattachée" />}
+            />
+          )}
+          {ecran === "attestations-generer" && (
+            <GenerationAttestationScreen
+              saisie={SAISIE}
+              file={FILE_ADMIN}
+              onBack={() => {}}
+              flash={() => {}}
+            />
           )}
         </div>
       </div>
