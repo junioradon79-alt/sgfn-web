@@ -158,7 +158,29 @@ pnpm build:mobile   # next build → out/ → cap sync android
 pnpm cap:open       # ouvre Android Studio → Build → Generate Signed APK
 ```
 
-Android Studio et le SDK Android sont **déjà installés sur la machine de développement** (juste hors PATH du shell par défaut) — un build debug réel (`./gradlew assembleDebug`, avec `JAVA_HOME`/`ANDROID_HOME` exportés manuellement vers le JBR d'Android Studio et le SDK) a été validé avec succès le 15/07/2026. Reste non réuni pour un **build signé release** : keystore généré (`keytool -genkey -alias sgfn -keystore android/sgfn-release.jks`), icônes 192×192/512×512 dans `public/icons/` (les fichiers actuels `icon-96/192/512.png` sont en fait tous la même image source 2000×2000, jamais redimensionnée). Chantier release explicitement reporté par le porteur de projet, à ne relancer que sur demande.
+Android Studio et le SDK Android sont **déjà installés sur la machine de développement** (juste hors PATH du shell par défaut) — un build debug réel (`./gradlew assembleDebug`, avec `JAVA_HOME`/`ANDROID_HOME` exportés manuellement vers le JBR d'Android Studio et le SDK) a été validé avec succès le 15/07/2026.
+
+**Enchaînement complet d'un build debug** (`JAVA_HOME` n'est pas dans l'environnement du shell : sans lui `gradlew` sort en **erreur 49**) :
+
+```bash
+pnpm run build                       # next build → out/
+pnpm run android:prepare             # cap sync + scripts/android-webdir.mjs
+export JAVA_HOME="C:/Program Files/Android/Android Studio/jbr"
+./android/gradlew -p android assembleDebug
+```
+
+Bumper `versionCode`/`versionName` dans `android/app/build.gradle` **à chaque livraison**, et supprimer l'APK précédente. Dernière : **1.3.2 / versionCode 18** (27/07/2026), testée sur appareil réel. ⚠️ Vérifier la version sur le **manifeste compilé** (`aapt2 dump badging`) et la présence des écrans dans le **bundle embarqué**, jamais dans les seules sources — une APK peut compiler sans contenir le travail du jour. Reste non réuni pour un **build signé release** : keystore généré (`keytool -genkey -alias sgfn -keystore android/sgfn-release.jks`), icônes 192×192/512×512 dans `public/icons/` (les fichiers actuels `icon-96/192/512.png` sont en fait tous la même image source 2000×2000, jamais redimensionnée). Chantier release explicitement reporté par le porteur de projet, à ne relancer que sur demande.
+
+**Écrans de l'app (`src/features/mobile/`)** — la route `/app` monte `MobileApp`, coquille commune (auth, flux public, thème, toast, geste de retour Android, verrouillage par inactivité) qui branche **deux expériences** selon `profiles.groupe` :
+
+| Coquille | Rôles | Onglets |
+| --- | --- | --- |
+| `CitizenApp` | tout rôle non listé (défaut) | Accueil · Parcelles · [Vérifier] · Messages · Profil |
+| `ProApp` | `admin`, `operateur_saisie`, `chefferie` | composés par rôle (Pilotage/À faire pour l'admin, Saisie pour les métiers) |
+
+🔴 **`src/features/mobile/roles.ts` est la table unique** : expérience, onglets, formulaires de saisie et libellés. Ouvrir un rôle de plus = une entrée, jamais une coquille de plus. Sa table `SAISIES_PAR_ROLE` doit rester le **miroir exact** de la garde de `soumettre_saisie` (cf. [04-DATABASE.md](04-DATABASE.md)) : y offrir un formulaire que le serveur refuse ne casse rien à la compilation — la personne remplit une fiche entière, puis se fait rejeter à l'envoi.
+
+⚠️ **Les écrans mobiles ne sont pas tous atteignables au navigateur** (le compte de test courant est admin, certains états n'existent pas en base). `/apercu-mobile` les monte avec leurs **vrais composants** et des données simulées — page de développement, jamais servie en production. C'est là que se vérifient les états introuvables autrement : chefferie non rattachée, terrain suivi « en vente », file de saisies pleine.
 
 Scanner QR natif : `@capacitor-mlkit/barcode-scanning` (scanner modal Google ML Kit) utilisé en app mobile, bascule automatique avec `html5-qrcode` (web) via `Capacitor.isNativePlatform()` — voir §2 et `src/components/verification/VerifierForm.tsx`. Permission `android.permission.CAMERA` ajoutée au manifest le 15/07/2026 (absente jusque-là, cause probable du blocage du scan observé sur téléphone réel le 10/07).
 
