@@ -25,6 +25,7 @@ import { Card } from "@/components/ds/card";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
 import { createClient } from "@/utils/supabase/client";
+import { invokeEdge } from "@/lib/invoke-edge";
 import { fadeUp, stagger } from "@/lib/motion";
 
 import ParcellesSuivies from "./_ParcellesSuivies";
@@ -156,9 +157,14 @@ function MonAchatContenu() {
       setPayingId(null);
       return;
     }
-    const res = await supabase.functions.invoke("initier-paiement", { body: { paiement_id: paiementId } });
-    if (res.error || res.data?.error) {
-      setPayError(res.data?.error ?? "Le paiement en ligne n'est pas disponible pour le moment. Vous pouvez payer au guichet SGNF.");
+    const res = await invokeEdge<{ payment_url: string }>(
+      supabase,
+      "initier-paiement",
+      { paiement_id: paiementId },
+      "Le paiement en ligne n'est pas disponible pour le moment. Vous pouvez payer au guichet SGNF.",
+    );
+    if (res.error || !res.data) {
+      setPayError(res.error ?? "Le paiement en ligne n'est pas disponible pour le moment. Vous pouvez payer au guichet SGNF.");
       setPayingId(null);
       return;
     }

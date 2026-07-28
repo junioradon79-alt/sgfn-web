@@ -12,6 +12,7 @@ import { Button } from "@/components/ds/button";
 import { Card } from "@/components/ds/card";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { createClient } from "@/utils/supabase/client";
+import { invokeEdge } from "@/lib/invoke-edge";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -228,14 +229,20 @@ export default function IAPage() {
     try {
       const contenu_base64 = await readAsBase64(selected);
 
-      const { data, error: fnError } = await supabase.functions.invoke("analyser-document-ia", {
-        body: { contenu_base64, type_mime: selected.type, nom_fichier: selected.name },
-      });
+      const res = await invokeEdge<{ ok?: boolean; resultat?: AnalysisResult }>(
+        supabase,
+        "analyser-document-ia",
+        { contenu_base64, type_mime: selected.type, nom_fichier: selected.name },
+        "Le service d'analyse est indisponible pour le moment.",
+      );
 
-      if (fnError) throw new Error(fnError.message);
-      if (!data?.ok) throw new Error(data?.erreur ?? "Erreur inconnue du service IA");
+      // `fnError.message` ne disait que « Edge Function returned a non-2xx
+      // status code » : le motif réel du service (quota, document illisible…)
+      // restait dans la réponse, jamais lu.
+      if (res.error) throw new Error(res.error);
+      if (!res.data?.ok || !res.data.resultat) throw new Error("Erreur inconnue du service IA");
 
-      setResult(data.resultat as AnalysisResult);
+      setResult(res.data.resultat);
       setPhase("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur lors de l'analyse.");

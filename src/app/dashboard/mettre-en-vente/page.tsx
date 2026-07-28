@@ -20,6 +20,7 @@ import { ChampSelect } from "@/components/dashboard/ModaleFormulaire";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
 import { createClient } from "@/utils/supabase/client";
+import { invokeEdge } from "@/lib/invoke-edge";
 import { fadeUp, stagger } from "@/lib/motion";
 
 import PhotosAnnonce from "./_PhotosAnnonce";
@@ -210,8 +211,10 @@ function MettreEnVenteForm() {
   const submit = async () => {
     setSubmitting(true);
     setMessage(null);
-    const res = await supabase.functions.invoke("publier-annonce", {
-      body: {
+    const res = await invokeEdge<{ annonce: { id: string } }>(
+      supabase,
+      "publier-annonce",
+      {
         lot_id: lotId,
         titre: titre.trim(),
         usage,
@@ -222,21 +225,25 @@ function MettreEnVenteForm() {
         latitude: point ? point[0] : null,
         longitude: point ? point[1] : null,
       },
-    });
+      "Publication impossible.",
+    );
 
-    if (res.error || res.data?.error) {
-      setMessage({ type: "err", text: res.data?.error ?? "Publication impossible." });
+    if (res.error || !res.data) {
+      setMessage({ type: "err", text: res.error ?? "Publication impossible." });
       setSubmitting(false);
       return;
     }
 
+    // Sorti de la closure : le rétrécissement de type de `res.data` ne survit
+    // pas au passage dans le callback de `setAnnonces`.
+    const annonceId = res.data.annonce.id;
     setMessage({
       type: "ok",
       text: statut === "active" ? "Annonce publiée sur TerraCI Market ✓" : "Brouillon enregistré ✓",
     });
     setAnnonces((prev) => ({
       ...prev,
-      [lotId]: { id: res.data.annonce.id, lot_id: lotId, titre, prix: Number(prix), usage, zone, description, statut },
+      [lotId]: { id: annonceId, lot_id: lotId, titre, prix: Number(prix), usage, zone, description, statut },
     }));
     setSubmitting(false);
   };

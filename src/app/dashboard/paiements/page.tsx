@@ -21,6 +21,7 @@ import { SelectItem } from "@/components/ds/select";
 import { ChampSelect } from "@/components/dashboard/ModaleFormulaire";
 import { createClient } from "@/utils/supabase/client";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
+import { invokeEdge } from "@/lib/invoke-edge";
 import { stagger } from "@/lib/motion";
 import {
   MOYEN_OPTIONS, MOYEN_LABELS, STATUT_CONFIG, TYPE_DEMARCHE_LABELS, TYPE_OPTIONS, fcfa, isMoyenManuel,
@@ -884,12 +885,15 @@ function PaiementsContenu() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { setPayingId(null); return; }
 
-    const res = await supabase.functions.invoke("initier-paiement", {
-      body: { paiement_id: p.id },
-    });
+    const res = await invokeEdge<{ payment_url: string }>(
+      supabase,
+      "initier-paiement",
+      { paiement_id: p.id },
+      "Erreur lors de l'initialisation du paiement.",
+    );
 
-    if (res.error || res.data?.error) {
-      setPayError(res.data?.error ?? "Erreur lors de l'initialisation du paiement.");
+    if (res.error || !res.data) {
+      setPayError(res.error ?? "Erreur lors de l'initialisation du paiement.");
       setPayingId(null);
       return;
     }

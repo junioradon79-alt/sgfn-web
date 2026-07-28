@@ -16,6 +16,10 @@
  *      l'agregateur. Le test relit la ligne apres l'appel pour le verifier.
  *   2. L'utilisateur n'est pas laisse sur un ecran mort : le bouton se
  *      deverrouille et un message s'affiche.
+ *   3. Ce message est CELUI DU SERVEUR, et non un repli generique (dette #23,
+ *      corrigee le 28/07 via `src/lib/invoke-edge.ts`). Ce point etait un
+ *      simple constat lors de la premiere ecriture du fichier ; il est
+ *      maintenant assert.
  *
  * Le jour ou les secrets seront poses, ce fichier deviendra rouge — et c'est
  * exactement ce qu'on veut : il faudra alors ecrire le vrai parcours de
@@ -219,16 +223,26 @@ if ((await payer.count()) > 0) {
     !(await payer.first().isDisabled()),
   );
 
-  // Ce que le message dit VRAIMENT. `supabase.functions.invoke` place les
-  // reponses non-2xx dans `res.error` et laisse `res.data` a null : le
-  // `res.data?.error` du composant ne peut donc pas remonter le motif du
-  // serveur, et l'utilisateur recoit le repli generique. Ce controle n'echoue
-  // pas — il constate, et le detail dit lequel des deux messages s'affiche.
-  const motifPrecis = /agr[ée]gateur de paiement non configur/i.test(body);
+  // Ce que le message dit VRAIMENT — dette #23, corrigee le 28/07.
+  //
+  // `supabase.functions.invoke` place les reponses non-2xx dans `res.error` et
+  // laisse `res.data` a null. Le `res.data?.error` des composants ne pouvait
+  // donc JAMAIS remonter le motif du serveur : l'utilisateur recevait toujours
+  // le repli generique, precisement quand le message du serveur avait de la
+  // valeur. Depuis `src/lib/invoke-edge.ts`, le motif est lu dans
+  // `error.context`. Ce bloc etait un simple constat ; il est desormais une
+  // exigence — c'est le test qui documentait la dette qui prouve sa correction.
   verifier(
-    "Motif serveur ou repli générique — constat",
-    true,
-    motifPrecis ? "motif précis affiché" : "repli générique : le motif du serveur n'atteint pas l'écran",
+    "Le motif du serveur atteint l'écran",
+    /agr[ée]gateur de paiement non configur/i.test(body),
+    body.match(/[^.]*(?:erreur|indisponible|non configur|impossible)[^.]*/i)?.[0]?.trim() ??
+      "(aucun message trouvé)",
+  );
+  // Le controle jumeau : exiger le bon message ne suffit pas si le mauvais
+  // s'affiche a cote (deux zones d'erreur, un etat residuel...).
+  verifier(
+    "Le repli générique a disparu de l'écran",
+    !/Erreur lors de l'initialisation du paiement/i.test(body),
   );
 }
 
