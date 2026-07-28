@@ -111,6 +111,8 @@ console.log("erreurs page:", errors.length ? errors : "aucune");
 console.log("captures:", DIR);
 const echecs = steps.filter((s) => !s.ok).length;
 console.log(`resultat: ${steps.length - echecs}/${steps.length}`);
+// Une erreur JS non rattrapée fait échouer la passe.
+if (errors.length > 0) process.exitCode = 1;
 console.log("\n⚠️  RESTAURER L'ETAT INITIAL MAINTENANT :");
 console.log("   .\\scripts\\supabase-sql.ps1 -SqlFile .\\scripts\\restaurer-etat-e2e-prod.sql");
 process.exit(echecs > 0 ? 1 : 0);

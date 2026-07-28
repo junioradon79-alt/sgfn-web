@@ -45,6 +45,10 @@ import {
   libelleSignature,
 } from "@/lib/signatures-attestation";
 import { SEUIL_RATTRAPAGE } from "@/lib/rattrapage-attestations";
+// Table des droits sur les attestations — miroir des gardes serveur, partagée
+// avec l'app mobile. Elle vit sous `features/mobile` parce qu'elle y a été
+// écrite, mais elle n'a rien de spécifique au mobile.
+import { attestationsPour } from "@/features/mobile/roles";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -224,10 +228,22 @@ function SigDots({
   att,
   onSigner,
   onRetirer,
+  signaturesAutorisees,
   enCours,
 }: {
   att: AttestationRow;
   onSigner?: (att: AttestationRow, signature: string) => void;
+  /**
+   * Signatures que CE rôle peut constater — cf. `attestationsPour`, miroir des
+   * gardes serveur partagé avec l'app mobile.
+   *
+   * Sans ce filtre, la pastille était cliquable pour tout le monde : un
+   * `proprietaire_terrien` voit 12 attestations sur cet écran et pouvait taper
+   * trois boutons que le serveur refuse. Une chefferie, elle, ne peut constater
+   * QUE la sienne. Offrir un geste voué au refus est le défaut que ce dépôt
+   * combat partout ailleurs.
+   */
+  signaturesAutorisees?: string[];
   /**
    * Retirer une signature constatée par erreur — réservé à l'admin.
    *
@@ -259,7 +275,8 @@ function SigDots({
         const requise = requises.includes(s.cle);
         const date = dateDe[s.cle];
         const label = libelleSignature(s.cle, uneSeuleFamille);
-        const cliquable = Boolean(onSigner) && requise && !date && !revoquee;
+        const permise = !signaturesAutorisees || signaturesAutorisees.includes(s.cle);
+        const cliquable = Boolean(onSigner) && permise && requise && !date && !revoquee;
         // Le retrait n'a de sens que tant que le document n'est pas remis :
         // `annuler_signature_attestation` refuse d'ailleurs une attestation
         // `delivree` (« retirer une signature n'aurait plus de sens »). On ne
@@ -342,7 +359,7 @@ function ExceptionBadge({ att }: { att: AttestationRow }) {
 
 // ─── Onglet Attestations ──────────────────────────────────────────────────────
 
-function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer, onSigner, onRetirer, signatureEnCours, erreurAction }: {
+function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer, onSigner, onRetirer, signaturesAutorisees, signatureEnCours, erreurAction }: {
   rows: AttestationRow[];
   dlState: DlState;
   remiseState: DlState;
@@ -355,6 +372,8 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
   onSigner?: (att: AttestationRow, signature: string) => void;
   /** Retirer un constat — admin seul (`annuler_signature_attestation`). */
   onRetirer?: (att: AttestationRow, signature: string) => void;
+  /** Signatures constatables par ce rôle — cf. `attestationsPour`. */
+  signaturesAutorisees?: string[];
   signatureEnCours?: string | null;
   erreurAction?: string | null;
 }) {
@@ -415,7 +434,7 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
                   </Badge>
                 </td>
                 <td className="px-5 py-3.5">
-                  <SigDots att={att} onSigner={onSigner} onRetirer={onRetirer} enCours={signatureEnCours} />
+                  <SigDots att={att} onSigner={onSigner} onRetirer={onRetirer} signaturesAutorisees={signaturesAutorisees} enCours={signatureEnCours} />
                 </td>
                 <td className="px-5 py-3.5 text-muted-2">
                   {fmtDate(att.date_emission ?? att.cree_le)}
@@ -487,7 +506,7 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
 // chefferie + 50 000 FCFA commission SGNF, requis avant que `sig_chefferie_le`
 // puisse être constatée — cf. migration du 23/07).
 
-function AttributionsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer, onSigner, onRetirer, signatureEnCours, erreurAction }: {
+function AttributionsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer, onSigner, onRetirer, signaturesAutorisees, signatureEnCours, erreurAction }: {
   rows: AttributionRow[];
   dlState: DlState;
   remiseState: DlState;
@@ -500,6 +519,8 @@ function AttributionsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
   onSigner?: (att: AttestationRow, signature: string) => void;
   /** Même typage structurel que `onSigner`, pour la même raison. */
   onRetirer?: (att: AttestationRow, signature: string) => void;
+  /** Signatures constatables par ce rôle — cf. `attestationsPour`. */
+  signaturesAutorisees?: string[];
   signatureEnCours?: string | null;
   erreurAction?: string | null;
 }) {
@@ -566,7 +587,7 @@ function AttributionsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
                   </Badge>
                 </td>
                 <td className="px-5 py-3.5">
-                  <SigDots att={att} onSigner={onSigner} onRetirer={onRetirer} enCours={signatureEnCours} />
+                  <SigDots att={att} onSigner={onSigner} onRetirer={onRetirer} signaturesAutorisees={signaturesAutorisees} enCours={signatureEnCours} />
                 </td>
                 <td className="px-5 py-3.5 text-right">
                   <div className="flex items-center justify-end gap-1">
@@ -1128,6 +1149,15 @@ export default function DocumentsPage() {
   const [retraitAttrib, setRetraitAttrib] = useState<{ att: AttestationRow; signature: string } | null>(null);
 
   const peutTeleverserPlan = isAdmin || profile?.groupe === "geometre";
+  /**
+   * Ce que ce rôle peut faire sur une attestation. La table vient de
+   * `features/mobile/roles.ts` — elle y a été écrite pour l'app, mais elle est
+   * le **miroir des gardes serveur**, donc commune aux deux surfaces. En
+   * recopier une seconde ici la ferait diverger au premier changement de
+   * garde ; c'est exactement ce qui est arrivé aux libellés de signature,
+   * dupliqués puis réunifiés dans `@/lib/signatures-attestation`.
+   */
+  const actionsAttestation = useMemo(() => attestationsPour(profile?.groupe), [profile?.groupe]);
 
   const load = useCallback(async () => {
     const [attRes, attribRes, pvRes, docRes, eligiblesRes, bloqueesRes, detailRes] = await Promise.all([
@@ -1568,8 +1598,9 @@ export default function DocumentsPage() {
               dlState={dlState}
               remiseState={remiseState}
               onRevoquer={isAdmin ? setARevoquer : undefined}
-              onSigner={signerAttestation}
+              onSigner={actionsAttestation.signatures.length > 0 ? signerAttestation : undefined}
               onRetirer={isAdmin ? (att, signature) => setRetrait({ att, signature }) : undefined}
+              signaturesAutorisees={actionsAttestation.signatures}
               signatureEnCours={signatureEnCours}
               erreurAction={erreurAction}
               onDownload={telecharger}
@@ -1582,8 +1613,9 @@ export default function DocumentsPage() {
               dlState={dlStateAttrib}
               remiseState={remiseStateAttrib}
               onRevoquer={isAdmin ? setARevoquerAttrib : undefined}
-              onSigner={signerAttestationAttrib}
+              onSigner={actionsAttestation.signatures.length > 0 ? signerAttestationAttrib : undefined}
               onRetirer={isAdmin ? (att, signature) => setRetraitAttrib({ att, signature }) : undefined}
+              signaturesAutorisees={actionsAttestation.signatures}
               signatureEnCours={signatureEnCoursAttrib}
               erreurAction={erreurActionAttrib}
               onDownload={telechargerAttrib}

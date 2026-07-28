@@ -161,10 +161,15 @@ await step("operateur-a-la-remise-mais-PAS-la-derogation", async () => {
   if (generer > 0) throw new Error("génération offerte a un opérateur (réservée aux admins)");
 });
 
-await step("operateur-n-a-PAS-la-saisie-du-registre", async () => {
-  // `soumettre_saisie` ne lui accorde aucun formulaire.
-  const saisie = await p6.getByText("Saisir dans le registre").count();
-  if (saisie > 0) throw new Error("la saisie du registre est offerte a un opérateur");
+await step("operateur-n-a-PAS-d-onglet-saisie", async () => {
+  // 🔴 On vérifie l'ONGLET, pas le titre de l'écran d'atterrissage : la
+  // coquille atterrit sur `onglets[0]`, si bien que chercher « Saisir dans le
+  // registre » resterait vert avec un onglet Saisie présent en 2e position.
+  // `soumettre_saisie` n'accorde aucun formulaire à ce rôle.
+  const onglet = await p6.locator("nav").getByText("Saisie", { exact: true }).count();
+  if (onglet > 0) throw new Error("un onglet « Saisie » est offert a un opérateur");
+  const ecran = await p6.getByText("Saisir dans le registre").count();
+  if (ecran > 0) throw new Error("la saisie du registre est offerte a un opérateur");
 });
 await p6.close();
 
@@ -173,15 +178,24 @@ p7.on("pageerror", (e) => errors.push("operateur2: " + String(e.message).slice(0
 await step("operateur-d-un-AUTRE-parc-ne-voit-aucune-attestation", async () => {
   // 🔴 Le cloisonnement, sur données réelles : ce compte est rattaché au
   // lotissement qui ne porte AUCUNE attestation. Il ne doit donc voir aucune
-  // des 51 de l'autre opérateur. Sans cette étape, une policy non scopée
-  // passerait inaperçue.
+  // des 51 de l'autre opérateur.
+  //
+  // 🔴 On attend le TEXTE de l'état vide, jamais un délai fixe suivi d'un
+  // `count() === 0`. Trois états distincts rendent zéro — chargement en cours,
+  // liste en erreur, liste réellement vide — et un comptage à zéro les
+  // confond : le test passerait sur un écran pas encore chargé comme sur un
+  // écran cassé. Ce libellé n'apparaît QUE dans le troisième cas.
   await login(p7, "manuel.operateur@sgfn.ci");
   await p7.getByText("Attestations", { exact: true }).first().waitFor({ timeout: 60000 });
-  await p7.waitForTimeout(3000);
+  // Chaque filtre a SON libellé de vide : « À constater » dit « Aucune
+  // signature à constater », et seul « Toutes » affirme que rien n'est visible
+  // depuis ce compte. Viser le mauvais texte ferait échouer un écran correct.
+  await p7.getByText("Aucune signature à constater").waitFor({ timeout: 45000 });
   const fuite = await p7.getByText(/ATT-CESS-/).count();
   if (fuite > 0) throw new Error(`fuite : cet opérateur voit ${fuite} attestation(s) hors de son parc`);
+
   await p7.getByRole("button", { name: /Toutes/ }).click();
-  await p7.waitForTimeout(1500);
+  await p7.getByText("Aucune attestation n'est visible depuis ce compte.").waitFor({ timeout: 20000 });
   const fuite2 = await p7.getByText(/ATT-CESS-/).count();
   if (fuite2 > 0) throw new Error(`fuite sous « Toutes » : ${fuite2} attestation(s) hors parc`);
   await p7.screenshot({ path: join(DIR, "12-operateur-autre-parc.png") });
@@ -193,8 +207,8 @@ const p3 = await browser.newPage({ viewport: { width: 390, height: 844 } });
 p3.on("pageerror", (e) => errors.push("op-saisie: " + String(e.message).slice(0, 140)));
 await step("operateur-saisie-n-a-aucun-acces-aux-attestations", async () => {
   // `operateur_saisie` est dans la coquille métier mais n'a AUCUN droit sur
-  // les attestations — à ne pas confondre avec `operateur`, qui a les droits
-  // RPC mais aucune visibilité RLS (et reste donc hors de l'écran).
+  // les attestations — à ne pas confondre avec `operateur`, qui les a et est
+  // désormais servi par l'écran, borné à son parc (migration 20260728140000).
   await login(p3, "manuel.operateur-saisie@sgfn.ci");
   await p3.getByText("Saisir dans le registre").waitFor({ timeout: 60000 });
   const onglet = await p3.getByText("Attestations", { exact: true }).count();
@@ -382,4 +396,7 @@ console.log("erreurs page:", errors.length ? errors : "aucune");
 console.log("captures:", DIR);
 const echecs = steps.filter((s) => !s.ok).length;
 console.log(`resultat: ${steps.length - echecs}/${steps.length}`);
-process.exit(echecs > 0 ? 1 : 0);
+// 🔴 Une erreur JS non rattrapée fait ÉCHOUER la passe. Les afficher sans les
+// compter laissait une suite au vert sur un écran qui plante : c'est la même
+// famille de faux vert que les assertions vraies par construction.
+process.exit(echecs > 0 || errors.length > 0 ? 1 : 0);

@@ -56,6 +56,11 @@ await step("chefferie-ouvre-les-validations", async () => {
 // place de celui qu'on teste, et sans que le test s'en apercoive.
 const carteApfc = () => page.locator("#apfc");
 
+/** Nombre de cessions en attente — mesure de reference du garde-fou. */
+const cessionsEnAttente = () =>
+  page.locator("#cessions").getByRole("button", { name: /Valider/ }).count();
+let cessionsAvant = 0;
+
 await step("l-apfc-est-bien-EN-ATTENTE-avant-le-clic", async () => {
   // Controle POSITIF indispensable : si elle etait deja validee, le test
   // suivant ne prouverait rien.
@@ -63,6 +68,7 @@ await step("l-apfc-est-bien-EN-ATTENTE-avant-le-clic", async () => {
   if (bouton === 0) throw new Error("aucune APFC en attente — le test ne prouverait rien");
   const dejaValide = await carteApfc().getByText("Validé", { exact: true }).count();
   if (dejaValide > 0) throw new Error("l'APFC est deja validee avant le clic");
+  cessionsAvant = await cessionsEnAttente();
 });
 
 await step("le-clic-enregistre-REELLEMENT-la-signature", async () => {
@@ -86,10 +92,22 @@ await step("la-signature-chefferie-village-est-marquee", async () => {
 });
 
 await step("les-cessions-n-ont-PAS-ete-touchees", async () => {
-  // Garde-fou du test lui-meme : la file des cessions doit rester intacte.
-  // Si le clic avait porte sur une cession, son bouton aurait disparu.
-  const cessions = await page.locator("#cessions").getByRole("button", { name: /Valider/ }).count();
-  if (cessions === 0) throw new Error("la file des cessions est vide — le clic a peut-etre porte sur elle");
+  // 🔴 Garde-fou du test lui-meme : la file des cessions doit rester
+  // EXACTEMENT de la meme taille.
+  //
+  // La version precedente exigeait seulement qu'elle soit non vide — sur une
+  // file de 50 lignes, un clic egare en laissait 49, donc l'assertion passait.
+  // Elle n'aurait pu echouer que sur une file d'exactement un element. On
+  // compare donc a la mesure prise avant le clic.
+  const cessionsApres = await cessionsEnAttente();
+  if (cessionsApres !== cessionsAvant) {
+    throw new Error(
+      `la file des cessions a bouge : ${cessionsAvant} avant, ${cessionsApres} apres — le clic a porte sur une cession`,
+    );
+  }
+  if (cessionsAvant === 0) {
+    throw new Error("la file des cessions etait vide : ce garde-fou ne prouverait rien");
+  }
 });
 
 await page.close();
@@ -101,6 +119,9 @@ console.log("erreurs page:", errors.length ? errors : "aucune");
 console.log("captures:", DIR);
 const echecs = steps.filter((s) => !s.ok).length;
 console.log(`resultat: ${steps.length - echecs}/${steps.length}`);
+// Une erreur JS non rattrapée fait échouer la passe : l'afficher sans la
+// compter laisserait une suite au vert sur un écran qui plante.
+if (errors.length > 0) process.exitCode = 1;
 console.log("\n⚠️  REMETTRE L'APFC A SON ETAT INITIAL MAINTENANT :");
 console.log("   .\\scripts\\supabase-sql.ps1 -SqlFile .\\scripts\\restaurer-etat-e2e-prod.sql");
 process.exit(echecs > 0 ? 1 : 0);
