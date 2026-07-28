@@ -223,10 +223,23 @@ const TH_CLASS = "bg-inset px-5 py-3 text-left text-[10.5px] font-bold uppercase
 function SigDots({
   att,
   onSigner,
+  onRetirer,
   enCours,
 }: {
   att: AttestationRow;
   onSigner?: (att: AttestationRow, signature: string) => void;
+  /**
+   * Retirer une signature constatée par erreur — réservé à l'admin.
+   *
+   * `annuler_signature_attestation` existait en base **depuis le 22/07 sans
+   * qu'aucun écran ne l'appelle** : une signature cochée par erreur n'avait
+   * donc aucun recours applicatif, alors que sa migration justifiait
+   * elle-même la fonction (« cocher est faillible ; sans marche arrière, une
+   * erreur de saisie bloquerait la délivrance sans recours »). Le risque a
+   * monté d'un cran avec l'app mobile, où le constat se fait au pouce sur le
+   * terrain.
+   */
+  onRetirer?: (att: AttestationRow, signature: string) => void;
   enCours?: string | null;
 }) {
   const lotissement = att.lots?.ilots?.lotissements;
@@ -247,10 +260,18 @@ function SigDots({
         const date = dateDe[s.cle];
         const label = libelleSignature(s.cle, uneSeuleFamille);
         const cliquable = Boolean(onSigner) && requise && !date && !revoquee;
+        // Le retrait n'a de sens que tant que le document n'est pas remis :
+        // `annuler_signature_attestation` refuse d'ailleurs une attestation
+        // `delivree` (« retirer une signature n'aurait plus de sens »). On ne
+        // propose donc pas un geste que le serveur rejettera.
+        const retirable =
+          Boolean(onRetirer) && requise && Boolean(date) && !revoquee && att.statut !== "delivree";
         const titre = !requise
           ? `${label} — non requise pour ce lotissement`
           : date
-            ? `${label} — constatée le ${fmtDate(date)}`
+            ? retirable
+              ? `${label} — constatée le ${fmtDate(date)} · cliquer pour retirer ce constat`
+              : `${label} — constatée le ${fmtDate(date)}`
             : cliquable
               ? `${label} — cliquer pour constater la signature sur le document papier`
               : `${label} — non signée`;
@@ -266,18 +287,21 @@ function SigDots({
             }`}
           />
         );
-        return cliquable ? (
-          <button
-            key={s.cle}
-            type="button"
-            onClick={() => onSigner?.(att, s.cle)}
-            disabled={enCours === `${att.id}:${s.cle}`}
-            aria-label={titre}
-            className="rounded-full p-0.5 transition hover:bg-inset disabled:opacity-50"
-          >
-            {pastille}
-          </button>
-        ) : (
+        if (cliquable || retirable) {
+          return (
+            <button
+              key={s.cle}
+              type="button"
+              onClick={() => (retirable ? onRetirer?.(att, s.cle) : onSigner?.(att, s.cle))}
+              disabled={enCours === `${att.id}:${s.cle}`}
+              aria-label={titre}
+              className="rounded-full p-0.5 transition hover:bg-inset disabled:opacity-50"
+            >
+              {pastille}
+            </button>
+          );
+        }
+        return (
           <span key={s.cle} className="p-0.5">
             {pastille}
           </span>
@@ -318,7 +342,7 @@ function ExceptionBadge({ att }: { att: AttestationRow }) {
 
 // ─── Onglet Attestations ──────────────────────────────────────────────────────
 
-function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer, onSigner, signatureEnCours, erreurAction }: {
+function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer, onSigner, onRetirer, signatureEnCours, erreurAction }: {
   rows: AttestationRow[];
   dlState: DlState;
   remiseState: DlState;
@@ -329,6 +353,8 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
   onRevoquer?: (att: AttestationRow) => void;
   /** Constater une signature — admin, opérateur, et chefferie pour la sienne. */
   onSigner?: (att: AttestationRow, signature: string) => void;
+  /** Retirer un constat — admin seul (`annuler_signature_attestation`). */
+  onRetirer?: (att: AttestationRow, signature: string) => void;
   signatureEnCours?: string | null;
   erreurAction?: string | null;
 }) {
@@ -389,7 +415,7 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
                   </Badge>
                 </td>
                 <td className="px-5 py-3.5">
-                  <SigDots att={att} onSigner={onSigner} enCours={signatureEnCours} />
+                  <SigDots att={att} onSigner={onSigner} onRetirer={onRetirer} enCours={signatureEnCours} />
                 </td>
                 <td className="px-5 py-3.5 text-muted-2">
                   {fmtDate(att.date_emission ?? att.cree_le)}
@@ -461,7 +487,7 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
 // chefferie + 50 000 FCFA commission SGNF, requis avant que `sig_chefferie_le`
 // puisse être constatée — cf. migration du 23/07).
 
-function AttributionsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer, onSigner, signatureEnCours, erreurAction }: {
+function AttributionsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer, onSigner, onRetirer, signatureEnCours, erreurAction }: {
   rows: AttributionRow[];
   dlState: DlState;
   remiseState: DlState;
@@ -472,6 +498,8 @@ function AttributionsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
   /** Typé sur `AttestationRow` (pas `AttributionRow`) : c'est le type attendu par
    * `SigDots`, qui appelle ce callback en interne avec son propre paramètre `att`. */
   onSigner?: (att: AttestationRow, signature: string) => void;
+  /** Même typage structurel que `onSigner`, pour la même raison. */
+  onRetirer?: (att: AttestationRow, signature: string) => void;
   signatureEnCours?: string | null;
   erreurAction?: string | null;
 }) {
@@ -538,7 +566,7 @@ function AttributionsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
                   </Badge>
                 </td>
                 <td className="px-5 py-3.5">
-                  <SigDots att={att} onSigner={onSigner} enCours={signatureEnCours} />
+                  <SigDots att={att} onSigner={onSigner} onRetirer={onRetirer} enCours={signatureEnCours} />
                 </td>
                 <td className="px-5 py-3.5 text-right">
                   <div className="flex items-center justify-end gap-1">
@@ -907,6 +935,83 @@ function RevocationModal({ att, onClose, onConfirm }: {
 }
 
 /**
+ * Retirer un constat de signature.
+ *
+ * Le geste est correctif, pas destructeur — on peut re-constater ensuite —
+ * mais il **perd l'horodatage d'origine** : `signer_attestation` est
+ * idempotent (`coalesce`), si bien qu'une nouvelle constatation portera la
+ * date du jour et non celle du constat initial. C'est ce qui justifie une
+ * confirmation, là où un simple clic suffit pour constater.
+ *
+ * Pas de motif demandé : la RPC n'en accepte pas, et en inventer un ici le
+ * ferait disparaître dans le vide.
+ */
+function RetraitSignatureModal({ att, signature, onClose, onConfirm }: {
+  att: AttestationRow;
+  signature: string;
+  onClose: () => void;
+  onConfirm: () => Promise<string | null>;
+}) {
+  const [enCours, setEnCours] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const label = libelleSignature(signature, Boolean(att.lots?.ilots?.lotissements?.famille_id));
+  const dateDe: Record<string, string | null> = {
+    proprietaire: att.sig_proprietaire_le,
+    operateur: att.sig_operateur_le,
+    chefferie: att.sig_chefferie_le,
+  };
+
+  const confirmer = async () => {
+    setEnCours(true);
+    setErreur(null);
+    const message = await onConfirm();
+    setEnCours(false);
+    if (message) setErreur(message);
+    else onClose();
+  };
+
+  return (
+    <Dialog open onOpenChange={(ouvert) => { if (!ouvert && !enCours) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Retirer le constat de signature</DialogTitle>
+          <DialogDescription className="font-mono">{att.reference}</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="space-y-4">
+          <p className="rounded-xl border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-foreground">
+            La signature <strong>{label}</strong>, constatée le{" "}
+            <strong>{fmtDate(dateDe[signature])}</strong>, sera retirée. L&apos;attestation
+            redeviendra incomplète et ne pourra plus être remise tant qu&apos;elle n&apos;aura
+            pas été constatée à nouveau.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            À n&apos;utiliser que pour corriger une erreur de saisie. La date du constat
+            d&apos;origine est <strong>perdue</strong> : une nouvelle constatation portera la
+            date du jour.
+          </p>
+
+          {erreur && (
+            <p className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">
+              {erreur}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onClose} disabled={enCours}>
+              Annuler
+            </Button>
+            <Button type="button" variant="danger" onClick={confirmer} disabled={enCours}>
+              {enCours && <LoaderIcon className="h-4 w-4 animate-spin" />}
+              Retirer le constat
+            </Button>
+          </div>
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
  * Confirmation chiffrée du rattrapage de masse.
  *
  * On demande de **retranscrire le nombre**, et non de cliquer « OK » : un
@@ -1018,6 +1123,9 @@ export default function DocumentsPage() {
   const [genererEnCours, setGenererEnCours] = useState(false);
   const [genererErreur, setGenererErreur] = useState<string | null>(null);
   const [confirmRattrapage, setConfirmRattrapage] = useState(false);
+  /** Constat de signature en cours de retrait (admin) — cf. `RetraitSignatureModal`. */
+  const [retrait, setRetrait] = useState<{ att: AttestationRow; signature: string } | null>(null);
+  const [retraitAttrib, setRetraitAttrib] = useState<{ att: AttestationRow; signature: string } | null>(null);
 
   const peutTeleverserPlan = isAdmin || profile?.groupe === "geometre";
 
@@ -1186,6 +1294,33 @@ export default function DocumentsPage() {
       return;
     }
     void load();
+  };
+
+  /**
+   * Marche arrière du constat, réservée à l'admin. La RPC existait depuis le
+   * 22/07 sans qu'aucun écran ne l'appelle : une signature cochée par erreur
+   * n'avait aucun recours.
+   */
+  const retirerSignature = async (): Promise<string | null> => {
+    if (!retrait) return "Aucune signature sélectionnée.";
+    const { error } = await supabase.rpc("annuler_signature_attestation", {
+      p_id: retrait.att.id,
+      p_signature: retrait.signature,
+    });
+    if (error) return error.message;
+    void load();
+    return null;
+  };
+
+  const retirerSignatureAttrib = async (): Promise<string | null> => {
+    if (!retraitAttrib) return "Aucune signature sélectionnée.";
+    const { error } = await supabase.rpc("annuler_signature_attestation_attribution_lot", {
+      p_id: retraitAttrib.att.id,
+      p_signature: retraitAttrib.signature,
+    });
+    if (error) return error.message;
+    void load();
+    return null;
   };
 
   const marquerDelivree = async (id: string) => {
@@ -1434,6 +1569,7 @@ export default function DocumentsPage() {
               remiseState={remiseState}
               onRevoquer={isAdmin ? setARevoquer : undefined}
               onSigner={signerAttestation}
+              onRetirer={isAdmin ? (att, signature) => setRetrait({ att, signature }) : undefined}
               signatureEnCours={signatureEnCours}
               erreurAction={erreurAction}
               onDownload={telecharger}
@@ -1447,6 +1583,7 @@ export default function DocumentsPage() {
               remiseState={remiseStateAttrib}
               onRevoquer={isAdmin ? setARevoquerAttrib : undefined}
               onSigner={signerAttestationAttrib}
+              onRetirer={isAdmin ? (att, signature) => setRetraitAttrib({ att, signature }) : undefined}
               signatureEnCours={signatureEnCoursAttrib}
               erreurAction={erreurActionAttrib}
               onDownload={telechargerAttrib}
@@ -1482,6 +1619,24 @@ export default function DocumentsPage() {
           att={aRevoquerAttrib}
           onClose={() => setARevoquerAttrib(null)}
           onConfirm={(motif) => revoquerAttrib(aRevoquerAttrib.id, motif)}
+        />
+      )}
+
+      {retrait && (
+        <RetraitSignatureModal
+          att={retrait.att}
+          signature={retrait.signature}
+          onClose={() => setRetrait(null)}
+          onConfirm={retirerSignature}
+        />
+      )}
+
+      {retraitAttrib && (
+        <RetraitSignatureModal
+          att={retraitAttrib.att}
+          signature={retraitAttrib.signature}
+          onClose={() => setRetraitAttrib(null)}
+          onConfirm={retirerSignatureAttrib}
         />
       )}
 

@@ -101,5 +101,6 @@ console.log("erreurs page:", errors.length ? errors : "aucune");
 console.log("captures:", DIR);
 const echecs = steps.filter((s) => !s.ok).length;
 console.log(`resultat: ${steps.length - echecs}/${steps.length}`);
-console.log("\n⚠️  REMETTRE L'APFC A SON ETAT INITIAL MAINTENANT (voir journal du 28/07).");
+console.log("\n⚠️  REMETTRE L'APFC A SON ETAT INITIAL MAINTENANT :");
+console.log("   .\\scripts\\supabase-sql.ps1 -SqlFile .\\scripts\\restaurer-etat-e2e-prod.sql");
 process.exit(echecs > 0 ? 1 : 0);
