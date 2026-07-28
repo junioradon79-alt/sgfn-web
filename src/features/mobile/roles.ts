@@ -30,6 +30,11 @@ const EXPERIENCE_PAR_ROLE: Record<string, Experience> = {
   admin: "pro",
   operateur_saisie: "pro",
   chefferie: "pro",
+  // Ouvert le 28/07, une fois son périmètre posé en base (migration
+  // 20260728140000). Ses 3 comptes n'ont ni fiche attributaire, ni parcelle,
+  // ni terrain suivi : ils ne perdent rien à quitter l'expérience citoyen,
+  // dont l'onglet « Parcelles » leur était vide.
+  operateur: "pro",
 };
 
 export function experiencePour(groupe: string | null | undefined): Experience {
@@ -48,6 +53,9 @@ const ONGLETS_PAR_ROLE: Record<string, OngletPro[]> = {
   admin: ["pilotage", "files", "messages", "profile"],
   operateur_saisie: ["saisie", "messages", "profile"],
   chefferie: ["saisie", "attestations", "messages", "profile"],
+  // Pas de « saisie » : `soumettre_saisie` n'accorde aucun formulaire à ce
+  // rôle. Son métier dans l'app est la remise du document au client.
+  operateur: ["attestations", "messages", "profile"],
 };
 
 export function ongletsPour(groupe: string | null | undefined): OngletPro[] {
@@ -88,17 +96,16 @@ export function saisiesPour(groupe: string | null | undefined): EcranSaisie[] {
  *                                        chefferie (la sienne, dans sa juridiction)
  *   marquer_attestation_delivree       → admin ou operateur
  *
- * ⚠️ `operateur` est ABSENT de cette table, et ce n'est pas un oubli : le rôle
- * a bien ces droits d'écriture, mais AUCUNE policy SELECT ne lui donne accès
- * aux attestations (`attcess_read` ne cite que admin, le titulaire et le
- * commissaire ; `attcess_chefferie_read` que la chefferie). Vérifié en
- * production : ses 3 comptes voient 0 ligne sur 51. Lui ouvrir l'écran
- * afficherait une liste vide surmontée de boutons parfaitement fonctionnels —
- * le pire des deux mondes. Rouvrir la question demande une migration RLS, donc
- * un arbitrage, pas une entrée de plus ici.
+ * ✅ `operateur` a été ouvert le 28/07, mais SEULEMENT après que son périmètre
+ * a été posé en base (migration 20260728140000). Jusque-là ses droits
+ * d'écriture étaient NATIONAUX — aucune des quatre RPC ne le bornait — et
+ * aucune policy SELECT ne lui donnait accès aux attestations : ses 3 comptes
+ * voyaient 0 ligne sur 51. Lui ouvrir la lecture seule aurait donc transformé
+ * un droit national latent en droit exerçable. Les deux ont été faits d'un
+ * même geste ; ne jamais dissocier.
  *
  * ⚠️ Ne pas confondre `operateur` et `operateur_saisie` : ce dernier est dans
- * la coquille métier mais n'a aucun droit sur les attestations.
+ * la coquille métier mais n'a AUCUN droit sur les attestations.
  */
 export type ActionsAttestation = {
   /** Signatures que le rôle peut constater. Vide = aucun accès aux attestations. */
@@ -126,6 +133,13 @@ const ATTESTATIONS_PAR_ROLE: Record<string, ActionsAttestation> = {
     remise: false,
     generation: false,
   },
+  operateur: {
+    // Comme l'admin sur le papier — il tient le document — mais borné à son
+    // parc par le serveur. La génération reste `est_admin()` seule.
+    signatures: ["proprietaire", "operateur", "chefferie"],
+    remise: true,
+    generation: false,
+  },
 };
 
 const AUCUNE_ACTION: ActionsAttestation = { signatures: [], remise: false, generation: false };
@@ -145,6 +159,7 @@ const LIBELLE_ROLE: Record<string, string> = {
   admin: "Administration · Centre National de Pilotage",
   operateur_saisie: "Opérateur de saisie · Registre national",
   chefferie: "Chefferie · Juridiction coutumière",
+  operateur: "Opérateur · Périmètre aménagé",
 };
 
 export function libelleRole(groupe: string | null | undefined): string {
@@ -166,4 +181,30 @@ export function chefferieSansJuridiction(
   autoriteCoutumiereId: string | null | undefined,
 ): boolean {
   return groupe === "chefferie" && !autoriteCoutumiereId;
+}
+
+/**
+ * Quel rattachement manque, s'il en manque un.
+ *
+ * Deux rôles sont bornés par un rattachement, et subissent le même double
+ * effet quand il est absent : la policy ne renvoie **aucune ligne**, ET la RPC
+ * refuserait l'écriture. Une liste vide sans explication se lit « rien à
+ * faire » — l'inverse de la vérité.
+ *
+ *   chefferie → `autorite_coutumiere_id` (`ma_chefferie_id()`)
+ *   operateur → `operateur_id`           (`mon_operateur_id()`)
+ *
+ * Le cas n'est pas théorique : en production, **un compte sur deux** côté
+ * chefferie et **un sur trois** côté opérateur n'ont pas de rattachement.
+ */
+export type RattachementManquant = "chefferie" | "operateur" | null;
+
+export function rattachementManquant(
+  groupe: string | null | undefined,
+  autoriteCoutumiereId: string | null | undefined,
+  operateurId: string | null | undefined,
+): RattachementManquant {
+  if (groupe === "chefferie" && !autoriteCoutumiereId) return "chefferie";
+  if (groupe === "operateur" && !operateurId) return "operateur";
+  return null;
 }

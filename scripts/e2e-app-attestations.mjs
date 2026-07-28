@@ -138,6 +138,56 @@ await step("admin-ouvre-la-generation-et-le-motif-est-garde", async () => {
 });
 await p2.close();
 
+// ── Opérateur : ouvert le 28/07, mais BORNÉ à son parc ───────────────────────
+// Deux comptes rattachés à deux opérateurs différents : l'un porte les 51
+// attestations, l'autre n'en a aucune. C'est le cloisonnement lui-même qui est
+// vérifié ici, sur données réelles.
+const p6 = await browser.newPage({ viewport: { width: 390, height: 844 } });
+p6.on("pageerror", (e) => errors.push("operateur: " + String(e.message).slice(0, 140)));
+
+await step("operateur-atteint-les-attestations", async () => {
+  await login(p6, "manuel.amenageur@sgfn.ci");
+  await p6.getByText("Attestations", { exact: true }).first().waitFor({ timeout: 60000 });
+  await p6.getByText(/ATT-CESS-/).first().waitFor({ timeout: 30000 });
+  await p6.screenshot({ path: join(DIR, "11-operateur.png") });
+});
+
+await step("operateur-a-la-remise-mais-PAS-la-derogation", async () => {
+  // `marquer_attestation_delivree` l'autorise ; `generer_attestation_exceptionnelle`
+  // est `est_admin()` seul.
+  const onglet = await p6.getByRole("button", { name: /À remettre/ }).count();
+  if (onglet === 0) throw new Error("l'onglet « À remettre » manque a un role qui a le droit de remise");
+  const generer = await p6.getByText("Générer par dérogation", { exact: true }).count();
+  if (generer > 0) throw new Error("génération offerte a un opérateur (réservée aux admins)");
+});
+
+await step("operateur-n-a-PAS-la-saisie-du-registre", async () => {
+  // `soumettre_saisie` ne lui accorde aucun formulaire.
+  const saisie = await p6.getByText("Saisir dans le registre").count();
+  if (saisie > 0) throw new Error("la saisie du registre est offerte a un opérateur");
+});
+await p6.close();
+
+const p7 = await browser.newPage({ viewport: { width: 390, height: 844 } });
+p7.on("pageerror", (e) => errors.push("operateur2: " + String(e.message).slice(0, 140)));
+await step("operateur-d-un-AUTRE-parc-ne-voit-aucune-attestation", async () => {
+  // 🔴 Le cloisonnement, sur données réelles : ce compte est rattaché au
+  // lotissement qui ne porte AUCUNE attestation. Il ne doit donc voir aucune
+  // des 51 de l'autre opérateur. Sans cette étape, une policy non scopée
+  // passerait inaperçue.
+  await login(p7, "manuel.operateur@sgfn.ci");
+  await p7.getByText("Attestations", { exact: true }).first().waitFor({ timeout: 60000 });
+  await p7.waitForTimeout(3000);
+  const fuite = await p7.getByText(/ATT-CESS-/).count();
+  if (fuite > 0) throw new Error(`fuite : cet opérateur voit ${fuite} attestation(s) hors de son parc`);
+  await p7.getByRole("button", { name: /Toutes/ }).click();
+  await p7.waitForTimeout(1500);
+  const fuite2 = await p7.getByText(/ATT-CESS-/).count();
+  if (fuite2 > 0) throw new Error(`fuite sous « Toutes » : ${fuite2} attestation(s) hors parc`);
+  await p7.screenshot({ path: join(DIR, "12-operateur-autre-parc.png") });
+});
+await p7.close();
+
 // ── Contrôles négatifs : les rôles SANS droit sur les attestations ────────────
 const p3 = await browser.newPage({ viewport: { width: 390, height: 844 } });
 p3.on("pageerror", (e) => errors.push("op-saisie: " + String(e.message).slice(0, 140)));
@@ -286,6 +336,29 @@ await step("apercu-chefferie-non-rattachee-est-expliquee", async () => {
   const filtres = await cadre().getByText("À constater", { exact: false }).count();
   if (filtres > 0) throw new Error("les filtres restent affichés à une chefferie non rattachée");
   await p5.screenshot({ path: join(DIR, "09-apercu-bloquee.png") });
+});
+
+await step("apercu-operateur-sans-perimetre-est-explique", async () => {
+  // Cas RÉEL (1 des 3 comptes), mais inatteignable par connexion : ce compte
+  // n'est pas un compte de test. Le panneau doit nommer l'OPÉRATEUR, pas la
+  // chefferie — un message générique renverrait chercher le mauvais
+  // rattachement auprès de l'administration.
+  await p5.getByText("Attestations — opérateur sans périmètre").click();
+  await cadre().getByText("Compte non rattaché").waitFor({ timeout: 20000 });
+  const bonTexte = await cadre().getByText(/rattaché à aucun opérateur/).count();
+  if (bonTexte === 0) throw new Error("le panneau ne nomme pas l'opérateur");
+  const mauvaisTexte = await cadre().getByText(/rattaché à aucune chefferie/).count();
+  if (mauvaisTexte > 0) throw new Error("le panneau parle de chefferie a un opérateur");
+});
+
+await step("apercu-operateur-a-les-trois-signatures-et-la-remise", async () => {
+  await p5.getByText("Attestations (opérateur)").click();
+  await cadre().getByText(/ATT-CESS-/).first().waitFor({ timeout: 20000 });
+  // Comme l'admin sur le papier : il tient le document.
+  const chefFamille = await cadre().getByText("Constater : Chef de famille", { exact: true }).count();
+  if (chefFamille === 0) throw new Error("l'opérateur ne peut pas constater la signature du chef de famille");
+  const generer = await cadre().getByText("Générer par dérogation", { exact: true }).count();
+  if (generer > 0) throw new Error("génération offerte a un opérateur dans l'aperçu");
 });
 
 await step("apercu-generation-exige-un-motif-de-10-caracteres", async () => {

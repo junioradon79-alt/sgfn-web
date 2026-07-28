@@ -62,6 +62,7 @@ const PROFIL: MobileProfile = {
   famille_id: null,
   autorite_coutumiere_id: null,
   attributaire_id: null,
+  operateur_id: null,
 };
 
 /** Rôle métier nominal : trois formulaires, pas de cockpit national. */
@@ -690,6 +691,7 @@ function fileAttestationsPour(actions: ActionsAttestation): FileAttestations {
 
 const FILE_ADMIN = fileAttestationsPour(attestationsPour("admin"));
 const FILE_CHEFFERIE = fileAttestationsPour(attestationsPour("chefferie"));
+const FILE_OPERATEUR = fileAttestationsPour(attestationsPour("operateur"));
 
 /** En-tête léger, suffisant pour l'aperçu — la coquille en pose un vrai. */
 function EnteteApercu({ titre, sousTitre }: { titre: string; sousTitre: string }) {
@@ -721,6 +723,8 @@ type Ecran =
   | "attestations-chefferie"
   | "attestations-admin"
   | "attestations-bloquee"
+  | "attestations-operateur"
+  | "attestations-operateur-bloque"
   | "attestations-generer";
 
 const ECRANS: { cle: Ecran; libelle: string; note: string }[] = [
@@ -764,6 +768,16 @@ const ECRANS: { cle: Ecran; libelle: string; note: string }[] = [
     // — deux libellés voisins rendent les deux tests ambigus d'un coup.
     libelle: "Attestations — compte sans juridiction",
     note: "Cas INATTEIGNABLE en prod (le seul compte sans juridiction est inactif). Sans ce panneau, une liste vide se lirait « rien à signer », l'inverse de la vérité.",
+  },
+  {
+    cle: "attestations-operateur",
+    libelle: "Attestations (opérateur)",
+    note: "Les trois signatures et la remise, comme l'admin — mais le serveur les borne à son parc. Pas de dérogation : elle reste réservée aux administrateurs.",
+  },
+  {
+    cle: "attestations-operateur-bloque",
+    libelle: "Attestations — opérateur sans périmètre",
+    note: "Cas RÉEL : 1 des 3 comptes opérateur n'a aucun rattachement. Sans ce panneau, sa liste vide se lirait « rien à faire ».",
   },
   {
     cle: "attestations-generer",
@@ -945,8 +959,30 @@ export default function ApercuMobilePage() {
             <AttestationsScreen
               file={{ ...FILE_CHEFFERIE, attestations: [], aSigner: 0, aRemettre: 0 }}
               actions={attestationsPour("chefferie")}
-              bloquee
+              blocage="chefferie"
               header={<EnteteApercu titre="Attestations" sousTitre="Chefferie non rattachée" />}
+            />
+          )}
+          {ecran === "attestations-operateur" && (
+            <AttestationsScreen
+              file={FILE_OPERATEUR}
+              actions={attestationsPour("operateur")}
+              // 🔴 Passé DÉLIBÉRÉMENT, alors que l'opérateur n'a pas le droit de
+              // générer : c'est ce qui rend le contrôle sensible. Sans ce
+              // rappel, l'absence du bouton ne prouverait rien — il manquerait
+              // parce que le rappel manque, et non parce que le rôle est
+              // refusé. Vérifié par mutation : `generation: true` fait bien
+              // rougir le test avec cette ligne, pas sans.
+              onOuvrirGeneration={() => {}}
+              header={<EnteteApercu titre="Attestations" sousTitre="Opérateur · périmètre aménagé" />}
+            />
+          )}
+          {ecran === "attestations-operateur-bloque" && (
+            <AttestationsScreen
+              file={{ ...FILE_OPERATEUR, attestations: [], aSigner: 0, aRemettre: 0 }}
+              actions={attestationsPour("operateur")}
+              blocage="operateur"
+              header={<EnteteApercu titre="Attestations" sousTitre="Opérateur non rattaché" />}
             />
           )}
           {ecran === "attestations-generer" && (

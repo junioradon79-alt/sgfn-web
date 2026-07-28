@@ -61,7 +61,7 @@ import {
   type Signature,
   type StatutAttestation,
 } from "../../data/useAttestations";
-import type { ActionsAttestation } from "../../roles";
+import type { ActionsAttestation, RattachementManquant } from "../../roles";
 
 /** Libellés et tons repris du Coffre-fort documentaire (`dashboard/documents`). */
 const STATUT: Record<StatutAttestation, { label: string; tone: "warning" | "accent" | "success" | "danger" }> = {
@@ -90,20 +90,20 @@ export function AttestationsScreen({
   actions,
   header,
   /**
-   * Chefferie sans juridiction : `ma_chefferie_id()` est nul, donc la policy ne
-   * renvoie AUCUNE ligne — et `signer_attestation` refuserait de toute façon
-   * (« Ce lotissement ne releve pas de votre juridiction »). Une liste vide
-   * sans explication se lirait « rien à signer », c'est-à-dire l'inverse de la
-   * vérité.
+   * Compte non rattaché : la policy ne renvoie AUCUNE ligne, et la RPC
+   * refuserait de toute façon. Une liste vide sans explication se lirait
+   * « rien à signer », c'est-à-dire l'inverse de la vérité. Vaut pour la
+   * chefferie (`ma_chefferie_id()`) comme pour l'opérateur
+   * (`mon_operateur_id()`) — cf. `rattachementManquant`.
    */
-  bloquee = false,
+  blocage = null,
   onOuvrirGeneration,
 }: {
   file: FileAttestations;
   actions: ActionsAttestation;
   /** En-tête fourni par la coquille : bandeau d'onglet, ou barre de calque. */
   header: React.ReactNode;
-  bloquee?: boolean;
+  blocage?: RattachementManquant;
   /** Génération par dérogation — réservée à l'admin (`generation`). */
   onOuvrirGeneration?: () => void;
 }) {
@@ -185,20 +185,30 @@ export function AttestationsScreen({
       {header}
 
       <div className="sgnf-scroll flex-1 overflow-y-auto px-[18px] pt-3 pb-6">
-        {bloquee ? (
+        {blocage ? (
           <div className="rounded-[22px] border border-brick/45 bg-brick-subtle p-4 shadow-panel">
             <div className="flex items-center gap-2 text-[13px] font-bold text-foreground">
               <ShieldAlert className="size-[18px] text-brick" strokeWidth={2} />
               Compte non rattaché
             </div>
             <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">
-              Votre compte n&apos;est rattaché à aucune chefferie. Les attestations sont
-              scopées à une juridiction : sans rattachement, cette liste reste vide et
-              chaque constat serait refusé par le serveur.
+              {blocage === "chefferie" ? (
+                <>
+                  Votre compte n&apos;est rattaché à aucune chefferie. Les attestations sont
+                  bornées à une juridiction : sans rattachement, cette liste reste vide et
+                  chaque constat serait refusé par le serveur.
+                </>
+              ) : (
+                <>
+                  Votre compte n&apos;est rattaché à aucun opérateur. Les attestations sont
+                  bornées au périmètre aménagé : sans rattachement, cette liste reste vide
+                  et chaque constat serait refusé par le serveur.
+                </>
+              )}
             </p>
             <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">
-              Contactez l&apos;administration du SGNF pour faire rattacher votre compte à
-              votre autorité coutumière.
+              Contactez l&apos;administration du SGNF pour faire rattacher votre compte à{" "}
+              {blocage === "chefferie" ? "votre autorité coutumière" : "votre opérateur"}.
             </p>
           </div>
         ) : (

@@ -22,10 +22,18 @@ export type MobileProfile = {
   famille_id: string | null;
   autorite_coutumiere_id: string | null;
   attributaire_id: string | null;
+  /**
+   * Rattachement de l'opérateur (agence/aménageur). Ce que la chefferie tient
+   * de `autorite_coutumiere_id`, l'opérateur le tient d'ici : c'est ce qui
+   * borne son parc (`lots_read_scope`, `attcess_operateur_read`) et ce que les
+   * RPC d'attestation contrôlent avant d'écrire. Sans lui, l'app ne peut pas
+   * dire à un compte non rattaché pourquoi sa liste est vide.
+   */
+  operateur_id: string | null;
 };
 
 const PROFILE_SELECT =
-  "id, nom_complet, telephone, groupe, famille_id, autorite_coutumiere_id, attributaire_id";
+  "id, nom_complet, telephone, groupe, famille_id, autorite_coutumiere_id, attributaire_id, operateur_id";
 
 export type Parcelle = {
   lotId: string;

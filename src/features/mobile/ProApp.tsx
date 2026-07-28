@@ -42,9 +42,9 @@ import { LotissementScreen } from "./screens/admin/saisie/LotissementScreen";
 import { StructureScreen } from "./screens/admin/saisie/StructureScreen";
 import {
   attestationsPour,
-  chefferieSansJuridiction,
   libelleRole,
   ongletsPour,
+  rattachementManquant,
   saisiesPour,
   voitLesAttestations,
   type EcranSaisie,
@@ -135,11 +135,12 @@ export function ProApp({
   // ses signatures doit voir sa pastille tomber à zéro, même si les documents
   // attendent encore le chef de famille.
   const attestations = useAttestations(voitLesAttestations(groupe), actionsAttestation);
-  // Sans juridiction, la policy ne renvoie rien ET tout constat serait refusé.
-  // Le même garde-fou que la saisie, pour la même raison.
-  const attestationsBloquees = chefferieSansJuridiction(
+  // Sans rattachement, la policy ne renvoie rien ET tout constat serait refusé.
+  // Vaut pour la chefferie (juridiction) comme pour l'opérateur (périmètre).
+  const attestationsBloquees = rattachementManquant(
     groupe,
     data.profile?.autorite_coutumiere_id,
+    data.profile?.operateur_id,
   );
   // Même mécanique que l'expérience citoyen : l'état de lecture des
   // notifications vit sur l'appareil (cf. `@/lib/notifs-lues`).
@@ -306,7 +307,7 @@ export function ProApp({
           <AttestationsScreen
             file={attestations}
             actions={actionsAttestation}
-            bloquee={attestationsBloquees}
+            blocage={attestationsBloquees}
             onOuvrirGeneration={openGeneration}
             header={
               <BarHeader
@@ -383,7 +384,7 @@ export function ProApp({
           <AttestationsScreen
             file={attestations}
             actions={actionsAttestation}
-            bloquee={attestationsBloquees}
+            blocage={attestationsBloquees}
             onOuvrirGeneration={actionsAttestation.generation ? openGeneration : undefined}
             header={
               <PrimaryHeader
