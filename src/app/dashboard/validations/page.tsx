@@ -153,13 +153,26 @@ export default function ValidationsPage() {
     void recharger();
   };
 
+  /**
+   * 🔴 Passe par `signer_apfc` et non par un `update` direct — même correction
+   * que `signerAttestation` ci-dessus, qui n'avait jamais été reportée ici
+   * alors que les deux boutons vivent sur le même écran.
+   *
+   * L'ancienne version était **inopérante depuis toujours** :
+   * `attestations_coutumieres` ne porte que `apfc_admin_all` (ALL, admin) et
+   * `apfc_read` (SELECT). Une chefferie n'a donc aucune policy d'écriture, et
+   * sous RLS un update sans policy **ne lève aucune erreur** — il touche zéro
+   * ligne. Prouvé en production le 28/07 sous la session réelle de la chefferie
+   * rattachée : « apfc lisibles=1, update a touché 0 ligne(s), erreur=NON ».
+   * Le chef de village croyait signer depuis des semaines.
+   */
   const signerApfc = async (id: string) => {
     setSigningApfc(id);
     setSignError(null);
-    const { error } = await supabase
-      .from("attestations_coutumieres")
-      .update({ sig_chef_village_le: new Date().toISOString() })
-      .eq("id", id);
+    const { error } = await supabase.rpc("signer_apfc", {
+      p_id: id,
+      p_signature: "chef_village",
+    });
     if (error) setSignError(`Signature non enregistrée : ${error.message}`);
     setSigningApfc(null);
     void recharger();

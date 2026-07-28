@@ -500,8 +500,11 @@ export type Database = {
           numero: string | null
           reference: string | null
           sig_chef_famille_le: string | null
+          sig_chef_famille_par: string | null
           sig_chef_village_le: string | null
+          sig_chef_village_par: string | null
           sig_cvgfr_le: string | null
+          sig_cvgfr_par: string | null
           statut: Database["public"]["Enums"]["statut_apfc"]
         }
         Insert: {
@@ -516,8 +519,11 @@ export type Database = {
           numero?: string | null
           reference?: string | null
           sig_chef_famille_le?: string | null
+          sig_chef_famille_par?: string | null
           sig_chef_village_le?: string | null
+          sig_chef_village_par?: string | null
           sig_cvgfr_le?: string | null
+          sig_cvgfr_par?: string | null
           statut?: Database["public"]["Enums"]["statut_apfc"]
         }
         Update: {
@@ -532,8 +538,11 @@ export type Database = {
           numero?: string | null
           reference?: string | null
           sig_chef_famille_le?: string | null
+          sig_chef_famille_par?: string | null
           sig_chef_village_le?: string | null
+          sig_chef_village_par?: string | null
           sig_cvgfr_le?: string | null
+          sig_cvgfr_par?: string | null
           statut?: Database["public"]["Enums"]["statut_apfc"]
         }
         Relationships: [
@@ -4770,6 +4779,10 @@ export type Database = {
       score_confiance_lot: { Args: { p_lot_id: string }; Returns: number }
       sgfn_call_edge: {
         Args: { p_payload: Json; p_slug: string }
+        Returns: undefined
+      }
+      signer_apfc: {
+        Args: { p_id: string; p_signature: string }
         Returns: undefined
       }
       signer_attestation: {
