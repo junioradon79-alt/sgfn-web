@@ -181,13 +181,25 @@ where exists (
 
 -- ── 5. Le résolveur ──────────────────────────────────────────────────────────
 --
--- Rend le chef en fonction à une date donnée. Deux partis pris explicites :
+-- Rend le chef en fonction à une date donnée. Trois partis pris explicites :
 --
 --   · `p_date` NULL (document sans date) → le chef COURANT. C'est le seul repli
 --     défendable : on ne peut pas dater un acte qu'on ne sait pas dater.
---   · Aucune période ne couvre la date → NULL, et surtout PAS un repli sur
---     `autorites_coutumieres.chef`. Ce repli réintroduirait exactement le défaut
---     corrigé ici. Mieux vaut n'afficher aucun nom qu'en afficher un faux.
+--   · Une période dont `debut` est NULL est ouverte vers le PASSÉ : elle couvre
+--     −infini, et rend donc un nom pour n'importe quelle date antérieure à sa
+--     `fin`. `chef_autorite_a_la_date('a9c32…', '1900-01-01')` rend NANAN AFFA
+--     KOUACHY ALFRED, pas NULL. C'est voulu : pour un acte antérieur à ce que le
+--     registre sait dater, le plus ancien chef connu est la meilleure réponse
+--     disponible, et « depuis une date inconnue » ne veut pas dire « depuis une
+--     date connue et récente ».
+--     ⚠️ Corrigé le 29/07 (migration 20260729120000) : ce commentaire annonçait
+--     jusque-là « aucune période ne couvre la date → NULL », ce que la fonction
+--     ne fait pas. C'était le commentaire qui mentait, pas le code.
+--   · Aucune ligne rendue seulement dans deux cas : l'autorité n'a aucune
+--     période, ou `p_date` tombe dans un trou entre deux périodes (y compris
+--     avant une première période à `debut` renseigné). Et surtout PAS de repli
+--     sur `autorites_coutumieres.chef` : ce repli réintroduirait exactement le
+--     défaut corrigé ici. Mieux vaut n'afficher aucun nom qu'en afficher un faux.
 
 create or replace function public.chef_autorite_a_la_date(p_autorite uuid, p_date date)
 returns table (nom text, numero_arrete_nomination text, date_arrete date, debut date, fin date)
@@ -211,7 +223,12 @@ as $function$
 $function$;
 
 comment on function public.chef_autorite_a_la_date(uuid, date) is
-  'Chef en fonction à p_date. p_date NULL → chef courant. Aucune correspondance → aucune ligne (jamais de repli sur le chef courant : ce serait le défaut d''origine).';
+  'Chef en fonction à p_date. p_date NULL → chef courant (période à fin NULL). Une période à debut NULL est ouverte vers le passé : toute date antérieure à sa fin rend ce chef — le plus ancien connu, jamais NULL. Aucune ligne seulement si l''autorité n''a aucune période, ou si p_date tombe dans un trou entre deux périodes. Jamais de repli sur autorites_coutumieres.chef : ce serait le défaut d''origine.';
 
+-- ⚠️ Cette instruction est INERTE sur Supabase : le grant à `anon` est posé
+-- nominativement par `alter default privileges`, et `revoke ... from PUBLIC` ne
+-- retire que le pseudo-rôle PUBLIC. Constaté le 29/07 (appel REST anon → HTTP
+-- 200). Le retrait réel est fait dans 20260729120000. Laissé ici tel quel :
+-- cette migration est déjà appliquée en production, on ne la réécrit pas.
 revoke all on function public.chef_autorite_a_la_date(uuid, date) from public;
 grant execute on function public.chef_autorite_a_la_date(uuid, date) to authenticated, service_role;
