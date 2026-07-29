@@ -176,6 +176,38 @@ function CreerGrandeFamilleModal({
 // ─── Modal : créer une autorité coutumière ───────────────────────────────────
 
 /**
+ * Aujourd'hui au format `YYYY-MM-DD`, pour l'attribut `max` des deux champs
+ * « Date de l'arrêté ».
+ *
+ * Un arrêté de nomination ne peut pas être daté du futur, et la conséquence
+ * d'une coquille est invisible : `chef_autorite_a_la_date()` ne rend aucun chef
+ * tant que la date de prise de fonction n'est pas atteinte, donc un tiret à la
+ * place du nom sur /verifier et dans le PDF — sans la moindre erreur nulle part.
+ * 2032 tapé pour 2023 masquerait le signataire pendant neuf ans.
+ *
+ * ⚠️ CE N'EST PAS UNE GARANTIE, et il ne faut pas la lire comme telle. `max`
+ * n'empêche pas la frappe, seule la validation native du formulaire s'en sert —
+ * or la sauvegarde est déclenchée en JavaScript, pas par un `submit`. Cet
+ * attribut aide la saisie (le sélecteur de date grise l'après), rien de plus.
+ * La vraie garde est en base, dans le trigger
+ * `autorites_synchroniser_historique_chefs` : il borne la prise de fonction à
+ * `current_date` sur ses trois branches (migration 20260729140000). Cet ajout
+ * est de la défense en profondeur, pas la défense.
+ *
+ * Les deux modales ne sont montées qu'au clic : aucun rendu serveur, donc pas de
+ * risque d'écart d'hydratation entre l'heure du serveur et celle du navigateur.
+ */
+function aujourdhuiISO(): string {
+  const d = new Date();
+  // Pas `toISOString()` : il convertit en UTC et ferait basculer la borne d'un
+  // jour pour un fuseau à l'ouest de Greenwich. On lit la date LOCALE, celle que
+  // l'admin a sous les yeux.
+  const mois = String(d.getMonth() + 1).padStart(2, "0");
+  const jour = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mois}-${jour}`;
+}
+
+/**
  * Création d'une chefferie.
  *
  * Comble un manque relevé le 22/07 : la table `autorites_coutumieres` n'avait
@@ -197,6 +229,7 @@ function CreerAutoriteModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   const [autoriteSignataire, setAutoriteSignataire] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const maxDateArrete = useMemo(() => aujourdhuiISO(), []);
 
   const handleSave = async () => {
     if (!nom.trim()) { setError("Le nom est requis."); return; }
@@ -248,7 +281,7 @@ function CreerAutoriteModal({ onClose, onSuccess }: { onClose: () => void; onSuc
                 <Input id="ac-arrete-numero" placeholder="Ex : N°017/RW/P.SGLA/CAB" value={numeroArrete} onChange={(e) => setNumeroArrete(e.target.value)} />
               </Field>
               <Field label="Date de l'arrêté" htmlFor="ac-arrete-date">
-                <Input id="ac-arrete-date" type="date" value={dateArrete} onChange={(e) => setDateArrete(e.target.value)} />
+                <Input id="ac-arrete-date" type="date" max={maxDateArrete} value={dateArrete} onChange={(e) => setDateArrete(e.target.value)} />
               </Field>
               <Field label="Autorité signataire" htmlFor="ac-arrete-signataire">
                 <Input id="ac-arrete-signataire" placeholder="Ex : Préfet d'Abidjan" value={autoriteSignataire} onChange={(e) => setAutoriteSignataire(e.target.value)} />
@@ -302,6 +335,7 @@ function EditerAutoriteModal({
   const [scanFile, setScanFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const maxDateArrete = useMemo(() => aujourdhuiISO(), []);
 
   const voirScanActuel = async () => {
     if (!autorite.arrete_nomination_scan_url) return;
@@ -373,7 +407,7 @@ function EditerAutoriteModal({
                 <Input id="ea-arrete-numero" placeholder="Ex : N°017/RW/P.SGLA/CAB" value={numeroArrete} onChange={(e) => setNumeroArrete(e.target.value)} />
               </Field>
               <Field label="Date de l'arrêté" htmlFor="ea-arrete-date">
-                <Input id="ea-arrete-date" type="date" value={dateArrete} onChange={(e) => setDateArrete(e.target.value)} />
+                <Input id="ea-arrete-date" type="date" max={maxDateArrete} value={dateArrete} onChange={(e) => setDateArrete(e.target.value)} />
               </Field>
               <Field label="Autorité signataire" htmlFor="ea-arrete-signataire">
                 <Input id="ea-arrete-signataire" placeholder="Ex : Préfet d'Abidjan" value={autoriteSignataire} onChange={(e) => setAutoriteSignataire(e.target.value)} />

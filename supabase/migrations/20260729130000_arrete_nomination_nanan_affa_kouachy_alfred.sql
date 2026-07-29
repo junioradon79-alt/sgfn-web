@@ -35,24 +35,84 @@
 -- C'est le comportement voulu (§5 de `20260729100000` : « aucun nom plutôt qu'un
 -- nom faux ») et c'est même un gain de justesse — il n'a jamais été chef en
 -- 1998. Mais il ne devient acceptable qu'à une condition : qu'aucun document
--- existant ne tombe dans le trou. Recensement fait en production le 29/07 sur
--- les QUATRE chemins de rattachement à cette autorité :
+-- existant ne tombe dans le trou.
 --
---   · attestations_coutumieres.autorite_coutumiere_id (rattachement direct)
---   · attributions.enterine_par (FK vers autorites_coutumieres)
---   · lotissements.autorite_coutumiere_id, et toute la chaîne d'actes sur leurs
---     lots : attestations_cession, attestations_attribution_lot,
---     certificats_vente, pv_bornage (via missions_geometre)
---   · repartitions_paiement.autorite_coutumiere_id
+-- ⚠️ RECENSEMENT REFAIT LE 29/07 (migration 20260729140000). La version d'origine
+-- de ce commentaire annonçait « 56 dates recensées sur les QUATRE chemins de
+-- rattachement ». Ce chiffre n'est reproductible par aucune requête, et le
+-- découpage en quatre chemins était faux sur trois points. La CONCLUSION, elle,
+-- tient — mais elle tenait pour de mauvaises raisons, ce qui n'est pas la même
+-- chose que tenir. Ce qui est faux, nommément :
 --
---   56 dates recensées, sur 898 lots et 2 lotissements (Koelea-Accor revu,
---   Brignan Kakodji). La PLUS ANCIENNE est 2022-02-10 — la délivrance de
---   l'APFC-EBIMPE-2022-001 elle-même. Aucune date antérieure à 2007-04-25 :
---   `nb_avant_2007_04_25 = 0`.
+--   · il y a HUIT clés étrangères vers `autorites_coutumieres`, pas quatre :
+--     attestations_coutumieres, attributions.enterine_par, lotissements,
+--     repartitions_paiement, invitations, profiles, tarifs_attestation_chefferie
+--     et chefs_autorites_coutumieres ;
+--   · DEUX des quatre chemins déclarés ne rendent AUCUNE ligne, et pas seulement
+--     pour Ebimpe : `attributions.enterine_par` est NULL sur les 1 358
+--     attributions de la base, et `repartitions_paiement` est une table VIDE.
+--     Les compter comme des chemins vérifiés donnait l'illusion d'un
+--     recensement large ;
+--   · le vrai volume des attributions ne passe pas par `enterine_par` mais par
+--     `attributions.lot_id → lots → ilots → lotissements` — 518 lignes datées,
+--     invisibles dans la liste d'origine.
 --
--- Le trou créé est donc vide, et le seul acte concerné (10/02/2022) tombe très
--- confortablement dans la période resserrée. À noter pour la suite : si un acte
--- antérieur à 2007 était un jour inscrit pour Ebimpe, il s'afficherait sans
+-- CE QUI EST ÉTABLI, avec la requête ci-dessous (rejouable telle quelle) :
+--
+--   with lotis as (
+--     select id from public.lotissements
+--      where autorite_coutumiere_id = 'a9c32cda-66bb-4f8b-b661-2c0ec0127dcb'),
+--   lot_ids as (
+--     select l.id from public.lots l join public.ilots i on i.id = l.ilot_id
+--      where i.lotissement_id in (select id from lotis)),
+--   actes(chemin, d) as (
+--     select 'A', date_delivrance from public.attestations_coutumieres
+--       where autorite_coutumiere_id = 'a9c32cda-66bb-4f8b-b661-2c0ec0127dcb'
+--     union all select 'B', enterine_le from public.attributions
+--       where enterine_par = 'a9c32cda-66bb-4f8b-b661-2c0ec0127dcb'
+--     union all select 'C', cree_le::date from public.repartitions_paiement
+--       where autorite_coutumiere_id = 'a9c32cda-66bb-4f8b-b661-2c0ec0127dcb'
+--     union all select 'D1', date_leve_topographique        from public.lotissements where id in (select id from lotis)
+--     union all select 'D2', pv_identification_physique_date from public.lotissements where id in (select id from lotis)
+--     union all select 'D3', cree_le::date                   from public.lotissements where id in (select id from lotis)
+--     union all select 'E1', enterine_le  from public.attributions             where lot_id in (select id from lot_ids)
+--     union all select 'E2', depuis       from public.attributions             where lot_id in (select id from lot_ids)
+--     union all select 'F',  date_emission from public.attestations_cession        where lot_id in (select id from lot_ids)
+--     union all select 'G',  date_emission from public.attestations_attribution_lot where lot_id in (select id from lot_ids)
+--     union all select 'H',  date_emission from public.certificats_vente           where lot_id in (select id from lot_ids)
+--     union all select 'I',  p.date_bornage from public.pv_bornage p
+--       join public.missions_geometre m on m.id = p.mission_id
+--      where m.lot_id in (select id from lot_ids))
+--   select count(*) filter (where d is not null) as datees, min(d) as plus_ancienne,
+--          count(*) filter (where d < date '2007-04-25') as avant_le_trou
+--     from actes;
+--
+--   → 2 774 lignes parcourues, dont 573 PORTENT UNE DATE, sur 898 lots et
+--     2 lotissements (Koelea-Accor revu, Brignan Kakodji). Réparties ainsi :
+--     518 `attributions.depuis`, 51 `attestations_cession.date_emission`,
+--     2 `lotissements.cree_le`, 1 `lotissements.date_leve_topographique`,
+--     1 `attestations_coutumieres.date_delivrance`. Les chemins B, C, G, H et I
+--     ne rendent rien du tout.
+--     plus_ancienne = 2022-02-10, avant_le_trou = 0.
+--
+-- ET LE CONTRÔLE QUI TRANCHE VRAIMENT. Recenser les dates rattachables à
+-- l'autorité est prudent mais trop large : la quasi-totalité d'entre elles
+-- n'atteint jamais le résolveur. `chef_autorite_a_la_date()` n'a que DEUX
+-- appelants dans tout le système, et chacun ne lui passe qu'UNE colonne :
+--
+--   · public.verifier_document()                         → attestations_coutumieres.date_delivrance
+--   · supabase/functions/generation-document/index.ts:208 → attestations_coutumieres.date_delivrance
+--   · supabase/functions/generation-document/index.ts:152 → attestations_attribution_lot.date_emission
+--     (autorité retrouvée par lot_id → ilots → lotissements)
+--
+-- Or `attestations_coutumieres` compte UNE seule ligne dans toute la base —
+-- APFC-EBIMPE-2022-001, délivrée le 2022-02-10 — et Ebimpe n'a AUCUNE
+-- `attestations_attribution_lot`. L'ensemble des dates qui peuvent atteindre le
+-- résolveur pour cette chefferie se réduit donc à une seule : 10/02/2022, qui
+-- tombe très confortablement dans la période resserrée.
+--
+-- Le trou créé est vide, sur les deux mesures. À noter pour la suite : si un
+-- acte antérieur à 2007 était un jour inscrit pour Ebimpe, il s'afficherait sans
 -- signataire — c'est le signal qu'il faudrait documenter un prédécesseur, pas
 -- rouvrir `debut`.
 
