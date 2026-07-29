@@ -83,6 +83,31 @@ async function chargerAttributaire(id: string) {
   };
 }
 
+/**
+ * Chef de l'autorité coutumière EN FONCTION À LA DATE DU DOCUMENT.
+ *
+ * 🔴 On lisait `autorites_coutumieres.chef`, qui porte le chef COURANT. Un acte
+ * régénéré après une succession changeait donc de signataire — l'APFC de
+ * Koelea-Accor, délivrée en 2022, sortait au nom du chef nommé en 2023. Corrigé
+ * côté base le 29/07 pour la vérification QR ; c'est le même défaut ici, et le
+ * PDF est la pièce que les gens gardent.
+ *
+ * `p_date` à null → chef courant, ce qu'il faut pour un document qu'on émet
+ * aujourd'hui. Aucune période connue → « — » plutôt qu'un nom faux.
+ */
+async function chargerChefALaDate(autoriteId: string, dateDocument?: string | null) {
+  const { data } = await supabase.rpc("chef_autorite_a_la_date", {
+    p_autorite: autoriteId,
+    p_date: dateDocument ?? null,
+  });
+  const c: any = Array.isArray(data) ? data[0] : data;
+  return {
+    chef: c?.nom ?? "—",
+    numero_arrete_nomination: c?.numero_arrete_nomination ?? "—",
+    date_arrete_nomination: c?.date_arrete ? dateFr(c.date_arrete) : "—",
+  };
+}
+
 async function chargerLot(id: string) {
   const { data: lot } = await supabase.from("lots")
     .select("numero_lot, superficie_m2, ilots(numero, lotissements(nom, village, commune))").eq("id", id).single();
@@ -121,11 +146,13 @@ async function chargerDonnees(table: string, rec: any): Promise<Record<string, s
           .select("ilots(lotissements(autorite_coutumiere_id))").eq("id", rec.lot_id).single();
         const autoriteId = (lotAc as any)?.ilots?.lotissements?.autorite_coutumiere_id;
         if (autoriteId) {
-          const { data: ac } = await supabase.from("autorites_coutumieres")
-            .select("chef,numero_arrete_nomination,date_arrete").eq("id", autoriteId).single();
-          out.chef_village = ac?.chef ?? "—";
-          out.numero_arrete_nomination = ac?.numero_arrete_nomination ?? "—";
-          out.date_arrete_nomination = ac?.date_arrete ? dateFr(ac.date_arrete) : "—";
+          // Resolu par la date d'emission : identique au chef courant pour une
+          // attestation emise aujourd'hui, exact si on la regenere apres une
+          // succession.
+          const chef = await chargerChefALaDate(autoriteId, rec.date_emission);
+          out.chef_village = chef.chef;
+          out.numero_arrete_nomination = chef.numero_arrete_nomination;
+          out.date_arrete_nomination = chef.date_arrete_nomination;
         }
       }
     }
@@ -173,8 +200,12 @@ async function chargerDonnees(table: string, rec: any): Promise<Record<string, s
         out.chef_de_famille = rec.chef_de_famille ?? "—";
       }
       if (rec.autorite_coutumiere_id) {
-        const { data: ac } = await supabase.from("autorites_coutumieres").select("nom,type,chef").eq("id", rec.autorite_coutumiere_id).single();
-        out.autorite_coutumiere = ac?.nom ?? "—"; out.autorite_type = ac?.type ?? "—"; out.autorite_chef = ac?.chef ?? "—";
+        const { data: ac } = await supabase.from("autorites_coutumieres").select("nom,type").eq("id", rec.autorite_coutumiere_id).single();
+        out.autorite_coutumiere = ac?.nom ?? "—"; out.autorite_type = ac?.type ?? "—";
+        // Le signataire de l'APFC est le chef en fonction a sa delivrance, pas
+        // celui d'aujourd'hui : APFC-EBIMPE-2022-001 sortait au nom du chef
+        // nomme en mai 2023.
+        out.autorite_chef = (await chargerChefALaDate(rec.autorite_coutumiere_id, rec.date_delivrance)).chef;
       }
       if (rec.cvgfr_id) {
         const { data: cv } = await supabase.from("cvgfr").select("president").eq("id", rec.cvgfr_id).single();
