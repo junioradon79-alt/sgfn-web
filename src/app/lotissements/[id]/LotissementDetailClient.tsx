@@ -10,8 +10,10 @@ import { Badge } from "@/components/ds/badge";
 import { Card } from "@/components/ds/card";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
+import { useProfile } from "@/hooks/useProfile";
 import { fetchAllPages } from "@/lib/supabase-pagination";
 import { LotDetailModal, type LotRecord, type LitigeRow, type ScoreConfiance } from "@/components/dashboard/lots/LotDetailModal";
+import PlanLotissementCard from "@/features/lotissements/components/PlanLotissementCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -155,6 +157,9 @@ export default function LotissementDetailClient() {
 
   const { isLoading: loading, recharger } = useChargement(fetchData, [fetchData]);
   const { counts } = useBadgeCounts();
+  // Le dépôt d'un plan est admin-only en RLS. Le front n'affiche pas l'action
+  // aux autres — mais c'est la base qui tranche, pas cette variable.
+  const { isAdmin } = useProfile();
 
   // Charge le dossier complet du lot (attributions, cession, litiges, score de
   // confiance) à la demande, puis affiche le modal partagé en lecture seule.
@@ -254,6 +259,11 @@ export default function LotissementDetailClient() {
           </div>
         </Card>
       )}
+
+      {/* Plan de morcellement — la pièce qui situe les îlots et les lots dans
+          le périmètre. Placée AVANT le découpage : on lit le plan, puis on lit
+          ce qu'il découpe. */}
+      <PlanLotissementCard lotissementId={lotissement.id} isAdmin={isAdmin} />
 
       {/* Îlots */}
       <Card className="overflow-hidden">

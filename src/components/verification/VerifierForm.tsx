@@ -117,6 +117,11 @@ const CHAMP_LABEL: Record<string, string> = {
   pv_commissaire_etude: "Étude",
   pv_identification_physique_numero: "N° PV d'identification physique",
   pv_identification_physique_date: "Date du PV d'identification physique",
+  // Booléen (« Oui »/« Non ») rendu par la branche APFC de `verifier_document`.
+  // Signal de confiance seulement : la page est publique et anonyme, elle
+  // n'expose ni l'identifiant du document ni son chemin de stockage — le
+  // fichier reste derrière la RLS `documents_lotissement_read`.
+  plan_morcellement_depose: "Plan de morcellement au registre",
   guide_reference: "Guide de référence",
   geometre: "Géomètre-expert",
   geometre_cabinet: "Cabinet",

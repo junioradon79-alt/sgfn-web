@@ -152,7 +152,13 @@ type DocumentRow = {
   apercu_url: string | null;
   hash_fichier: string | null;
   televerse_le: string;
+  nom_fichier: string | null;
   lots: { numero_lot: string | null; ilots: { lotissements: { nom: string | null } | null } | null } | null;
+  // Depuis la migration 20260729170000, un document peut être rattaché au
+  // LOTISSEMENT et non à un lot. Sans cette jointure, un plan de morcellement
+  // s'affichait ici avec « Lot associé : — », c'est-à-dire comme un document
+  // orphelin alors qu'il est parfaitement rattaché.
+  lotissements: { nom: string | null } | null;
 };
 
 type DlState = Record<string, "idle" | "loading" | "error">;
@@ -763,7 +769,7 @@ function DocumentsTab({ rows, apercuUrls, dlOriginal, onOpenLightbox }: {
             <th className={TH_CLASS}>Type</th>
             <th className={TH_CLASS}>Titre</th>
             <th className={TH_CLASS}>Aperçu</th>
-            <th className={TH_CLASS}>Lot associé</th>
+            <th className={TH_CLASS}>Rattaché à</th>
             <th className={TH_CLASS}>Date document</th>
             <th className={TH_CLASS}>Intégrité</th>
             <th className={TH_CLASS}></th>
@@ -774,7 +780,16 @@ function DocumentsTab({ rows, apercuUrls, dlOriginal, onOpenLightbox }: {
             const lot = doc.lots;
             const lotLabel = lot ? `Lot ${lot.numero_lot ?? "—"}` : null;
             const lotissement = lot?.ilots?.lotissements?.nom ?? null;
-            const estPlan = doc.type === "plan_lot" || doc.type === "plan_lotissement";
+            // Deux notions distinctes, qui étaient confondues :
+            //  · `estPlanCao` — le plan de LOT, seul à passer par la chaîne de
+            //    conversion DXF → vignette (`convertir-plan-cad`) ;
+            //  · `estPlan` — tout plan, donc tout fichier vivant dans le bucket
+            //    privé et téléchargeable via l'edge function.
+            // Les mélanger affichait « Conversion en cours » sur un plan de
+            // morcellement PDF, qui n'attend aucune conversion et n'en attendra
+            // jamais : un état d'attente perpétuel présenté comme un progrès.
+            const estPlanCao = doc.type === "plan_lot";
+            const estPlan = estPlanCao || doc.type === "plan_lotissement";
             return (
               <tr key={doc.id} className="transition hover:bg-inset/60">
                 <td className="px-5 py-3.5">
@@ -784,8 +799,12 @@ function DocumentsTab({ rows, apercuUrls, dlOriginal, onOpenLightbox }: {
                   {doc.titre ?? <span className="text-muted-2">Sans titre</span>}
                 </td>
                 <td className="px-5 py-3.5">
-                  {estPlan ? (
+                  {estPlanCao ? (
                     <PlanApercu doc={doc} apercuUrl={apercuUrls[doc.id]} onOpenLightbox={onOpenLightbox} />
+                  ) : doc.nom_fichier ? (
+                    <span className="text-xs text-muted-2" title={doc.nom_fichier}>
+                      {doc.nom_fichier.split(".").pop()?.toUpperCase() ?? "—"}
+                    </span>
                   ) : (
                     <span className="text-muted-2">—</span>
                   )}
@@ -795,6 +814,11 @@ function DocumentsTab({ rows, apercuUrls, dlOriginal, onOpenLightbox }: {
                     <>
                       {lotLabel}
                       {lotissement && <p className="text-xs text-muted-2">{lotissement}</p>}
+                    </>
+                  ) : doc.lotissements?.nom ? (
+                    <>
+                      {doc.lotissements.nom}
+                      <p className="text-xs text-muted-2">tout le lotissement</p>
                     </>
                   ) : (
                     <span className="text-muted-2">—</span>
@@ -1182,7 +1206,7 @@ export default function DocumentsPage() {
       supabase
         .from("documents")
         .select(
-          "id, type, titre, emetteur, date_document, url_fichier, apercu_url, hash_fichier, televerse_le, lots(numero_lot, ilots(lotissements(nom)))"
+          "id, type, titre, emetteur, date_document, url_fichier, apercu_url, hash_fichier, televerse_le, nom_fichier, lots(numero_lot, ilots(lotissements(nom))), lotissements(nom)"
         )
         .order("televerse_le", { ascending: false }),
       supabase.from("v_attestations_gratuites_manquantes").select("lot_id", { count: "exact", head: true }),

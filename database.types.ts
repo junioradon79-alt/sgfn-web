@@ -1651,10 +1651,14 @@ export type Database = {
           hash_fichier: string | null
           id: string
           lot_id: string | null
+          lotissement_id: string | null
+          nom_fichier: string | null
+          taille_octets: number | null
           televerse_le: string
           televerse_par: string | null
           titre: string | null
           type: Database["public"]["Enums"]["type_document"]
+          type_mime: string | null
           url_fichier: string
         }
         Insert: {
@@ -1664,10 +1668,14 @@ export type Database = {
           hash_fichier?: string | null
           id?: string
           lot_id?: string | null
+          lotissement_id?: string | null
+          nom_fichier?: string | null
+          taille_octets?: number | null
           televerse_le?: string
           televerse_par?: string | null
           titre?: string | null
           type: Database["public"]["Enums"]["type_document"]
+          type_mime?: string | null
           url_fichier: string
         }
         Update: {
@@ -1677,10 +1685,14 @@ export type Database = {
           hash_fichier?: string | null
           id?: string
           lot_id?: string | null
+          lotissement_id?: string | null
+          nom_fichier?: string | null
+          taille_octets?: number | null
           televerse_le?: string
           televerse_par?: string | null
           titre?: string | null
           type?: Database["public"]["Enums"]["type_document"]
+          type_mime?: string | null
           url_fichier?: string
         }
         Relationships: [
@@ -1689,6 +1701,13 @@ export type Database = {
             columns: ["lot_id"]
             isOneToOne: false
             referencedRelation: "lots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_lotissement_id_fkey"
+            columns: ["lotissement_id"]
+            isOneToOne: false
+            referencedRelation: "lotissements"
             referencedColumns: ["id"]
           },
           {
