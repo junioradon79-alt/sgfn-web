@@ -266,7 +266,10 @@ function CreerAutoriteModal({ onClose, onSuccess }: { onClose: () => void; onSuc
           <Field label="Village" htmlFor="ac-village">
             <Input id="ac-village" placeholder="Ex : Ebimpe" value={village} onChange={(e) => setVillage(e.target.value)} />
           </Field>
-          <Field label="Chef (nom d'usage)" htmlFor="ac-chef">
+          {/* Une autorité coutumière a un chef de VILLAGE. La même page édite
+              plus loin des lignées, qui ont un chef de FAMILLE : « Chef » tout
+              court y désignait deux personnes différentes. */}
+          <Field label="Chef de village (nom d'usage)" htmlFor="ac-chef">
             <Input id="ac-chef" placeholder="Ex : Nanan Kouassi" value={chef} onChange={(e) => setChef(e.target.value)} />
           </Field>
           <Field label="Contact" htmlFor="ac-contact">
@@ -392,7 +395,7 @@ function EditerAutoriteModal({
           <Field label="Village" htmlFor="ea-village">
             <Input id="ea-village" value={village} onChange={(e) => setVillage(e.target.value)} />
           </Field>
-          <Field label="Chef (nom d'usage)" htmlFor="ea-chef">
+          <Field label="Chef de village (nom d'usage)" htmlFor="ea-chef">
             <Input id="ea-chef" value={chef} onChange={(e) => setChef(e.target.value)} />
           </Field>
           <Field label="Contact" htmlFor="ea-contact">
@@ -811,7 +814,7 @@ function DesignerChefFamilleModal({
           <p className="text-[11px] font-bold tracking-[0.18em] text-accent uppercase">Désigner un chef de famille</p>
           <DialogTitle>{famille.nom}</DialogTitle>
           {famille.chef_de_famille && (
-            <p className="text-xs text-muted-2">Chef enregistré : {famille.chef_de_famille}</p>
+            <p className="text-xs text-muted-2">Chef de famille enregistré : {famille.chef_de_famille}</p>
           )}
         </DialogHeader>
         <div className="border-b border-border p-4">
@@ -938,7 +941,7 @@ function DesignerChefVillageModal({
           <p className="text-[11px] font-bold tracking-[0.18em] text-warning uppercase">Désigner un chef de village</p>
           <DialogTitle>{autorite.nom}</DialogTitle>
           {autorite.village && <p className="text-xs text-muted-2">Village : {autorite.village}</p>}
-          {autorite.chef && <p className="text-xs text-muted-2">Chef (registre) : {autorite.chef}</p>}
+          {autorite.chef && <p className="text-xs text-muted-2">Chef de village (registre) : {autorite.chef}</p>}
         </DialogHeader>
 
         {autorite.chefs_profils.length > 0 && (
@@ -1113,17 +1116,43 @@ export default function FamillesPage() {
     setGrandesFamilles((gfs ?? []).map((gf) => ({ ...gf, lignees: ligneesByGF[gf.id] ?? [] })));
   }, [supabase]);
 
+  /**
+   * 🔴 L'onglet « Lignées » était VIDE en production, sans le dire — 23 lignées
+   * en base, « Aucune lignée trouvée » à l'écran, et les quatre compteurs à 0.
+   *
+   * DEUX embeds étaient fautifs dans la même requête, et le premier masquait
+   * le second :
+   *
+   *  1. `collectif:attributaires(id, nom)` était AMBIGU — deux clés étrangères
+   *     relient les tables (`familles.attributaire_id → attributaires` et
+   *     `attributaires.famille_id → familles`). PostgREST refuse alors l'embed
+   *     par un **HTTP 300** (PGRST201). La clé est nommée.
+   *  2. `lignee:familles!familles_lignee_id_fkey(…)` — pour une relation
+   *     AUTO-RÉFÉRENCÉE, PostgREST n'accepte pas le nom de la contrainte :
+   *     il répond « Could not find a relationship between 'familles' and
+   *     'familles' » (HTTP 400). L'indice doit être la COLONNE (`!lignee_id`).
+   *     Vérifié en production le 29/07 : contrainte → 400, colonne → 23 lignes.
+   *
+   * Le code ne lisait que `data`, jamais `error` : `data ?? []` rendait une
+   * liste vide et l'écran affichait sereinement « Aucune lignée trouvée » avec
+   * ses quatre compteurs à zéro, pour 23 lignées bien présentes en base.
+   * Constaté le 29/07 en REGARDANT la capture de cet écran ; défaut ANTÉRIEUR
+   * au présent chantier.
+   */
   const fetchFamilles = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("familles")
       .select(
         "id, nom, chef_de_famille, contact, grande_famille_id, chef_profile_id, attributaire_id, lignee_id, " +
         "grande_famille:grandes_familles(id, nom), " +
         "chef_profile:profiles!familles_chef_profile_id_fkey(id, nom_complet, groupe, telephone), " +
-        "collectif:attributaires(id, nom), " +
-        "lignee:familles!familles_lignee_id_fkey(id, nom)"
+        "collectif:attributaires!familles_attributaire_id_fkey(id, nom), " +
+        "lignee:familles!lignee_id(id, nom)"
       )
       .order("nom");
+    // Une liste vide et une requête refusée ne se ressemblent pas : sans ce
+    // journal, la prochaine régression d'embed redeviendrait invisible.
+    if (error) console.error("Chargement des lignées refusé :", error.message);
     setFamilles((data ?? []) as unknown as Famille[]);
   }, [supabase]);
 
@@ -1283,7 +1312,7 @@ export default function FamillesPage() {
                               ) : l.chef_de_famille ? (
                                 <p className="text-xs text-muted-2">{l.chef_de_famille} <span className="text-warning">· sans compte</span></p>
                               ) : (
-                                <p className="text-xs text-warning">Sans chef lié</p>
+                                <p className="text-xs text-warning">Sans chef de famille lié</p>
                               )}
                               {l.sous_lignees.length > 0 && (
                                 <p className="text-xs text-accent">{l.sous_lignees.length} sous-lignée{l.sous_lignees.length > 1 ? "s" : ""}</p>
@@ -1323,7 +1352,7 @@ export default function FamillesPage() {
                                     ) : sl.chef_de_famille ? (
                                       <p className="text-xs text-muted-2">{sl.chef_de_famille} <span className="text-warning">· sans compte</span></p>
                                     ) : (
-                                      <p className="text-xs text-warning">Sans chef</p>
+                                      <p className="text-xs text-warning">Sans chef de famille</p>
                                     )}
                                   </div>
                                   <Button
@@ -1368,7 +1397,7 @@ export default function FamillesPage() {
         <>
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
-              Lignées du registre — rattachées à une grande famille et, le cas échéant, à un compte chef.
+              Lignées du registre — rattachées à une grande famille et, le cas échéant, à un compte chef de famille.
             </p>
             <Button variant="outline" className="shrink-0 print:hidden" onClick={() => setShowCreerFamille(true)}>
               <Plus className="h-4 w-4" />
@@ -1381,7 +1410,7 @@ export default function FamillesPage() {
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <div>
                 <p className="text-sm font-semibold text-warning">
-                  {sansChefFamille} lignée{sansChefFamille > 1 ? "s" : ""} sans compte chef lié
+                  {sansChefFamille} lignée{sansChefFamille > 1 ? "s" : ""} sans compte chef de famille lié
                 </p>
                 <p className="mt-0.5 text-xs text-warning">
                   Les demandes d&apos;intérêt sur ces lignées n&apos;atteindront que les admins.
@@ -1400,12 +1429,16 @@ export default function FamillesPage() {
                 <p className="text-xs font-semibold uppercase tracking-wider text-accent">Rattachées</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-accent">{familles.length - sansGrandeFamille}</p>
               </Card>
+              {/* 🔴 Ces deux cartes disaient « Chef lié » / « Sans chef lié »,
+                  MOT POUR MOT comme celles de l'onglet « Autorités
+                  coutumières » — qui comptent, elles, des chefs de VILLAGE.
+                  Deux compteurs différents sous le même nom, sur la même page. */}
               <Card className="p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-success">Chef lié</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-success">Chef de famille lié</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-success">{familles.length - sansChefFamille}</p>
               </Card>
               <Card className="p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-warning">Sans chef lié</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-warning">Sans chef de famille</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-warning">{sansChefFamille}</p>
               </Card>
             </div>
@@ -1432,7 +1465,7 @@ export default function FamillesPage() {
                       <th className="px-5 py-3">Lignée</th>
                       <th className="px-5 py-3">Rattachement</th>
                       <th className="px-5 py-3">Collectif d&apos;ayants-droit</th>
-                      <th className="px-5 py-3">Chef (registre)</th>
+                      <th className="px-5 py-3">Chef de famille (registre)</th>
                       <th className="px-5 py-3">Compte lié</th>
                       <th className="px-5 py-3 print:hidden"></th>
                     </tr>
@@ -1570,11 +1603,11 @@ export default function FamillesPage() {
                 <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">{autorites.length}</p>
               </Card>
               <Card className="p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-success">Chef lié</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-success">Chef de village lié</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-success">{autorites.length - sansChefAutorite}</p>
               </Card>
               <Card className="col-span-2 p-4 sm:col-span-1">
-                <p className="text-xs font-semibold uppercase tracking-wider text-warning">Sans chef lié</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-warning">Sans chef de village</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-warning">{sansChefAutorite}</p>
               </Card>
             </div>
@@ -1604,7 +1637,7 @@ export default function FamillesPage() {
                   <thead>
                     <tr className="border-b border-border bg-inset text-left text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
                       <th className="px-5 py-3">Autorité</th>
-                      <th className="px-5 py-3">Chef (registre)</th>
+                      <th className="px-5 py-3">Chef de village (registre)</th>
                       <th className="px-5 py-3">Compte(s) lié(s)</th>
                       <th className="px-5 py-3 print:hidden"></th>
                     </tr>

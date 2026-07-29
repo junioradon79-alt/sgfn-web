@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2, Clock, Loader2, MessageSquare, ChevronRight, type LucideIcon } from "lucide-react";
+import { CheckCircle2, Clock, Loader2, MessageSquare, MinusCircle, ChevronRight, type LucideIcon } from "lucide-react";
 
 // ─── Helpers partagés entre ProprietaireTerrienView et ChefVillageView ───────
 //
@@ -21,45 +21,68 @@ export const PV_STATUT_COLORS: Record<string, string> = {
   rejete: "bg-danger-subtle text-danger border-danger/25",
 };
 
+/**
+ * `requise` vaut `false` pour un créneau que le document n'exige pas (CVGFR
+ * d'une APFC qui n'en désigne aucun, par exemple). On le montre quand même,
+ * mais éteint et pointillé — même convention que les pastilles `SigDots` du
+ * Coffre-fort : masquer le créneau laisserait croire qu'il a été oublié, le
+ * peindre en orange le ferait passer pour une signature qui manque.
+ *
+ * Non renseigné, `requise` vaut `true` : les appelants qui n'ont pas de notion
+ * d'exigence (PV, etc.) gardent le comportement d'origine.
+ */
 export function SignaturesBadges({
   sigs,
 }: {
-  sigs: { label: string; done: boolean }[];
+  sigs: { label: string; done: boolean; requise?: boolean }[];
 }) {
   return (
     <div className="mt-2 flex flex-wrap gap-2">
-      {sigs.map((s) => (
-        <span
-          key={s.label}
-          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-            s.done
-              ? "border-success/25 bg-success-subtle text-success"
-              : "border-warning/25 bg-warning-subtle text-warning"
-          }`}
-        >
-          {s.done ? (
-            <CheckCircle2 className="size-3" aria-hidden />
-          ) : (
-            <Clock className="size-3" aria-hidden />
-          )}
-          {s.label}
-        </span>
-      ))}
+      {sigs.map((s) => {
+        const requise = s.requise ?? true;
+        return (
+          <span
+            key={s.label}
+            title={requise ? undefined : `${s.label} — non requise pour ce document`}
+            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+              !requise
+                ? "border-dashed border-border bg-transparent text-muted-2"
+                : s.done
+                  ? "border-success/25 bg-success-subtle text-success"
+                  : "border-warning/25 bg-warning-subtle text-warning"
+            }`}
+          >
+            {!requise ? (
+              <MinusCircle className="size-3" aria-hidden />
+            ) : s.done ? (
+              <CheckCircle2 className="size-3" aria-hidden />
+            ) : (
+              <Clock className="size-3" aria-hidden />
+            )}
+            {s.label}
+            {!requise && <span className="sr-only"> — non requise</span>}
+          </span>
+        );
+      })}
     </div>
   );
 }
 
+/**
+ * `max` peut valoir 0 (document n'exigeant aucune signature) : sans la garde,
+ * `value / max` rend `NaN` et la barre disparaît en silence avec un « 0/0 ».
+ */
 export function ProgressBar({ value, max }: { value: number; max: number }) {
   return (
     <div className="mt-2 flex items-center gap-2">
       <div className="h-1.5 w-24 rounded-full bg-inset">
         <div
           className="h-1.5 rounded-full bg-success transition-all"
-          style={{ width: `${(value / max) * 100}%` }}
+          style={{ width: `${max > 0 ? (value / max) * 100 : 0}%` }}
         />
       </div>
       <span className="text-xs text-muted-2">
-        {value}/{max} signatures
+        {value}/{max} signature{max > 1 ? "s" : ""}
       </span>
     </div>
   );

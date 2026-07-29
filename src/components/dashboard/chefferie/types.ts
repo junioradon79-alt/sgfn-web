@@ -11,6 +11,10 @@ export type Profile = {
   attributaire_id: string | null;
 };
 
+// `cvgfr_id` et le lotissement embarqué ne sont pas décoratifs : ce sont EUX
+// qui disent combien de signatures cette APFC exige (cf. `etatSignaturesApfc`).
+// Sans eux les écrans retombent sur « 3 signatures » en dur, ce qui laissait
+// l'APFC de Koelea-Accor à « 2/3 » pour toujours.
 export type AttestationCoutumiere = {
   id: string;
   reference: string | null;
@@ -20,6 +24,8 @@ export type AttestationCoutumiere = {
   sig_chef_famille_le: string | null;
   sig_chef_village_le: string | null;
   sig_cvgfr_le: string | null;
+  cvgfr_id: string | null;
+  lotissement: { signatures_requises: string[] | null } | null;
   chef_de_famille: string | null;
 };
 

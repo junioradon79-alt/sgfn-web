@@ -256,7 +256,7 @@ const COUVERTURE = [
   { ecran: "Chefferie — À traiter en priorité", declencheur: "APFC à signer, cessions, litiges" },
   { ecran: "Validations — cessions", declencheur: "attestations sans signature chefferie" },
   { ecran: "Validations — attributions de lot", declencheur: "attributions sans signature chefferie" },
-  { ecran: "Validations — APFC", declencheur: "APFC sans signature du chef de village" },
+  { ecran: "Validations — APFC", declencheur: "APFC dont le lotissement EXIGE la signature du chef de village, non constatée" },
   { ecran: "Demandes d'acquisition", declencheur: "demandes où l'agence doit jouer" },
   { ecran: "Paiements — vue À valider", declencheur: "règlements guichet en attente" },
   { ecran: "Géomètres-experts", declencheur: "demandes d'inscription à approuver" },
@@ -280,7 +280,9 @@ const PRIORITES_DEMO = [
   {
     cle: "cessions",
     titre: "5 cessions à valider",
-    detail: "En attente de validation de la chefferie",
+    // Miroir exact de `/dashboard/chefferie` : cet aperçu ne vaut que s'il dit
+    // le même texte que l'écran réel.
+    detail: "En attente de votre validation (chef de village)",
     action: "Examiner",
     icon: Banknote,
     compte: 5,

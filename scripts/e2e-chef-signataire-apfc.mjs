@@ -66,8 +66,11 @@ noter(texte.includes(SIGNATAIRE), "le signataire de 2022 est affiché", SIGNATAI
 // 3. Le chef actuel n'apparaît nulle part sur cet acte.
 noter(!texte.includes(CHEF_ACTUEL), "le chef nommé en 2023 n'apparaît pas", CHEF_ACTUEL);
 
-// 4. Le libellé ne dit plus « Chef » tout court.
-noter(contientLibelle("Chef signataire de l'acte"), "le libellé lève l'ambiguïté");
+// 4. Le libellé ne dit plus « Chef » tout court — et depuis le 29/07 il dit
+//    aussi DE QUI il s'agit : « Chef de village signataire de l'acte ». Un
+//    « Chef signataire » seul ne distinguait pas le chef de village du chef de
+//    famille, dont la fiche porte le nom quelques lignes plus haut.
+noter(contientLibelle("Chef de village signataire de l'acte"), "le libellé lève l'ambiguïté");
 
 // 4 bis. Et l'ancien libellé « Chef » seul a bien disparu — sans quoi le
 //        contrôle précédent passerait au vert avec les deux libellés à l'écran.

@@ -6,6 +6,9 @@ export type StatutPaiement = Database["public"]["Enums"]["statut_paiement"];
 export type TypeVente = Database["public"]["Enums"]["type_vente"];
 export type TypeDemarche = Database["public"]["Enums"]["type_demarche"];
 
+// `enterinement_chefferie` garde « chefferie » : il nomme un ACTE de
+// l'institution dans un dossier, pas un signataire. Les libellés qui désignent
+// une signature, eux, nomment la personne — le chef de village.
 export const TYPE_DEMARCHE_LABELS: Record<TypeDemarche, string> = {
   delivrance_attestation_cession: "Délivrance attestation de cession",
   transmission: "Transmission",
@@ -15,12 +18,12 @@ export const TYPE_DEMARCHE_LABELS: Record<TypeDemarche, string> = {
   demande_acd: "Demande ACD",
   levee_litige: "Levée de litige",
   autre: "Autre démarche",
-  signature_attribution_lot: "Signature Chefferie — Attribution de Lot",
+  signature_attribution_lot: "Signature du chef de village — Attribution de Lot",
 };
 
 export const TYPE_OPTIONS: { value: TypePaiement; label: string }[] = [
   { value: "attestation_cession", label: "Attestation de cession" },
-  { value: "signature_attribution_lot", label: "Signature Chefferie — Attribution de Lot" },
+  { value: "signature_attribution_lot", label: "Signature du chef de village — Attribution de Lot" },
   { value: "honoraires", label: "Honoraires géomètre" },
   { value: "vente_terrain", label: "Vente terrain" },
   { value: "autre", label: "Autre" },

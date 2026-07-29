@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowLeft, CheckCircle2, FileSignature, ScrollText, ShieldAlert } from "lucide-react";
+import { ArrowLeft, CheckCircle2, FileSignature, MinusCircle, ScrollText, ShieldAlert } from "lucide-react";
 
 import { AppShell } from "@/components/pilotage/AppShell";
 import { Button } from "@/components/ds/button";
@@ -16,11 +16,30 @@ import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
 import { useProfile } from "@/hooks/useProfile";
 import { fadeUp, stagger } from "@/lib/motion";
-import { libelleSignature } from "@/lib/signatures-attestation";
+import {
+  apfcAttendSignature,
+  cessionAttendSignature,
+  etatSignaturesApfc,
+  etatSignaturesCession,
+} from "@/lib/signatures-attestation";
+import { fetchAllPages } from "@/lib/supabase-pagination";
 import type { AttestationCoutumiere } from "@/components/dashboard/chefferie/types";
 import { SignaturesBadges, ProgressBar } from "@/components/dashboard/chefferie/SharedUI";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+/**
+ * `signatures_requises` commande les pastilles ET le bouton : sans elle, cet
+ * écran réclamait une signature d'opérateur sur un lotissement qui n'en veut
+ * pas. `famille_id` commande le titre du signataire `proprietaire` (chef de
+ * famille / propriétaire terrien). Cf. `etatSignaturesCession`.
+ */
+type LotissementSignatures = {
+  id: string;
+  nom: string | null;
+  famille_id?: string | null;
+  signatures_requises?: string[] | null;
+};
 
 type AttestationCession = {
   id: string;
@@ -34,8 +53,7 @@ type AttestationCession = {
     numero_lot: string | null;
     ilots?: {
       numero: string | null;
-      /** `famille_id` sert au libellé du signataire — voir `libelleSignature`. */
-      lotissements?: { id: string; nom: string | null; famille_id?: string | null } | null;
+      lotissements?: LotissementSignatures | null;
     } | null;
   } | null;
 };
@@ -59,7 +77,7 @@ type AttestationAttributionLot = {
     numero_lot: string | null;
     ilots?: {
       numero: string | null;
-      lotissements?: { id: string; nom: string | null; famille_id?: string | null } | null;
+      lotissements?: LotissementSignatures | null;
     } | null;
   } | null;
 };
@@ -86,31 +104,56 @@ export default function ValidationsPage() {
 
   // Cessions scopées au territoire par la RLS (attcess_chefferie_read) ; APFC
   // filtrées sur la juridiction (apfc_read scopée aussi, filtre explicite en plus).
+  //
+  // ⚠️ Les TROIS lectures sont paginées. PostgREST plafonne chaque réponse à
+  // 1000 lignes et tronque SILENCIEUSEMENT au-delà (cf. `supabase-pagination`) :
+  // une juridiction qui porterait tous les lotissements dépasse déjà 400
+  // cessions en attente, et la RLS borne le périmètre, pas le nombre de lignes.
+  // `.order("id")` fournit l'ordre déterministe qu'exige `fetchAllPages` —
+  // sans lui, deux pages peuvent se chevaucher ou sauter des lignes.
   const fetchData = useCallback(async () => {
     if (!autoriteId) return;
-    const [attestationsRes, attribRes, apfcRes] = await Promise.all([
-      supabase
-        .from("attestations_cession")
-        .select(
-          "id, reference, statut, sig_chefferie_le, sig_proprietaire_le, sig_operateur_le, date_emission, lot:lot_id(numero_lot, ilots(numero, lotissements(id, nom, famille_id)))"
-        )
-        .is("sig_chefferie_le", null),
-      supabase
-        .from("attestations_attribution_lot")
-        .select(
-          "id, reference, statut, niveau, sig_chefferie_le, sig_proprietaire_le, sig_operateur_le, signature_payee_le, lot:lot_id(numero_lot, ilots(numero, lotissements(id, nom, famille_id)))"
-        )
-        .is("sig_chefferie_le", null),
-      supabase
-        .from("attestations_coutumieres")
-        .select(
-          "id, reference, numero, statut, date_delivrance, sig_chef_famille_le, sig_chef_village_le, sig_cvgfr_le, chef_de_famille"
-        )
-        .eq("autorite_coutumiere_id", autoriteId),
+    const [attestationsRows, attribRows, apfcRows] = await Promise.all([
+      fetchAllPages<AttestationCession>((de, a) =>
+        supabase
+          .from("attestations_cession")
+          // `signatures_requises` MANQUAIT : les pastilles étaient écrites en
+          // dur et réclamaient l'opérateur partout. Cf. `etatSignaturesCession`.
+          .select(
+            "id, reference, statut, sig_chefferie_le, sig_proprietaire_le, sig_operateur_le, date_emission, lot:lot_id(numero_lot, ilots(numero, lotissements(id, nom, famille_id, signatures_requises)))"
+          )
+          .is("sig_chefferie_le", null)
+          .order("id", { ascending: true })
+          .range(de, a) as unknown as PromiseLike<{ data: AttestationCession[] | null }>
+      ),
+      fetchAllPages<AttestationAttributionLot>((de, a) =>
+        supabase
+          .from("attestations_attribution_lot")
+          .select(
+            "id, reference, statut, niveau, sig_chefferie_le, sig_proprietaire_le, sig_operateur_le, signature_payee_le, lot:lot_id(numero_lot, ilots(numero, lotissements(id, nom, famille_id, signatures_requises)))"
+          )
+          .is("sig_chefferie_le", null)
+          .order("id", { ascending: true })
+          .range(de, a) as unknown as PromiseLike<{ data: AttestationAttributionLot[] | null }>
+      ),
+      fetchAllPages<AttestationCoutumiere>((de, a) =>
+        supabase
+          .from("attestations_coutumieres")
+          // `cvgfr_id` + `signatures_requises` du lotissement : c'est de là que
+          // vient le NOMBRE de signatures attendues. `lotissements` est en
+          // lecture publique (`lotissements_public_read`, qual=true), l'embed ne
+          // restreint donc pas la liste des APFC visibles.
+          .select(
+            "id, reference, numero, statut, date_delivrance, sig_chef_famille_le, sig_chef_village_le, sig_cvgfr_le, cvgfr_id, chef_de_famille, lotissement:lotissement_id(signatures_requises)"
+          )
+          .eq("autorite_coutumiere_id", autoriteId)
+          .order("id", { ascending: true })
+          .range(de, a) as unknown as PromiseLike<{ data: AttestationCoutumiere[] | null }>
+      ),
     ]);
-    setAttestations((attestationsRes.data ?? []) as unknown as AttestationCession[]);
-    setAttributionsLot((attribRes.data ?? []) as unknown as AttestationAttributionLot[]);
-    setApfc((apfcRes.data ?? []) as AttestationCoutumiere[]);
+    setAttestations(attestationsRows);
+    setAttributionsLot(attribRows);
+    setApfc(apfcRows);
   }, [autoriteId, supabase]);
 
   const { isLoading, recharger } = useChargement(fetchData, [autoriteId], !!autoriteId);
@@ -179,15 +222,48 @@ export default function ValidationsPage() {
   };
 
   const chargement = profileLoading || (isChefferie && isLoading);
-  /** Seules les APFC sans signature du chef de village attendent une décision. */
-  const apfcACosigner = apfc.filter((a) => !a.sig_chef_village_le).length;
+  /**
+   * Seules les APFC dont le lotissement EXIGE la signature du chef de village
+   * et ne l'a pas encore constatée attendent une décision.
+   *
+   * 🔴 Le filtre était `!a.sig_chef_village_le` : une APFC dont le lotissement
+   * ne demande pas la chefferie serait restée éternellement dans la file, carte
+   * en brique et pastille rouge, pour un geste qui n'avait pas lieu d'être.
+   */
+  const apfcACosigner = apfc.filter((a) => apfcAttendSignature(a, "sig_chef_village_le")).length;
+  /**
+   * Le lotissement d'une cession, tel que `etatSignaturesCession` l'attend.
+   * L'embed descend par `lot → ilots → lotissements` : un maillon absent (lot
+   * supprimé, embed refusé) rend `undefined`, et le module retombe alors sur
+   * `SIGNATURES_PAR_DEFAUT` — le jeu à trois, le plus exigeant. Un repli qui
+   * demande TROP est visible à l'écran ; un repli qui demande trop peu ferait
+   * délivrer un document non signé.
+   */
+  const lotissementDe = (a: AttestationCession | AttestationAttributionLot) =>
+    a.lot?.ilots?.lotissements;
+  /**
+   * 🔴 Même correction que sur les APFC, deux cartes plus bas — et c'est ici
+   * qu'elle manquait vraiment : les 50 cessions en attente portent toutes
+   * `sig_chefferie_le is null`, mais leur lotissement (Koelea-Accor revu) exige
+   * {proprietaire, chefferie}. Une cession dont le lotissement ne demande PAS
+   * la chefferie ne l'attend pas : la compter teindrait la carte en brique pour
+   * un geste sans objet.
+   */
+  const cessionsAValider = attestations.filter((a) =>
+    cessionAttendSignature(a, lotissementDe(a), "chefferie"),
+  ).length;
   /**
    * Une attribution dont le paiement n'est pas reçu a son bouton désactivé :
    * elle ne peut PAS être signée aujourd'hui. La compter ferait afficher une
    * carte rouge et un compteur sur des lignes que l'on ne peut qu'attendre —
    * la teinte doit désigner ce sur quoi on peut agir, pas ce qui existe.
+   *
+   * S'y ajoute, depuis le 29/07, la même condition que sur les cessions : le
+   * lotissement doit exiger la signature de la chefferie.
    */
-  const attributionsSignables = attributionsLot.filter((a) => a.signature_payee_le).length;
+  const attributionsSignables = attributionsLot.filter(
+    (a) => a.signature_payee_le && cessionAttendSignature(a, lotissementDe(a), "chefferie"),
+  ).length;
 
   if (!profileLoading && (!isChefferie || !profile?.autorite_coutumiere_id)) {
     return (
@@ -230,7 +306,7 @@ export default function ValidationsPage() {
         <motion.div variants={fadeUp}>
           <Card
             id="cessions"
-            tone={!chargement && attestations.length > 0 ? "alert" : "default"}
+            tone={!chargement && cessionsAValider > 0 ? "alert" : "default"}
             className="scroll-mt-6 overflow-hidden"
           >
             <CardHeader>
@@ -240,10 +316,12 @@ export default function ValidationsPage() {
               </div>
               {/* Le compte vivait en queue de description (« · 4 en attente ») :
                   noyé dans une phrase, il ne se lisait pas. Il devient une
-                  pastille — même convention que le Centre de pilotage. */}
-              {!chargement && attestations.length > 0 && (
+                  pastille — même convention que le Centre de pilotage.
+                  Il compte les cessions que ce lotissement vous demande de
+                  signer, pas toutes celles dont la colonne est vide. */}
+              {!chargement && cessionsAValider > 0 && (
                 <CardAction>
-                  <CountBadge tone="inverse" value={attestations.length} />
+                  <CountBadge tone="inverse" value={cessionsAValider} />
                 </CardAction>
               )}
             </CardHeader>
@@ -261,7 +339,17 @@ export default function ValidationsPage() {
               // devenait inatteignable.
               <ScrollArea className="max-h-[520px] border-t border-border">
               <ul className="divide-y divide-border">
-                {attestations.map((a) => (
+                {attestations.map((a) => {
+                  // 🔴 Les pastilles étaient DEUX libellés en dur — « …terrien »
+                  // et « Opérateur » — sans lecture de `signatures_requises`.
+                  // Sur Koelea-Accor revu, qui n'exige pas l'opérateur, les 50
+                  // lignes réclamaient donc en orange une signature que
+                  // personne n'attend et que la remise n'exigera jamais.
+                  const etat = etatSignaturesCession(a, lotissementDe(a));
+                  const chefferieAttendue = etat.lignes.some(
+                    (l) => l.cle === "chefferie" && l.requise && !l.signee
+                  );
+                  return (
                   <li key={a.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
                     <div className="min-w-0 flex-1">
                       <p className="text-[13.5px] font-semibold text-foreground">{a.reference}</p>
@@ -270,36 +358,42 @@ export default function ValidationsPage() {
                         {a.lot?.ilots?.lotissements?.nom ? ` — ${a.lot.ilots.lotissements.nom}` : ""}
                       </p>
                       <SignaturesBadges
-                        sigs={[
-                          {
-                            // Même règle que le Coffre-fort documentaire :
-                            // chef de famille si le lotissement en a une,
-                            // propriétaire terrien s'il en couvre plusieurs.
-                            label: libelleSignature("proprietaire", Boolean(a.lot?.ilots?.lotissements?.famille_id)),
-                            done: !!a.sig_proprietaire_le,
-                          },
-                          { label: "Opérateur", done: !!a.sig_operateur_le },
-                        ]}
+                        sigs={etat.lignes.map((l) => ({
+                          label: l.label,
+                          done: l.signee,
+                          requise: l.requise,
+                        }))}
                       />
                     </div>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      loading={signing === a.id}
-                      onClick={() => signerAttestation(a.id)}
-                    >
-                      <FileSignature />
-                      Valider
-                    </Button>
+                    {chefferieAttendue ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        loading={signing === a.id}
+                        onClick={() => signerAttestation(a.id)}
+                      >
+                        <FileSignature />
+                        Valider
+                      </Button>
+                    ) : (
+                      // Ni exigée ni constatée : ce lotissement ne demande pas
+                      // la signature du chef de village. Même traitement que sur
+                      // les APFC — on le DIT, plutôt que de laisser une ligne
+                      // muette qui se lirait comme un bouton disparu.
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-dashed border-border px-3 py-2 text-xs font-semibold text-muted-2">
+                        <MinusCircle className="size-3.5" aria-hidden /> Non requise
+                      </span>
+                    )}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
               </ScrollArea>
             )}
           </Card>
         </motion.div>
 
-        {/* Attestations d'Attribution de Lot — signature Chefferie payante */}
+        {/* Attestations d'Attribution de Lot — signature du chef de village payante */}
         <motion.div variants={fadeUp}>
           <Card
             id="attributions"
@@ -331,6 +425,13 @@ export default function ValidationsPage() {
               <ul className="divide-y divide-border">
                 {attributionsLot.map((a) => {
                   const paye = !!a.signature_payee_le;
+                  // Même table de signatures que les cessions, même règle : le
+                  // jeu exigé vient du lotissement. (Zéro ligne en production au
+                  // 29/07/2026 — le défaut était donc invisible, pas absent.)
+                  const etat = etatSignaturesCession(a, lotissementDe(a));
+                  const chefferieAttendue = etat.lignes.some(
+                    (l) => l.cle === "chefferie" && l.requise && !l.signee
+                  );
                   return (
                     <li key={a.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
                       <div className="min-w-0 flex-1">
@@ -341,29 +442,33 @@ export default function ValidationsPage() {
                           {" · Niveau "}{a.niveau}
                         </p>
                         <SignaturesBadges
-                          sigs={[
-                            {
-                              label: libelleSignature("proprietaire", Boolean(a.lot?.ilots?.lotissements?.famille_id)),
-                              done: !!a.sig_proprietaire_le,
-                            },
-                            { label: "Opérateur", done: !!a.sig_operateur_le },
-                          ]}
+                          sigs={etat.lignes.map((l) => ({
+                            label: l.label,
+                            done: l.signee,
+                            requise: l.requise,
+                          }))}
                         />
                         <p className={`mt-1.5 text-xs font-semibold ${paye ? "text-success" : "text-warning"}`}>
                           {paye ? "Paiement de signature reçu" : "Paiement de signature en attente (guichet SGNF)"}
                         </p>
                       </div>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        loading={signingAttrib === a.id}
-                        disabled={!paye}
-                        title={!paye ? "La signature reste bloquée tant que le paiement de 550 000 FCFA n'est pas confirmé." : undefined}
-                        onClick={() => signerAttributionLot(a.id)}
-                      >
-                        <FileSignature />
-                        Valider
-                      </Button>
+                      {chefferieAttendue ? (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          loading={signingAttrib === a.id}
+                          disabled={!paye}
+                          title={!paye ? "La signature reste bloquée tant que le paiement de 550 000 FCFA n'est pas confirmé." : undefined}
+                          onClick={() => signerAttributionLot(a.id)}
+                        >
+                          <FileSignature />
+                          Valider
+                        </Button>
+                      ) : (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-dashed border-border px-3 py-2 text-xs font-semibold text-muted-2">
+                          <MinusCircle className="size-3.5" aria-hidden /> Non requise
+                        </span>
+                      )}
                     </li>
                   );
                 })}
@@ -387,7 +492,11 @@ export default function ValidationsPage() {
             <CardHeader>
               <div className="min-w-0">
                 <CardTitle>APFC — Attestations de Propriété Foncière Coutumière</CardTitle>
-                <CardDescription>Documents entérinés par la Chefferie du village</CardDescription>
+                {/* « la Chefferie » désignait ici une PERSONNE qui entérine —
+                    et ne disait pas laquelle des deux autorités. C'est le chef
+                    de village, jamais le chef de famille (qui signe, lui, le
+                    créneau du dessus). */}
+                <CardDescription>Documents entérinés par le chef de village</CardDescription>
               </div>
               {!chargement && apfcACosigner > 0 && (
                 <CardAction>
@@ -405,29 +514,32 @@ export default function ValidationsPage() {
               <ScrollArea className="max-h-[520px] border-t border-border">
               <ul className="divide-y divide-border">
                 {apfc.map((a) => {
-                  const sig1 = !!a.sig_chef_famille_le;
-                  const sig2 = !!a.sig_chef_village_le;
-                  const sig3 = !!a.sig_cvgfr_le;
-                  const pct = [sig1, sig2, sig3].filter(Boolean).length;
+                  // 🔴 Les trois signatures étaient codées EN DUR (`max={3}`).
+                  // L'APFC de Koelea-Accor, dont le lotissement n'en exige que
+                  // deux et qui ne désigne aucun CVGFR, affichait « 2/3 » et
+                  // n'aurait JAMAIS pu être complète. La vérité vient
+                  // maintenant de `lotissements.signatures_requises` et de
+                  // `cvgfr_id` (cf. `src/lib/signatures-attestation.ts`).
+                  const etat = etatSignaturesApfc(a);
+                  const chefferieAttendue = etat.lignes.some(
+                    (l) => l.colonne === "sig_chef_village_le" && l.requise && !l.signee
+                  );
+                  const chefferieSignee = !!a.sig_chef_village_le;
                   return (
                     <li key={a.id} className="flex flex-wrap items-start justify-between gap-4 px-5 py-4">
                       <div className="min-w-0 flex-1">
                         <p className="text-[13.5px] font-semibold text-foreground">{a.numero ?? a.reference ?? "APFC"}</p>
                         <p className="mt-0.5 text-xs text-muted-2">Chef de famille : {a.chef_de_famille ?? "—"}</p>
                         <SignaturesBadges
-                          sigs={[
-                            { label: "Chef de famille", done: sig1 },
-                            { label: "Chefferie village", done: sig2 },
-                            { label: "CVGFR", done: sig3 },
-                          ]}
+                          sigs={etat.lignes.map((l) => ({
+                            label: l.label,
+                            done: l.signee,
+                            requise: l.requise,
+                          }))}
                         />
-                        <ProgressBar value={pct} max={3} />
+                        <ProgressBar value={etat.signees} max={etat.total} />
                       </div>
-                      {sig2 ? (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-success/25 bg-success-subtle px-3 py-2 text-xs font-semibold text-success">
-                          <CheckCircle2 className="size-3.5" aria-hidden /> Validé
-                        </span>
-                      ) : (
+                      {chefferieAttendue ? (
                         <Button
                           variant="primary"
                           size="sm"
@@ -437,6 +549,17 @@ export default function ValidationsPage() {
                           <FileSignature />
                           Valider
                         </Button>
+                      ) : chefferieSignee ? (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-success/25 bg-success-subtle px-3 py-2 text-xs font-semibold text-success">
+                          <CheckCircle2 className="size-3.5" aria-hidden /> Validé
+                        </span>
+                      ) : (
+                        // Ni attendue ni constatée : ce lotissement n'exige pas
+                        // la chefferie. On le dit, plutôt que de laisser une
+                        // ligne muette qui ressemblerait à un bouton disparu.
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-dashed border-border px-3 py-2 text-xs font-semibold text-muted-2">
+                          <MinusCircle className="size-3.5" aria-hidden /> Non requise
+                        </span>
                       )}
                     </li>
                   );

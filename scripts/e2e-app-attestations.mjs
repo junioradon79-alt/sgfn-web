@@ -71,8 +71,11 @@ await step("chefferie-a-des-attestations-reelles", async () => {
 });
 
 await step("chefferie-ne-peut-constater-QUE-la-chefferie", async () => {
-  const chefferie = await p1.getByText(/^Constater : Chefferie$/).count();
-  if (chefferie === 0) throw new Error("aucun bouton « Constater : Chefferie » pour une chefferie");
+  // Le libellé du signataire `chefferie` est « Chef de village » depuis le
+  // 29/07 : « Chefferie » seul ne disait pas laquelle des deux autorités
+  // coutumières signe (cf. `SIGNATURES_ATTESTATION`).
+  const chefferie = await p1.getByText(/^Constater : Chef de village$/).count();
+  if (chefferie === 0) throw new Error("aucun bouton « Constater : Chef de village » pour une chefferie");
   for (const interdit of ["Constater : Chef de famille", "Constater : Propriétaire terrien", "Constater : Opérateur"]) {
     const n = await p1.getByText(interdit, { exact: true }).count();
     if (n > 0) throw new Error(`signature hors ressort offerte à la chefferie : ${interdit}`);
@@ -325,7 +328,7 @@ await step("apercu-chefferie-est-bornee-a-sa-signature", async () => {
   const chefFamille = await cadre().getByText("Constater : Chef de famille", { exact: true }).count();
   if (chefFamille > 0) throw new Error("signature du chef de famille offerte à la chefferie");
   // Contrôle positif : l'écran n'est pas simplement vide.
-  const sien = await cadre().getByText(/^Constater : Chefferie$/).count();
+  const sien = await cadre().getByText(/^Constater : Chef de village$/).count();
   if (sien === 0) throw new Error("la chefferie ne peut constater aucune signature — le test ne prouverait rien");
   await p5.screenshot({ path: join(DIR, "08-apercu-chefferie.png") });
 });

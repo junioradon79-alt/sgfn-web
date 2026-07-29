@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 
 import { fadeUp, stagger } from "@/lib/motion";
+import { apfcAttendSignature, type ApfcSignable } from "@/lib/signatures-attestation";
+import { fetchAllPages } from "@/lib/supabase-pagination";
 import type { Profile } from "@/components/dashboard/chefferie/types";
 import { AppShell } from "@/components/pilotage/AppShell";
 import { Button } from "@/components/ds/button";
@@ -48,16 +50,42 @@ function ChefVillageView({ profile }: { profile: Profile }) {
   // scopée via ma_chefferie_id() (cessions / dossiers ADU / litiges), soit par un
   // filtre explicite autorite_coutumiere_id (lotissements / APFC). Comptes seuls
   // (head:true) — l'Espace Chefferie n'affiche que des cartes, pas de détails.
+  // Seule exception : les APFC en attente, dont le prédicat mêle
+  // `signatures_requises` et `cvgfr_id` et ne se dit pas en un filtre
+  // PostgREST — on lit donc les lignes, PAGINÉES (voir plus bas).
   const fetchData = useCallback(async () => {
     const [
-      autoriteRes, lotissementsRes, apfcTotalRes, apfcPendingRes,
+      autoriteRes, lotissementsRes, apfcTotalRes, apfcPendingLignes,
       cessionsRes, dossiersRes, litigesRes, concertationRes,
     ] = await Promise.all([
       supabase.from("autorites_coutumieres").select("id, nom, type, village, chef").eq("id", profile.autorite_coutumiere_id!).single(),
       supabase.from("lotissements").select("id", { count: "exact", head: true }).eq("autorite_coutumiere_id", profile.autorite_coutumiere_id!),
       supabase.from("attestations_coutumieres").select("id", { count: "exact", head: true }).eq("autorite_coutumiere_id", profile.autorite_coutumiere_id!),
-      supabase.from("attestations_coutumieres").select("id", { count: "exact", head: true }).eq("autorite_coutumiere_id", profile.autorite_coutumiere_id!).is("sig_chef_village_le", null),
-      supabase.from("attestations_cession").select("id", { count: "exact", head: true }).is("sig_chefferie_le", null),
+      // 🔴 Était un `head:true` sur `.is("sig_chef_village_le", null)`. Une
+      // colonne vide n'est pas une signature en attente : encore faut-il que
+      // le lotissement l'exige. On lit les lignes pour appliquer EXACTEMENT le
+      // prédicat de `/dashboard/validations` — sinon la carte « à traiter en
+      // priorité » et la file qu'elle ouvre pouvaient se contredire.
+      //
+      // ⚠️ Lecture PAGINÉE : la RLS borne le périmètre, pas le nombre de
+      // lignes, et PostgREST tronque silencieusement au-delà de 1000.
+      fetchAllPages<ApfcSignable>((de, a) =>
+        supabase
+          .from("attestations_coutumieres")
+          .select("id, sig_chef_famille_le, sig_chef_village_le, sig_cvgfr_le, cvgfr_id, lotissement:lotissement_id(signatures_requises)")
+          .eq("autorite_coutumiere_id", profile.autorite_coutumiere_id!)
+          .order("id", { ascending: true })
+          .range(de, a) as unknown as PromiseLike<{ data: ApfcSignable[] | null }>
+      ),
+      // Les cessions, elles, se comptent SANS lire les lignes : le prédicat
+      // « le lotissement exige la chefferie » tient dans un filtre sur l'embed,
+      // et un `count:'exact'` n'est pas plafonné à 1000 (la file dépasse 400
+      // entrées sur une juridiction large). Cf. `compterCessionsChefferie`.
+      supabase
+        .from("attestations_cession")
+        .select("id, lot:lot_id!inner(ilots!inner(lotissements!inner(signatures_requises)))", { count: "exact", head: true })
+        .is("sig_chefferie_le", null)
+        .contains("lot.ilots.lotissements.signatures_requises", ["chefferie"]),
       supabase.from("dossiers_adu").select("id", { count: "exact", head: true }),
       supabase.from("litiges").select("id", { count: "exact", head: true }).neq("statut", "clos"),
       supabase.from("conversation_participants").select("profile_id", { count: "exact", head: true }).eq("profile_id", profile.id),
@@ -65,7 +93,9 @@ function ChefVillageView({ profile }: { profile: Profile }) {
     setAutorite(autoriteRes.data as AutoriteCoutumiere | null);
     setLotissementsCount(lotissementsRes.count ?? 0);
     setApfcTotal(apfcTotalRes.count ?? 0);
-    setApfcPending(apfcPendingRes.count ?? 0);
+    setApfcPending(
+      apfcPendingLignes.filter((a) => apfcAttendSignature(a, "sig_chef_village_le")).length,
+    );
     setCessionsPending(cessionsRes.count ?? 0);
     setDossiersAduCount(dossiersRes.count ?? 0);
     setLitigesActifsCount(litigesRes.count ?? 0);
@@ -101,7 +131,9 @@ function ChefVillageView({ profile }: { profile: Profile }) {
     cessionsPending > 0 && {
       cle: "cessions",
       titre: `${cessionsPending} cession${cessionsPending > 1 ? "s" : ""} à valider`,
-      detail: "En attente de validation de la chefferie",
+      // « validation de la chefferie » ne disait pas QUI valide — et sur son
+      // propre tableau de bord, la réponse est « vous ».
+      detail: "En attente de votre validation (chef de village)",
       action: "Examiner",
       href: "/dashboard/validations",
       icon: Banknote,

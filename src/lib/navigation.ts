@@ -46,6 +46,12 @@ import {
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { actionAgenceRequise, type AgenceDemande } from "./agence-actions";
+import {
+  apfcAttendSignature,
+  type ApfcSignable,
+  type ColonneSignatureApfc,
+} from "./signatures-attestation";
+import { fetchAllPages } from "./supabase-pagination";
 
 /**
  * Source unique de la navigation SGNF.
@@ -446,6 +452,74 @@ async function compterLitiges(supabase: SupabaseClient): Promise<number> {
   return count ?? 0;
 }
 
+/**
+ * APFC attendant RÉELLEMENT une signature donnée, scopées RLS au périmètre du
+ * rôle (juridiction pour la chefferie, famille pour le propriétaire terrien).
+ *
+ * 🔴 Les deux compteurs se contentaient d'un `.is("sig_…_le", null)` en
+ * `head:true`. Une colonne vide n'est pas une signature en attente : encore
+ * faut-il que le lotissement l'EXIGE. L'APFC de Koelea-Accor, dont le
+ * lotissement n'exige pas le CVGFR et dont les deux signatures sont désormais
+ * constatées, aurait continué à gonfler la pastille du chef de famille.
+ *
+ * On lit les lignes au lieu de compter côté serveur : le créneau CVGFR dépend
+ * de `cvgfr_id` et le reste de `signatures_requises`, un prédicat que PostgREST
+ * ne sait pas exprimer en un filtre. Le prédicat est alors EXACTEMENT celui des
+ * écrans (`etatSignaturesApfc`), et une pastille ne peut plus diverger de la
+ * liste qu'elle annonce.
+ *
+ * ⚠️ La lecture est PAGINÉE. « Borné par la RLS » ne borne pas le nombre de
+ * lignes : la RLS borne le périmètre, PostgREST plafonne chaque réponse à 1000
+ * lignes et tronque le reste sans le dire (`supabase-pagination`). Sans effet
+ * aujourd'hui (1 APFC en base au 29/07/2026) ; sans pagination, la pastille
+ * serait devenue fausse en silence le jour où une juridiction en portera 1001.
+ */
+async function compterApfcEnAttente(
+  supabase: SupabaseClient,
+  colonne: ColonneSignatureApfc,
+): Promise<number> {
+  const lignes = await fetchAllPages<ApfcSignable>(
+    (de, a) =>
+      supabase
+        .from("attestations_coutumieres")
+        .select(
+          "id, sig_chef_famille_le, sig_chef_village_le, sig_cvgfr_le, cvgfr_id, lotissement:lotissement_id(signatures_requises)",
+        )
+        .order("id", { ascending: true })
+        .range(de, a) as unknown as PromiseLike<{ data: ApfcSignable[] | null }>,
+  );
+  return lignes.filter((a) => apfcAttendSignature(a, colonne)).length;
+}
+
+/**
+ * Cessions que le chef de village doit RÉELLEMENT signer.
+ *
+ * `sig_chefferie_le is null` ne suffit pas : encore faut-il que le lotissement
+ * exige la signature `chefferie`. Le filtre porte donc sur l'embed imbriqué —
+ * PostgREST l'applique bien à un `count=exact` en HEAD, vérifié en production
+ * le 29/07 (50 en attente ; contre-épreuve avec `cs.{operateur}`, une clé que
+ * Koelea-Accor revu n'a pas : 0 — le filtre n'est donc pas ignoré).
+ *
+ * Compter côté serveur plutôt que lire les lignes est ici essentiel : cette
+ * file dépasse 400 entrées sur une juridiction large, et un `count:'exact'`
+ * n'est pas plafonné à 1000, contrairement à une lecture de lignes.
+ *
+ * `signatures_requises` est NOT NULL en base (défaut `{proprietaire, operateur,
+ * chefferie}`) : `cs.{chefferie}` ne peut pas écarter à tort une ligne « non
+ * configurée ».
+ */
+async function compterCessionsChefferie(supabase: SupabaseClient): Promise<number> {
+  const { count } = await supabase
+    .from("attestations_cession")
+    .select("id, lot:lot_id!inner(ilots!inner(lotissements!inner(signatures_requises)))", {
+      count: "exact",
+      head: true,
+    })
+    .is("sig_chefferie_le", null)
+    .contains("lot.ilots.lotissements.signatures_requises", ["chefferie"]);
+  return count ?? 0;
+}
+
 /** Demandes d'acquisition où l'agence doit jouer (cf. `actionAgenceRequise`). */
 async function compterDemandesAgence(supabase: SupabaseClient): Promise<number> {
   const { data } = await supabase
@@ -538,13 +612,13 @@ export async function fetchBadgeCounts(
   switch (groupe) {
     // ── Chefferie (chef de village) — RLS scopée par juridiction (ma_chefferie_id()). ──
     case "chefferie": {
-      const [{ count: cessions }, { count: apfcs }, litiges, adu] = await Promise.all([
-        supabase.from("attestations_cession").select("id", { count: "exact", head: true }).is("sig_chefferie_le", null),
-        supabase.from("attestations_coutumieres").select("id", { count: "exact", head: true }).is("sig_chef_village_le", null),
+      const [cessions, apfcs, litiges, adu] = await Promise.all([
+        compterCessionsChefferie(supabase),
+        compterApfcEnAttente(supabase, "sig_chef_village_le"),
         compterLitiges(supabase),
         compterDossiersAdu(supabase),
       ]);
-      next.chefferieValidations = (cessions ?? 0) + (apfcs ?? 0);
+      next.chefferieValidations = cessions + apfcs;
       next.litigesActifs = litiges;
       next.dossiersAdu = adu;
       break;
@@ -552,13 +626,13 @@ export async function fetchBadgeCounts(
 
     // ── Propriétaire terrien (chef de famille) — RLS scopée à sa famille. ──
     case "proprietaire_terrien": {
-      const [{ count: apfcs }, { count: pvs }, litiges, adu] = await Promise.all([
-        supabase.from("attestations_coutumieres").select("id", { count: "exact", head: true }).is("sig_chef_famille_le", null),
+      const [apfcs, { count: pvs }, litiges, adu] = await Promise.all([
+        compterApfcEnAttente(supabase, "sig_chef_famille_le"),
         supabase.from("pv_reunions_famille").select("id", { count: "exact", head: true }).eq("statut", "a_fournir"),
         compterLitiges(supabase),
         compterDossiersAdu(supabase),
       ]);
-      next.ptAValider = (apfcs ?? 0) + (pvs ?? 0);
+      next.ptAValider = apfcs + (pvs ?? 0);
       next.litigesActifs = litiges;
       next.dossiersAdu = adu;
       break;

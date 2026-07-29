@@ -147,7 +147,10 @@ function ResultCard({ result }: { result: AnalysisResult }) {
         <p className="mb-3 font-mono text-xs font-semibold tracking-widest text-accent uppercase">Signatures</p>
         <div className="space-y-2">
           <SignatureRow label="Chef de famille" present={result.signatures.chef_famille} />
-          <SignatureRow label="Chef de village / Chefferie" present={result.signatures.chef_village} />
+          {/* Pas de « Chef de village / Chefferie » : un libellé à double barre
+              entretient exactement la confusion qu'il prétend lever, à côté
+              d'une ligne « Chef de famille ». Le champ est `chef_village`. */}
+          <SignatureRow label="Chef de village" present={result.signatures.chef_village} />
           <SignatureRow label="SGNF" present={result.signatures.sgnf} />
           <SignatureRow label="Notaire / Officiel" present={result.signatures.notaire} />
         </div>

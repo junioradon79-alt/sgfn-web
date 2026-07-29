@@ -6,6 +6,8 @@ import { motion } from "framer-motion";
 import { useChargement } from "@/hooks/useChargement";
 import { stagger } from "@/lib/motion";
 import type { BadgeKey } from "@/lib/navigation";
+import { apfcAttendSignature, etatSignaturesApfc } from "@/lib/signatures-attestation";
+import { fetchAllPages } from "@/lib/supabase-pagination";
 import { AppShell } from "@/components/pilotage/AppShell";
 import { Badge, CountBadge } from "@/components/ds/badge";
 import { Button } from "@/components/ds/button";
@@ -153,10 +155,22 @@ export function ProprietaireTerrienView({
               .eq("actuel", true)
           : Promise.resolve({ data: [] }),
         profile.famille_id
-          ? supabase
-              .from("attestations_coutumieres")
-              .select("id, reference, numero, statut, date_delivrance, sig_chef_famille_le, sig_chef_village_le, sig_cvgfr_le, chef_de_famille")
-              .eq("famille_id", profile.famille_id)
+          ? // `cvgfr_id` + `signatures_requises` du lotissement portent le
+            // NOMBRE de signatures exigées (cf. `etatSignaturesApfc`).
+            // `lotissements` est en lecture publique : l'embed ne restreint
+            // pas la liste.
+            //
+            // ⚠️ Lecture PAGINÉE : PostgREST plafonne chaque réponse à 1000
+            // lignes et tronque le reste EN SILENCE. La RLS borne le périmètre
+            // (une famille), pas le nombre de lignes.
+            fetchAllPages<AttestationCoutumiere>((de, a) =>
+              supabase
+                .from("attestations_coutumieres")
+                .select("id, reference, numero, statut, date_delivrance, sig_chef_famille_le, sig_chef_village_le, sig_cvgfr_le, cvgfr_id, chef_de_famille, lotissement:lotissement_id(signatures_requises)")
+                .eq("famille_id", profile.famille_id!)
+                .order("id", { ascending: true })
+                .range(de, a) as unknown as PromiseLike<{ data: AttestationCoutumiere[] | null }>
+            ).then((data) => ({ data }))
           : Promise.resolve({ data: [] }),
         // Litiges actifs (RLS scopée à ses parcelles) + concertations où il participe.
         supabase.from("litiges").select("id", { count: "exact", head: true }).neq("statut", "clos"),
@@ -191,7 +205,7 @@ export function ProprietaireTerrienView({
     const familleData = familleRes.data as Famille | null;
     setFamille(familleData);
     setMesLots((mesLotsRes.data ?? []) as unknown as AttributionRow[]);
-    setApfc((apfcRes.data ?? []) as AttestationCoutumiere[]);
+    setApfc((apfcRes.data ?? []) as unknown as AttestationCoutumiere[]);
     setLitigesActifsCount(litigesRes.count ?? 0);
     setConcertationCount(concertationRes.count ?? 0);
 
@@ -255,6 +269,30 @@ export function ProprietaireTerrienView({
 
   const { isLoading: loading, recharger } = useChargement(fetchData, [fetchData]);
 
+  /**
+   * 🔴 CE BOUTON EST INOPÉRANT — constaté le 29/07/2026, NON corrigé ici (la
+   * réparation demande une décision de droits en base, hors du présent
+   * chantier). Laissé en l'état plutôt que masqué : le masquer effacerait la
+   * trace du défaut.
+   *
+   * `attestations_coutumieres` ne porte que deux policies (relu en production
+   * le 29/07) : `apfc_admin_all` (ALL, `est_admin()`) et `apfc_read` (SELECT).
+   * Un `proprietaire_terrien` n'a donc AUCUNE policy d'écriture, et sous RLS un
+   * update sans policy ne lève pas d'erreur — il touche zéro ligne. Comme le
+   * code ne teste que `error`, l'écran affiche un succès et la pastille reste
+   * orange. C'est mot pour mot le défaut réparé le 22/07 sur les cessions puis
+   * le 28/07 sur la co-signature de la chefferie (`signer_apfc`).
+   *
+   * La migration `20260728120000` a délibérément laissé `chef_famille` sans
+   * chemin non-admin, au motif qu'« aucun écran ne les propose aujourd'hui ».
+   * Ce motif était déjà faux : cet écran-ci le propose. La réparation consiste
+   * à ouvrir `signer_apfc(…, 'chef_famille')` au `proprietaire_terrien` borné à
+   * `ma_famille_id()`, puis à appeler la RPC ici au lieu de cet update.
+   *
+   * Sans conséquence visible aujourd'hui : la seule APFC de la base porte sa
+   * signature de chef de famille depuis la migration `20260729150000`, le
+   * bouton ne s'affiche donc plus. Le piège reste armé pour la prochaine APFC.
+   */
   const signerApfc = async (apfcId: string) => {
     setSigning(apfcId);
     setSignError(null);
@@ -339,7 +377,10 @@ export function ProprietaireTerrienView({
   }
 
   const pvAFournir = pvs.filter((p) => p.statut === "a_fournir").length;
-  const apfcNonSignees = apfc.filter((a) => !a.sig_chef_famille_le).length;
+  // Seules les APFC dont le lotissement EXIGE la signature du chef de famille
+  // et ne l'a pas constatée attendent un geste — pas toutes celles dont la
+  // colonne est vide.
+  const apfcNonSignees = apfc.filter((a) => apfcAttendSignature(a, "sig_chef_famille_le")).length;
   const lotsTotal = mesLots.length + lotsCollectifs.length;
   const estChefDeFamille = !!profile.famille_id;
 
@@ -551,7 +592,7 @@ export function ProprietaireTerrienView({
                 Attestation de Propriété Foncière Coutumière (APFC)
               </h2>
               <p className="mt-0.5 text-[11.5px] text-muted-2 group-data-[tone=alert]/card:text-brick-foreground/95">
-                Document cosigné par la famille et la Chefferie du village
+                Document cosigné par le chef de famille et le chef de village
               </p>
             </div>
             {!loading && apfcNonSignees > 0 && <CountBadge tone="inverse" value={apfcNonSignees} />}
@@ -564,10 +605,14 @@ export function ProprietaireTerrienView({
           ) : (
             <div className="divide-y divide-border">
               {apfc.map((a) => {
+                // Même correction que sur `/dashboard/validations` : le nombre
+                // de signatures vient du lotissement, plus d'un `max={3}` en
+                // dur qui condamnait Koelea-Accor à « 2/3 » à perpétuité.
+                const etat = etatSignaturesApfc(a);
+                const familleAttendue = etat.lignes.some(
+                  (l) => l.colonne === "sig_chef_famille_le" && l.requise && !l.signee
+                );
                 const sig1 = !!a.sig_chef_famille_le;
-                const sig2 = !!a.sig_chef_village_le;
-                const sig3 = !!a.sig_cvgfr_le;
-                const pct = [sig1, sig2, sig3].filter(Boolean).length;
                 return (
                   <div key={a.id} className="px-5 py-4">
                     <div className="flex items-start justify-between gap-4">
@@ -576,18 +621,18 @@ export function ProprietaireTerrienView({
                           {a.numero ?? a.reference ?? "APFC sans référence"}
                         </p>
                         <p className="mt-0.5 text-[11.5px] text-muted-2">
-                          Chef : {a.chef_de_famille ?? "—"}
+                          Chef de famille : {a.chef_de_famille ?? "—"}
                         </p>
                         <SignaturesBadges
-                          sigs={[
-                            { label: "Chef de famille", done: sig1 },
-                            { label: "Chef de village", done: sig2 },
-                            { label: "CVGFR", done: sig3 },
-                          ]}
+                          sigs={etat.lignes.map((l) => ({
+                            label: l.label,
+                            done: l.signee,
+                            requise: l.requise,
+                          }))}
                         />
-                        <ProgressBar value={pct} max={3} />
+                        <ProgressBar value={etat.signees} max={etat.total} />
                       </div>
-                      {!sig1 && (
+                      {familleAttendue && (
                         <Button
                           size="sm"
                           variant="primary"

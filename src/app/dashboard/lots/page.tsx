@@ -414,10 +414,10 @@ function GenerationExceptionnelleModal({ lots, onClose, onConfirm }: {
 }
 
 // ─── Génération de l'Attestation d'Attribution de Lot (Niveau 2, admin) ────────
-// Document unique par lot, signé Chefferie, remplace l'attestation de cession
-// comme document de référence. Contrairement à la génération exceptionnelle
-// (multi-lots), une seule instance à la fois : le nom identifié physiquement
-// se saisit lot par lot. La signature Chefferie reste bloquée tant que le
+// Document unique par lot, signé par le chef de village, remplace l'attestation
+// de cession comme document de référence. Contrairement à la génération
+// exceptionnelle (multi-lots), une seule instance à la fois : le nom identifié
+// physiquement se saisit lot par lot. Cette signature reste bloquée tant que le
 // paiement de signature (500 000 FCFA chefferie + 50 000 FCFA commission
 // SGNF) n'est pas confirmé — cf. migration du 23/07.
 
@@ -465,7 +465,7 @@ function GenerationAttributionLotModal({ lot, onClose, onConfirm }: {
           {!resultat ? (
             <>
               <Avertissement>
-                Document unique pour ce lot — signé par la Chefferie une fois le paiement de signature
+                Document unique pour ce lot — signé par le chef de village une fois le paiement de signature
                 (500 000 FCFA chefferie + 50 000 FCFA commission SGNF) confirmé. Remplace l&apos;attestation
                 de cession comme document de référence pour ce lot.
               </Avertissement>

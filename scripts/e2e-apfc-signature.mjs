@@ -1,6 +1,19 @@
 // Preuve de bout en bout du correctif #16 : la chefferie co-signe reellement
 // une APFC depuis /dashboard/validations.
 //
+// ⚠️ OBSOLETE DEPUIS LE 29/07/2026 — NE PAS LANCER SANS LE REECRIRE.
+// Deux raisons, verifiees ce jour :
+//   • il n'existe plus d'APFC en attente. La seule de la base
+//     (APFC-EBIMPE-2022-001) porte ses deux signatures depuis les migrations
+//     `20260729110000` et `20260729150000` : l'ecran affiche « 2/2 · Valide »,
+//     et l'etape « l-apfc-est-bien-EN-ATTENTE-avant-le-clic » echoue d'entree ;
+//   • l'assertion « Chefferie village » ne correspond a aucun libelle de
+//     l'application — le signataire s'intitule « Chef de village » (et, avant
+//     le 29/07, deja pas « Chefferie village »).
+// Il echoue AVANT tout clic, donc sans rien ecrire ; mais c'est un script qui
+// ECRIT EN PRODUCTION, et un rouge qu'on prend pour un defaut applicatif coute
+// cher. Le refaire supposera de disposer d'une APFC reellement en attente.
+//
 // 🔴 Ce test ECRIT EN PRODUCTION (le dev server parle a la base de prod). Il
 // est concu pour etre suivi IMMEDIATEMENT du script de remise a l'etat
 // initial : la table n'a aucun trigger, la remise a NULL restaure donc l'etat

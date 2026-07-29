@@ -96,10 +96,15 @@ const CHAMP_LABEL: Record<string, string> = {
   lignee: "Lignée",
   chef_de_famille: "Chef de famille",
   autorite_coutumiere: "Autorité coutumière",
-  // « Chef » tout court laissait croire au chef actuel de la chefferie. C'est le
-  // chef en fonction à la délivrance de l'acte — un document de 2022 n'est pas
-  // signé par le chef nommé en 2023 (corrigé le 29/07, cf. chef_autorite_a_la_date).
-  autorite_chef: "Chef signataire de l'acte",
+  // Deux ambiguïtés à lever d'un coup, sur une page PUBLIQUE où la ligne
+  // « Chef de famille » figure quelques lignes plus haut :
+  //  • QUAND — « Chef » tout court laissait croire au chef actuel. C'est le chef
+  //    en fonction à la délivrance : un acte de 2022 n'est pas signé par le chef
+  //    nommé en 2023 (cf. `chef_autorite_a_la_date`).
+  //  • QUI — « Chef signataire » ne disait pas laquelle des deux autorités.
+  //    Ce champ vaut pour l'autorité coutumière (`autorite_chef`), donc pour le
+  //    chef de VILLAGE, jamais pour le chef de famille.
+  autorite_chef: "Chef de village signataire de l'acte",
   date_emission: "Date d'émission",
   date_delivrance: "Date de délivrance",
   statut_litige: "Litige",

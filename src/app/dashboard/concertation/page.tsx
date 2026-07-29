@@ -830,7 +830,7 @@ export default function ConcertationPage() {
               </div>
               <div>
                 <p className="font-semibold text-foreground">Sélectionnez un espace</p>
-                <p className="mt-1 text-sm text-muted-foreground">ou créez un nouvel espace de concertation entre SGNF, la Chefferie, le Chef de famille et l&apos;Opérateur.</p>
+                <p className="mt-1 text-sm text-muted-foreground">ou créez un nouvel espace de concertation entre SGNF, le Chef de village, le Chef de famille et l&apos;Opérateur.</p>
               </div>
               <Button type="button" variant="primary" onClick={() => setShowNouveau(true)}>
                 <Plus className="h-4 w-4" /> Nouvel espace
