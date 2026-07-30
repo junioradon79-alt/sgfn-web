@@ -18,8 +18,8 @@ import {
   ScrollText,
   ShieldAlert,
   ShieldCheck,
+  WifiOff,
 } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
 
 import { AppShell } from "@/components/pilotage/AppShell";
 import { Badge } from "@/components/ds/badge";
@@ -32,13 +32,6 @@ import { Input, Textarea } from "@/components/ds/input";
 import { createClient } from "@/utils/supabase/client";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
-
-// Lien public de vérification d'un document (scannable / partageable). Utilise
-// l'origine courante : https://sgfn.ci/... en prod, localhost en dev.
-const verifUrl = (reference: string) => {
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://sgfn.ci";
-  return `${origin}/verifier?ref=${encodeURIComponent(reference)}`;
-};
 
 // Carte mono-point du modal détails — Leaflet a besoin des APIs browser.
 const LotDetailMap = dynamic(() => import("./_LotDetailMap"), {
@@ -121,10 +114,17 @@ type DispoRow = {
   lz_latitude: number | null;
   lz_longitude: number | null;
   lz_superficie_texte: string | null;
-  attestation_reference: string | null;
-  attestation_statut: string | null;
   prix: number | null;
 };
+// 🔴 `attestation_reference` / `attestation_statut` ont été RETIRÉS de ce type
+// le 30/07/2026. Ils venaient de `lots_verifiables()` ; depuis le
+// rebranchement sur `annonces_marketplace` (commit 2bd07bc) ils étaient forcés
+// à `null` en dur, ce qui neutralisait le bloc QR sans le supprimer — du code
+// mort qui se serait rallumé au premier champ repeuplé, et qui aurait alors
+// offert gratuitement la vérification payante avec le catalogue. Le bloc, son
+// import `qrcode.react` et l'assistant `verifUrl` sont supprimés avec eux.
+// Une annonce ne porte PAS de référence d'attestation, et c'est la règle : le
+// modal renvoie vers /verifier, il ne pré-remplit rien.
 
 const fmtDate = (d: string | null) =>
   d
@@ -161,14 +161,37 @@ export default function AcquisitionPage() {
   const [flash, setFlash] = useState<string | null>(null);
   const [detailLot, setDetailLot] = useState<DispoRow | null>(null);
 
+  /**
+   * 🔴 UN ÉTAT VIDE QUI MENT — relevé le 30/07/2026 par un vérificateur tiers.
+   *
+   * Les trois chargements de cet écran faisaient `const { data } = await …` et
+   * jetaient `error`. Une requête EN ÉCHEC (réseau coupé, jeton expiré, RLS
+   * qui refuse, RPC qui lève) produisait donc `data === null`, puis `[]`, puis
+   * l'écran affirmait « Aucun terrain n'est actuellement en vente » — une
+   * affirmation FAUSSE présentée comme un fait, sur un écran dont c'est
+   * précisément le rôle de dire ce qui est disponible. Un catalogue vide et un
+   * catalogue inaccessible ne se ressemblent pas ; l'utilisateur doit pouvoir
+   * les distinguer, ne serait-ce que pour savoir s'il doit réessayer.
+   */
+  const [erreurs, setErreurs] = useState<{
+    conformite?: string;
+    catalogue?: string;
+    demandes?: string;
+  }>({});
+
   // Pastilles « déjà demandé » sur les cartes de lot. Le suivi complet de l'achat
   // (paiement du terrain, certificat, attestation) vit sur « Mon achat ».
-  const loadDemandes = useCallback(async () => {
-    const { data } = await supabase
+  const loadDemandes = useCallback(async (): Promise<string | null> => {
+    const { data, error } = await supabase
       .from("demandes_acquisition")
       .select("id,lot_id,statut,montant_propose,cree_le")
       .order("cree_le", { ascending: false });
+    if (error) {
+      setDemandes([]);
+      return error.message;
+    }
     setDemandes((data ?? []) as DemandeRow[]);
+    return null;
   }, [supabase]);
 
   /**
@@ -197,12 +220,19 @@ export default function AcquisitionPage() {
    * 0 active. Cet écran est VIDE, et c'est l'état réel du stock, pas une
    * régression. L'état vide ci-dessous le dit en toutes lettres.
    */
-  const chargerCatalogue = useCallback(async (): Promise<DispoRow[]> => {
-    const { data } = await supabase
+  const chargerCatalogue = useCallback(async (): Promise<{
+    rows: DispoRow[];
+    erreur: string | null;
+  }> => {
+    const { data, error } = await supabase
       .from("annonces_marketplace")
       .select("id,lot_id,titre,description,prix,usage,zone,superficie_m2,publiee_le")
       .eq("statut", "active")
       .order("publiee_le", { ascending: false });
+
+    // L'échec ne se maquille PAS en catalogue vide : on remonte le motif et
+    // l'écran l'affiche tel quel (cf. le commentaire sur `erreurs`).
+    if (error) return { rows: [], erreur: error.message };
 
     type Annonce = {
       lot_id: string;
@@ -213,42 +243,45 @@ export default function AcquisitionPage() {
       superficie_m2: number | null;
     };
 
-    // L'annonce ne porte AUCUNE référence d'attestation, et c'est voulu :
-    // la vérification reste un acte payant, elle ne se donne pas avec le
-    // catalogue. `attestation_reference: null` masque donc le bloc QR.
-    return ((data ?? []) as Annonce[]).map((a) => ({
-      lot_id: a.lot_id,
-      lotissement_id: "",
-      ilot: null,
-      lot: null,
-      lotissement: a.titre,
-      village: a.zone,
-      commune: null,
-      district: null,
-      est_lot_operateur: false,
-      operateur_nom: null,
-      superficie_m2: a.superficie_m2,
-      numero_parcelle: null,
-      nature_droit: a.usage,
-      lot_latitude: null,
-      lot_longitude: null,
-      lz_latitude: null,
-      lz_longitude: null,
-      lz_superficie_texte: null,
-      attestation_reference: null,
-      attestation_statut: null,
-      prix: a.prix,
-    }));
+    return {
+      erreur: null,
+      rows: ((data ?? []) as Annonce[]).map((a) => ({
+        lot_id: a.lot_id,
+        lotissement_id: "",
+        ilot: null,
+        lot: null,
+        lotissement: a.titre,
+        village: a.zone,
+        commune: null,
+        district: null,
+        est_lot_operateur: false,
+        operateur_nom: null,
+        superficie_m2: a.superficie_m2,
+        numero_parcelle: null,
+        nature_droit: a.usage,
+        lot_latitude: null,
+        lot_longitude: null,
+        lz_latitude: null,
+        lz_longitude: null,
+        lz_superficie_texte: null,
+        prix: a.prix,
+      })),
+    };
   }, [supabase]);
 
   const { isLoading: loading, recharger } = useChargement(async () => {
-    const [conf, catalogue] = await Promise.all([
+    const [conf, catalogue, errDemandes] = await Promise.all([
       supabase.rpc("conformite_lotissements"),
       chargerCatalogue(),
       loadDemandes(),
     ]);
-    setConformite((conf.data ?? []) as unknown as ConformiteRow[]);
-    setLots(catalogue);
+    setConformite((conf.error ? [] : (conf.data ?? [])) as unknown as ConformiteRow[]);
+    setLots(catalogue.rows);
+    setErreurs({
+      conformite: conf.error?.message,
+      catalogue: catalogue.erreur ?? undefined,
+      demandes: errDemandes ?? undefined,
+    });
   });
 
   const demandeByLot = useMemo(
@@ -339,6 +372,16 @@ export default function AcquisitionPage() {
         </div>
       )}
 
+      {/* Le bandeau « vous avez N demandes » ne peut pas s'afficher si la liste
+          n'a pas pu être lue : on le dit, au lieu de laisser croire à zéro. */}
+      {!loading && erreurs.demandes && (
+        <EchecChargement
+          quoi="vos demandes d'acquisition"
+          motif={erreurs.demandes}
+          onReessayer={recharger}
+        />
+      )}
+
       {/* Le suivi de l'achat (paiement du terrain, certificat, attestation) vit
           désormais sur « Mon achat » (/dashboard/mon-achat). Ici on ne fait que
           trouver et vérifier un terrain, puis engager la demande. */}
@@ -364,6 +407,14 @@ export default function AcquisitionPage() {
           <div className="rounded-xl border border-border bg-card px-5 py-8 text-center text-sm text-muted-foreground shadow-panel">
             Chargement…
           </div>
+        ) : erreurs.conformite ? (
+          /* « Aucun lotissement enregistré » sur une requête en échec serait un
+             mensonge : la base en compte. On distingue les deux. */
+          <EchecChargement
+            quoi="la conformité des lotissements"
+            motif={erreurs.conformite}
+            onReessayer={recharger}
+          />
         ) : conformite.length === 0 ? (
           <div className="rounded-xl border border-border bg-card px-5 py-8 text-center text-sm text-muted-foreground shadow-panel">
             Aucun lotissement enregistré.
@@ -449,11 +500,21 @@ export default function AcquisitionPage() {
           <div className="rounded-xl border border-border bg-card px-5 py-8 text-center text-sm text-muted-foreground shadow-panel">
             Chargement…
           </div>
+        ) : erreurs.catalogue ? (
+          /* 🔴 LE CAS QUI MENTAIT. Le catalogue n'a pas pu être lu : on ne dit
+             SURTOUT pas « aucun terrain n'est en vente », qui est une
+             affirmation sur le marché alors qu'on n'a mesuré qu'une panne. */
+          <EchecChargement
+            quoi="les terrains en vente"
+            motif={erreurs.catalogue}
+            onReessayer={recharger}
+          />
         ) : shown.length === 0 ? (
           /* État vide SOIGNÉ, et distinct selon la cause : « le filtre ne
-             ramène rien » n'est pas « le catalogue est vide ». Au 30/07/2026
-             c'est le second cas — 1 annonce en base, suspendue, donc 0 active :
-             l'écran doit le dire, pas tourner dans le vide. */
+             ramène rien » n'est pas « le catalogue est vide », et aucun des
+             deux n'est « la requête a échoué » (traité juste au-dessus). Au
+             30/07/2026 c'est le deuxième cas — 1 annonce en base, suspendue,
+             donc 0 active : l'écran doit le dire, pas tourner dans le vide. */
           <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-5 py-10 text-center shadow-panel">
             <MapPinOff className="h-7 w-7 text-muted-2" aria-hidden />
             {lots.length === 0 ? (
@@ -605,7 +666,6 @@ function LotDetailsModal({
   const localisation = [lot.village, lot.commune, lot.district].filter(Boolean).join(" · ");
   const apfcOk = conformite?.apfc_statut === "delivree";
   const noLitige = (conformite?.litiges_actifs ?? 0) === 0;
-  const attRef = lot.attestation_reference;
 
   const facts: { icon: typeof Maximize2; label: string; value: string | null }[] = [
     { icon: Maximize2, label: "Superficie", value: superficie },
@@ -646,38 +706,23 @@ function LotDetailsModal({
                 </p>
               </div>
             </div>
-            {attRef && (
-              <div className="mt-3 flex flex-col items-center gap-4 sm:flex-row">
-                <div className="shrink-0 rounded-lg border border-border bg-white p-2">
-                  <QRCodeSVG value={verifUrl(attRef)} size={104} bgColor="#ffffff" fgColor="#0B4D88" level="M" />
-                </div>
-                <div className="flex-1 text-center sm:text-left">
-                  <p className="text-xs text-muted-foreground">Scannez le QR avec un téléphone, ou :</p>
-                  <Button asChild variant="primary" size="sm" className="mt-2">
-                    <a href={verifUrl(attRef)} target="_blank" rel="noopener noreferrer">
-                      <ShieldCheck className="h-4 w-4" />
-                      Ouvrir la vérification
-                    </a>
-                  </Button>
-                  <p className="mt-2 font-mono text-[11px] text-muted-2">Réf. {attRef}</p>
-                </div>
-              </div>
-            )}
             {/* Une annonce ne porte PAS la référence d'attestation : la donner
                 ici reviendrait à offrir la consultation payante avec le
-                catalogue — c'est exactement la fuite fermée le 30/07/2026. */}
-            {!attRef && (
-              <div className="mt-3 rounded-lg bg-card/70 px-3 py-2.5">
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  La référence de vérification n&apos;est pas communiquée avec l&apos;annonce. Demandez-la
-                  au vendeur, ou saisissez-la sur la page{" "}
-                  <Link href="/verifier" className="font-semibold text-accent underline underline-offset-2">
-                    Vérifier un document
-                  </Link>{" "}
-                  si vous la détenez déjà.
-                </p>
-              </div>
-            )}
+                catalogue — c'est exactement la fuite fermée le 30/07/2026.
+                Le bloc QR conditionnel qui vivait ici a été SUPPRIMÉ le même
+                jour : il n'était plus neutralisé que par un
+                `attestation_reference: null` codé en dur, donc prêt à se
+                rallumer seul. */}
+            <div className="mt-3 rounded-lg bg-card/70 px-3 py-2.5">
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                La référence de vérification n&apos;est pas communiquée avec l&apos;annonce. Demandez-la
+                au vendeur, ou saisissez-la sur la page{" "}
+                <Link href="/verifier" className="font-semibold text-accent underline underline-offset-2">
+                  Vérifier un document
+                </Link>{" "}
+                si vous la détenez déjà.
+              </p>
+            </div>
           </div>
 
           {/* Carte */}
@@ -878,6 +923,42 @@ function LotDetailsModal({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Panneau d'ÉCHEC de chargement — à ne jamais confondre avec un état vide.
+ * Il nomme ce qui n'a pas pu être lu, affiche le motif renvoyé par le serveur
+ * (et non un « une erreur est survenue » qui n'aide personne à décider) et
+ * propose de réessayer.
+ */
+function EchecChargement({
+  quoi,
+  motif,
+  onReessayer,
+}: {
+  quoi: string;
+  motif: string;
+  onReessayer: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="flex flex-col items-center gap-2 rounded-xl border border-danger/30 bg-danger-subtle px-5 py-8 text-center"
+    >
+      <WifiOff className="h-6 w-6 text-danger" aria-hidden />
+      <p className="text-sm font-semibold text-foreground">
+        Impossible d&apos;afficher {quoi} pour le moment.
+      </p>
+      <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
+        Ce n&apos;est pas un catalogue vide : la donnée n&apos;a pas pu être lue. Vérifiez votre
+        connexion, puis réessayez.
+      </p>
+      <p className="max-w-md font-mono text-[11px] break-words text-muted-2">{motif}</p>
+      <Button type="button" variant="outline" size="sm" className="mt-1" onClick={onReessayer}>
+        Réessayer
+      </Button>
+    </div>
   );
 }
 

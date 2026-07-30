@@ -81,12 +81,30 @@ function MonAchatContenu() {
   const [attPaies, setAttPaies] = useState<Record<string, Paie>>({});
   const [payingId, setPayingId] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
+  /**
+   * 🔴 UN ÉCHEC QUI SE FAISAIT PASSER POUR « AUCUN ACHAT » — relevé le
+   * 30/07/2026 par un vérificateur tiers. `load()` faisait
+   * `const { data } = await …` et jetait `error` : une lecture en échec
+   * donnait `data === null`, donc `demandes === []`, donc la section
+   * « Mes achats en cours » disparaissait purement et simplement. Un
+   * acquéreur en plein tunnel de paiement voyait son achat s'évaporer sans
+   * un mot. On distingue désormais « vous n'avez aucun achat » de « je n'ai
+   * pas pu lire vos achats ».
+   */
+  const [chargeErreur, setChargeErreur] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("demandes_acquisition")
       .select("id,lot_id,statut,cree_le,cession_id,vente_id")
       .order("cree_le", { ascending: false });
+    if (error) {
+      setChargeErreur(error.message);
+      setDemandes([]);
+      setLots({});
+      return;
+    }
+    setChargeErreur(null);
     const rows = (data ?? []) as DemandeRow[];
     setDemandes(rows);
 
@@ -99,24 +117,57 @@ function MonAchatContenu() {
     // exactement autant qu'à l'admin. Un libellé d'en-tête ne justifie pas de
     // charger le registre foncier entier dans le navigateur.
     //
-    // Depuis la migration 20260730060000 elle lève 42501 pour qui n'a aucun
-    // périmètre : un acquéreur prospect aurait vu cet écran tomber. On lit
-    // donc les ANNONCES, seule source pensée pour le catalogue, et bornée aux
-    // lots effectivement suivis par l'utilisateur.
+    // 🔴 CORRECTIF DU 30/07/2026 (vérificateur tiers). Le premier
+    // rebranchement ne lisait QUE les annonces `active`, et son commentaire
+    // parlait de « l'état réel du stock » : c'est l'état réel des ANNONCES,
+    // pas des DEMANDES. Mesuré : l'unique demande de la base porte sur le lot
+    // 91ccc540 (« Koelea-Accor revu », îlot 01, lot 06), qui n'a AUCUNE
+    // annonce — son libellé disparaissait au profit du repli générique. Une
+    // demande d'acquisition n'implique évidemment pas que le lot soit en
+    // vente ; le lier au catalogue était l'erreur.
     //
-    // ⚠️ 1 annonce en base au 30/07/2026, au statut `suspendue` — donc
-    // 0 active. Aucun libellé ne sera résolu aujourd'hui, et l'en-tête
-    // retombe sur « Mon terrain », ce qu'il faisait déjà pour tout lot
-    // inconnu. C'est l'état réel du stock, pas une régression.
+    // Ordre de résolution, du plus précis au plus général, sans toucher à la
+    // RLS de `lots` (hors périmètre, décision du user) :
+    //   1. `mes_suivis()` — RPC déjà bornée à l'appelant et déjà utilisée par
+    //      « Mes terrains suivis » plus bas ; elle rend le vrai libellé
+    //      cadastral (lotissement, îlot, n° de lot). Mesuré : le demandeur
+    //      SUIT bien le lot de sa demande, le libellé est donc rétabli.
+    //   2. l'annonce, quand il y en a une. Le filtre `statut = 'active'` est
+    //      RETIRÉ ici : c'est la RLS de `annonces_marketplace` qui décide
+    //      (`statut = 'active'` pour tous, plus ses propres annonces pour un
+    //      vendeur), et un vendeur doit pouvoir nommer son terrain même
+    //      annonce suspendue. Le catalogue de /dashboard/acquisition, lui,
+    //      garde le filtre : ce sont deux besoins différents.
     const lotIds = [...new Set(rows.map((d) => d.lot_id).filter(Boolean))];
     const lotMap: Record<string, LotLabel> = {};
     if (lotIds.length > 0) {
-      const { data: annonces } = await supabase
-        .from("annonces_marketplace")
-        .select("lot_id,titre,zone")
-        .eq("statut", "active")
-        .in("lot_id", lotIds);
-      for (const a of (annonces ?? []) as { lot_id: string; titre: string | null; zone: string | null }[]) {
+      type SuiviLabel = {
+        lot_id: string;
+        numero_lot: string | null;
+        ilot_numero: string | null;
+        lotissement: string | null;
+      };
+      const [suivisRes, annoncesRes] = await Promise.all([
+        supabase.rpc("mes_suivis"),
+        supabase.from("annonces_marketplace").select("lot_id,titre,zone").in("lot_id", lotIds),
+      ]);
+      for (const s of (suivisRes.data ?? []) as SuiviLabel[]) {
+        if (!lotIds.includes(s.lot_id)) continue;
+        lotMap[s.lot_id] = {
+          lotissement: s.lotissement,
+          ilot: s.ilot_numero,
+          lot: s.numero_lot,
+          village: null,
+          commune: null,
+        };
+      }
+      for (const a of (annoncesRes.data ?? []) as {
+        lot_id: string;
+        titre: string | null;
+        zone: string | null;
+      }[]) {
+        // Le suivi gagne : il porte la référence cadastrale, l'annonce non.
+        if (lotMap[a.lot_id]) continue;
         lotMap[a.lot_id] = {
           lotissement: a.titre,
           ilot: null,
@@ -263,9 +314,37 @@ function MonAchatContenu() {
           (gère aussi l'enregistrement du suivi à l'arrivée depuis /verifier). */}
       <ParcellesSuivies />
 
+      {/* La liste des achats n'a PAS pu être lue : on le dit. La faire
+          disparaître en silence reviendrait à affirmer « vous n'avez aucun
+          achat », ce qui n'a pas été mesuré. */}
+      {!loading && chargeErreur && (
+        <div
+          role="alert"
+          className="flex flex-col gap-2 rounded-xl border border-danger/30 bg-danger-subtle px-4 py-4"
+        >
+          <p className="text-sm font-semibold text-foreground">
+            Impossible d&apos;afficher vos achats pour le moment.
+          </p>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Cela ne veut pas dire que vous n&apos;avez aucun achat en cours : la donnée n&apos;a
+            pas pu être lue. Vérifiez votre connexion, puis réessayez.
+          </p>
+          <p className="font-mono text-[11px] break-words text-muted-2">{chargeErreur}</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="self-start"
+            onClick={() => void recharger()}
+          >
+            Réessayer
+          </Button>
+        </div>
+      )}
+
       {/* Achats en cours : l'ancien tunnel agence, conservé, mais secondaire —
           affiché seulement s'il existe une demande/vente réelle. */}
-      {loading ? null : demandes.length > 0 ? (
+      {loading || chargeErreur ? null : demandes.length > 0 ? (
         <motion.section
           id="mes-achats"
           variants={stagger(0, 0.05)}
@@ -358,14 +437,19 @@ function AchatCard({
     hasAtt ? "done" : venteSoldee ? "current" : "todo", // attestation
   ];
 
-  // L'annonce ne porte ni îlot ni numéro de lot (ce sont des données du
-  // registre, pas du catalogue). On titre alors par l'intitulé de l'annonce
-  // plutôt que d'afficher « Lot ? · Îlot ? ».
+  // Une ANNONCE ne porte ni îlot ni numéro de lot (ce sont des données du
+  // registre, pas du catalogue) ; un SUIVI, si. On titre donc par la référence
+  // cadastrale quand on l'a, sinon par l'intitulé, plutôt que d'afficher
+  // « Lot ? · Îlot ? ».
   const refCadastrale =
     lot && (lot.lot != null || lot.ilot != null)
       ? `Lot ${lot.lot ?? "?"} · Îlot ${lot.ilot ?? "?"}`
       : null;
-  const titreLot = refCadastrale ?? lot?.lotissement ?? "Mon terrain";
+  // Dernier repli : « Terrain demandé » et non « Mon terrain ». Une demande
+  // peut être `refusee` — l'unique demande de la base l'est — et titrer
+  // « Mon terrain » sur une demande non retenue affirme une propriété qui
+  // n'existe pas. Le repli doit rester vrai dans tous les états de la carte.
+  const titreLot = refCadastrale ?? lot?.lotissement ?? "Terrain demandé";
   const lieu = lot
     ? [refCadastrale ? lot.lotissement : null, lot.village, lot.commune].filter(Boolean).join(" · ")
     : "";
