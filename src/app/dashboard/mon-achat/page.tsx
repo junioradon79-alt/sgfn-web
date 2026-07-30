@@ -90,11 +90,41 @@ function MonAchatContenu() {
     const rows = (data ?? []) as DemandeRow[];
     setDemandes(rows);
 
-    // Libellés des lots (registre public vérifiable — lisible par l'acquéreur).
-    const dispo = await supabase.rpc("lots_verifiables");
+    // Libellés des terrains suivis.
+    //
+    // 🔴 Cet écran appelait `lots_verifiables()` pour de simples LIBELLÉS. Or
+    // cette RPC SECURITY DEFINER n'avait aucune garde : mesure du 30/07/2026
+    // par emprunt de rôle, elle rendait 49 lots — avec leur
+    // `attestation_reference` — à un acquéreur n'ayant droit à rien, soit
+    // exactement autant qu'à l'admin. Un libellé d'en-tête ne justifie pas de
+    // charger le registre foncier entier dans le navigateur.
+    //
+    // Depuis la migration 20260730060000 elle lève 42501 pour qui n'a aucun
+    // périmètre : un acquéreur prospect aurait vu cet écran tomber. On lit
+    // donc les ANNONCES, seule source pensée pour le catalogue, et bornée aux
+    // lots effectivement suivis par l'utilisateur.
+    //
+    // ⚠️ 1 annonce en base au 30/07/2026, au statut `suspendue` — donc
+    // 0 active. Aucun libellé ne sera résolu aujourd'hui, et l'en-tête
+    // retombe sur « Mon terrain », ce qu'il faisait déjà pour tout lot
+    // inconnu. C'est l'état réel du stock, pas une régression.
+    const lotIds = [...new Set(rows.map((d) => d.lot_id).filter(Boolean))];
     const lotMap: Record<string, LotLabel> = {};
-    for (const l of (dispo.data ?? []) as unknown as (LotLabel & { lot_id: string })[]) {
-      lotMap[l.lot_id] = { lotissement: l.lotissement, ilot: l.ilot, lot: l.lot, village: l.village, commune: l.commune };
+    if (lotIds.length > 0) {
+      const { data: annonces } = await supabase
+        .from("annonces_marketplace")
+        .select("lot_id,titre,zone")
+        .eq("statut", "active")
+        .in("lot_id", lotIds);
+      for (const a of (annonces ?? []) as { lot_id: string; titre: string | null; zone: string | null }[]) {
+        lotMap[a.lot_id] = {
+          lotissement: a.titre,
+          ilot: null,
+          lot: null,
+          village: a.zone,
+          commune: null,
+        };
+      }
     }
     setLots(lotMap);
 
@@ -328,10 +358,17 @@ function AchatCard({
     hasAtt ? "done" : venteSoldee ? "current" : "todo", // attestation
   ];
 
-  const titreLot = lot
-    ? `Lot ${lot.lot ?? "?"} · Îlot ${lot.ilot ?? "?"}`
-    : "Mon terrain";
-  const lieu = lot ? [lot.lotissement, lot.village, lot.commune].filter(Boolean).join(" · ") : "";
+  // L'annonce ne porte ni îlot ni numéro de lot (ce sont des données du
+  // registre, pas du catalogue). On titre alors par l'intitulé de l'annonce
+  // plutôt que d'afficher « Lot ? · Îlot ? ».
+  const refCadastrale =
+    lot && (lot.lot != null || lot.ilot != null)
+      ? `Lot ${lot.lot ?? "?"} · Îlot ${lot.ilot ?? "?"}`
+      : null;
+  const titreLot = refCadastrale ?? lot?.lotissement ?? "Mon terrain";
+  const lieu = lot
+    ? [refCadastrale ? lot.lotissement : null, lot.village, lot.commune].filter(Boolean).join(" · ")
+    : "";
 
   return (
     <Card className="overflow-hidden">

@@ -66,6 +66,16 @@ const fmtSuperficie = (m2: number | null) => {
   return m2 >= 10000 ? `${base} · ${(m2 / 10000).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ha` : base;
 };
 
+// Une annonce marketplace ne porte ni îlot ni numéro de lot : ce sont des
+// données du REGISTRE, pas du catalogue — c'est précisément la séparation que
+// le rebranchement du 30/07/2026 vient rétablir. On n'affiche donc ce libellé
+// que lorsqu'il existe, au lieu d'écrire « Îlot null · Lot null ».
+const refCadastrale = (ilot: string | number | null, lot: string | number | null) =>
+  ilot != null || lot != null ? `Îlot ${ilot ?? "—"} · Lot ${lot ?? "—"}` : null;
+
+const fmtPrix = (v: number | null) =>
+  v == null ? null : `${new Intl.NumberFormat("fr-FR").format(v)} FCFA`;
+
 const googleMapsDirectionsUrl = (lat: number, lng: number) =>
   `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 
@@ -113,6 +123,7 @@ type DispoRow = {
   lz_superficie_texte: string | null;
   attestation_reference: string | null;
   attestation_statut: string | null;
+  prix: number | null;
 };
 
 const fmtDate = (d: string | null) =>
@@ -160,14 +171,84 @@ export default function AcquisitionPage() {
     setDemandes((data ?? []) as DemandeRow[]);
   }, [supabase]);
 
+  /**
+   * Catalogue = annonces marketplace ACTIVES, et rien d'autre.
+   *
+   * 🔴 Cet écran lisait `lots_verifiables()`. Cette RPC est SECURITY DEFINER,
+   * son `execute` était accordé à `authenticated`, et son corps ne portait
+   * AUCUNE garde. Mesure du 30/07/2026 par emprunt de rôle : un acquéreur
+   * n'ayant droit à rien en obtenait 49 références — exactement le même
+   * chiffre que l'admin, ce qui est la signature d'une absence de périmètre,
+   * pas d'un droit. Or `attestation_reference` suffit ensuite à obtenir
+   * gratuitement, via /verifier, le propriétaire actuel et l'historique
+   * complet du lot. Ce n'était pas un catalogue de vente : c'était le
+   * registre entier, servi à tout utilisateur connecté.
+   *
+   * Depuis la migration 20260730060000, `lots_verifiables()` lève 42501 pour
+   * qui n'a aucun périmètre. Cet écran lit donc les ANNONCES : « ce qui est à
+   * vendre » cesse d'être confondu avec « ce qui est attesté ».
+   *
+   * On lit `annonces_marketplace` en direct et NON la vue `annonces_publiques`,
+   * qui joint `lots` : la RLS de `lots` rendrait cette vue vide pour un
+   * acquéreur prospect. Vérifié : la vue n'est déjà réellement lisible ni par
+   * `anon` ni hors périmètre, pour cette raison précise.
+   *
+   * ⚠️ La base compte aujourd'hui 1 annonce, au statut `suspendue` — donc
+   * 0 active. Cet écran est VIDE, et c'est l'état réel du stock, pas une
+   * régression. L'état vide ci-dessous le dit en toutes lettres.
+   */
+  const chargerCatalogue = useCallback(async (): Promise<DispoRow[]> => {
+    const { data } = await supabase
+      .from("annonces_marketplace")
+      .select("id,lot_id,titre,description,prix,usage,zone,superficie_m2,publiee_le")
+      .eq("statut", "active")
+      .order("publiee_le", { ascending: false });
+
+    type Annonce = {
+      lot_id: string;
+      titre: string | null;
+      prix: number | null;
+      usage: string | null;
+      zone: string | null;
+      superficie_m2: number | null;
+    };
+
+    // L'annonce ne porte AUCUNE référence d'attestation, et c'est voulu :
+    // la vérification reste un acte payant, elle ne se donne pas avec le
+    // catalogue. `attestation_reference: null` masque donc le bloc QR.
+    return ((data ?? []) as Annonce[]).map((a) => ({
+      lot_id: a.lot_id,
+      lotissement_id: "",
+      ilot: null,
+      lot: null,
+      lotissement: a.titre,
+      village: a.zone,
+      commune: null,
+      district: null,
+      est_lot_operateur: false,
+      operateur_nom: null,
+      superficie_m2: a.superficie_m2,
+      numero_parcelle: null,
+      nature_droit: a.usage,
+      lot_latitude: null,
+      lot_longitude: null,
+      lz_latitude: null,
+      lz_longitude: null,
+      lz_superficie_texte: null,
+      attestation_reference: null,
+      attestation_statut: null,
+      prix: a.prix,
+    }));
+  }, [supabase]);
+
   const { isLoading: loading, recharger } = useChargement(async () => {
-    const [conf, dispo] = await Promise.all([
+    const [conf, catalogue] = await Promise.all([
       supabase.rpc("conformite_lotissements"),
-      supabase.rpc("lots_verifiables"),
+      chargerCatalogue(),
       loadDemandes(),
     ]);
     setConformite((conf.data ?? []) as unknown as ConformiteRow[]);
-    setLots((dispo.data ?? []) as unknown as DispoRow[]);
+    setLots(catalogue);
   });
 
   const demandeByLot = useMemo(
@@ -345,9 +426,9 @@ export default function AcquisitionPage() {
       {/* Lots disponibles */}
       <section>
         <div className="mb-3">
-          <h2 className="text-sm font-semibold text-foreground">Lots du registre</h2>
+          <h2 className="text-sm font-semibold text-foreground">Terrains en vente</h2>
           <p className="text-xs text-muted-2">
-            {lots.length} lot(s) attribué(s) — vérifiez l&apos;authenticité et le propriétaire avant d&apos;acquérir
+            {lots.length} annonce(s) en ligne — vérifiez l&apos;authenticité et le propriétaire avant d&apos;acquérir
           </p>
         </div>
 
@@ -369,8 +450,37 @@ export default function AcquisitionPage() {
             Chargement…
           </div>
         ) : shown.length === 0 ? (
-          <div className="rounded-xl border border-border bg-card px-5 py-8 text-center text-sm text-muted-foreground shadow-panel">
-            Aucun lot disponible dans ce filtre.
+          /* État vide SOIGNÉ, et distinct selon la cause : « le filtre ne
+             ramène rien » n'est pas « le catalogue est vide ». Au 30/07/2026
+             c'est le second cas — 1 annonce en base, suspendue, donc 0 active :
+             l'écran doit le dire, pas tourner dans le vide. */
+          <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-5 py-10 text-center shadow-panel">
+            <MapPinOff className="h-7 w-7 text-muted-2" aria-hidden />
+            {lots.length === 0 ? (
+              <>
+                <p className="text-sm font-semibold text-foreground">
+                  Aucun terrain n&apos;est actuellement en vente
+                </p>
+                <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
+                  Les annonces publiées par les propriétaires et les opérateurs apparaîtront ici dès
+                  leur mise en ligne. En attendant, vous pouvez consulter la conformité des
+                  lotissements ci-dessus, ou nous écrire pour faire part de votre recherche.
+                </p>
+                <Button asChild variant="outline" size="sm" className="mt-2">
+                  <Link href="/dashboard/messages">
+                    <MessageSquare className="h-4 w-4 text-accent" />
+                    Décrire ma recherche
+                  </Link>
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold text-foreground">Aucun terrain dans ce filtre</p>
+                <p className="text-xs text-muted-foreground">
+                  Essayez « Tous » pour voir les {lots.length} annonce(s) en ligne.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -387,7 +497,7 @@ export default function AcquisitionPage() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <p className="font-mono text-xs text-muted-2">
-                      Îlot {l.ilot} · Lot {l.lot}
+                      {refCadastrale(l.ilot, l.lot) ?? "Annonce en ligne"}
                     </p>
                     {isOp && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-warning-subtle px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning">
@@ -400,8 +510,11 @@ export default function AcquisitionPage() {
                     {l.lotissement}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {l.village} · {l.commune}
+                    {[l.village, l.commune].filter(Boolean).join(" · ") || "Localisation non précisée"}
                   </p>
+                  {fmtPrix(l.prix) && (
+                    <p className="mt-1 text-sm font-bold tabular-nums text-accent">{fmtPrix(l.prix)}</p>
+                  )}
                   {isOp && l.operateur_nom && (
                     <p className="mt-1 text-xs font-medium text-warning">
                       Cédé par l&apos;opérateur · {l.operateur_nom}
@@ -505,7 +618,9 @@ function LotDetailsModal({
     <Dialog open onOpenChange={(ouvert) => { if (!ouvert) onClose(); }}>
       <DialogContent>
         <DialogHeader>
-          <p className="font-mono text-xs text-muted-2">Îlot {lot.ilot} · Lot {lot.lot}</p>
+          <p className="font-mono text-xs text-muted-2">
+            {refCadastrale(lot.ilot, lot.lot) ?? "Annonce en ligne"}
+          </p>
           <DialogTitle className="flex items-center gap-1.5">
             <Landmark className="h-4 w-4 text-accent" />
             {lot.lotissement}
@@ -546,6 +661,21 @@ function LotDetailsModal({
                   </Button>
                   <p className="mt-2 font-mono text-[11px] text-muted-2">Réf. {attRef}</p>
                 </div>
+              </div>
+            )}
+            {/* Une annonce ne porte PAS la référence d'attestation : la donner
+                ici reviendrait à offrir la consultation payante avec le
+                catalogue — c'est exactement la fuite fermée le 30/07/2026. */}
+            {!attRef && (
+              <div className="mt-3 rounded-lg bg-card/70 px-3 py-2.5">
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  La référence de vérification n&apos;est pas communiquée avec l&apos;annonce. Demandez-la
+                  au vendeur, ou saisissez-la sur la page{" "}
+                  <Link href="/verifier" className="font-semibold text-accent underline underline-offset-2">
+                    Vérifier un document
+                  </Link>{" "}
+                  si vous la détenez déjà.
+                </p>
               </div>
             )}
           </div>
