@@ -1,0 +1,108 @@
+-- =====================================================================
+-- C3 — PostGIS, pose d'une fondation (pilier 6 : « chaque parcelle
+-- representee spatialement »)
+-- =====================================================================
+--
+-- ⚠️⚠️  LE CHOIX DU SCHEMA EST IRREVERSIBLE — A LIRE AVANT DE REJOUER  ⚠️⚠️
+--
+--   `postgis` est declaree `relocatable = false` dans son control file
+--   (mesure le 30/07 : pg_available_extension_versions.relocatable = FALSE).
+--   Consequence de la semantique PostgreSQL :
+--
+--       ALTER EXTENSION postgis SET SCHEMA … ;   -- IMPOSSIBLE
+--
+--   Un `create extension postgis` ecrit SANS `with schema` se pose dans
+--   `public` et NE SE REPARE PAS : il faut `drop extension postgis cascade`,
+--   qui detruit au passage toute colonne `geometry` deja creee.
+--   Le schema se choisit donc UNE SEULE FOIS, a la premiere instruction.
+--
+--   C'est pour cela que cette migration a ete jouee pendant que la base
+--   comptait ZERO colonne geometry (mesure : information_schema.columns
+--   where udt_name in ('geometry','geography') => aucune ligne) — le seul
+--   moment ou l'operation est reversible a cout nul.
+--
+-- ---------------------------------------------------------------------
+-- CE QUI A ETE MESURE APRES APPLICATION (30/07/2026)
+-- ---------------------------------------------------------------------
+--
+--   postgis 3.3.7, schema `extensions`, proprietaire `supabase_admin`
+--   fonctions du schema `public`            : 146  (INCHANGE)
+--   objets postgis hors de `extensions`     : 0
+--   controle_exposition_anon().nb_ecarts    : 0    (INCHANGE)
+--   event trigger evt_fonctions_neuves…     : toujours arme
+--   fonctions executables par anon (public) : 19   (INCHANGE)
+--   spatial_ref_sys                         : `extensions`, 8500 lignes
+--   postgis_full_version() : POSTGIS 3.3.7 / PGSQL 170 / GEOS 3.14.1
+--                            / PROJ 9.7.1  -> la bibliotheque CHARGE
+--                            reellement, ce que la presence au catalogue
+--                            ne prouvait pas.
+--
+-- ---------------------------------------------------------------------
+-- POURQUOI LES DEUX DISPOSITIFS DU 30/07 N'ONT PAS BRONCHE
+-- ---------------------------------------------------------------------
+--
+--   * L'event trigger `evt_fonctions_neuves_fermees_a_anon` ne s'est pas
+--     declenche. Ce qui porte est le FILTRE DE TAG (`evttags` =
+--     {CREATE FUNCTION}) : un `CREATE EXTENSION` porte le tag
+--     `CREATE EXTENSION`, et les ~700 fonctions apportees n'emettent pas
+--     d'evenement `CREATE FUNCTION` distinct. Les gardes `not in_extension`
+--     et `schema_name = 'public'` sont de second rang ici.
+--
+--     🔴 A CONSIGNER : si `evttags` etait un jour elargi, le `revoke` du
+--     trigger (SECURITY DEFINER sous `postgres`) porterait sur des
+--     fonctions appartenant a `supabase_admin`, echouerait en 42501, et
+--     ANNULERAIT le CREATE EXTENSION — avec un message parlant de
+--     privileges et jamais d'event trigger.
+--
+--   * Le controle horaire `securite-exposition-anon` filtre
+--     `nspname = 'public'` dans ses six requetes catalogue : il ne voit pas
+--     `extensions`, donc il reste a 0 ecart. AUCUN ajustement de ligne de
+--     base n'a ete fait, et il ne fallait surtout pas en faire : ce
+--     controle est precisement le DETECTEUR d'une installation posee par
+--     erreur dans `public` (spatial_ref_sys sans RLS, des centaines de
+--     fonctions ouvertes a anon). L'assouplir « par precaution » aurait
+--     desarme le seul garde-fou de cette operation.
+--
+-- ---------------------------------------------------------------------
+-- CE QUE TOUTE MIGRATION FUTURE DOIT SAVOIR
+-- ---------------------------------------------------------------------
+--
+--   1. QUALIFIER LE TYPE : ecrire `extensions.geometry(Polygon, 4326)`,
+--      jamais `geometry(...)` nu. Le `search_path` de `postgres` contient
+--      `extensions`, mais `anon`/`authenticated`/`service_role` tiennent
+--      le leur de la configuration PostgREST, hors de portee de la base.
+--
+--   2. GARDER LA GEOMETRIE DERIVEE tant que possible : `lots.latitude` /
+--      `longitude` restent la source de verite, la geometrie se calcule.
+--      Tant qu'elle est derivee, un `drop extension … cascade` ne coute
+--      qu'un recalcul. Le jour ou un contour saisi devient la source, cette
+--      sortie de secours se referme — a assumer explicitement ce jour-la.
+--
+--   3. NE PAS installer `postgis_topology` (cree le schema `topology`),
+--      `postgis_tiger_geocoder` (cree `tiger`/`tiger_data`), `postgis_raster`
+--      ni `postgis_sfcgal` : aucun n'est requis par les chantiers prevus.
+--
+-- ---------------------------------------------------------------------
+-- CE QUE CETTE MIGRATION NE FAIT PAS, ET POURQUOI
+-- ---------------------------------------------------------------------
+--
+--   Aucune colonne geometrique n'est creee. C'est deliberé : il n'existe
+--   AUCUNE donnee permettant de tracer un contour de lot reel (mesure le
+--   30/07) — 1 lot sur 898 porte des coordonnees, et ce point est a ~13,8 km
+--   de son propre lotissement ; les 2 lotissements portent EXACTEMENT le
+--   meme point ; 0 plan de morcellement en base ; 0 fichier .dxf ;
+--   `pv_bornage` vide. Le goulot du pilier 6 est l'absence de leve, pas
+--   l'absence de PostGIS.
+--
+--   Cette migration pose donc une FONDATION, pas une fonctionnalite.
+--
+-- ⚠️ Angle mort connu, pre-existant et non couvert par le controle horaire :
+--   `anon` detient USAGE sur le schema `extensions`
+--   (acl mesure : anon=U/postgres). PostGIS y pose des fonctions ouvertes a
+--   PUBLIC et `spatial_ref_sys` en SELECT PUBLIC. Sans consequence tant que
+--   `extensions` n'est pas expose par PostgREST — a verifier dans les
+--   « Exposed schemas » du tableau de bord, cette valeur ne vivant pas en
+--   base. Meme situation que `pgcrypto`, deja logee la.
+-- =====================================================================
+
+create extension if not exists postgis with schema extensions;
