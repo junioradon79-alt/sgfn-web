@@ -52,9 +52,59 @@ Le script `scripts/make-zip.ps1` produit encore un zip cassé — ne pas s'y fie
 
 ---
 
+# 5 bis. Migrations — règles permanentes (depuis le 30/07/2026)
+
+Le schéma `public` naissait ouvert à `anon` : toute table créée y recevait `INSERT/UPDATE/DELETE`, toute fonction y recevait `EXECUTE`. La cause a été retirée, et **deux dispositifs actifs gardent désormais la porte**. Ces règles ne sont pas des conseils : les enfreindre casse un DDL ou déclenche une alerte horaire.
+
+**① Toute migration créant une fonction non publique dans `public` écrit :**
+
+```sql
+revoke execute on function public.ma_fonction(...) from public, anon;
+```
+
+**Au pluriel, les deux.** PostgreSQL a un défaut **câblé en dur** qui accorde `EXECUTE` à `PUBLIC` sur les fonctions ; `alter default privileges` n'y peut rien. Un `revoke … from anon` seul paraît réussir et ne ferme rien. Une RPC volontairement publique reçoit un grant **nommé** (`grant execute … to anon`), jamais un grant `PUBLIC`, pour que l'intention reste lisible dans `proacl`.
+
+**② Une table publique légitime exige son grant explicite :**
+
+```sql
+grant select on public.ma_table_publique to anon;
+```
+
+⚠️ **La RLS filtre les LIGNES ; le grant SQL autorise l'ACCÈS À LA TABLE. Il faut les deux.** Avant le 30/07 le grant tombait tout seul, d'où l'habitude — désormais fausse — de croire qu'écrire la policy suffit à ouvrir l'accès.
+
+**③ Ouvrir une fonction à `anon` demande DEUX gestes** : le grant nommé, **et** l'ajout de la signature à la ligne de base de `controle_exposition_anon()` (`supabase/migrations/20260730040000`, `…050000`). Sinon le job cron `securite-exposition-anon` lève toutes les heures.
+
+**④ Créer les fonctions sous `postgres`.** L'event trigger `evt_fonctions_neuves_fermees_a_anon` exécute un `revoke … from public` sur chaque `CREATE FUNCTION` dans `public`. Sous un autre propriétaire, ce revoke échoue et **annule le DDL** — le message parle de privilèges, jamais d'event trigger. Sortie de secours : `scripts/desarmer-event-trigger.sql` (`set event_triggers = off` rend `42501` sur cette base).
+
+**⑤ Ne jamais assouplir le contrôle horaire « par précaution »** avant une opération risquée : c'est lui qui détecte l'erreur. Il a servi de filet à l'installation de PostGIS.
+
+**⑥ PostGIS : qualifier le type** — `extensions.geometry(Polygon, 4326)`, jamais `geometry(...)` nu. L'extension vit dans `extensions` et **n'est pas relocalisable** : le schéma s'est choisi une seule fois, une reprise serait destructive.
+
+## Constater un droit — les outils qui mentent
+
+- **Une ACL se constate sur `pg_proc.proacl` / `pg_class.relacl`**, jamais sur `has_function_privilege` / `has_table_privilege` seuls, ni sur la présence de l'instruction dans la migration. « Plus aucune mention de `anon` » passe au vert alors que le droit vient de `PUBLIC`.
+- **Un grant de colonne est invisible au niveau table.** `has_table_privilege('anon','lotissements','SELECT')` rend **false** pendant que `anon` en lit huit colonnes. Le niveau colonne se lit dans `pg_attribute.attacl` ou `information_schema.column_privileges`.
+- **Le seul contrôle qui ne ment pas est d'emprunter le rôle** : `set local request.jwt.claims = '…'` puis `set local role …`, en transaction annulée. ⚠️ `reset role` ne réinitialise **pas** les revendications JWT.
+
+## Mesurer sans écrire
+
+- 🔴 **Une transaction par identité.** Une campagne d'emprunt de rôle **en lot** rend des chiffres faux — l'identité ne varie pas, ou le plan est hissé et tout rend 0 — **et elle passe au vert**. Toujours relever un témoin (`auth.uid()`) *à l'intérieur* de la transaction.
+- ⭐ **Distinguer un refus de garde d'une garde franchie sans rien écrire** : sous `set transaction read only`, un refus rend `P0001` avec son message, une garde franchie rend `25006 cannot execute INSERT in a read-only transaction`.
+- ⚠️ **Une garde qui vaut NULL ne refuse rien.** `not (x = 'y')` avec `x` NULL vaut NULL et **exclut** la ligne. Utiliser `coalesce(…, false)`. Ce défaut a produit plusieurs failles réelles ici.
+
+---
+
 # 6. Enum et nommage — vérité terrain vs anciens documents
 
-L'enum `groupe_utilisateur` réel est : `admin, chefferie, proprietaire, operateur, acquereur, verificateur, agent_ia, geometre, commissaire, amenageur`. D'anciens documents de brief ont pu citer `super_admin` ou `amenageur_operateur` — **ces valeurs n'existent pas**, toujours vérifier contre `database.types.ts` ou un `list_tables`/`describe` réel plutôt que contre un document daté.
+L'enum `groupe_utilisateur` réel compte **14 valeurs** (relevé en base le 30/07/2026) : `admin, chefferie, proprietaire_terrien, proprietaire, operateur, operateur_saisie, acquereur, verificateur, agent_ia, geometre, commissaire, amenageur, comptable, collaborateur`.
+
+⚠️ **Ce document lui-même en portait une liste fausse jusqu'au 30/07** — il en annonçait 10, oubliant `proprietaire_terrien`, `operateur_saisie`, `comptable` et `collaborateur`. C'est l'illustration exacte de ce que la section met en garde de faire.
+
+D'anciens documents de brief ont pu citer `super_admin` ou `amenageur_operateur` — **ces valeurs n'existent pas**. `proprietaire` est **déprécié** au profit de `proprietaire_terrien`, et `amenageur` a été **fusionné** dans `operateur` : les deux survivent dans l'enum sans être attribués.
+
+⚠️ **Une valeur d'enum ne dit rien du stock.** Au 30/07, **5 des 14 groupes n'ont aucun profil** (`comptable`, `collaborateur`, `agent_ia`, `amenageur`, `proprietaire`) : tout comportement les concernant est **invérifiable en production**, et une policy écrite pour eux ne peut pas être testée. Compter les lignes avant de conclure qu'un rôle « ne voit rien ».
+
+Toujours vérifier contre `database.types.ts` ou la base réelle plutôt que contre un document daté.
 
 Plus généralement : **les mémoires/documents de session (dont ce dossier de passation) sont des observations à un instant T, pas un état vivant.** Avant d'agir sur une affirmation précise (nom de colonne, valeur d'enum, statut d'un secret), vérifier contre le code ou la base actuelle.
 
