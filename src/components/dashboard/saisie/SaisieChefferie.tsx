@@ -581,15 +581,19 @@ function FormLot({
         </button>
       </div>
 
-      {/* Le gel juridique est refusé PAR LA BASE à l'approbation : le dire ici,
-          avant que la fiche ne soit remplie. */}
+      {/* 🔴 Le gel juridique est refusé DÈS LA SOUMISSION depuis le 30/07
+          (migration 20260730090000) : `soumettre_saisie` rend l'erreur à la
+          personne qui saisit. Auparavant seule `_appliquer_modification_lot`
+          refusait — la chefferie remplissait, envoyait, et c'est
+          l'ADMINISTRATEUR qui recevait l'erreur. Le dire ici, avant que la
+          fiche ne soit remplie. */}
       {fiche.verrouille && (
         <div className="mt-3 flex gap-2.5 rounded-xl border border-warning/45 bg-warning-subtle px-3.5 py-2.5 text-sm text-foreground">
           <Lock className="mt-px h-4 w-4 flex-none text-warning" />
           <div>
-            <b>Ce lot est sous gel juridique.</b> Sa fiche ne peut pas être corrigée : la base
-            refusera l&apos;opération à l&apos;approbation. Le gel se lève depuis la fiche du
-            lot, par un administrateur.
+            <b>Ce lot est sous gel juridique.</b> Sa fiche ne peut pas être corrigée : le
+            serveur refuse la soumission. Le gel se lève depuis la fiche du lot, par un
+            administrateur.
           </div>
         </div>
       )}
@@ -775,7 +779,14 @@ function FormAttributaire({ api, onFlash }: { api: Api; onFlash: (f: Flash | nul
   const [v, setV] = useState<Record<string, string>>({});
   const [type, setType] = useState("personne_physique");
   const { enCours, envoyer } = useEnvoiWeb(api, onFlash);
-  const { chercherAttributaires } = api;
+  const { chercherAttributaires, lotissementDeAttributaire } = api;
+  // 🔴 Le lotissement de rattachement, uniquement pour AFFICHER l'avertissement
+  // documentaire. Ce type ne passait par aucun sélecteur de lotissement, si
+  // bien que l'avertissement ne s'affichait pas — alors que l'arbitrage du
+  // propriétaire du projet veut les pièces manquantes nommées AUX DEUX BOUTS.
+  // La valeur n'est pas envoyée : le serveur dérive la sienne, dans la
+  // juridiction.
+  const [lotissementDuDossier, setLotissementDuDossier] = useState<string | null>(null);
 
   useEffect(() => {
     if (q.trim().length < 2) return;
@@ -794,6 +805,14 @@ function FormAttributaire({ api, onFlash }: { api: Api; onFlash: (f: Flash | nul
 
   const ouvrir = (a: AttributaireFiche) => {
     setBase(a);
+    setLotissementDuDossier(null);
+    void (async () => {
+      const r = await lotissementDeAttributaire(a.id);
+      // Un échec laisse `null` : l'avertissement ne s'affiche alors pas. C'est
+      // le seul repli honnête — inventer un lotissement ferait porter
+      // l'avertissement sur le mauvais dossier.
+      if (r.ok) setLotissementDuDossier(r.valeur);
+    })();
     setType(a.type);
     setV({
       nom: texte(a.nom),
@@ -899,6 +918,9 @@ function FormAttributaire({ api, onFlash }: { api: Api; onFlash: (f: Flash | nul
         >
           Choisir une autre fiche
         </button>
+      </div>
+      <div className="mt-3">
+        <AvertissementDocumentaire lotissementId={lotissementDuDossier} />
       </div>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <Ligne label="Type">

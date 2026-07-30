@@ -36,6 +36,7 @@ import {
   type ResumeLot,
 } from "@/lib/saisie";
 import type { FicheLot, IlotOption, SaisieRegistre } from "../../../data/useSaisieRegistre";
+import { AvertissementDocumentaire } from "../../../components/AvertissementDocumentaire";
 import {
   Avertissement,
   BoutonEnvoyer,
@@ -66,67 +67,12 @@ type Props = {
 /** `null` en base et chaîne vide à l'écran disent la même chose. */
 const texte = (v: string | number | null | undefined) => (v == null ? "" : String(v));
 
-/**
- * Avertissement documentaire, réutilisé par les deux écrans.
- *
- * 🔴 Il AVERTIT, il ne bloque pas — arbitrage du propriétaire du projet, le
- * 29/07. Les quatre pièces (APFC, guide de répartition, PV du guide, PV
- * d'identification physique) manquent aujourd'hui à 898 lots sur 898 : bloquer
- * fermerait la saisie à tout le parc. C'est l'administrateur qui tranche à
- * l'approbation, et il voit le même avertissement dans sa file.
- *
- * 🔴 Trois états, et non deux : « pièces manquantes », « dossier complet », et
- * **« je n'ai pas pu savoir »**. Confondre le troisième avec le second est
- * exactement le faux vert que ce dépôt a déjà payé quatre fois.
- */
-function AvertissementDocumentaire({
-  lotissementId,
-  manquesDocumentaires,
-}: {
-  lotissementId: string | null;
-  manquesDocumentaires: SaisieRegistre["manquesDocumentaires"];
-}) {
-  const [etat, setEtat] = useState<
-    { kind: "attente" } | { kind: "ok"; manques: string[] } | { kind: "echec"; erreur: string }
-  >({ kind: "attente" });
-
-  useEffect(() => {
-    if (!lotissementId) return;
-    let actif = true;
-    void (async () => {
-      const r = await manquesDocumentaires(lotissementId);
-      if (!actif) return;
-      setEtat(r.ok ? { kind: "ok", manques: r.valeur } : { kind: "echec", erreur: r.error });
-    })();
-    return () => {
-      actif = false;
-    };
-  }, [lotissementId, manquesDocumentaires]);
-
-  if (!lotissementId || etat.kind === "attente") return null;
-  if (etat.kind === "echec") {
-    return (
-      <div className="mb-4">
-        <Avertissement>
-          État du dossier documentaire <b>inconnu</b> — la vérification a échoué ({etat.erreur}).
-          Ce n&apos;est <b>pas</b> la même chose qu&apos;un dossier complet.
-        </Avertissement>
-      </div>
-    );
-  }
-  if (etat.manques.length === 0) return null;
-
-  return (
-    <div className="mb-4">
-      <Avertissement>
-        <b>Dossier du lotissement incomplet.</b> Pièces manquantes :{" "}
-        {etat.manques.join(", ")}. Vous pouvez soumettre malgré tout — l&apos;administrateur
-        verra le même avertissement et décidera. Tant que ces pièces manquent, le lotissement
-        ne peut pas émettre d&apos;attestation.
-      </Avertissement>
-    </div>
-  );
-}
+// 🔴 L'avertissement documentaire vit désormais dans
+// `features/mobile/components/AvertissementDocumentaire.tsx`. Il était défini
+// ICI, donc côté saisie seulement, et la file de validation mobile n'en
+// affichait aucun : l'administrateur qui validait depuis son téléphone
+// tranchait sans savoir, alors que l'arbitrage du propriétaire exige l'inverse.
+// Ne pas le redéfinir localement — c'est l'écart, pas le composant.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Fiche descriptive d'un lot
@@ -264,10 +210,7 @@ export function FicheLotScreen({ api, onBack, flash }: Props) {
   if (!fiche || !c) {
     return (
       <EcranSaisie titre="Fiche de lot" sousTitre="Choisir le lot à corriger" onBack={onBack}>
-        <AvertissementDocumentaire
-          lotissementId={lotissementId}
-          manquesDocumentaires={api.manquesDocumentaires}
-        />
+        <AvertissementDocumentaire lotissementId={lotissementId} />
         {ficheErreur && (
           <div className="mb-3 space-y-2">
             <Avertissement>Fiche du lot illisible : {ficheErreur}</Avertissement>
@@ -325,13 +268,14 @@ export function FicheLotScreen({ api, onBack, flash }: Props) {
       }
     >
       <RappelFile />
-      <AvertissementDocumentaire
-        lotissementId={lotissementId}
-        manquesDocumentaires={api.manquesDocumentaires}
-      />
+      <AvertissementDocumentaire lotissementId={lotissementId} />
 
-      {/* Le gel juridique est refusé PAR LA BASE à l'approbation. Le dire ici,
-          avant que la fiche ne soit remplie, et non après. */}
+      {/* 🔴 Le gel juridique est refusé DÈS LA SOUMISSION depuis le 30/07
+          (migration 20260730090000) : `soumettre_saisie` rend l'erreur à la
+          personne qui saisit. Auparavant seule `_appliquer_modification_lot`
+          refusait, c'est-à-dire que la chefferie remplissait, envoyait, et
+          c'est l'ADMINISTRATEUR qui recevait l'erreur — sans rien pouvoir en
+          faire. Le dire ici, avant que la fiche ne soit remplie, et non après. */}
       {fiche.verrouille && (
         <div className="mb-4">
           <Avertissement>
@@ -339,8 +283,8 @@ export function FicheLotScreen({ api, onBack, flash }: Props) {
               <Lock className="size-3.5" strokeWidth={2} />
               <b>Ce lot est sous gel juridique.</b>
             </span>{" "}
-            Sa fiche ne peut pas être corrigée : la base refusera l&apos;opération à
-            l&apos;approbation. Le gel se lève depuis la fiche du lot, par un administrateur.
+            Sa fiche ne peut pas être corrigée : le serveur refuse la soumission. Le gel se
+            lève depuis la fiche du lot, par un administrateur.
           </Avertissement>
         </div>
       )}
@@ -500,10 +444,7 @@ export function IlotScreen({ api, onBack, flash }: Props) {
   if (!choisi) {
     return (
       <EcranSaisie titre="Numéro d'îlot" sousTitre="Choisir l'îlot" onBack={onBack}>
-        <AvertissementDocumentaire
-          lotissementId={lotissementId}
-          manquesDocumentaires={api.manquesDocumentaires}
-        />
+        <AvertissementDocumentaire lotissementId={lotissementId} />
         {ilotsErreur && (
           <div className="mb-3 space-y-2">
             <Avertissement>Liste des îlots illisible : {ilotsErreur}</Avertissement>
@@ -565,10 +506,7 @@ export function IlotScreen({ api, onBack, flash }: Props) {
       action={<BoutonEnvoyer onClick={envoyer} disabled={!change} enCours={envoi.enCours} />}
     >
       <RappelFile />
-      <AvertissementDocumentaire
-        lotissementId={lotissementId}
-        manquesDocumentaires={api.manquesDocumentaires}
-      />
+      <AvertissementDocumentaire lotissementId={lotissementId} />
 
       {envoi.erreur && (
         <div className="mb-4">

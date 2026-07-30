@@ -125,6 +125,14 @@ export type AutoriteOption = RefOption;
  */
 export type EnvoiSaisie =
   | {
+      // 🔴 `null`, et ce n'est PAS un oubli : depuis la migration
+      // 20260730090000 le serveur dérive lui-même le lotissement depuis les
+      // lots que l'attributaire détient — dans SA juridiction s'il s'agit d'une
+      // chefferie. C'est cette valeur-là qui est enregistrée dans la file, et
+      // c'est elle qui fait apparaître l'avertissement documentaire côté
+      // approbateur. En envoyer une ici laisserait croire qu'elle fait foi, et
+      // permettrait de faire porter l'avertissement de l'admin sur un dossier
+      // choisi par celui qui soumet.
       type: "maj_attributaire";
       lotissementId: null;
       titre: string;
@@ -227,11 +235,22 @@ export type SaisieRegistre = {
   chargerFicheLot: (lotId: string) => Promise<Resultat<FicheLot>>;
   chargerIlots: (lotissementId: string) => Promise<Resultat<IlotOption[]>>;
   /**
-   * Pièces manquantes au dossier d'un lotissement — un tableau **vide** veut
-   * dire « dossier complet ». Cf. `manquesDocumentaires` plus bas pour les deux
-   * pièges que cet appel évite.
+   * Le lotissement auquel rattacher la correction d'un attributaire — `null`
+   * s'il n'en détient aucun lot visible.
+   *
+   * 🔴 Il ne sert **qu'à afficher l'avertissement documentaire** au moment de
+   * soumettre. Il n'est PAS envoyé au serveur : depuis la migration
+   * 20260730090000, `soumettre_saisie` dérive lui-même ce lotissement, et pour
+   * une chefferie il le dérive dans SA juridiction. Une valeur envoyée par le
+   * client serait une affirmation de l'appelant, et l'avertissement porterait
+   * alors sur un dossier choisi par celui-là même qui soumet.
+   *
+   * ⚠️ Cette lecture est bornée par la RLS, qui reste plus large que la garde
+   * d'écriture (elle accorde aussi la famille de rattachement) : elle peut donc
+   * nommer un lotissement que le serveur refusera. Elle informe, elle
+   * n'autorise rien.
    */
-  manquesDocumentaires: (lotissementId: string) => Promise<Resultat<string[]>>;
+  lotissementDeAttributaire: (attributaireId: string) => Promise<Resultat<string | null>>;
   soumettre: (envoi: EnvoiSaisie) => Promise<Resultat<string>>;
 };
 
@@ -551,34 +570,48 @@ export function useSaisieRegistre(actif: boolean, juridictionId: string | null =
   );
 
   /**
-   * Les pièces qui manquent au dossier du lotissement, telles que le SERVEUR
-   * les calcule (`manques_documentaires_lotissement`, qui délègue à
-   * `manques_documentaires_lot` puis à `calculer_score_confiance`). Rien n'est
-   * déduit ici : la règle change, l'écran suit.
+   * Le lotissement d'un attributaire, pour donner un CONTEXTE à la correction
+   * de sa fiche (`maj_attributaire`).
    *
-   * 🔴 `p_niveau` est passé EXPLICITEMENT. `manques_documentaires_lot` existe en
-   * deux signatures — `(uuid)` et `(uuid, integer)` — et un appel à un seul
-   * argument échoue en `42725 function is not unique`. Le wrapper de
-   * lotissement n'a qu'une signature, mais on garde la discipline : c'est le
-   * même piège une fonction plus loin.
+   * 🔴 Sans lui, l'avertissement documentaire ne s'affichait pour ce type ni au
+   * formulaire ni dans la file : `AvertissementDocumentaire` rend `null` sur un
+   * identifiant nul, et personne ne fournissait d'identifiant. C'était un écart
+   * à l'arbitrage du propriétaire du projet, qui veut les pièces manquantes
+   * nommées **aux deux bouts**.
    *
-   * 🔴 Niveau 2 délibérément : il nomme les QUATRE pièces, PV d'identification
-   * physique compris. Cet appel AVERTIT et ne bloque rien — en nommer plus
-   * n'empêche personne de soumettre, et en nommer moins laisserait croire le
-   * dossier complet.
+   * ⚠️ Un attributaire peut détenir des lots dans plusieurs lotissements. On en
+   * retient UN — celui de son attribution la plus récemment lisible — comme le
+   * fait le serveur. Le champ répond à « à quel dossier cela se rattache », pas
+   * à « la liste exhaustive ».
    *
-   * 🔴 Une erreur ne devient JAMAIS un tableau vide : un tableau vide veut dire
-   * « dossier complet », c'est-à-dire exactement le contraire de « je n'ai pas
-   * pu savoir ». C'est le faux vert que ce projet a déjà payé quatre fois.
+   * Deux requêtes à plat plutôt qu'un embed `attributions → lots → ilots` :
+   * l'embed imbriqué a déjà provoqué un timeout rendu en « liste vide » sur ce
+   * projet, et une liste vide se lit ici « aucun lotissement », c'est-à-dire un
+   * avertissement qui disparaît sans le dire.
    */
-  const manquesDocumentaires = useCallback(
-    async (lotissementId: string): Promise<Resultat<string[]>> => {
-      const { data, error } = await supabase.rpc("manques_documentaires_lotissement", {
-        p_lotissement_id: lotissementId,
-        p_niveau: 2,
-      });
+  const lotissementDeAttributaire = useCallback(
+    async (attributaireId: string): Promise<Resultat<string | null>> => {
+      const { data, error } = await supabase
+        .from("attributions")
+        .select("lot_id")
+        .eq("attributaire_id", attributaireId)
+        .limit(LIMITE_RESULTATS);
       if (error) return { ok: false, error: error.message };
-      return { ok: true, valeur: (data ?? []) as string[] };
+      const lotIds = ((data ?? []) as { lot_id: string | null }[])
+        .map((a) => a.lot_id)
+        .filter((v): v is string => !!v);
+      if (lotIds.length === 0) return { ok: true, valeur: null };
+
+      const { data: lots, error: e2 } = await supabase
+        .from("lots")
+        .select("ilots(lotissement_id)")
+        .in("id", lotIds)
+        .limit(1);
+      if (e2) return { ok: false, error: e2.message };
+      const ligne = (lots ?? [])[0] as unknown as
+        | { ilots: { lotissement_id: string | null } | null }
+        | undefined;
+      return { ok: true, valeur: ligne?.ilots?.lotissement_id ?? null };
     },
     [supabase],
   );
@@ -628,7 +661,7 @@ export function useSaisieRegistre(actif: boolean, juridictionId: string | null =
     chercherLots,
     chargerFicheLot,
     chargerIlots,
-    manquesDocumentaires,
+    lotissementDeAttributaire,
     soumettre,
   };
 }

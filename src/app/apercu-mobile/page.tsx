@@ -181,6 +181,19 @@ const NEANT = async () => ({ ok: true as const });
  * base de ce projet est la production, et une réussite simulée entraînerait à
  * lire un « appliqué » qui n'a rien appliqué. L'erreur dit ce qui se passe.
  */
+/**
+ * 🔴 Un lotissement RÉEL de production, et non un identifiant inventé.
+ *
+ * L'avertissement documentaire interroge la base
+ * (`manques_documentaires_lotissement`) : sur un identifiant fabriqué il rendrait
+ * « état inconnu », c'est-à-dire l'état d'erreur, et l'aperçu montrerait le
+ * mauvais des trois états. Koelea-Accor a un dossier incomplet (60/100, PV du
+ * guide et PV d'identification manquants) : c'est le seul cas où l'avertissement
+ * se voit, et c'est pour le voir que cet écran existe — la file de production
+ * est vide.
+ */
+const LOTISSEMENT_REEL_INCOMPLET = "c0e74efc-5dad-4b38-abe9-bd6f70be9464";
+
 const SOUMISSIONS: SoumissionEnAttente[] = [
   {
     id: "s1",
@@ -194,6 +207,7 @@ const SOUMISSIONS: SoumissionEnAttente[] = [
       nouveaux_attributaires: 12,
     },
     cree_le: ilYA(3),
+    lotissement_id: LOTISSEMENT_REEL_INCOMPLET,
   },
   {
     id: "s2",
@@ -206,6 +220,7 @@ const SOUMISSIONS: SoumissionEnAttente[] = [
       nb_equipements: 5,
     },
     cree_le: ilYA(29),
+    lotissement_id: null,
   },
   {
     id: "s3",
@@ -219,6 +234,7 @@ const SOUMISSIONS: SoumissionEnAttente[] = [
       nouveaux_attributaires: 1,
     },
     cree_le: ilYA(50),
+    lotissement_id: null,
   },
   // Les trois types ajoutés depuis (fiche de lotissement, fiche d'attributaire,
   // coquille) : ils étaient lus comme des créations de structure et affichaient
@@ -236,6 +252,7 @@ const SOUMISSIONS: SoumissionEnAttente[] = [
       champs_modifies: 3,
     },
     cree_le: ilYA(6),
+    lotissement_id: LOTISSEMENT_REEL_INCOMPLET,
   },
   {
     id: "s5",
@@ -248,6 +265,7 @@ const SOUMISSIONS: SoumissionEnAttente[] = [
       champs_modifies: 1,
     },
     cree_le: ilYA(11),
+    lotissement_id: LOTISSEMENT_REEL_INCOMPLET,
   },
   {
     id: "s6",
@@ -260,6 +278,7 @@ const SOUMISSIONS: SoumissionEnAttente[] = [
       nb_equipements: 0,
     },
     cree_le: ilYA(14),
+    lotissement_id: null,
   },
 ];
 
@@ -536,15 +555,14 @@ const SAISIE: SaisieRegistre = {
           ],
         }
       : { ok: true, valeur: [] },
-  // 🔴 Un lotissement dont le dossier est INCOMPLET, et non l'inverse : c'est
-  // l'état réel des deux lotissements de production (Koelea 60/100, Brignan
-  // 20/100), et c'est le seul cas où l'avertissement documentaire se voit.
-  manquesDocumentaires: async (lotissementId) => ({
+  // Le lotissement de rattachement d'un attributaire : il ne sert qu'à faire
+  // apparaître l'avertissement documentaire sur la fiche ouverte. On rend le
+  // lotissement RÉEL de Koelea-Accor, dont le dossier est incomplet en
+  // production — c'est le seul cas où l'avertissement se voit, et l'aperçu
+  // existe précisément pour regarder ce qu'on ne peut pas déclencher ailleurs.
+  lotissementDeAttributaire: async () => ({
     ok: true,
-    valeur:
-      lotissementId === "apc-lot-1"
-        ? ["PV du guide de repartition", "PV d'identification physique"]
-        : [],
+    valeur: LOTISSEMENT_REEL_INCOMPLET,
   }),
   // 🔴 Le payload est **inspecté**, pas ignoré. La version précédente ne lisait
   // aucun de ses arguments : un écran qui aurait construit un payload vide, ou

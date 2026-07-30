@@ -29,6 +29,7 @@ import {
   type TypeAttributaire,
 } from "@/lib/saisie";
 import type { AttributaireFiche, SaisieRegistre } from "../../../data/useSaisieRegistre";
+import { AvertissementDocumentaire } from "../../../components/AvertissementDocumentaire";
 import {
   Avertissement,
   BoutonEnvoyer,
@@ -86,7 +87,7 @@ export function AttributaireScreen({
    */
   creationInterdite?: boolean;
 }) {
-  const { chercherAttributaires } = api;
+  const { chercherAttributaires, lotissementDeAttributaire } = api;
   const envoi = useEnvoi(api.soumettre);
 
   const [mode, setMode] = useState<Mode>(creationInterdite ? "corriger" : "creer");
@@ -104,6 +105,8 @@ export function AttributaireScreen({
 
   /** Fiche d'origine en correction — la référence du diff. `null` = création. */
   const [base, setBase] = useState<AttributaireFiche | null>(null);
+  /** Lotissement de rattachement de la fiche ouverte — affichage seul. */
+  const [lotissementDuDossier, setLotissementDuDossier] = useState<string | null>(null);
 
   const [nom, setNom] = useState("");
   const [type, setType] = useState<TypeAttributaire>("personne_physique");
@@ -206,6 +209,19 @@ export function AttributaireScreen({
 
   const choisirFiche = (f: AttributaireFiche) => {
     setBase(f);
+    // 🔴 Le dossier auquel cette correction se rattache, pour AFFICHER
+    // l'avertissement documentaire. Ce type ne passe par aucun sélecteur de
+    // lotissement, si bien que l'avertissement n'y apparaissait pas — écart à
+    // l'arbitrage du propriétaire, qui veut les pièces nommées aux deux bouts.
+    // La valeur n'est pas envoyée : `soumettre_saisie` dérive la sienne, dans
+    // la juridiction de l'appelant. Un échec laisse `null`, donc pas
+    // d'avertissement : inventer un lotissement ferait porter l'alerte sur le
+    // mauvais dossier.
+    setLotissementDuDossier(null);
+    void (async () => {
+      const r = await lotissementDeAttributaire(f.id);
+      if (r.ok) setLotissementDuDossier(r.valeur);
+    })();
     setNom(f.nom);
     setType(f.type);
     setPieceNature(f.piece_nature ?? "");
@@ -314,6 +330,7 @@ export function AttributaireScreen({
       }
     >
       <RappelFile />
+      <AvertissementDocumentaire lotissementId={lotissementDuDossier} />
 
       {/* La bascule disparaît quand une seule position est autorisée : un
           onglet grisé invite quand même à appuyer, puis n'explique rien. */}

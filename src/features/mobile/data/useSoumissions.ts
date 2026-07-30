@@ -36,6 +36,22 @@ export type SoumissionEnAttente = {
    */
   resume: ResumeSoumission | null;
   cree_le: string | null;
+  /**
+   * 🔴 Le lotissement auquel la soumission se rattache — c'est lui, et lui
+   * seul, qui permet d'afficher l'AVERTISSEMENT DOCUMENTAIRE sur la carte.
+   *
+   * L'arbitrage du propriétaire du projet (29/07) est que la condition
+   * documentaire **avertit sans bloquer**, et il n'a de sens que si
+   * l'approbateur voit ce que voyait la personne qui a saisi. Le web le
+   * faisait (`FileValidation.tsx`), cet écran non : un administrateur qui
+   * validait depuis son téléphone tranchait **sans savoir**. La colonne n'était
+   * simplement pas chargée.
+   *
+   * Champ **obligatoire et non optionnel** : une file simulée (`/apercu-mobile`)
+   * qui l'oublierait ne compilerait pas, et l'oubli est exactement ce qui
+   * s'était produit.
+   */
+  lotissement_id: string | null;
 };
 
 /**
@@ -66,7 +82,7 @@ export type FileSoumissions = {
   rejeter: (id: string, commentaire: string) => Promise<Traitement>;
 };
 
-const COLONNES = "id, type, titre, resume, cree_le";
+const COLONNES = "id, type, titre, resume, cree_le, lotissement_id";
 
 /**
  * File des saisies en attente de décision.

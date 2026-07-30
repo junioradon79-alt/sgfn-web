@@ -38,6 +38,7 @@ import {
   type ResumeMaj,
   type TypeSoumission,
 } from "@/lib/saisie";
+import { AvertissementDocumentaire } from "../../components/AvertissementDocumentaire";
 import { BarHeader } from "../../components/MobileHeader";
 import {
   useSoumissions,
@@ -471,6 +472,18 @@ function CarteSoumission({
           <span className="text-[12px] text-muted-2">Résumé non renseigné à la soumission.</span>
         )}
       </div>
+
+      {/* 🔴 L'AVERTISSEMENT DOCUMENTAIRE, CÔTÉ APPROBATEUR.
+          La condition documentaire demandée le 29/07 avertit au lieu de
+          bloquer — arbitrage du propriétaire, motivé par le fait que la règle
+          existante refuserait 898 lots sur 898. Cet arbitrage n'a de sens que
+          si l'approbateur voit ce que voyait la personne qui a saisi : c'est
+          LUI qui tranche, et il ne peut trancher qu'informé.
+          Le web le faisait déjà (`FileValidation.tsx`) ; cet écran, seul écran
+          mobile à appeler `approuver_soumission`, n'affichait rien. Un
+          administrateur qui validait depuis son téléphone tranchait sans
+          savoir. Même composant, même RPC, même règle en base. */}
+      <AvertissementDocumentaire lotissementId={soumission.lotissement_id} compact />
 
       {acte === null ? (
         <div className="mt-3.5 flex gap-2">

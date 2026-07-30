@@ -77,17 +77,32 @@ export function ongletsPour(groupe: string | null | undefined): OngletPro[] {
 /**
  * 🔴 Formulaires ouverts à chaque rôle. Cette table doit rester le MIROIR EXACT
  * de la garde de `soumettre_saisie`, relue en production le 30/07/2026
- * (migration 20260730080000) :
+ * (migration 20260730090000, qui resserre celle du 20260730080000) :
  *
  *   maj_attributions | creation_structure       → admin ou operateur_saisie
  *   maj_attributaire                            → admin, operateur_saisie,
- *                                                 ou chefferie BORNÉE à son
- *                                                 périmètre et en CORRECTION
+ *                                                 ou chefferie bornée à sa
+ *                                                 JURIDICTION et en CORRECTION
  *                                                 seulement (elle ne crée pas
  *                                                 d'identité)
  *   creation_lotissement | modification_lotissement
  *   modification_lot     | modification_ilot    → admin ou chefferie, dans sa
- *                                                 juridiction
+ *                                                 JURIDICTION
+ *
+ * 🔴 **JURIDICTION, ET JAMAIS FAMILLE.** `maj_attributaire` était le seul type
+ * borné par `lot_ids_chefferie()`, qui accorde la juridiction **ou** la famille
+ * de rattachement : le même compte franchissait sur ce type et se faisait
+ * refuser sur les trois autres, pour le même lotissement. Arbitrage du
+ * propriétaire du projet le 30/07 — une chefferie n'agit que sur le territoire
+ * dont elle est l'autorité coutumière, jamais par appartenance familiale. C'est
+ * sa directive du 29/07 : **chefferie ≠ chef de famille**.
+ * ⚠️ `lot_ids_chefferie()` n'a PAS bougé : elle sert aussi à deux policies de
+ * LECTURE. C'est la garde d'écriture qui s'est resserrée, elle seule.
+ *
+ * 🔴 **UNE CHEFFERIE SANS JURIDICTION NE SAISIT RIEN**, quel que soit le type —
+ * `creation_lotissement` compris, qui y échappait et déposait une création
+ * rattachée à aucune autorité coutumière. Voir `chefferieSansJuridiction`
+ * ci-dessous : les deux disent la même chose, l'un à l'écran, l'autre en base.
  *
  * ❌ `maj_attributions` et `creation_structure` restent FERMÉS à la chefferie,
  * et la symétrie apparente est un piège : réattribuer déplace la propriété et
@@ -192,11 +207,16 @@ export function libelleRole(groupe: string | null | undefined): string {
 
 /**
  * Une chefferie n'est exploitable que rattachée à une autorité coutumière :
- * `soumettre_saisie` force `autorite_coutumiere_id` à `ma_chefferie_id()`, et
- * refuse toute modification d'un lotissement hors juridiction. Sans
- * rattachement, la fonction ne renvoie rien d'utilisable et TOUTE soumission
- * échoue — le cas n'est pas théorique : sur les deux comptes `chefferie` en
- * production, un seul porte une juridiction.
+ * depuis la migration 20260730090000, `soumettre_saisie` refuse d'emblée TOUTE
+ * saisie d'un compte `chefferie` dont `ma_chefferie_id()` est NULL, quel que
+ * soit le type, et le dit en nommant la cause.
+ *
+ * Le cas n'est pas théorique : sur les deux comptes `chefferie` de production,
+ * un seul porte une juridiction. L'autre voit pourtant 49 lots — par la branche
+ * FAMILLE de `lot_ids_chefferie()`, qui borne la lecture et non l'écriture.
+ * Voir des lots sans pouvoir en saisir un seul est exactement ce que cet écran
+ * doit annoncer : une liste pleine et des envois tous refusés se lit comme une
+ * panne.
  *
  * Mieux vaut donc le dire d'emblée que laisser saisir pour rien.
  */
