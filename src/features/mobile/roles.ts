@@ -12,8 +12,20 @@
 // douze de plus auraient multiplié chaque correctif par douze. Ouvrir un
 // nouveau rôle = ajouter une entrée ici.
 
-/** Les quatre formulaires de saisie du registre, tels que la coquille les ouvre. */
-export type EcranSaisie = "lot" | "attributaire" | "lotissement" | "structure";
+/**
+ * Les formulaires de saisie du registre, tels que la coquille les ouvre.
+ *
+ * ⚠️ `lot` = **attribuer** un lot (`maj_attributions`) ; `fiche_lot` =
+ * corriger ce que le registre **dit** d'un lot (`modification_lot`). Deux actes
+ * de nature différente, et un seul des deux est ouvert à la chefferie.
+ */
+export type EcranSaisie =
+  | "lot"
+  | "fiche_lot"
+  | "ilot"
+  | "attributaire"
+  | "lotissement"
+  | "structure";
 
 /** Onglets possibles d'une expérience métier. Le FAB « Vérifier » est ajouté par la coquille. */
 export type OngletPro = "pilotage" | "files" | "saisie" | "attestations" | "messages" | "profile";
@@ -64,11 +76,23 @@ export function ongletsPour(groupe: string | null | undefined): OngletPro[] {
 
 /**
  * 🔴 Formulaires ouverts à chaque rôle. Cette table doit rester le MIROIR EXACT
- * de la garde de `soumettre_saisie` (migration 20260710_operateur_saisie_module,
- * relue en production le 27/07) :
+ * de la garde de `soumettre_saisie`, relue en production le 30/07/2026
+ * (migration 20260730080000) :
  *
- *   maj_attributions | creation_structure | maj_attributaire → admin ou operateur_saisie
- *   creation_lotissement | modification_lotissement          → admin ou chefferie
+ *   maj_attributions | creation_structure       → admin ou operateur_saisie
+ *   maj_attributaire                            → admin, operateur_saisie,
+ *                                                 ou chefferie BORNÉE à son
+ *                                                 périmètre et en CORRECTION
+ *                                                 seulement (elle ne crée pas
+ *                                                 d'identité)
+ *   creation_lotissement | modification_lotissement
+ *   modification_lot     | modification_ilot    → admin ou chefferie, dans sa
+ *                                                 juridiction
+ *
+ * ❌ `maj_attributions` et `creation_structure` restent FERMÉS à la chefferie,
+ * et la symétrie apparente est un piège : réattribuer déplace la propriété et
+ * déclenche cession puis attestation ; créer une structure fabrique des lots.
+ * Ce sont des actes du registre national.
  *
  * Offrir ici un formulaire que le serveur refuse ne produit pas un bug visible
  * à la compilation : la personne remplit une fiche entière, puis se fait
@@ -76,9 +100,9 @@ export function ongletsPour(groupe: string | null | undefined): OngletPro[] {
  * travail déjà saisi.
  */
 const SAISIES_PAR_ROLE: Record<string, EcranSaisie[]> = {
-  admin: ["lot", "attributaire", "lotissement", "structure"],
+  admin: ["lot", "fiche_lot", "ilot", "attributaire", "lotissement", "structure"],
   operateur_saisie: ["lot", "attributaire", "structure"],
-  chefferie: ["lotissement"],
+  chefferie: ["fiche_lot", "ilot", "attributaire", "lotissement"],
 };
 
 export function saisiesPour(groupe: string | null | undefined): EcranSaisie[] {

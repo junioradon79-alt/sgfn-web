@@ -25,14 +25,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import type {
   LotEtat,
+  NatureDroit,
   PayloadCreationStructure,
   PayloadLotissement,
   PayloadMajAttributaire,
   PayloadMajAttributions,
+  PayloadModificationIlot,
+  PayloadModificationLot,
   PayloadModificationLotissement,
   Qualite,
   ResumeAttributaire,
   ResumeCreation,
+  ResumeIlot,
+  ResumeLot,
   ResumeLotissement,
   ResumeMaj,
   TypeAttributaire,
@@ -153,7 +158,52 @@ export type EnvoiSaisie =
       titre: string;
       payload: PayloadCreationStructure;
       resume: ResumeCreation;
+    }
+  | {
+      // `lotissementId` reste `null` : le serveur remonte lui-même le
+      // lotissement depuis `lot_id`, et c'est SA valeur qui est enregistrée
+      // dans la file comme contrôlée pour la juridiction. En envoyer une ici
+      // laisserait croire qu'elle fait foi.
+      type: "modification_lot";
+      lotissementId: null;
+      titre: string;
+      payload: PayloadModificationLot;
+      resume: ResumeLot;
+    }
+  | {
+      type: "modification_ilot";
+      lotissementId: null;
+      titre: string;
+      payload: PayloadModificationIlot;
+      resume: ResumeIlot;
     };
+
+/**
+ * La fiche **descriptive** d'un lot (`modification_lot`). Rigoureusement les
+ * colonnes que `_appliquer_modification_lot` écrit — ni `statut`, ni
+ * `verrouille`, ni `ilot_id`, que la fonction refuse d'écrire.
+ *
+ * `verrouille` figure quand même ici, en LECTURE seule : un lot sous gel
+ * juridique est refusé à l'approbation, et le dire avant que la fiche ne soit
+ * remplie vaut mieux que de le découvrir après.
+ */
+export type FicheLot = {
+  id: string;
+  ilot_numero: string;
+  numero_lot: string | null;
+  numero_parcelle: string | null;
+  est_equipement: boolean | null;
+  superficie_m2: number | null;
+  nature_droit: NatureDroit | null;
+  observation: string | null;
+  guide_page: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  verrouille: boolean;
+};
+
+/** Un îlot du lotissement, avec le nombre de lots qu'il porte. */
+export type IlotOption = { id: string; numero: string; nb_lots: number };
 
 export type SaisieRegistre = {
   lotissements: LotissementOption[];
@@ -174,6 +224,14 @@ export type SaisieRegistre = {
   chercherAttributaires: (q: string) => Promise<Resultat<AttributaireFiche[]>>;
   chargerFiche: (lotissementId: string) => Promise<Resultat<FicheLotissement>>;
   chercherLots: (lotissementId: string, q: string) => Promise<Resultat<LotEtat[]>>;
+  chargerFicheLot: (lotId: string) => Promise<Resultat<FicheLot>>;
+  chargerIlots: (lotissementId: string) => Promise<Resultat<IlotOption[]>>;
+  /**
+   * Pièces manquantes au dossier d'un lotissement — un tableau **vide** veut
+   * dire « dossier complet ». Cf. `manquesDocumentaires` plus bas pour les deux
+   * pièges que cet appel évite.
+   */
+  manquesDocumentaires: (lotissementId: string) => Promise<Resultat<string[]>>;
   soumettre: (envoi: EnvoiSaisie) => Promise<Resultat<string>>;
 };
 
@@ -416,6 +474,115 @@ export function useSaisieRegistre(actif: boolean, juridictionId: string | null =
     [supabase],
   );
 
+  /**
+   * Fiche descriptive d'un lot. Chargée avant toute correction : c'est elle qui
+   * donne les valeurs d'origine, et donc ce qui permet de n'envoyer QUE les
+   * champs réellement changés (`_appliquer_modification_lot` laisse intact tout
+   * champ absent du payload).
+   */
+  const chargerFicheLot = useCallback(
+    async (lotId: string): Promise<Resultat<FicheLot>> => {
+      const { data, error } = await supabase
+        .from("lots")
+        .select(
+          "id, numero_lot, numero_parcelle, est_equipement, superficie_m2, nature_droit, " +
+            "observation, guide_page, latitude, longitude, verrouille, ilots(numero)",
+        )
+        .eq("id", lotId)
+        .single();
+      if (error) return { ok: false, error: error.message };
+      if (!data) return { ok: false, error: "Lot introuvable." };
+      const r = data as unknown as Omit<FicheLot, "ilot_numero" | "verrouille"> & {
+        verrouille: boolean | null;
+        ilots: { numero: string | null } | null;
+      };
+      return {
+        ok: true,
+        valeur: {
+          id: r.id,
+          ilot_numero: r.ilots?.numero ?? "—",
+          numero_lot: r.numero_lot,
+          numero_parcelle: r.numero_parcelle,
+          est_equipement: r.est_equipement,
+          superficie_m2: r.superficie_m2,
+          nature_droit: r.nature_droit,
+          observation: r.observation,
+          guide_page: r.guide_page,
+          latitude: r.latitude,
+          longitude: r.longitude,
+          // `null` en base = « non gelé », c'est le défaut de la colonne.
+          verrouille: r.verrouille === true,
+        },
+      };
+    },
+    [supabase],
+  );
+
+  /**
+   * Îlots d'un lotissement, avec leur nombre de lots.
+   *
+   * Le compte n'est pas décoratif : renuméroter un îlot est une opération d'un
+   * mot qui change la désignation de tous ses lots, et donc ce qui figurera sur
+   * chaque attestation à venir. Le montrer, c'est dire l'ampleur du geste.
+   */
+  const chargerIlots = useCallback(
+    async (lotissementId: string): Promise<Resultat<IlotOption[]>> => {
+      const { data, error } = await supabase
+        .from("ilots")
+        .select("id, numero, lots(count)")
+        .eq("lotissement_id", lotissementId)
+        .order("numero");
+      if (error) return { ok: false, error: error.message };
+      const lignes = (data ?? []) as unknown as {
+        id: string;
+        numero: string | null;
+        lots: { count: number }[] | null;
+      }[];
+      return {
+        ok: true,
+        valeur: lignes.map((l) => ({
+          id: l.id,
+          numero: l.numero ?? "—",
+          nb_lots: l.lots?.[0]?.count ?? 0,
+        })),
+      };
+    },
+    [supabase],
+  );
+
+  /**
+   * Les pièces qui manquent au dossier du lotissement, telles que le SERVEUR
+   * les calcule (`manques_documentaires_lotissement`, qui délègue à
+   * `manques_documentaires_lot` puis à `calculer_score_confiance`). Rien n'est
+   * déduit ici : la règle change, l'écran suit.
+   *
+   * 🔴 `p_niveau` est passé EXPLICITEMENT. `manques_documentaires_lot` existe en
+   * deux signatures — `(uuid)` et `(uuid, integer)` — et un appel à un seul
+   * argument échoue en `42725 function is not unique`. Le wrapper de
+   * lotissement n'a qu'une signature, mais on garde la discipline : c'est le
+   * même piège une fonction plus loin.
+   *
+   * 🔴 Niveau 2 délibérément : il nomme les QUATRE pièces, PV d'identification
+   * physique compris. Cet appel AVERTIT et ne bloque rien — en nommer plus
+   * n'empêche personne de soumettre, et en nommer moins laisserait croire le
+   * dossier complet.
+   *
+   * 🔴 Une erreur ne devient JAMAIS un tableau vide : un tableau vide veut dire
+   * « dossier complet », c'est-à-dire exactement le contraire de « je n'ai pas
+   * pu savoir ». C'est le faux vert que ce projet a déjà payé quatre fois.
+   */
+  const manquesDocumentaires = useCallback(
+    async (lotissementId: string): Promise<Resultat<string[]>> => {
+      const { data, error } = await supabase.rpc("manques_documentaires_lotissement", {
+        p_lotissement_id: lotissementId,
+        p_niveau: 2,
+      });
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, valeur: (data ?? []) as string[] };
+    },
+    [supabase],
+  );
+
   const soumettre = useCallback(
     async (envoi: EnvoiSaisie): Promise<Resultat<string>> => {
       const { data, error } = await supabase.rpc("soumettre_saisie", {
@@ -459,6 +626,9 @@ export function useSaisieRegistre(actif: boolean, juridictionId: string | null =
     chercherAttributaires,
     chargerFiche,
     chercherLots,
+    chargerFicheLot,
+    chargerIlots,
+    manquesDocumentaires,
     soumettre,
   };
 }

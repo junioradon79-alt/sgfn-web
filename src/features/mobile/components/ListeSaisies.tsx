@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, ChevronRight, Layers, LandPlot, UserCog } from "lucide-react";
+import { Building2, ChevronRight, Grid2x2, Layers, LandPlot, SquarePen, UserCog } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import type { EcranSaisie } from "../roles";
@@ -11,9 +11,16 @@ import type { EcranSaisie } from "../roles";
 // retouché.
 
 /**
- * Les quatre entrées, dans l'ordre de leur fréquence réelle sur le terrain : on
+ * Les entrées, dans l'ordre de leur fréquence réelle sur le terrain : on
  * constate un changement d'attributaire tous les jours, on crée un lotissement
  * quelques fois par an.
+ *
+ * ⚠️ « Attribuer un lot » et « Corriger la fiche d'un lot » se ressemblent à
+ * la lecture et n'ont rien à voir : le premier déplace la propriété
+ * (`maj_attributions`, fermé à la chefferie), le second corrige ce que le
+ * registre dit du terrain (`modification_lot`). Les libellés doivent garder
+ * cette distinction visible — c'est la seule chose qui empêche une chefferie
+ * de chercher longtemps le formulaire qu'elle n'a pas.
  */
 const SAISIES: { cle: EcranSaisie; icon: LucideIcon; label: string; detail: string }[] = [
   {
@@ -21,6 +28,18 @@ const SAISIES: { cle: EcranSaisie; icon: LucideIcon; label: string; detail: stri
     icon: LandPlot,
     label: "Attribuer un lot",
     detail: "Désigner un attributaire, ou rendre le lot libre",
+  },
+  {
+    cle: "fiche_lot",
+    icon: SquarePen,
+    label: "Corriger la fiche d'un lot",
+    detail: "Superficie, numéro de parcelle, nature du droit, observation",
+  },
+  {
+    cle: "ilot",
+    icon: Grid2x2,
+    label: "Corriger le numéro d'un îlot",
+    detail: "Renuméroter un îlot du lotissement",
   },
   {
     cle: "attributaire",

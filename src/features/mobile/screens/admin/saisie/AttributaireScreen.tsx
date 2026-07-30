@@ -71,15 +71,25 @@ export function AttributaireScreen({
   api,
   onBack,
   flash,
+  creationInterdite = false,
 }: {
   api: SaisieRegistre;
   onBack: () => void;
   flash: (msg: string) => void;
+  /**
+   * 🔴 Miroir de la garde de `soumettre_saisie` : depuis le 30/07, une
+   * chefferie peut CORRIGER la fiche d'un attributaire de sa juridiction, mais
+   * pas en CRÉER une — le serveur refuse un payload sans `attributaire_id`,
+   * message à l'appui. Sans ce drapeau, l'écran laissait remplir sept champs
+   * avant de se faire renvoyer à l'envoi : exactement le coût que
+   * `SAISIES_PAR_ROLE` existe pour éviter.
+   */
+  creationInterdite?: boolean;
 }) {
   const { chercherAttributaires } = api;
   const envoi = useEnvoi(api.soumettre);
 
-  const [mode, setMode] = useState<Mode>("creer");
+  const [mode, setMode] = useState<Mode>(creationInterdite ? "corriger" : "creer");
   const [recherche, setRecherche] = useState("");
   const motif = recherche.trim();
   // La réponse porte le motif qui l'a produite : c'est ce qui permet de
@@ -297,7 +307,7 @@ export function AttributaireScreen({
   return (
     <EcranSaisie
       titre="Attributaire"
-      sousTitre={base ? `Correction — ${base.nom}` : "Créer une fiche"}
+      sousTitre={base ? `Correction — ${base.nom}` : creationInterdite ? "Corriger une fiche" : "Créer une fiche"}
       onBack={onBack}
       action={
         <BoutonEnvoyer onClick={envoyer} disabled={!pret} enCours={envoi.enCours} />
@@ -305,18 +315,28 @@ export function AttributaireScreen({
     >
       <RappelFile />
 
-      <div className="mb-4 flex gap-2">
-        <BoutonMode
-          actif={mode === "creer"}
-          onClick={() => choisirMode("creer")}
-          libelle="Créer une fiche"
-        />
-        <BoutonMode
-          actif={mode === "corriger"}
-          onClick={() => choisirMode("corriger")}
-          libelle="Corriger une fiche"
-        />
-      </div>
+      {/* La bascule disparaît quand une seule position est autorisée : un
+          onglet grisé invite quand même à appuyer, puis n'explique rien. */}
+      {creationInterdite ? (
+        <p className="mb-4 text-[11.5px] leading-relaxed text-muted-foreground">
+          Vous corrigez la fiche d&apos;un attributaire de votre juridiction. La{" "}
+          <b>création</b> d&apos;une fiche relève du registre national — le serveur la
+          refuserait ici.
+        </p>
+      ) : (
+        <div className="mb-4 flex gap-2">
+          <BoutonMode
+            actif={mode === "creer"}
+            onClick={() => choisirMode("creer")}
+            libelle="Créer une fiche"
+          />
+          <BoutonMode
+            actif={mode === "corriger"}
+            onClick={() => choisirMode("corriger")}
+            libelle="Corriger une fiche"
+          />
+        </div>
+      )}
 
       {mode === "corriger" && !base && (
         <>

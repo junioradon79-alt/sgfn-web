@@ -124,6 +124,21 @@ export type PayloadLotissement = {
   nb_ilots?: number | null;
   guide_reference?: string | null;
   /**
+   * PV d'enregistrement du guide de répartition — la 3ᵉ des quatre pièces que
+   * `manques_documentaires_lot` réclame, et celle qui manquait aux **deux**
+   * lotissements du parc.
+   *
+   * ⚠️ Écrite par `modification_lotissement` seulement (ajoutée le 30/07).
+   * `_appliquer_creation_lotissement` ne la touche pas : une fiche créée puis
+   * complétée passe donc par une seconde soumission, en correction.
+   *
+   * ⚠️ Il n'existe **pas** de colonne de date pour ce PV en base
+   * (`lotissements` porte `pv_numero_enregistrement` et
+   * `pv_commissaire_justice_id`, rien d'autre) : ne pas en inventer une ici,
+   * elle disparaîtrait en silence à l'approbation.
+   */
+  pv_numero_enregistrement?: string | null;
+  /**
    * ⚠️ Écrite à la **création** seulement — `_appliquer_modification_lotissement`
    * ne touche pas cette colonne. Et pour un appelant `chefferie`,
    * `soumettre_saisie` écrase de toute façon la valeur envoyée par sa propre
@@ -136,19 +151,84 @@ export type PayloadLotissement = {
 };
 
 /**
- * 🔴 PIÈGE — `_appliquer_modification_lotissement` fait
- * `village = nullif(btrim(payload->>'village'), '')` **sans `coalesce`**, et
- * pareil pour commune, district, superficie_texte, nb_lots, nb_ilots,
- * guide_reference et les trois champs de PV. Autrement dit **toute clé absente
- * du payload est remise à NULL en base**. Seul `nom` est protégé (il passe par
- * un `coalesce`).
+ * ✅ CORRIGÉ EN BASE LE 30/07/2026 (migration 20260730080000).
  *
- * Conséquence pour tout écran qui produit ce payload : il doit **charger la
- * fiche complète et la renvoyer entière**, champs non modifiés compris. Un
- * formulaire qui n'enverrait que le champ corrigé viderait la fiche.
+ * Jusque-là `_appliquer_modification_lotissement` écrivait
+ * `village = nullif(btrim(payload->>'village'), '')` **sans garde**, et pareil
+ * pour neuf autres colonnes : **toute clé absente du payload était remise à
+ * NULL en base**, dont `guide_reference` et les numéros de PV — les pièces
+ * mêmes sur lesquelles s'appuie la condition documentaire. Seul `nom` était
+ * protégé. La mitigation vivait dans l'écran mobile, qui rechargeait la fiche
+ * entière pour la renvoyer telle quelle ; tout nouvel appelant réintroduisait
+ * le défaut.
+ *
+ * La fonction applique désormais la convention commune du rail :
+ * **clé absente = valeur inchangée, clé présente à `null` = effacement**. En
+ * JSON, `undefined` disparaît de la sérialisation — c'est donc `undefined` qui
+ * veut dire « ne touche pas » et `null` qui veut dire « efface ». Les deux ne
+ * sont pas interchangeables.
+ *
+ * Renvoyer la fiche entière reste correct (et c'est ce que fait l'écran
+ * mobile) : cela affirme simplement chaque valeur explicitement.
  */
 export type PayloadModificationLotissement = PayloadLotissement & {
   lotissement_id: string;
+};
+
+// ── Fiche descriptive d'un lot (`modification_lot`) ──────────────────────────
+//
+// Ouvert à la chefferie le 30/07 : corriger ce que le registre DIT d'un lot,
+// jamais à qui il appartient. Ce que la fonction d'application refuse d'écrire,
+// et qui n'a donc rien à faire ici :
+//   `ilot_id`    — déplacerait le lot vers un autre îlot, donc possiblement
+//                  vers un autre lotissement : une évasion de juridiction
+//                  déguisée en correction ;
+//   `statut`     — suit les attributions, et `maj_attributions` reste fermé
+//                  à la chefferie ;
+//   `verrouille` — le gel juridique se lève depuis la fiche du lot, par un
+//                  administrateur.
+// Un lot sous gel juridique est refusé à l'approbation, message à l'appui.
+export type NatureDroit =
+  | "droit_coutumier"
+  | "attestation_villageoise"
+  | "certificat_foncier"
+  | "acd"
+  | "titre_foncier";
+
+export const NATURE_DROIT_OPTIONS: { value: NatureDroit; label: string }[] = [
+  { value: "droit_coutumier", label: "Droit coutumier" },
+  { value: "attestation_villageoise", label: "Attestation villageoise" },
+  { value: "certificat_foncier", label: "Certificat foncier" },
+  { value: "acd", label: "ACD" },
+  { value: "titre_foncier", label: "Titre foncier" },
+];
+
+export function labelNatureDroit(n: string | null | undefined): string {
+  return NATURE_DROIT_OPTIONS.find((o) => o.value === n)?.label ?? n ?? "—";
+}
+
+/** Même convention que `PayloadMajAttributaire` : clé absente = inchangé. */
+export type PayloadModificationLot = {
+  lot_id: string;
+  numero_lot?: string;
+  numero_parcelle?: string | null;
+  est_equipement?: boolean;
+  superficie_m2?: number | null;
+  nature_droit?: NatureDroit | null;
+  observation?: string | null;
+  guide_page?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
+};
+
+/**
+ * Un îlot ne porte que `numero` d'utile. `lotissement_id` est absent de ce
+ * payload **et** de la fonction d'application : déplacer un îlot emporterait
+ * tous ses lots hors de la juridiction qui les a soumis.
+ */
+export type PayloadModificationIlot = {
+  ilot_id: string;
+  numero: string;
 };
 
 /**
@@ -177,7 +257,9 @@ export type TypeSoumission =
   | "creation_structure"
   | "creation_lotissement"
   | "modification_lotissement"
-  | "maj_attributaire";
+  | "maj_attributaire"
+  | "modification_lot"
+  | "modification_ilot";
 export type StatutSoumission = "en_attente" | "approuvee" | "rejetee";
 
 // ── Diff côté front : classification d'un changement vs l'état courant en base ──
@@ -307,9 +389,28 @@ export type ResumeAttributaire = {
   champs_modifies?: number;
 };
 
+/** Résumé d'une soumission modification_lot. */
+export type ResumeLot = {
+  /** « Îlot 03 · Lot 12 », déjà assemblé : l'admin ne doit pas résoudre d'UUID. */
+  designation: string;
+  lotissement: string | null;
+  champs_modifies: number;
+};
+
+/** Résumé d'une soumission modification_ilot. */
+export type ResumeIlot = {
+  numero_avant: string;
+  numero_apres: string;
+  lotissement: string | null;
+  /** Combien de lots portent cet îlot — l'ampleur réelle d'un simple renumérotage. */
+  nb_lots: number | null;
+};
+
 /** Tout ce qu'un `resume` peut valoir, selon le `type` de la soumission. */
 export type ResumeSoumission =
   | ResumeMaj
   | ResumeCreation
   | ResumeLotissement
-  | ResumeAttributaire;
+  | ResumeAttributaire
+  | ResumeLot
+  | ResumeIlot;

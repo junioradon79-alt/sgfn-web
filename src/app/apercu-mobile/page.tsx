@@ -499,6 +499,53 @@ const SAISIE: SaisieRegistre = {
         ? LOTS.filter((l) => !q.trim() || contient(l.numero_lot, q))
         : [],
   }),
+  // Fiche descriptive d'un lot — dérivée de `LOTS` plutôt que recopiée : deux
+  // jeux d'essai pour le même lot auraient divergé au premier numéro retouché.
+  // Le lot gelé de la liste sert ici de cas réel : c'est celui sur lequel
+  // l'écran doit refuser la correction.
+  chargerFicheLot: async (lotId) => {
+    const l = LOTS.find((x) => x.lot_id === lotId);
+    if (!l) return { ok: false, error: "Lot introuvable." };
+    return {
+      ok: true,
+      valeur: {
+        id: l.lot_id,
+        ilot_numero: l.ilot,
+        numero_lot: l.numero_lot,
+        numero_parcelle: null,
+        est_equipement: false,
+        superficie_m2: 500,
+        nature_droit: "droit_coutumier",
+        observation: null,
+        guide_page: 12,
+        latitude: null,
+        longitude: null,
+        verrouille: l.verrouille,
+      },
+    };
+  },
+  chargerIlots: async (lotissementId) =>
+    lotissementId === "apc-lot-1"
+      ? {
+          ok: true,
+          valeur: [
+            { id: "apc-il-1", numero: "7", nb_lots: 2 },
+            // Un îlot sans lot : le renumérotage y est sans conséquence, et
+            // l'avertissement d'ampleur ne doit donc PAS s'afficher.
+            { id: "apc-il-2", numero: "12", nb_lots: 0 },
+          ],
+        }
+      : { ok: true, valeur: [] },
+  // 🔴 Un lotissement dont le dossier est INCOMPLET, et non l'inverse : c'est
+  // l'état réel des deux lotissements de production (Koelea 60/100, Brignan
+  // 20/100), et c'est le seul cas où l'avertissement documentaire se voit.
+  manquesDocumentaires: async (lotissementId) => ({
+    ok: true,
+    valeur:
+      lotissementId === "apc-lot-1"
+        ? ["PV du guide de repartition", "PV d'identification physique"]
+        : [],
+  }),
   // 🔴 Le payload est **inspecté**, pas ignoré. La version précédente ne lisait
   // aucun de ses arguments : un écran qui aurait construit un payload vide, ou
   // sous le mauvais type, affichait le même succès. C'était le seul endroit où

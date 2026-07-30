@@ -25,6 +25,7 @@ import { fetchAllPages } from "@/lib/supabase-pagination";
 import { FileValidation } from "@/components/dashboard/saisie/FileValidation";
 import { ImportExcel } from "@/components/dashboard/saisie/ImportExcel";
 import { CreationStructure } from "@/components/dashboard/saisie/CreationStructure";
+import { SaisieChefferie } from "@/components/dashboard/saisie/SaisieChefferie";
 import {
   CLASSE_LABELS,
   QUALITE_OPTIONS,
@@ -85,11 +86,21 @@ export default function SaisiePage() {
   const { counts } = useBadgeCounts();
 
   const isAdmin = profile?.groupe === "admin";
+  /**
+   * 🔴 La chefferie était éjectée d'ici (`router.replace`) alors que le serveur
+   * l'accepte depuis le 16/07 sur `creation_lotissement` /
+   * `modification_lotissement`, et depuis le 30/07 sur `modification_lot`,
+   * `modification_ilot` et `maj_attributaire` (bornée à sa juridiction).
+   * L'écran refusait donc ce que la base autorisait — et la moitié chefferie du
+   * rail maker-checker n'avait, de ce fait, jamais été exercée : 0 soumission
+   * de ces types sur 18 lignes de file.
+   */
+  const isChefferie = profile?.groupe === "chefferie";
   const autorise =
     !profileLoading &&
-    (profile?.groupe === "operateur_saisie" || profile?.groupe === "admin");
+    (profile?.groupe === "operateur_saisie" || profile?.groupe === "admin" || isChefferie);
 
-  // Garde d'accès : seuls opérateur de saisie et admin voient ce module.
+  // Garde d'accès : opérateur de saisie, chefferie et admin voient ce module.
   useEffect(() => {
     if (!profileLoading && profile && !autorise) {
       router.replace("/dashboard");
@@ -520,6 +531,16 @@ export default function SaisiePage() {
       )}
 
       {tab === "saisie" ? (
+        isChefferie ? (
+          /* La chefferie a ses propres types, bornés à sa juridiction. Elle
+             n'a NI `maj_attributions` NI `creation_structure` : le module
+             ci-dessous ne les propose donc pas — offrir un formulaire que le
+             serveur refuse coûte une fiche entière remplie pour rien. */
+          <SaisieChefferie
+            juridictionId={profile?.autorite_coutumiere_id ?? null}
+            onFlash={setMessage}
+          />
+        ) : (
         <div className="space-y-6">
           {/* Bascule Mettre à jour un lotissement existant / Créer un nouveau */}
           <div className="flex gap-1 rounded-full border border-border bg-card p-1 text-sm shadow-sm w-fit">
@@ -938,6 +959,7 @@ export default function SaisiePage() {
             </>
           )}
         </div>
+        )
       ) : isAdmin ? (
         /* ── Onglet File de validation (admin) ── */
         <FileValidation />

@@ -4709,6 +4709,10 @@ export type Database = {
       manques_documentaires_lot:
         | { Args: { p_lot_id: string }; Returns: string[] }
         | { Args: { p_lot_id: string; p_niveau?: number }; Returns: string[] }
+      manques_documentaires_lotissement: {
+        Args: { p_lotissement_id: string; p_niveau?: number }
+        Returns: string[]
+      }
       marquer_attestation_attribution_lot_delivree: {
         Args: { p_id: string }
         Returns: undefined

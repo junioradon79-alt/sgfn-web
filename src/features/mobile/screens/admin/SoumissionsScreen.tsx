@@ -32,6 +32,8 @@ import {
   labelTypeAttributaire,
   type ResumeAttributaire,
   type ResumeCreation,
+  type ResumeIlot,
+  type ResumeLot,
   type ResumeLotissement,
   type ResumeMaj,
   type TypeSoumission,
@@ -55,6 +57,8 @@ const TYPE_LABEL: Record<TypeSoumission, string> = {
   creation_lotissement: "Création de lotissement",
   modification_lotissement: "Modification de lotissement",
   maj_attributaire: "Fiche d'attributaire",
+  modification_lot: "Correction de fiche de lot",
+  modification_ilot: "Correction de numéro d'îlot",
 };
 
 /** Pluriel simple — les libellés de la file n'ont pas de cas irrégulier. */
@@ -163,6 +167,30 @@ function puces(soumission: SoumissionEnAttente): Puce[] {
             },
         { texte: labelTypeAttributaire(a.type_attributaire), ton: "accent" },
       ];
+    }
+
+    case "modification_lot": {
+      const l = r as ResumeLot;
+      const liste: Puce[] = [{ texte: l.designation, ton: "accent" }];
+      if (l.lotissement) liste.push({ texte: l.lotissement, ton: "neutral" });
+      liste.push({
+        texte: `${l.champs_modifies} champ${s(l.champs_modifies)} corrigé${s(l.champs_modifies)}`,
+        ton: "warning",
+      });
+      return liste;
+    }
+
+    case "modification_ilot": {
+      const i = r as ResumeIlot;
+      const liste: Puce[] = [
+        { texte: `${i.numero_avant} → ${i.numero_apres}`, ton: "warning" },
+      ];
+      if (i.lotissement) liste.push({ texte: i.lotissement, ton: "neutral" });
+      // L'ampleur réelle d'un « simple » renumérotage : c'est la désignation de
+      // chacun de ces lots qui change avec le numéro d'îlot.
+      if (i.nb_lots != null)
+        liste.push({ texte: `${i.nb_lots} lot${s(i.nb_lots)} concerné${s(i.nb_lots)}`, ton: "accent" });
+      return liste;
     }
   }
 }

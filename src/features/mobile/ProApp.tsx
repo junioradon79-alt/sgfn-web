@@ -37,6 +37,7 @@ import { GenerationAttestationScreen } from "./screens/pro/GenerationAttestation
 import { useSaisieRegistre } from "./data/useSaisieRegistre";
 import { useAttestations } from "./data/useAttestations";
 import { AttributaireScreen } from "./screens/admin/saisie/AttributaireScreen";
+import { FicheLotScreen, IlotScreen } from "./screens/admin/saisie/FicheParcelleScreen";
 import { LotScreen } from "./screens/admin/saisie/LotScreen";
 import { LotissementScreen } from "./screens/admin/saisie/LotissementScreen";
 import { StructureScreen } from "./screens/admin/saisie/StructureScreen";
@@ -291,8 +292,20 @@ export function ProApp({
         {overlay?.kind === "saisie" && overlay.ecran === "lot" && (
           <LotScreen api={saisie} onBack={fermerSaisie} flash={flash} />
         )}
+        {overlay?.kind === "saisie" && overlay.ecran === "fiche_lot" && (
+          <FicheLotScreen api={saisie} onBack={fermerSaisie} flash={flash} />
+        )}
+        {overlay?.kind === "saisie" && overlay.ecran === "ilot" && (
+          <IlotScreen api={saisie} onBack={fermerSaisie} flash={flash} />
+        )}
         {overlay?.kind === "saisie" && overlay.ecran === "attributaire" && (
-          <AttributaireScreen api={saisie} onBack={fermerSaisie} flash={flash} />
+          <AttributaireScreen
+            api={saisie}
+            onBack={fermerSaisie}
+            flash={flash}
+            // Miroir de `soumettre_saisie` : la chefferie corrige, elle ne crée pas.
+            creationInterdite={groupe === "chefferie"}
+          />
         )}
         {overlay?.kind === "saisie" && overlay.ecran === "lotissement" && (
           <LotissementScreen api={saisie} onBack={fermerSaisie} flash={flash} />

@@ -5,6 +5,7 @@ import { Check, ChevronDown, ChevronRight, Loader2, X } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { CountBadge } from "@/components/ds/badge";
 import { createClient } from "@/utils/supabase/client";
+import { AvertissementDocumentaire } from "./AvertissementDocumentaire";
 import {
   CLASSE_LABELS,
   classifier,
@@ -19,6 +20,8 @@ import {
   type Qualite,
   type ResumeAttributaire,
   type ResumeCreation,
+  type ResumeIlot,
+  type ResumeLot,
   type ResumeLotissement,
   type ResumeMaj,
   type ResumeSoumission,
@@ -42,11 +45,21 @@ const LIBELLE_TYPE: Record<TypeSoumission, string> = {
   creation_lotissement: "Création de lotissement",
   modification_lotissement: "Correction de fiche de lotissement",
   maj_attributaire: "Fiche d'attributaire",
+  modification_lot: "Correction de fiche de lot",
+  modification_ilot: "Correction de numéro d'îlot",
 };
 
 type Soumission = {
   id: string;
   type: TypeSoumission;
+  /**
+   * Renseigné par le SERVEUR pour les types de fiche : `soumettre_saisie`
+   * remonte lui-même le lotissement depuis `lot_id` / `ilot_id` et enregistre
+   * SA valeur — c'est aussi celle qu'il contrôle pour la juridiction. C'est
+   * donc elle, et non le payload, qui sert ici à évaluer le dossier
+   * documentaire.
+   */
+  lotissement_id: string | null;
   titre: string | null;
   statut: StatutSoumission;
   resume: ResumeSoumission | null;
@@ -103,7 +116,9 @@ export function FileValidation() {
   const charger = useCallback(() => {
     supabase
       .from("soumissions_saisie")
-      .select("id, type, titre, statut, resume, resultat, commentaire_admin, cree_le, traite_le, payload")
+      .select(
+        "id, type, lotissement_id, titre, statut, resume, resultat, commentaire_admin, cree_le, traite_le, payload",
+      )
       .order("statut", { ascending: true }) // en_attente < approuvee < rejetee (alpha) : en_attente d'abord
       .order("cree_le", { ascending: false })
       .then(({ data }) => {
@@ -235,6 +250,20 @@ function resumeLisible(type: TypeSoumission, r: ResumeSoumission | null): string
         a.type_attributaire,
       )}`;
     }
+    case "modification_lot": {
+      const l = r as ResumeLot;
+      return ` · ${l.designation}${l.lotissement ? ` · ${l.lotissement}` : ""} · ${
+        l.champs_modifies
+      } champ(s) corrigé(s)`;
+    }
+    case "modification_ilot": {
+      const i = r as ResumeIlot;
+      // Le nombre de lots dit l'ampleur réelle d'un « simple » renumérotage :
+      // c'est la désignation de chacun d'eux qui change.
+      return ` · ${i.numero_avant} → ${i.numero_apres}${i.lotissement ? ` · ${i.lotissement}` : ""}${
+        i.nb_lots != null ? ` · ${i.nb_lots} lot(s) concernés` : ""
+      }`;
+    }
   }
 }
 
@@ -248,6 +277,7 @@ const LIBELLE_CHAMP: Record<string, string> = {
   nb_lots: "Nombre de lots",
   nb_ilots: "Nombre d'îlots",
   guide_reference: "Référence du guide",
+  pv_numero_enregistrement: "PV du guide de répartition — n° d'enregistrement",
   pv_identification_physique_numero: "PV d'identification — numéro",
   pv_identification_physique_date: "PV d'identification — date",
   pv_identification_physique_scan_url: "PV d'identification — scan",
@@ -257,10 +287,27 @@ const LIBELLE_CHAMP: Record<string, string> = {
   telephone: "Téléphone",
   email: "E-mail",
   adresse: "Adresse",
+  // modification_lot / modification_ilot
+  numero: "Numéro de l'îlot",
+  numero_lot: "Numéro du lot",
+  numero_parcelle: "Numéro de parcelle",
+  est_equipement: "Réserve / équipement",
+  superficie_m2: "Superficie (m²)",
+  nature_droit: "Nature du droit",
+  observation: "Observation",
+  guide_page: "Page du guide",
+  latitude: "Latitude",
+  longitude: "Longitude",
 };
 
 /** Clés techniques, jamais montrées : elles ne disent rien à qui approuve. */
-const CHAMPS_MASQUES = new Set(["lotissement_id", "attributaire_id", "autorite_coutumiere_id"]);
+const CHAMPS_MASQUES = new Set([
+  "lotissement_id",
+  "attributaire_id",
+  "autorite_coutumiere_id",
+  "lot_id",
+  "ilot_id",
+]);
 
 /**
  * Détail d'une soumission de **fiche** (lotissement ou attributaire) : le
@@ -275,7 +322,11 @@ const CHAMPS_MASQUES = new Set(["lotissement_id", "attributaire_id", "autorite_c
  */
 function DetailFiche({ type, payload }: { type: TypeSoumission; payload: unknown }) {
   const p = (payload ?? {}) as Record<string, unknown>;
-  const correction = type === "modification_lotissement" || (type === "maj_attributaire" && "attributaire_id" in p);
+  const correction =
+    type === "modification_lotissement" ||
+    type === "modification_lot" ||
+    type === "modification_ilot" ||
+    (type === "maj_attributaire" && "attributaire_id" in p);
   const lignes = Object.entries(p).filter(([k]) => !CHAMPS_MASQUES.has(k));
 
   if (lignes.length === 0) {
@@ -284,6 +335,18 @@ function DetailFiche({ type, payload }: { type: TypeSoumission; payload: unknown
 
   return (
     <div className="space-y-1.5">
+      {/* ✅ 30/07 — `_appliquer_modification_lotissement` remettait à NULL toute
+          colonne absente du payload (dont `guide_reference` et les numéros de
+          PV, c'est-à-dire les pièces mêmes de la condition documentaire). Elle
+          suit désormais la convention commune du rail, et cette note aussi :
+          l'annonce inverse aurait été un mensonge d'écran sur le sens de ce
+          qu'on approuve. */}
+      {correction && type !== "maj_attributaire" && (
+        <p className="mb-2 text-xs text-slate-500">
+          Correction de fiche : les champs absents de cette liste restent <b>inchangés</b>, ceux
+          marqués «&nbsp;effacé&nbsp;» seront vidés.
+        </p>
+      )}
       {type === "maj_attributaire" && correction && (
         <p className="mb-2 text-xs text-slate-500">
           Correction de fiche : les champs absents de cette liste restent inchangés, ceux marqués
@@ -293,12 +356,6 @@ function DetailFiche({ type, payload }: { type: TypeSoumission; payload: unknown
       {type === "maj_attributaire" && !correction && (
         <p className="mb-2 text-xs text-slate-500">
           Création d&apos;une fiche : les champs sans valeur resteront simplement vides.
-        </p>
-      )}
-      {type === "modification_lotissement" && (
-        <p className="mb-2 text-xs text-slate-500">
-          Correction de fiche : la fiche vaudra <b>exactement</b> ce qui suit — tout champ absent
-          de la liste sera vidé.
         </p>
       )}
       <table className="w-full text-sm">
@@ -474,7 +531,9 @@ function CarteSoumission({
   const detailFiche =
     soumission.type === "creation_lotissement" ||
     soumission.type === "modification_lotissement" ||
-    soumission.type === "maj_attributaire";
+    soumission.type === "maj_attributaire" ||
+    soumission.type === "modification_lot" ||
+    soumission.type === "modification_ilot";
 
   const toggle = () => {
     const next = !open;
@@ -528,6 +587,18 @@ function CarteSoumission({
         </div>
         <Badge status="en_validation">En attente</Badge>
       </div>
+
+      {/* 🔴 L'AVERTISSEMENT DOCUMENTAIRE, CÔTÉ APPROBATEUR.
+          La condition documentaire demandée le 29/07 avertit au lieu de
+          bloquer — décision du propriétaire du projet, motivée par le fait que
+          la règle existante refuserait 898 lots sur 898. Cet arbitrage n'a de
+          sens que si l'approbateur voit ce que voyait la personne qui a saisi :
+          c'est LUI qui tranche, et il ne peut trancher qu'informé. */}
+      {soumission.lotissement_id && (
+        <div className="mt-3">
+          <AvertissementDocumentaire lotissementId={soumission.lotissement_id} compact />
+        </div>
+      )}
 
       {/* Le détail est ouvrable pour TOUS les types : approuver sans pouvoir
           lire ce qu'on approuve était le défaut, pas une simplification. */}

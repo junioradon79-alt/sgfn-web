@@ -282,7 +282,11 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Performance régionale", href: "/dashboard/statistiques?focus=performance", icon: TrendingUp, section: "statistiques", roles: [], deepLink: { key: "focus", value: "performance" }, keywords: "performance régionale classement districts territoires occupation" },
 
   // ── Intelligence ──
-  { label: "Saisie assistée", href: "/dashboard/saisie", icon: ClipboardEdit, section: "intelligence", roles: ["operateur_saisie"], badgeKey: "saisie", keywords: "import excel validation saisie assistée foncière" },
+  // `chefferie` ajouté le 30/07 : la page l'éjectait alors que `soumettre_saisie`
+  // l'accepte depuis le 16/07 (fiche de lotissement) et, désormais, sur la fiche
+  // d'un lot, le numéro d'un îlot et la correction d'un attributaire de sa
+  // juridiction. Une page ouverte sans entrée de menu reste inatteignable.
+  { label: "Saisie assistée", href: "/dashboard/saisie", icon: ClipboardEdit, section: "intelligence", roles: ["operateur_saisie", "chefferie"], badgeKey: "saisie", keywords: "import excel validation saisie assistée foncière lot îlot attributaire" },
 
   // ── Administration ──
   // Le handoff éclate l'écran Administration en ses quatre onglets. Une seule
@@ -349,6 +353,10 @@ const ROLE_NAV_ORDER: Partial<Record<string, string[]>> = {
   // Chefferie (chef de village) : périmètre resserré à la juridiction territoriale.
   chefferie: [
     "/dashboard/chefferie",
+    // Placée haut : c'est le geste quotidien ouvert le 30/07 (corriger une
+    // fiche du parc), et une liste ordonnée qui l'enterrerait en bas dirait le
+    // contraire de ce que le chantier vient d'ouvrir.
+    "/dashboard/saisie",
     "/lotissements",
     "/dashboard/lots",
     "/dashboard/litiges",
@@ -612,15 +620,25 @@ export async function fetchBadgeCounts(
   switch (groupe) {
     // ── Chefferie (chef de village) — RLS scopée par juridiction (ma_chefferie_id()). ──
     case "chefferie": {
-      const [cessions, apfcs, litiges, adu] = await Promise.all([
+      const [cessions, apfcs, litiges, adu, rejetees] = await Promise.all([
         compterCessionsChefferie(supabase),
         compterApfcEnAttente(supabase, "sig_chef_village_le"),
         compterLitiges(supabase),
         compterDossiersAdu(supabase),
+        // Même sémantique que pour `operateur_saisie` : la pastille de « Saisie
+        // assistée » compte ce qu'il y a **à faire de son côté**, c'est-à-dire
+        // ses soumissions renvoyées, et non la file nationale — qu'elle ne voit
+        // pas et sur laquelle elle ne peut rien. La RLS de `soumissions_saisie`
+        // borne déjà le compte à ses propres lignes.
+        supabase
+          .from("soumissions_saisie")
+          .select("id", { count: "exact", head: true })
+          .eq("statut", "rejetee"),
       ]);
       next.chefferieValidations = cessions + apfcs;
       next.litigesActifs = litiges;
       next.dossiersAdu = adu;
+      next.saisie = rejetees.count ?? 0;
       break;
     }
 
