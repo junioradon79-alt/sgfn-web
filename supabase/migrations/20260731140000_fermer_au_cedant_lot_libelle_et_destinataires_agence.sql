@@ -51,7 +51,34 @@
 -- qui vient de la revendication JWT de la session. Un acquéreur déposant une
 -- demande d'acquisition sur un lot dont il n'est pas titulaire — c'est la
 -- définition même d'un prospect — aurait déclenché `notif_demande_acquisition`,
--- donc `lot_libelle`, donc `42501`, et son INSERT aurait été ANNULÉ.
+-- donc `lot_libelle`, donc `42501`.
+--
+-- 🔴 RECTIFICATION DU 31/07/2026 (vérificateur tiers, mesure à l'appui). La
+-- première rédaction de ce paragraphe concluait que « son INSERT aurait été
+-- ANNULÉ ». C'EST FAUX. Les cinq fonctions `notif_*` enveloppent leur appel
+-- dans un bloc `begin … exception when others then null; end;` — relevé dans
+-- `pg_proc.prosrc` des cinq, en production. Exemple, `notif_demande_acquisition` :
+--
+--     begin
+--       v_info := public.lot_libelle(new.lot_id);
+--       for v_prof in select * from public.destinataires_agence_lot(new.lot_id) loop
+--         perform public.enqueue_notification(...);
+--       end loop;
+--     exception when others then null;
+--     end;
+--
+-- Un `42501` levé là-dedans aurait donc été AVALÉ EN SILENCE : l'INSERT aurait
+-- ABOUTI, et c'est la NOTIFICATION qui aurait disparu — sans erreur, sans trace.
+-- La décision de révoquer reste la bonne (voir ci-dessous) ; c'est son motif qui
+-- était mal formulé. Le risque réel d'une garde n'était pas une écriture perdue,
+-- mais une notification perdue sans que personne ne l'apprenne.
+--
+-- ⚠️ COROLLAIRE, INDÉPENDANT DE CE LOT ET PLUS LARGE QUE LUI : ce chemin de
+-- notification est INTÉGRALEMENT SILENCIEUX EN CAS D'ÉCHEC. Quelle qu'en soit la
+-- cause — privilège, fonction absente, `enqueue_notification` en erreur —, les
+-- cinq déclencheurs `notif_*` échoueront sans lever, sans journaliser, et sans
+-- que l'écriture porteuse s'en aperçoive. Le jour où une notification cessera de
+-- partir, RIEN NE LE SIGNALERA.
 --
 -- La révocation, elle, ne les touche pas : dans une fonction `SECURITY
 -- DEFINER`, le privilège d'exécution est vérifié contre le PROPRIÉTAIRE
@@ -76,9 +103,38 @@
 --
 -- ⚠️ La consigne reçue citait `dashboard/lots/page.tsx:729`,
 -- `ProprietaireTerrienView.tsx:320` et `useAttestations.ts:385` comme preuves
--- que ces fonctions étaient « réellement appelées par le produit ». Vérification
--- faite, ces trois lignes appellent `calculer_score_confiance` — une AUTRE
+-- que ces fonctions étaient « réellement appelées par le produit ». Les DEUX
+-- PREMIÈRES citations appellent bien `calculer_score_confiance` — une AUTRE
 -- fonction, admise à `anon` par la ligne de base du 30/07, et hors de ce lot.
+--
+-- 🔴 RECTIFICATION DU 31/07/2026 : LA TROISIÈME CITATION ÉTAIT EXACTE, ET C'EST
+-- CETTE MIGRATION QUI SE TROMPAIT. La première rédaction affirmait que les trois
+-- lignes visaient `calculer_score_confiance`. C'est faux pour la troisième. Le
+-- fichier est `src/features/mobile/data/useAttestations.ts` et il appelle bien,
+-- à ses lignes 385-386 :
+--
+--     supabase.rpc("lot_peut_emettre_attestation_niveau1", { p_lot_id: lotId }),
+--     supabase.rpc("manques_documentaires_lot", { p_lot_id: lotId, p_niveau: 1 }),
+--
+-- L'erreur vient de la méthode de recherche, pas de la consigne : ce fichier
+-- N'EXISTE PAS dans le front déployé `1d65c53` (`git cat-file -e
+-- 1d65c53:src/features/mobile/data/useAttestations.ts` -> absent), donc le grep
+-- sur le déployé rendait vide. Mais il est EMBARQUÉ DANS L'APK : la chaîne
+-- `lot_peut_emettre_attestation_niveau1` est présente dans DEUX bundles de
+-- `android/app/src/main/assets/public/_next/static/chunks/`, tout comme
+-- `manques_documentaires_lot`.
+--
+-- ✅ CONSÉQUENCE : la décision de LAISSER OUVERTES `score_confiance_lot` et
+-- `lot_peut_emettre_attestation_niveau1` (section suivante) est MIEUX FONDÉE que
+-- son motif écrit ne le montrait. Les fermer n'aurait pas seulement cassé les
+-- deux vues de `/dashboard/documents` : cela aurait cassé L'APPLICATION MOBILE,
+-- dont l'écran de génération d'attestation appelle la seconde à chaque ouverture
+-- de fiche.
+--
+-- ✅ CONTRE-ÉPREUVE, et elle vaut pour ce lot-ci : `lot_libelle` et
+-- `destinataires_agence_lot` sont RECHERCHÉES DANS L'APK AUSSI, et n'y figurent
+-- pas (`grep -rl lot_libelle android/app/src/main/assets/` -> 0). Les deux
+-- révocations ci-dessous ne cassent donc rien, ni sur le web ni sur mobile.
 --
 -- ---------------------------------------------------------------------------
 -- LES DEUX AUTRES CIBLES NE SONT PAS TRAITÉES — ET C'EST DÉLIBÉRÉ
