@@ -90,14 +90,20 @@ export function ongletsPour(groupe: string | null | undefined): OngletPro[] {
  *                                                 JURIDICTION
  *
  * 🔴 **JURIDICTION, ET JAMAIS FAMILLE.** `maj_attributaire` était le seul type
- * borné par `lot_ids_chefferie()`, qui accorde la juridiction **ou** la famille
- * de rattachement : le même compte franchissait sur ce type et se faisait
- * refuser sur les trois autres, pour le même lotissement. Arbitrage du
+ * borné par `lot_ids_chefferie()`, qui accordait alors la juridiction **ou** la
+ * famille de rattachement : le même compte franchissait sur ce type et se
+ * faisait refuser sur les trois autres, pour le même lotissement. Arbitrage du
  * propriétaire du projet le 30/07 — une chefferie n'agit que sur le territoire
  * dont elle est l'autorité coutumière, jamais par appartenance familiale. C'est
  * sa directive du 29/07 : **chefferie ≠ chef de famille**.
- * ⚠️ `lot_ids_chefferie()` n'a PAS bougé : elle sert aussi à deux policies de
- * LECTURE. C'est la garde d'écriture qui s'est resserrée, elle seule.
+ *
+ * ⚠️ `lot_ids_chefferie()` **a depuis changé** : la migration `20260731110000`
+ * lui a retiré la branche famille, et elle ne rend plus que les lots de la
+ * JURIDICTION (`lotissements.autorite_coutumiere_id = ma_chefferie_id()`).
+ * Comme elle sert aussi à des policies de LECTURE, le resserrement ne s'est pas
+ * arrêté à l'écriture : il a réduit ce que ces comptes VOIENT. Relevé en
+ * production le 31/07/2026 par emprunt de rôle — voir `chefferieSansJuridiction`
+ * plus bas, dont le commentaire porte la mesure.
  *
  * 🔴 **UNE CHEFFERIE SANS JURIDICTION NE SAISIT RIEN**, quel que soit le type —
  * `creation_lotissement` compris, qui y échappait et déposait une création
@@ -212,11 +218,21 @@ export function libelleRole(groupe: string | null | undefined): string {
  * soit le type, et le dit en nommant la cause.
  *
  * Le cas n'est pas théorique : sur les deux comptes `chefferie` de production,
- * un seul porte une juridiction. L'autre voit pourtant 49 lots — par la branche
- * FAMILLE de `lot_ids_chefferie()`, qui borne la lecture et non l'écriture.
- * Voir des lots sans pouvoir en saisir un seul est exactement ce que cet écran
- * doit annoncer : une liste pleine et des envois tous refusés se lit comme une
- * panne.
+ * un seul porte une juridiction.
+ *
+ * ⚠️ Ce commentaire a décrit jusqu'au 31/07/2026 un état qui n'existe plus. Il
+ * affirmait que l'autre compte voyait « 49 lots » par la branche FAMILLE de
+ * `lot_ids_chefferie()`, et justifiait l'écran par le risque d'une **liste
+ * pleine** dont tous les envois seraient refusés. La migration `20260731110000`
+ * a retiré cette branche. Mesure du 31/07/2026 sous l'identité `0be830c7`
+ * (témoin `auth.uid()` relevé dans la transaction) : `ma_chefferie_id()` NULL,
+ * `lot_ids_chefferie()` **0**, lots visibles **0** — et non 49.
+ *
+ * L'écran reste nécessaire, mais pour la raison INVERSE : ce n'est plus une
+ * liste pleine qu'il faut expliquer, c'est une liste **vide**. Sans message, le
+ * compte lit un espace sans aucun lot, ce qui se confond avec une panne ou une
+ * base non chargée. Nommer la cause — aucune juridiction rattachée — est la
+ * seule chose qui distingue les deux.
  *
  * Mieux vaut donc le dire d'emblée que laisser saisir pour rien.
  */
