@@ -10,6 +10,7 @@ import { useAdminOverview } from "@/hooks/useAdminOverview";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useAncreFocus } from "@/hooks/useAncreFocus";
 import { stagger } from "@/lib/motion";
+import { ROLE_HOME } from "@/lib/navigation";
 
 import { AppShell } from "@/components/pilotage/AppShell";
 import { KpiRow } from "@/components/pilotage/KpiRow";
@@ -30,27 +31,9 @@ import { AduDialog } from "@/components/pilotage/AduDialog";
 /** Ancres des sous-entrées « Pilotage » de la barre latérale (cf. `?focus=`). */
 const ANCRES = ["alertes", "activite"] as const;
 
-const ROLE_HOME: Record<string, string> = {
-  // « Propriétaire » (par achat) déprécié → fondu dans proprietaire_terrien ;
-  // filet de sécurité si un compte legacy subsiste.
-  proprietaire: "/dashboard/proprietaire-terrien",
-  acquereur: "/dashboard/mon-achat",
-  // « Aménageur » fusionné dans « opérateur » : filet de sécurité si un compte
-  // legacy `amenageur` subsiste — il atterrit sur l'espace opérateur.
-  amenageur: "/dashboard/operateur",
-  operateur: "/dashboard/operateur",
-  commissaire: "/dashboard/commissaire",
-  verificateur: "/dashboard/commissaire",
-  chefferie: "/dashboard/chefferie",
-  proprietaire_terrien: "/dashboard/proprietaire-terrien",
-  operateur_saisie: "/dashboard/saisie",
-  geometre: "/dashboard/geometre",
-  // Comptable : oubliée à sa création (24/07) — atterrissait sur ce Centre de
-  // pilotage national, hors de portée RLS pour ce rôle. Collaborateur : nouveau
-  // rôle minimal (24/07), sa fiche RH est son seul espace.
-  comptable: "/dashboard/comptabilite",
-  collaborateur: "/dashboard/mon-profil-rh",
-};
+// `ROLE_HOME` vit désormais dans `@/lib/navigation`, à côté de `ROLE_NAV_ORDER` :
+// la garde de route de `DashboardShell` s'en sert pour renvoyer un rôle sur son
+// espace, et deux copies auraient fini par diverger.
 
 /**
  * L'écran répond à quatre questions, dans cet ordre — c'est son plan de lecture :

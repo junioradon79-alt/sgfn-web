@@ -414,6 +414,108 @@ export function hasCustomNavOrder(groupe: string | null): boolean {
   return !!groupe && !!ROLE_NAV_ORDER[groupe];
 }
 
+/**
+ * Espace d'atterrissage de chaque rôle. Vit ici, à côté de `ROLE_NAV_ORDER`,
+ * parce que deux consommateurs en dépendent et doivent dire la même chose : la
+ * page d'aiguillage `/dashboard` et la garde de route ci-dessous. Les groupes
+ * absents (admin, agent_ia…) restent sur le Centre de pilotage national.
+ */
+export const ROLE_HOME: Record<string, string> = {
+  // « Propriétaire » (par achat) déprécié → fondu dans proprietaire_terrien ;
+  // filet de sécurité si un compte legacy subsiste.
+  proprietaire: "/dashboard/proprietaire-terrien",
+  acquereur: "/dashboard/mon-achat",
+  // « Aménageur » fusionné dans « opérateur » : filet de sécurité si un compte
+  // legacy `amenageur` subsiste — il atterrit sur l'espace opérateur.
+  amenageur: "/dashboard/operateur",
+  operateur: "/dashboard/operateur",
+  commissaire: "/dashboard/commissaire",
+  verificateur: "/dashboard/commissaire",
+  chefferie: "/dashboard/chefferie",
+  proprietaire_terrien: "/dashboard/proprietaire-terrien",
+  operateur_saisie: "/dashboard/saisie",
+  geometre: "/dashboard/geometre",
+  // Comptable : oubliée à sa création (24/07) — atterrissait sur ce Centre de
+  // pilotage national, hors de portée RLS pour ce rôle. Collaborateur : nouveau
+  // rôle minimal (24/07), sa fiche RH est son seul espace.
+  comptable: "/dashboard/comptabilite",
+  collaborateur: "/dashboard/mon-profil-rh",
+};
+
+/** Espace du rôle ; le Centre de pilotage pour les groupes sans entrée. */
+export function accueilDuRole(groupe: string | null): string {
+  return (groupe && ROLE_HOME[groupe]) || "/dashboard";
+}
+
+/**
+ * Routes ouvertes à TOUT rôle, y compris ceux dont le menu est une liste fermée.
+ * Elles n'apparaissent dans aucune barre latérale : impossible de les déduire de
+ * `NAV_ITEMS`, et les fermer priverait les rôles resserrés de gestes que
+ * l'application leur offre par ailleurs.
+ *
+ * - `/dashboard/profil` — proposé par le menu utilisateur de l'en-tête
+ *   (`AppHeader`) et par la palette de commandes, pour tous les rôles.
+ * - `/dashboard/messages` — l'icône de messagerie de l'en-tête y pousse quel que
+ *   soit le rôle, même quand la barre latérale ne l'affiche pas (chefferie,
+ *   propriétaire terrien, opérateur de saisie).
+ * - `/dashboard/paiements/retour` — page de retour de CinetPay (`return_url` de
+ *   l'edge function `initier-paiement`) : la fermer casserait la confirmation de
+ *   paiement pour tout rôle qui paie.
+ */
+const ROUTES_TOUJOURS_OUVERTES = [
+  "/dashboard/profil",
+  "/dashboard/messages",
+  "/dashboard/paiements/retour",
+];
+
+/** `/dashboard/lots/` et `/dashboard/lots?vue=x` → `/dashboard/lots`. */
+function normaliserChemin(chemin: string): string {
+  const sansQuery = chemin.split("?")[0].split("#")[0];
+  return sansQuery.length > 1 ? sansQuery.replace(/\/+$/, "") : sansQuery;
+}
+
+/**
+ * `base` couvre-t-il `chemin` — lui-même, ou une de ses sous-routes ? La
+ * comparaison se fait sur une frontière de segment : sans elle, `/dashboard/lots`
+ * ouvrirait aussi `/dashboard/lotissements`.
+ */
+function couvre(base: string, chemin: string): boolean {
+  return chemin === base || chemin.startsWith(base + "/");
+}
+
+/**
+ * Ce rôle peut-il ouvrir cette route de `/dashboard` ?
+ *
+ * ⚠️ **Garde d'interface, pas frontière de sécurité.** Le site est un export
+ * statique : ce contrôle vit dans le navigateur et se contourne. Ce qui protège
+ * les données reste la RLS, et elle tient — un collaborateur qui forçait
+ * `/dashboard/lots` y lisait déjà 0 lot. Ce qui se ferme ici, c'est l'écart entre
+ * ce que l'écran PROPOSE et ce que le serveur ACCEPTE : « Nouveau
+ * collaborateur », « Modifier », « Supprimer » s'affichaient pour un rôle dont
+ * chaque écriture aurait été refusée. Même principe que le test
+ * `scripts/e2e-app-roles-metier.mjs` — ne pas offrir un formulaire que la base
+ * refuse, sous peine de faire remplir une fiche entière pour rien.
+ *
+ * Ne borne QUE les rôles dotés d'une liste fermée (`ROLE_NAV_ORDER`). Un rôle
+ * absent de cette table — admin, vérificateur, opérateur… — passe partout, tout
+ * comme sa barre latérale n'est pas resserrée : la garde n'invente aucune règle,
+ * elle applique celle qui décrivait déjà le menu.
+ */
+export function routeAutorisee(groupe: string | null, chemin: string): boolean {
+  // Profil pas encore chargé : ne rien bloquer, l'appelant attend.
+  if (!groupe) return true;
+  const order = ROLE_NAV_ORDER[groupe];
+  if (!order) return true;
+
+  const route = normaliserChemin(chemin);
+  // `/dashboard` exactement : page d'aiguillage, elle redirige elle-même vers
+  // l'espace du rôle. Comparaison stricte — la traiter en préfixe ouvrirait
+  // évidemment tout `/dashboard/*`.
+  if (route === "/dashboard") return true;
+  if (ROUTES_TOUJOURS_OUVERTES.some((base) => couvre(base, route))) return true;
+  return order.some((href) => couvre(normaliserChemin(href), route));
+}
+
 /** Filtre d'accès — règles reprises telles quelles de la barre latérale historique. */
 export function visibleNavItems(groupe: string | null, loading: boolean): NavItem[] {
   const order = groupe ? ROLE_NAV_ORDER[groupe] : undefined;
