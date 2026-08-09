@@ -36,6 +36,25 @@ export default function UploadPlanModal({
   const [step, setStep] = useState<Step>("form");
   const [message, setMessage] = useState<string | null>(null);
 
+  /**
+   * Aucun filtre sur les lots — et c'est délibéré, contrairement aux
+   * apparences (un géomètre voit ici les 898 lots du registre).
+   *
+   * Le resserrement de la dette #33 (migration 20260809100000) borne la
+   * LECTURE d'un `plan_lot` à « celui que j'ai déposé » OU « un lot sur
+   * lequel je porte une mission », mais son prédicat de DÉPÔT se réduit,
+   * par algèbre, à « type `plan_lot`, déposé en mon propre nom » : la
+   * branche « mission » y est absorbée (X ∧ (X ∨ Y) ≡ X). La base
+   * accepte donc bien un dépôt sur n'importe quel lot, et cette liste ne
+   * ment pas sur ce qui est permis.
+   *
+   * 🔴 Ne PAS « corriger » cet écran en le filtrant sur
+   * `missions_geometre` : cette table est VIDE en production, la liste
+   * tomberait à 0 lot et le téléversement deviendrait impossible, y
+   * compris pour le compte de démonstration. Le jour où l'on décide de
+   * borner le dépôt aux missions, la base doit être resserrée D'ABORD
+   * (une ligne, documentée au §5 de la migration) et cet écran suivra.
+   */
   useEffect(() => {
     supabase
       .from("lots")
@@ -76,20 +95,52 @@ export default function UploadPlanModal({
       const id = crypto.randomUUID();
       const chemin = `plans-cad/${id}/original.dxf`;
 
-      const { error: uploadErr } = await supabase.storage
-        .from("documents")
-        .upload(chemin, file);
-      if (uploadErr) throw uploadErr;
-
+      // 🔴 L'ORDRE EST INVERSÉ DEPUIS LE 09/08 : la LIGNE d'abord, le
+      // BINAIRE ensuite. Ce n'est pas une préférence de style, la policy
+      // storage `documents_plans_cad_upload` l'exige : depuis la
+      // migration 20260809100000, un objet ne peut atterrir sous
+      // `plans-cad/` que si une ligne `documents` de type `plan_lot`
+      // déposée par l'appelant déclare EXACTEMENT ce chemin dans
+      // `url_fichier`. Envoyer le fichier en premier le ferait refuser.
+      //
+      // Bénéfice second, et il est mesuré : dans l'ancien ordre, un
+      // insert refusé laissait le binaire déjà envoyé dans le bucket
+      // privé, invisible et sans propriétaire logique — 4 des 7 objets
+      // de `plans-cad/` sont exactement cela. Ce cas ne peut plus se
+      // produire.
       const { error: insertErr } = await supabase.from("documents").insert({
         id,
         type: "plan_lot",
         lot_id: lotId,
         titre: titre.trim() || file.name,
         url_fichier: chemin,
+        // Contraint en base depuis le 09/08 (`televerse_par = auth.uid()`
+        // dans le `with check`) : ce champ n'est plus une déclaration du
+        // client, c'est une signature. Y mettre l'identifiant d'un tiers
+        // fait refuser l'écriture.
         televerse_par: user.id,
       });
-      if (insertErr) throw insertErr;
+      if (insertErr) {
+        throw new Error(
+          `Le dépôt du plan a été refusé : ${insertErr.message}`
+        );
+      }
+
+      const { error: uploadErr } = await supabase.storage
+        .from("documents")
+        .upload(chemin, file);
+      // La fiche existe déjà à ce stade. On ne tente PAS de la supprimer :
+      // aucun rôle hors admin n'a le DELETE sur `documents` (délibéré — un
+      // plan sur lequel une chefferie s'appuie ne doit pas pouvoir être
+      // effacé par son déposant), un `.delete()` ici ne toucherait 0 ligne
+      // en annonçant un succès. On nomme donc la fiche incomplète, pour
+      // qu'un administrateur puisse la retirer.
+      if (uploadErr) {
+        throw new Error(
+          `La fiche du plan a bien été enregistrée, mais l'envoi du fichier a échoué (${uploadErr.message}). ` +
+            `La fiche ${id} reste incomplète : signalez-la à un administrateur, puis recommencez le dépôt.`
+        );
+      }
 
       setStep("conversion");
 
@@ -130,7 +181,9 @@ export default function UploadPlanModal({
       <DialogContent showClose={!enCours}>
         <DialogHeader>
           <DialogTitle>Téléverser un plan</DialogTitle>
-          <DialogDescription>Fichier AutoCAD au format DXF rattaché à un lot.</DialogDescription>
+          <DialogDescription>
+            Fichier AutoCAD au format DXF rattaché à un lot. Le dépôt est enregistré à votre nom.
+          </DialogDescription>
         </DialogHeader>
 
         {step === "succes" ? (

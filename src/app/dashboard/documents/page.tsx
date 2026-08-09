@@ -748,12 +748,46 @@ function PvTab({ rows, chargeErreur }: { rows: PvRow[]; chargeErreur?: string | 
 
 // ─── Onglet Documents génériques ──────────────────────────────────────────────
 
-function PlanApercu({ doc, apercuUrl, onOpenLightbox }: {
+function PlanApercu({ doc, apercuUrl, onOpenLightbox, chargeLe }: {
   doc: DocumentRow;
   apercuUrl: string | undefined;
   onOpenLightbox: (url: string) => void;
+  /** Horodatage de la lecture de la liste. Relevé dans `load()`, pas ici. */
+  chargeLe: number | null;
 }) {
   if (!doc.apercu_url) {
+    // Une vignette absente a DEUX causes, et les confondre reproduirait le
+    // défaut corrigé quelques lignes plus bas (« un état d'attente perpétuel
+    // présenté comme un progrès ») :
+    //  · la conversion DXF → vignette tourne encore — quelques secondes ;
+    //  · elle n'aboutira JAMAIS. Depuis le 09/08, `UploadPlanModal` écrit la
+    //    ligne AVANT d'envoyer le binaire (la policy storage l'exige, cf.
+    //    migration 20260809100000) : un envoi échoué laisse donc une fiche
+    //    sans fichier. Cette classe de lignes n'existait pas avant.
+    // Rien dans la ligne ne les distingue — `apercu_url` est NULL dans les
+    // deux cas. Le temps, lui, tranche : au-delà du seuil, annoncer une
+    // conversion en cours est un mensonge, et il serait lu comme tel par le
+    // géomètre MAIS AUSSI par la chefferie et l'opérateur, qui lisent ces
+    // mêmes lignes.
+    // ⚠️ « Aperçu indisponible », et surtout PAS « Fiche incomplète » : le
+    // libellé accusateur serait un FAUX ROUGE sur un plan réel du registre.
+    // Relu en base le 09/08, les deux seuls `plan_lot` sont au format `.dwg` —
+    // que `convertir-plan-cad` ne convertit pas, il traite le DXF — et l'un
+    // des deux (`7d3a3f04…`) n'a PAS d'aperçu, alors que son binaire existe et
+    // se télécharge. (L'autre, `16dbe0f9…`, en a un : `apercu.png`, vestige de
+    // la version CloudConvert. Une première rédaction de ce commentaire les
+    // disait tous deux sans aperçu — faux, et relevé par le vérificateur.)
+    // Une vignette absente ne prouve pas qu'il manque un fichier ; elle prouve
+    // seulement qu'il n'y a pas de vignette. Dire l'un pour l'autre alarmerait
+    // la chefferie et l'opérateur, qui lisent ces mêmes lignes.
+    const attenteMs = chargeLe === null ? 0 : chargeLe - new Date(doc.televerse_le).getTime();
+    if (attenteMs > 15 * 60 * 1000) {
+      return (
+        <Badge tone="neutral">
+          <ImageIcon /> Aperçu indisponible
+        </Badge>
+      );
+    }
     return (
       <Badge tone="warning">
         <ImageIcon /> Conversion en cours
@@ -771,12 +805,23 @@ function PlanApercu({ doc, apercuUrl, onOpenLightbox }: {
   );
 }
 
-function DocumentsTab({ rows, apercuUrls, dlOriginal, onOpenLightbox, chargeErreur }: {
+function DocumentsTab({ rows, apercuUrls, dlOriginal, onOpenLightbox, chargeErreur, erreurAction, chargeLe }: {
   rows: DocumentRow[];
   apercuUrls: Record<string, string>;
   dlOriginal: (id: string) => void;
   onOpenLightbox: (url: string) => void;
   chargeErreur?: string | null;
+  /** Horodatage de la lecture de la liste, relevé dans `load()`. */
+  chargeLe: number | null;
+  /**
+   * Le motif d'un téléchargement refusé. Cet onglet était le seul des quatre
+   * à ne pas en avoir : `telechargerOriginalPlan` avalait son erreur en
+   * silence (« pas de state dédié pour ce bouton »), donc un clic sur une
+   * fiche sans fichier ne produisait RIEN — ni fichier, ni motif. C'est la
+   * forme la plus discrète de la dette #45, et l'inversion du 09/08 la rend
+   * atteignable pour de bon.
+   */
+  erreurAction?: string | null;
 }) {
   if (rows.length === 0) {
     return (
@@ -794,6 +839,11 @@ function DocumentsTab({ rows, apercuUrls, dlOriginal, onOpenLightbox, chargeErre
   }
   return (
     <div className="overflow-x-auto">
+      {erreurAction && (
+        <p className="mx-5 mb-3 rounded-xl border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">
+          {erreurAction}
+        </p>
+      )}
       <table className="w-full min-w-[700px] text-sm">
         <thead>
           <tr className="border-b border-border">
@@ -831,7 +881,7 @@ function DocumentsTab({ rows, apercuUrls, dlOriginal, onOpenLightbox, chargeErre
                 </td>
                 <td className="px-5 py-3.5">
                   {estPlanCao ? (
-                    <PlanApercu doc={doc} apercuUrl={apercuUrls[doc.id]} onOpenLightbox={onOpenLightbox} />
+                    <PlanApercu doc={doc} apercuUrl={apercuUrls[doc.id]} onOpenLightbox={onOpenLightbox} chargeLe={chargeLe} />
                   ) : doc.nom_fichier ? (
                     <span className="text-xs text-muted-2" title={doc.nom_fichier}>
                       {doc.nom_fichier.split(".").pop()?.toUpperCase() ?? "—"}
@@ -1189,6 +1239,8 @@ export default function DocumentsPage() {
   const [aRevoquerAttrib, setARevoquerAttrib] = useState<AttributionRow | null>(null);
   const [signatureEnCoursAttrib, setSignatureEnCoursAttrib] = useState<string | null>(null);
   const [erreurActionAttrib, setErreurActionAttrib] = useState<string | null>(null);
+  /** Motif d'un téléchargement de plan refusé — voir `telechargerOriginalPlan`. */
+  const [erreurDocument, setErreurDocument] = useState<string | null>(null);
   const [qrAttrib, setQrAttrib] = useState<AttributionRow | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [apercuUrls, setApercuUrls] = useState<Record<string, string>>({});
@@ -1200,11 +1252,22 @@ export default function DocumentsPage() {
   const [genererErreur, setGenererErreur] = useState<string | null>(null);
   /** Motif d'une des sept lectures tombée — cf. le bilan en fin de `load`. */
   const [chargeErreur, setChargeErreur] = useState<string | null>(null);
+  /** Horodatage de la dernière lecture de la liste — voir `load()`. */
+  const [chargeLe, setChargeLe] = useState<number | null>(null);
   const [confirmRattrapage, setConfirmRattrapage] = useState(false);
   /** Constat de signature en cours de retrait (admin) — cf. `RetraitSignatureModal`. */
   const [retrait, setRetrait] = useState<{ att: AttestationRow; signature: string } | null>(null);
   const [retraitAttrib, setRetraitAttrib] = useState<{ att: AttestationRow; signature: string } | null>(null);
 
+  /**
+   * Inchangé par le resserrement de la dette #33 (20260809100000), et
+   * vérifié comme tel : le `with check` de `documents_geometre_plans_insert`
+   * accepte toujours tout géomètre — il exige seulement que le dépôt soit
+   * fait EN SON PROPRE NOM (`televerse_par = auth.uid()`), pas qu'il porte
+   * une mission sur le lot. Le bouton ne promet donc rien que la base
+   * refuse. Ce qui a changé est la LECTURE : il ne verra ensuite que les
+   * plans qu'il a déposés, plus ceux des lots où il est en mission.
+   */
   const peutTeleverserPlan = isAdmin || profile?.groupe === "geometre";
   /**
    * Ce que ce rôle peut faire sur une attestation. La table vient de
@@ -1257,6 +1320,13 @@ export default function DocumentsPage() {
     setAttributionsLot((attribRes.data ?? []) as unknown as AttributionRow[]);
     setPvs((pvRes.data ?? []) as unknown as PvRow[]);
     setDocs((docRes.data ?? []) as unknown as DocumentRow[]);
+    // L'heure est relevée ICI, dans le callback de chargement, et pas pendant
+    // le rendu : `Date.now()` en plein rendu rend le composant impur
+    // (`react-hooks/purity`), et le déplacer dans un effet se heurte à
+    // `react-hooks/set-state-in-effect`. Un callback asynchrone est le bon
+    // endroit — et c'est aussi le plus juste sémantiquement : l'ancienneté
+    // d'une fiche se juge par rapport au moment où on a lu la liste.
+    setChargeLe(Date.now());
     setAttestationsEligibles(eligiblesRes.count ?? 0);
     setAttestationsBloquees(bloqueesRes.count ?? 0);
     // Tous les lots d'un lotissement sont bloqués pour la même raison : on replie
@@ -1366,11 +1436,19 @@ export default function DocumentsPage() {
   }, [docs, apercuUrls, signerDocument]);
 
   const telechargerOriginalPlan = async (id: string) => {
+    setErreurDocument(null);
     try {
       const url = await signerDocument(id, "original");
       window.open(url, "_blank");
-    } catch {
-      // erreur silencieuse, pas de state dédié pour ce bouton
+    } catch (e) {
+      // Plus de `catch {}` muet ici : `signerDocument` lève déjà avec le motif
+      // rendu par l'edge function, et le jeter faisait qu'un clic sans effet
+      // était le SEUL retour — indiscernable d'un navigateur qui bloque le
+      // pop-up. Le cas devient courant depuis l'inversion du 09/08 : une fiche
+      // dont l'envoi du binaire a échoué n'a pas de fichier à signer.
+      setErreurDocument(
+        e instanceof Error ? e.message : "Le fichier n'a pas pu être récupéré."
+      );
     }
   };
 
@@ -1715,6 +1793,8 @@ export default function DocumentsPage() {
               rows={docs}
               apercuUrls={apercuUrls}
               dlOriginal={telechargerOriginalPlan}
+              erreurAction={erreurDocument}
+              chargeLe={chargeLe}
               onOpenLightbox={setLightbox}
               chargeErreur={chargeErreur}
             />
