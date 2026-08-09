@@ -22,7 +22,7 @@ import {
   etatSignaturesApfc,
   etatSignaturesCession,
 } from "@/lib/signatures-attestation";
-import { fetchAllPages } from "@/lib/supabase-pagination";
+import { fetchAllPages, messageLecture, type ReponsePostgrest } from "@/lib/supabase-pagination";
 import type { AttestationCoutumiere } from "@/components/dashboard/chefferie/types";
 import { SignaturesBadges, ProgressBar } from "@/components/dashboard/chefferie/SharedUI";
 
@@ -99,6 +99,19 @@ export default function ValidationsPage() {
   const [signingAttrib, setSigningAttrib] = useState<string | null>(null);
   const [signingApfc, setSigningApfc] = useState<string | null>(null);
   const [signError, setSignError] = useState<string | null>(null);
+  /**
+   * 🔴 UN REFUS QUI SE LISAIT « RIEN EN ATTENTE ». Les trois lectures
+   * jetaient leur `error` : un `42501` rendait une liste vide, et l'écran
+   * affichait alors, en vert, « Aucune attestation de cession n'attend votre
+   * validation ». Un droit manquant et une file réellement soldée disaient
+   * exactement la même chose — c'est la dette #45. Une erreur par file : elles
+   * ne réussissent pas ni n'échouent ensemble.
+   */
+  const [erreurs, setErreurs] = useState<{
+    cessions: string | null;
+    attributions: string | null;
+    apfc: string | null;
+  }>({ cessions: null, attributions: null, apfc: null });
 
   const autoriteId = profile?.autorite_coutumiere_id ?? null;
 
@@ -124,7 +137,7 @@ export default function ValidationsPage() {
           )
           .is("sig_chefferie_le", null)
           .order("id", { ascending: true })
-          .range(de, a) as unknown as PromiseLike<{ data: AttestationCession[] | null }>
+          .range(de, a) as unknown as PromiseLike<ReponsePostgrest<AttestationCession>>
       ),
       fetchAllPages<AttestationAttributionLot>((de, a) =>
         supabase
@@ -134,7 +147,7 @@ export default function ValidationsPage() {
           )
           .is("sig_chefferie_le", null)
           .order("id", { ascending: true })
-          .range(de, a) as unknown as PromiseLike<{ data: AttestationAttributionLot[] | null }>
+          .range(de, a) as unknown as PromiseLike<ReponsePostgrest<AttestationAttributionLot>>
       ),
       fetchAllPages<AttestationCoutumiere>((de, a) =>
         supabase
@@ -148,12 +161,24 @@ export default function ValidationsPage() {
           )
           .eq("autorite_coutumiere_id", autoriteId)
           .order("id", { ascending: true })
-          .range(de, a) as unknown as PromiseLike<{ data: AttestationCoutumiere[] | null }>
+          .range(de, a) as unknown as PromiseLike<ReponsePostgrest<AttestationCoutumiere>>
       ),
     ]);
-    setAttestations(attestationsRows);
-    setAttributionsLot(attribRows);
-    setApfc(apfcRows);
+    // Les lignes déjà lues sont conservées même en cas d'échec : `fetchAllPages`
+    // peut rendre une première page valide et échouer sur la suivante. Ce qui
+    // change, c'est qu'on ne présente plus ce résultat comme complet.
+    setAttestations(attestationsRows.rows);
+    setAttributionsLot(attribRows.rows);
+    setApfc(apfcRows.rows);
+    setErreurs({
+      cessions: attestationsRows.error
+        ? messageLecture("les attestations de cession", attestationsRows.error)
+        : null,
+      attributions: attribRows.error
+        ? messageLecture("les attestations d'attribution de lot", attribRows.error)
+        : null,
+      apfc: apfcRows.error ? messageLecture("les APFC de votre juridiction", apfcRows.error) : null,
+    });
   }, [autoriteId, supabase]);
 
   const { isLoading, recharger } = useChargement(fetchData, [autoriteId], !!autoriteId);
@@ -325,13 +350,25 @@ export default function ValidationsPage() {
                 </CardAction>
               )}
             </CardHeader>
+            {/* Le motif du refus, sur la carte concernée : un bandeau global
+                ne dirait pas LAQUELLE des trois files n'a pas pu être lue. */}
+            {erreurs.cessions && (
+              <p role="alert" className="mx-5 mb-4 rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
+                {erreurs.cessions}
+              </p>
+            )}
             {attestations.length === 0 ? (
-              <EmptyState
-                icon={CheckCircle2}
-                tone="positive"
-                title="Rien en attente"
-                description="Aucune attestation de cession n'attend votre validation."
-              />
+              // Rien lu ET lecture en échec : surtout pas le « Rien en attente »
+              // vert, qui annoncerait une file soldée là où l'on n'a rien pu
+              // lire. Le bandeau ci-dessus dit seul ce qui s'est passé.
+              erreurs.cessions ? null : (
+                <EmptyState
+                  icon={CheckCircle2}
+                  tone="positive"
+                  title="Rien en attente"
+                  description="Aucune attestation de cession n'attend votre validation."
+                />
+              )
             ) : (
               // Sur une juridiction qui porte tous les lotissements, la file
               // dépasse les 400 entrées : sans hauteur bornée la page s'étirait
@@ -413,13 +450,20 @@ export default function ValidationsPage() {
                 </CardAction>
               )}
             </CardHeader>
+            {erreurs.attributions && (
+              <p role="alert" className="mx-5 mb-4 rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
+                {erreurs.attributions}
+              </p>
+            )}
             {attributionsLot.length === 0 ? (
-              <EmptyState
-                icon={CheckCircle2}
-                tone="positive"
-                title="Rien en attente"
-                description="Aucune Attestation d'Attribution de Lot n'attend votre signature."
-              />
+              erreurs.attributions ? null : (
+                <EmptyState
+                  icon={CheckCircle2}
+                  tone="positive"
+                  title="Rien en attente"
+                  description="Aucune Attestation d'Attribution de Lot n'attend votre signature."
+                />
+              )
             ) : (
               <ScrollArea className="max-h-[520px] border-t border-border">
               <ul className="divide-y divide-border">
@@ -504,12 +548,19 @@ export default function ValidationsPage() {
                 </CardAction>
               )}
             </CardHeader>
+            {erreurs.apfc && (
+              <p role="alert" className="mx-5 mb-4 rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
+                {erreurs.apfc}
+              </p>
+            )}
             {apfc.length === 0 ? (
-              <EmptyState
-                icon={ScrollText}
-                title="Aucune APFC"
-                description="Aucune attestation de propriété foncière coutumière sur votre territoire."
-              />
+              erreurs.apfc ? null : (
+                <EmptyState
+                  icon={ScrollText}
+                  title="Aucune APFC"
+                  description="Aucune attestation de propriété foncière coutumière sur votre territoire."
+                />
+              )
             ) : (
               <ScrollArea className="max-h-[520px] border-t border-border">
               <ul className="divide-y divide-border">

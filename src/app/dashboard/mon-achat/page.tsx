@@ -7,6 +7,7 @@ import {
   BadgeCheck,
   CheckCircle2,
   CreditCard,
+  Download,
   FileCheck2,
   HelpCircle,
   Landmark,
@@ -26,6 +27,7 @@ import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
 import { createClient } from "@/utils/supabase/client";
 import { invokeEdge } from "@/lib/invoke-edge";
+import { messageLecture } from "@/lib/supabase-pagination";
 import { fadeUp, stagger } from "@/lib/motion";
 
 import ParcellesSuivies from "./_ParcellesSuivies";
@@ -39,10 +41,39 @@ import ParcellesSuivies from "./_ParcellesSuivies";
  * « Trouver un terrain » (/dashboard/acquisition).
  */
 
+/**
+ * DEUX CHEMINS, DEUX BESOINS — ne pas les confondre.
+ *
+ * 1. `/verifier?ref=` (ci-dessous) — la vérification PUBLIQUE et opposable :
+ *    n'importe qui, muni de la référence ou du QR, contrôle l'authenticité de
+ *    l'acte. C'est le produit payant (60 000 FCFA, `TYPES_PAYANTS` dans
+ *    `supabase/functions/verification-qr/index.ts`). Il reste en place, entier
+ *    et inchangé : un acquéreur peut vouloir le montrer à un tiers.
+ *
+ * 2. `telechargerAttestation()` plus bas — la LECTURE DE SON PROPRE ACTE par
+ *    une partie concernée, gratuite. Elle ne passe PAS par `verification-qr`
+ *    et ne touche donc à aucun tarif : elle passe par `telecharger-document`,
+ *    qui relit la ligne avec le JETON DE L'APPELANT (les RLS s'appliquent,
+ *    policy `attcess_read` : `acquereur_id = mon_attributaire_id()`) avant de
+ *    signer une URL de 120 s. Un tiers qui scanne un QR n'a pas de session
+ *    portant cet `attributaire_id` : la RLS lui rend 0 ligne et la fonction
+ *    répond 403. Le paywall n'est donc pas contournable par ce chemin.
+ */
 const verifUrl = (reference: string) => {
   const origin = typeof window !== "undefined" ? window.location.origin : "https://sgfn.ci";
   return `${origin}/verifier?ref=${encodeURIComponent(reference)}`;
 };
+
+/**
+ * Repli affiché UNIQUEMENT quand le serveur n'a envoyé aucun motif exploitable
+ * — coupure réseau, CORS, corps non-JSON. Il sert aussi de sentinelle : si
+ * `invokeEdge` rend exactement ce texte, c'est que rien n'a été compris du
+ * serveur, donc que l'état réel est INCONNU. Toute autre valeur vient de
+ * `telecharger-document` et dit quelque chose de vrai (refus d'accès, fichier
+ * pas encore généré). Même doctrine que `useAttestations.ts` (`incertain`).
+ */
+const REPLI_TRANSPORT =
+  "Nous n'avons pas pu joindre le service de téléchargement. Vérifiez votre connexion, puis réessayez.";
 
 const fcfa = (n: number | null | undefined) =>
   n == null ? "" : `${new Intl.NumberFormat("fr-FR").format(n)} FCFA`;
@@ -59,6 +90,12 @@ type VenteRow = { id: string; statut: string; type_vente: string; prix_total: nu
 type LotLabel = { lotissement: string | null; ilot: string | null; lot: string | null; village: string | null; commune: string | null };
 type Paie = { id: string; statut: string; montant_total: number | null };
 type Doc = { reference: string; qr_token: string | null };
+/**
+ * `incertain` : le serveur n'a rien dit d'exploitable, donc on ne sait PAS si
+ * l'acte est inaccessible ou si l'appel n'est simplement jamais arrivé. Ne
+ * jamais présenter ce cas comme « vous n'avez pas ce document ».
+ */
+type DlErreur = { reference: string; message: string; incertain: boolean };
 
 /**
  * « C'est à moi de payer » — le même critère que le bouton « Payer » des cartes
@@ -81,6 +118,9 @@ function MonAchatContenu() {
   const [attPaies, setAttPaies] = useState<Record<string, Paie>>({});
   const [payingId, setPayingId] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
+  /** Référence de l'attestation dont le téléchargement est en cours, ou null. */
+  const [dlEnCours, setDlEnCours] = useState<string | null>(null);
+  const [dlErreur, setDlErreur] = useState<DlErreur | null>(null);
   /**
    * 🔴 UN ÉCHEC QUI SE FAISAIT PASSER POUR « AUCUN ACHAT » — relevé le
    * 30/07/2026 par un vérificateur tiers. `load()` faisait
@@ -92,6 +132,9 @@ function MonAchatContenu() {
    * pas pu lire vos achats ».
    */
   const [chargeErreur, setChargeErreur] = useState<string | null>(null);
+  /** Motif d'une lecture SECONDAIRE tombée (ventes, certificats, attestations,
+   *  paiements) : la page reste affichée, mais annoncée comme incomplète. */
+  const [detailErreur, setDetailErreur] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const { data, error } = await supabase
@@ -105,6 +148,12 @@ function MonAchatContenu() {
       return;
     }
     setChargeErreur(null);
+    // 🔴 Les lectures SUIVANTES jetaient toutes leur `error` : le correctif du
+    // 30/07 n'avait porté que sur la première. La plus grave est celle des
+    // attestations — un acquéreur est une des « parties concernées » de la
+    // consigne, et un refus sur son propre acte se présentait comme un acte
+    // inexistant. On accumule les motifs, on les affiche à la fin.
+    const echecs: string[] = [];
     const rows = (data ?? []) as DemandeRow[];
     setDemandes(rows);
 
@@ -151,6 +200,8 @@ function MonAchatContenu() {
         supabase.rpc("mes_suivis"),
         supabase.from("annonces_marketplace").select("lot_id,titre,zone").in("lot_id", lotIds),
       ]);
+      if (suivisRes.error) echecs.push(messageLecture("les terrains que vous suivez", suivisRes.error));
+      if (annoncesRes.error) echecs.push(messageLecture("les annonces liées à vos demandes", annoncesRes.error));
       for (const s of (suivisRes.data ?? []) as SuiviLabel[]) {
         if (!lotIds.includes(s.lot_id)) continue;
         lotMap[s.lot_id] = {
@@ -192,6 +243,9 @@ function MonAchatContenu() {
           .in("vente_id", venteIds)
           .order("cree_le", { ascending: false }),
       ]);
+      if (vRes.error) echecs.push(messageLecture("vos ventes", vRes.error));
+      if (cRes.error) echecs.push(messageLecture("vos certificats de vente", cRes.error));
+      if (vpRes.error) echecs.push(messageLecture("les paiements de vos ventes", vpRes.error));
       const vMap: Record<string, VenteRow> = {};
       for (const v of (vRes.data ?? []) as VenteRow[]) vMap[v.id] = v;
       setVentes(vMap);
@@ -213,6 +267,8 @@ function MonAchatContenu() {
         supabase.from("attestations_cession").select("reference,qr_token,cession_id").in("cession_id", cessionIds),
         supabase.from("paiements").select("id,statut,montant_total,cession_id").eq("type", "attestation_cession").in("cession_id", cessionIds),
       ]);
+      if (aRes.error) echecs.push(messageLecture("vos attestations de cession", aRes.error));
+      if (apRes.error) echecs.push(messageLecture("les paiements de vos attestations", apRes.error));
       const aMap: Record<string, Doc> = {};
       for (const a of (aRes.data ?? []) as (Doc & { cession_id: string | null })[]) if (a.cession_id) aMap[a.cession_id] = { reference: a.reference, qr_token: a.qr_token };
       setAttestations(aMap);
@@ -223,6 +279,11 @@ function MonAchatContenu() {
       setAttestations({});
       setAttPaies({});
     }
+
+    // Volontairement PAS `chargeErreur` : celui-là escamote toute la liste des
+    // achats, ce qui serait faux ici — les demandes, elles, ont bien été lues.
+    // Une lecture secondaire tombée rend la page INCOMPLÈTE, pas illisible.
+    setDetailErreur(echecs.length ? echecs.join(" · ") : null);
   }, [supabase]);
 
   const { isLoading: loading, recharger } = useChargement(load);
@@ -250,6 +311,44 @@ function MonAchatContenu() {
       return;
     }
     window.location.assign(res.data.payment_url);
+  };
+
+  /**
+   * Lecture GRATUITE de son propre acte — première phrase de la consigne du
+   * propriétaire du projet : « toute attestation générée devra pouvoir être
+   * lisible par les parties concernées ». L'acquéreur était la seule des quatre
+   * parties nommées à ne rien lire : cet écran ne renvoyait que vers
+   * `/verifier`, c'est-à-dire vers le guichet payant, pour un acte dont il est
+   * partie. On ajoute le chemin manquant, on n'en retire aucun.
+   *
+   * `telecharger-document` est le levier propre : il relit la ligne avec le
+   * jeton de l'appelant (RLS appliquées) AVANT de signer l'URL en service_role.
+   * Aucune autorisation n'est dupliquée ici, et le bucket `documents` reste
+   * privé — il n'a d'ailleurs aucune policy SELECT sur le préfixe
+   * `attestations_cession/`, donc l'accès direct au Storage reste fermé.
+   */
+  const telechargerAttestation = async (reference: string) => {
+    setDlEnCours(reference);
+    setDlErreur(null);
+    const res = await invokeEdge<{ url: string }>(
+      supabase,
+      "telecharger-document",
+      { table: "attestations_cession", reference },
+      REPLI_TRANSPORT,
+    );
+    setDlEnCours(null);
+
+    // 🔴 On LIT l'erreur. Un refus d'accès (403) et un fichier pas encore
+    // généré (404) sont deux faits différents, et aucun des deux ne doit
+    // s'afficher comme l'autre — ni comme un simple bouton qui ne réagit pas.
+    if (res.error || !res.data?.url) {
+      const message = res.error ?? REPLI_TRANSPORT;
+      setDlErreur({ reference, message, incertain: message === REPLI_TRANSPORT });
+      return;
+    }
+    // Même geste que /dashboard/documents : l'URL signée expire en 120 s, on
+    // l'ouvre tout de suite plutôt que de la garder en mémoire.
+    window.open(res.data.url, "_blank", "noopener,noreferrer");
   };
 
   const payerEcheanceSuivante = async (venteId: string) => {
@@ -342,6 +441,12 @@ function MonAchatContenu() {
         </div>
       )}
 
+      {!loading && !chargeErreur && detailErreur && (
+        <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
+          Page INCOMPLÈTE — {detailErreur}
+        </p>
+      )}
+
       {/* Achats en cours : l'ancien tunnel agence, conservé, mais secondaire —
           affiché seulement s'il existe une demande/vente réelle. */}
       {loading || chargeErreur ? null : demandes.length > 0 ? (
@@ -368,6 +473,9 @@ function MonAchatContenu() {
                 payingId={payingId}
                 onPayer={payerEnLigne}
                 onPayerEcheance={payerEcheanceSuivante}
+                dlEnCours={dlEnCours}
+                dlErreur={dlErreur}
+                onTelecharger={telechargerAttestation}
               />
             </motion.div>
           ))}
@@ -412,6 +520,9 @@ function AchatCard({
   payingId,
   onPayer,
   onPayerEcheance,
+  dlEnCours,
+  dlErreur,
+  onTelecharger,
 }: {
   d: DemandeRow;
   lot: LotLabel | undefined;
@@ -423,6 +534,9 @@ function AchatCard({
   payingId: string | null;
   onPayer: (id: string) => void;
   onPayerEcheance: (venteId: string) => void;
+  dlEnCours: string | null;
+  dlErreur: DlErreur | null;
+  onTelecharger: (reference: string) => void;
 }) {
   const refusee = d.statut === "refusee" || d.statut === "annulee";
   const hasVente = !!vente;
@@ -508,6 +622,9 @@ function AchatCard({
             hasCession={!!d.cession_id}
             payingId={payingId}
             onPayer={onPayer}
+            dlEnCours={dlEnCours}
+            dlErreur={dlErreur}
+            onTelecharger={onTelecharger}
           />
         )}
       </div>
@@ -582,6 +699,9 @@ function Proprietaire({
   hasCession,
   payingId,
   onPayer,
+  dlEnCours,
+  dlErreur,
+  onTelecharger,
 }: {
   certificat: Doc | undefined;
   attestation: Doc | undefined;
@@ -589,6 +709,9 @@ function Proprietaire({
   hasCession: boolean;
   payingId: string | null;
   onPayer: (id: string) => void;
+  dlEnCours: string | null;
+  dlErreur: DlErreur | null;
+  onTelecharger: (reference: string) => void;
 }) {
   const attEnLigne = attPaie && (attPaie.statut === "en_attente" || attPaie.statut === "initie");
   const attGuichet = attPaie && attPaie.statut === "en_attente_validation";
@@ -617,16 +740,66 @@ function Proprietaire({
 
       {/* Étape attestation */}
       {attestation ? (
-        <Button
-          asChild
-          variant="primary"
-          className="h-auto w-full rounded-xl py-4 text-base font-bold"
-        >
-          <a href={verifUrl(attestation.reference)} target="_blank" rel="noopener noreferrer">
-            <ShieldCheck className="size-5" aria-hidden />
-            Voir mon attestation
+        <div className="space-y-2">
+          {/* Action principale : LIRE SON PROPRE ACTE, gratuitement. */}
+          <Button
+            variant="primary"
+            loading={dlEnCours === attestation.reference}
+            onClick={() => onTelecharger(attestation.reference)}
+            className="h-auto w-full rounded-xl py-4 text-base font-bold"
+          >
+            {dlEnCours !== attestation.reference && <Download className="size-5" aria-hidden />}
+            {dlEnCours === attestation.reference ? "Ouverture…" : "Voir mon attestation"}
+          </Button>
+          <p className="text-center text-xs text-muted-2">
+            Gratuit — c&apos;est votre document ({attestation.reference}).
+          </p>
+
+          {/* Le refus et la panne ne disent PAS la même chose : on affiche le
+              motif rendu par le serveur, et on ne prétend jamais « vous n'avez
+              pas ce document » quand on n'a rien pu lire du tout. */}
+          {dlErreur && dlErreur.reference === attestation.reference && (
+            <div
+              role="alert"
+              className="flex flex-col gap-1.5 rounded-xl border border-danger/30 bg-danger-subtle px-4 py-3"
+            >
+              <p className="text-sm font-semibold text-foreground">
+                {dlErreur.incertain
+                  ? "Nous n'avons pas pu ouvrir votre attestation."
+                  : "Votre attestation n'a pas pu être ouverte."}
+              </p>
+              <p className="text-xs leading-relaxed text-muted-foreground">{dlErreur.message}</p>
+              {dlErreur.incertain && (
+                <p className="text-xs leading-relaxed text-muted-2">
+                  Cela ne veut pas dire que le document n&apos;existe pas : la demande n&apos;a
+                  pas abouti.
+                </p>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-1 self-start"
+                onClick={() => onTelecharger(attestation.reference)}
+              >
+                Réessayer
+              </Button>
+            </div>
+          )}
+
+          {/* ⚠️ CONSERVÉ : la vérification publique opposable est un AUTRE
+              besoin (montrer l'acte à un tiers, contrôle d'authenticité). Elle
+              reste payante pour les tiers — on n'y touche pas. */}
+          <a
+            href={verifUrl(attestation.reference)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent flex items-center justify-center gap-1.5 pt-1 text-xs font-semibold underline decoration-dotted hover:no-underline"
+          >
+            <ShieldCheck className="size-3.5" aria-hidden />
+            Page de vérification publique
           </a>
-        </Button>
+        </div>
       ) : attEnLigne ? (
         <>
           <Button

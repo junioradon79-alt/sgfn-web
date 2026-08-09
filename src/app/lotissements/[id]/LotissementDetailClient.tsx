@@ -11,7 +11,7 @@ import { Card } from "@/components/ds/card";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
 import { useProfile } from "@/hooks/useProfile";
-import { fetchAllPages } from "@/lib/supabase-pagination";
+import { fetchAllPages, messageLecture, type ReponsePostgrest } from "@/lib/supabase-pagination";
 import { LotDetailModal, type LotRecord, type LitigeRow, type ScoreConfiance } from "@/components/dashboard/lots/LotDetailModal";
 import PlanLotissementCard from "@/features/lotissements/components/PlanLotissementCard";
 
@@ -78,6 +78,12 @@ export default function LotissementDetailClient() {
   const [lots, setLots] = useState<LotRow[]>([]);
   const [attributaires, setAttributaires] = useState<AttributaireRow[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
+  /**
+   * Motif d'une lecture PARTIELLE. Distinct de `erreur`, qui remplace la page
+   * entière par « Lotissement introuvable » : des îlots ou des lots non lus ne
+   * doivent pas escamoter la fiche, seulement dire qu'elle est incomplète.
+   */
+  const [chargeErreur, setChargeErreur] = useState<string | null>(null);
 
   // Dossier foncier d'un lot (lecture seule) — ouvert au clic sur une ligne.
   const [dossierLot, setDossierLot] = useState<LotRecord | null>(null);
@@ -87,6 +93,7 @@ export default function LotissementDetailClient() {
 
   const fetchData = useCallback(async () => {
     setErreur(null);
+    setChargeErreur(null);
 
     const { data: lotissementData, error: lotissementErr } = await supabase
       .from("lotissements")
@@ -102,13 +109,22 @@ export default function LotissementDetailClient() {
     }
     setLotissement(lotissementData as LotissementDetail);
 
-    const { data: ilotsData } = await supabase
+    const { data: ilotsData, error: ilotsErr } = await supabase
       .from("ilots")
       .select("id, numero")
       .eq("lotissement_id", params.id)
       .order("numero");
     const ilotsList = (ilotsData ?? []) as IlotRow[];
     setIlots(ilotsList);
+    // 🔴 Sans ce contrôle, des îlots refusés faisaient sortir la fonction ici,
+    // et la fiche s'affichait « 0 îlot, 0 lot » sur un lotissement qui en
+    // compte des centaines — indiscernable d'un lotissement non encore découpé.
+    if (ilotsErr) {
+      setChargeErreur(messageLecture("les îlots de ce lotissement", ilotsErr));
+      setLots([]);
+      setAttributaires([]);
+      return;
+    }
 
     if (ilotsList.length === 0) {
       setLots([]);
@@ -129,11 +145,15 @@ export default function LotissementDetailClient() {
         .eq("ilots.lotissement_id", params.id)
         .order("numero_lot", { ascending: true })
         .order("id", { ascending: true })
-        .range(from, to) as unknown as PromiseLike<{ data: LotFlat[] | null }>
+        .range(from, to) as unknown as PromiseLike<ReponsePostgrest<LotFlat>>
     );
-    setLots(lotsList as LotRow[]);
+    setLots(lotsList.rows as LotRow[]);
 
-    if (lotsList.length === 0) {
+    if (lotsList.error) {
+      setChargeErreur(messageLecture("les lots de ce lotissement", lotsList.error));
+    }
+
+    if (lotsList.rows.length === 0) {
       setAttributaires([]);
       return;
     }
@@ -145,14 +165,22 @@ export default function LotissementDetailClient() {
         .select("lot_id, qualite, attributaires(nom)")
         .eq("actuel", true)
         .order("id", { ascending: true })
-        .range(from, to) as unknown as PromiseLike<{ data: AttrFlat[] | null }>
+        .range(from, to) as unknown as PromiseLike<ReponsePostgrest<AttrFlat>>
     );
-    const lotIdSet = new Set(lotsList.map((l) => l.id));
+    const lotIdSet = new Set(lotsList.rows.map((l) => l.id));
     setAttributaires(
-      attribData
+      attribData.rows
         .filter((a) => lotIdSet.has(a.lot_id))
         .map((a) => ({ lot_id: a.lot_id, qualite: a.qualite, nom: a.attributaires?.nom ?? "—" }))
     );
+    // Une lecture d'attributions refusée affichait TOUS les lots « libre » :
+    // le pire des états, puisqu'il se lit comme une information positive.
+    if (attribData.error) {
+      setChargeErreur((p) => {
+        const m = messageLecture("les attributions", attribData.error!);
+        return p ? `${p} · ${m}` : m;
+      });
+    }
   }, [params.id, supabase]);
 
   const { isLoading: loading, recharger } = useChargement(fetchData, [fetchData]);
@@ -246,6 +274,12 @@ export default function LotissementDetailClient() {
           {[lotissement.village, lotissement.commune, lotissement.district].filter(Boolean).join(" · ") || "—"}
         </p>
       </div>
+
+      {chargeErreur && (
+        <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
+          Fiche INCOMPLÈTE — {chargeErreur}
+        </p>
+      )}
 
       {identite.length > 0 && (
         <Card className="p-5">

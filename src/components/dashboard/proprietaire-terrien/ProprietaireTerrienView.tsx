@@ -7,7 +7,7 @@ import { useChargement } from "@/hooks/useChargement";
 import { stagger } from "@/lib/motion";
 import type { BadgeKey } from "@/lib/navigation";
 import { apfcAttendSignature, etatSignaturesApfc } from "@/lib/signatures-attestation";
-import { fetchAllPages } from "@/lib/supabase-pagination";
+import { fetchAllPages, messageLecture, type ReponsePostgrest } from "@/lib/supabase-pagination";
 import { AppShell } from "@/components/pilotage/AppShell";
 import { Badge, CountBadge } from "@/components/ds/badge";
 import { Button } from "@/components/ds/button";
@@ -124,6 +124,8 @@ export function ProprietaireTerrienView({
 
   const [signing, setSigning] = useState<string | null>(null);
   const [signError, setSignError] = useState<string | null>(null);
+  /** Motif d'une lecture tombée — cf. le bilan dressé en fin de `fetchData`. */
+  const [chargeErreur, setChargeErreur] = useState<string | null>(null);
 
   // Groupes de lotissements dépliés (repliés par défaut : un portefeuille réel
   // dépasse la centaine de lots).
@@ -146,14 +148,14 @@ export function ProprietaireTerrienView({
               .select("id, nom, chef_de_famille, lignee:lignee_id(nom), attributaire_id")
               .eq("id", profile.famille_id)
               .single()
-          : Promise.resolve({ data: null }),
+          : Promise.resolve({ data: null, error: null }),
         attributaireId
           ? supabase
               .from("attributions")
               .select("rang, qualite, lot:lot_id(id, numero_lot, statut, ilots(numero, lotissements(nom)))")
               .eq("attributaire_id", attributaireId)
               .eq("actuel", true)
-          : Promise.resolve({ data: [] }),
+          : Promise.resolve({ data: [], error: null }),
         profile.famille_id
           ? // `cvgfr_id` + `signatures_requises` du lotissement portent le
             // NOMBRE de signatures exigées (cf. `etatSignaturesApfc`).
@@ -169,9 +171,9 @@ export function ProprietaireTerrienView({
                 .select("id, reference, numero, statut, date_delivrance, sig_chef_famille_le, sig_chef_village_le, sig_cvgfr_le, cvgfr_id, chef_de_famille, lotissement:lotissement_id(signatures_requises)")
                 .eq("famille_id", profile.famille_id!)
                 .order("id", { ascending: true })
-                .range(de, a) as unknown as PromiseLike<{ data: AttestationCoutumiere[] | null }>
-            ).then((data) => ({ data }))
-          : Promise.resolve({ data: [] }),
+                .range(de, a) as unknown as PromiseLike<ReponsePostgrest<AttestationCoutumiere>>
+            ).then(({ rows, error }) => ({ data: rows, error }))
+          : Promise.resolve({ data: [], error: null }),
         // Litiges actifs (RLS scopée à ses parcelles) + concertations où il participe.
         supabase.from("litiges").select("id", { count: "exact", head: true }).neq("statut", "clos"),
         supabase.from("conversation_participants").select("profile_id", { count: "exact", head: true }).eq("profile_id", profile.id),
@@ -184,14 +186,14 @@ export function ProprietaireTerrienView({
               .select("lot_id")
               .eq("statut", "delivree")
               .eq("acquereur_id", attributaireId)
-          : Promise.resolve({ data: [] }),
+          : Promise.resolve({ data: [], error: null }),
         attributaireId
           ? supabase
               .from("certificats_vente")
               .select("lot_id")
               .eq("statut", "delivree")
               .eq("acquereur_id", attributaireId)
-          : Promise.resolve({ data: [] }),
+          : Promise.resolve({ data: [], error: null }),
         // Annonces déjà déposées (RLS : proprietaire_profile_id = auth.uid()).
         supabase
           .from("annonces_marketplace")
@@ -224,6 +226,26 @@ export function ProprietaireTerrienView({
     );
     setSuiveurs(suiveursMap);
 
+    // 🔴 Aucune de ces neuf lectures n'inspectait son `error`. Le plus grave
+    // est l'éligibilité TerraCI Market : `attRes`/`certRes` refusées vidaient
+    // `lotsAvecDocDelivre`, et TOUS les lots basculaient en « Non vendable » —
+    // un refus de lecture se présentait comme un verdict juridique sur le bien.
+    const echecs = (
+      [
+        ["votre famille", familleRes.error],
+        ["vos lots", mesLotsRes.error],
+        ["vos APFC", apfcRes.error],
+        ["les litiges", litigesRes.error],
+        ["vos échanges de concertation", concertationRes.error],
+        ["vos attestations de cession délivrées", attRes.error],
+        ["vos certificats de vente délivrés", certRes.error],
+        ["vos annonces TerraCI Market", annRes.error],
+        ["les acquéreurs qui suivent vos lots", suiveursRes.error],
+      ] as const
+    )
+      .filter(([, e]) => !!e)
+      .map(([quoi, e]) => messageLecture(quoi, e!));
+
     // Lots collectifs + PV de famille : scopés au collectif d'ayants-droit de la
     // famille. Le filtre explicite corrige la fuite historique (la RLS scopée sur
     // pv_reunions_famille n'existe que depuis 20260716160000).
@@ -240,6 +262,8 @@ export function ProprietaireTerrienView({
           .eq("collectif_attributaire_id", familleData.attributaire_id),
       ]);
       setLotsCollectifs((lotsColRes.data ?? []) as unknown as AttributionRow[]);
+      if (lotsColRes.error) echecs.push(messageLecture("les lots collectifs de la famille", lotsColRes.error));
+      if (pvRes.error) echecs.push(messageLecture("les PV de réunion de famille", pvRes.error));
 
       const pvData = (pvRes.data ?? []) as unknown as {
         id: string;
@@ -265,6 +289,8 @@ export function ProprietaireTerrienView({
       setLotsCollectifs([]);
       setPvs([]);
     }
+
+    setChargeErreur(echecs.length ? echecs.join(" · ") : null);
   }, [profile.famille_id, profile.attributaire_id, profile.id]);
 
   const { isLoading: loading, recharger } = useChargement(fetchData, [fetchData]);
@@ -424,6 +450,15 @@ export function ProprietaireTerrienView({
       {signError && (
         <p role="alert" className="rounded-lg border border-danger/30 bg-danger-subtle px-4 py-2.5 text-[13px] text-danger">
           {signError}
+        </p>
+      )}
+
+      {/* Une lecture refusée vidait les compteurs ET faisait passer les lots en
+          « Non vendable » : sans ce bandeau, le patrimoine paraissait
+          simplement plus pauvre qu'il n'est. */}
+      {chargeErreur && (
+        <p role="alert" className="rounded-lg border border-danger/30 bg-danger-subtle px-4 py-2.5 text-[13px] text-danger">
+          {chargeErreur}
         </p>
       )}
 

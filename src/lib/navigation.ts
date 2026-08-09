@@ -51,7 +51,7 @@ import {
   type ApfcSignable,
   type ColonneSignatureApfc,
 } from "./signatures-attestation";
-import { fetchAllPages } from "./supabase-pagination";
+import { fetchAllPages, type ReponsePostgrest } from "./supabase-pagination";
 
 /**
  * Source unique de la navigation SGNF.
@@ -468,6 +468,38 @@ const ROUTES_TOUJOURS_OUVERTES = [
   "/dashboard/paiements/retour",
 ];
 
+/**
+ * Routes qu'un rôle peut OUVRIR sans qu'elles apparaissent dans son menu.
+ *
+ * 🔴 Le commit `385e414` a dérivé les routes atteignables du MENU seul. Or un
+ * écran pousse aussi vers des sous-écrans qu'aucune barre latérale n'annonce :
+ * `/dashboard/chefferie` renvoie CINQ fois vers `/dashboard/validations` — dont
+ * ses boutons « Signer » (APFC) et « Examiner » (cessions à valider) — et la
+ * garde les refusait toutes. Le chef de village, qui signe réellement (la
+ * policy `attcess_chefferie_read` lui rend 106 attestations sur 106, et
+ * `attestations_cession` porte `sig_chefferie_le`), était renvoyé à son accueil
+ * à chaque clic.
+ *
+ * Pourquoi une table séparée plutôt qu'une ligne de plus dans `ROLE_NAV_ORDER` :
+ * cette dernière a DEUX consommateurs. `visibleNavItems` en tire les entrées de
+ * la barre latérale, `routeAutorisee` les routes ouvertes. Y ajouter un href
+ * ouvrirait la route ET ferait apparaître l'entrée — ce qu'on ne veut pas ici :
+ *
+ *  - `/dashboard/validations` est un SOUS-ÉCRAN de l'Espace Chefferie, sorti de
+ *    lui quand il est passé aux cartes ; il porte son propre bouton « Retour à
+ *    l'Espace Chefferie ». Son entrée `NAV_ITEMS` est d'ailleurs déclarée
+ *    `roles: []` (administration) : l'inscrire dans la liste chefferie ferait
+ *    dire deux choses contraires au même fichier.
+ *  - `/dashboard/mettre-en-vente` n'est offert qu'aux comptes `chefferie`
+ *    rattachés à une FAMILLE, que `/dashboard/chefferie` rend via
+ *    `ProprietaireTerrienView` (les deux modèles cohabitent, cf. l'en-tête de
+ *    cette vue). L'afficher dans le menu le proposerait aussi aux chefs de
+ *    village sans famille, qui n'ont aucun lot à vendre.
+ */
+const ROUTES_HORS_MENU: Partial<Record<string, string[]>> = {
+  chefferie: ["/dashboard/validations", "/dashboard/mettre-en-vente"],
+};
+
 /** `/dashboard/lots/` et `/dashboard/lots?vue=x` → `/dashboard/lots`. */
 function normaliserChemin(chemin: string): string {
   const sansQuery = chemin.split("?")[0].split("#")[0];
@@ -513,7 +545,18 @@ export function routeAutorisee(groupe: string | null, chemin: string): boolean {
   // évidemment tout `/dashboard/*`.
   if (route === "/dashboard") return true;
   if (ROUTES_TOUJOURS_OUVERTES.some((base) => couvre(base, route))) return true;
-  return order.some((href) => couvre(normaliserChemin(href), route));
+  if ((ROUTES_HORS_MENU[groupe] ?? []).some((base) => couvre(base, route))) return true;
+  return order.some((href) => {
+    const base = normaliserChemin(href);
+    // 🔴 `/dashboard` figure dans la liste du géomètre (son « Centre de
+    // pilotage »). Traité en préfixe comme les autres, il couvrait TOUT
+    // `/dashboard/*` : la garde était entièrement inerte pour ce rôle, qui
+    // ouvrait `/dashboard/administration` comme n'importe quelle autre page.
+    // Le renvoi en égalité, quelques lignes plus haut, ne protégeait que la
+    // route elle-même — pas ce que la liste en dérivait.
+    if (base === "/dashboard") return route === base;
+    return couvre(base, route);
+  });
 }
 
 /** Filtre d'accès — règles reprises telles quelles de la barre latérale historique. */
@@ -596,9 +639,14 @@ async function compterApfcEnAttente(
           "id, sig_chef_famille_le, sig_chef_village_le, sig_cvgfr_le, cvgfr_id, lotissement:lotissement_id(signatures_requises)",
         )
         .order("id", { ascending: true })
-        .range(de, a) as unknown as PromiseLike<{ data: ApfcSignable[] | null }>,
+        .range(de, a) as unknown as PromiseLike<ReponsePostgrest<ApfcSignable>>,
   );
-  return lignes.filter((a) => apfcAttendSignature(a, colonne)).length;
+  // Une pastille n'a pas de place où loger un motif d'erreur : un refus s'y
+  // lit forcément « 0 à faire ». On ne cherche donc pas à l'afficher ici — les
+  // ÉCRANS qu'elle annonce (`/dashboard/validations`, l'Espace Chefferie) le
+  // disent désormais, eux, avec le motif. Le compteur reste prudent : il ne
+  // compte que ce qui a été effectivement lu.
+  return lignes.rows.filter((a) => apfcAttendSignature(a, colonne)).length;
 }
 
 /**

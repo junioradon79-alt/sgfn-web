@@ -21,7 +21,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { AppShell } from "@/components/pilotage/AppShell";
 import { Button } from "@/components/ds/button";
-import { fetchAllPages } from "@/lib/supabase-pagination";
+import { fetchAllPages, messageLecture, type ReponsePostgrest } from "@/lib/supabase-pagination";
 import { FileValidation } from "@/components/dashboard/saisie/FileValidation";
 import { ImportExcel } from "@/components/dashboard/saisie/ImportExcel";
 import { CreationStructure } from "@/components/dashboard/saisie/CreationStructure";
@@ -119,6 +119,8 @@ export default function SaisiePage() {
   const [lotissementId, setLotissementId] = useState("");
   const [etats, setEtats] = useState<LotEtat[]>([]);
   const [etatsLoading, setEtatsLoading] = useState(false);
+  /** Motif d'un état de lotissement non lu (cf. l'effet de chargement). */
+  const [etatsErreur, setEtatsErreur] = useState<string | null>(null);
 
   // ── Modifications en cours (une cible par lot) ──
   const [mods, setMods] = useState<Record<string, CibleChoisie>>({});
@@ -182,6 +184,7 @@ export default function SaisiePage() {
     setLotFiltre("");
     setMessage(null);
     setEtats([]);
+    setEtatsErreur(null);
     setEtatsLoading(!!id);
     setModeSaisie("manuel");
   };
@@ -208,7 +211,7 @@ export default function SaisiePage() {
             .eq("ilots.lotissement_id", lotissementId)
             .order("numero_lot", { ascending: true })
             .order("id", { ascending: true })
-            .range(from, to) as unknown as PromiseLike<{ data: LotFlat[] | null }>
+            .range(from, to) as unknown as PromiseLike<ReponsePostgrest<LotFlat>>
         ),
         fetchAllPages<AttrFlat>((from, to) =>
           supabase
@@ -216,13 +219,13 @@ export default function SaisiePage() {
             .select("lot_id, attributaire_id, qualite, attributaires(nom)")
             .eq("actuel", true)
             .order("id", { ascending: true })
-            .range(from, to) as unknown as PromiseLike<{ data: AttrFlat[] | null }>
+            .range(from, to) as unknown as PromiseLike<ReponsePostgrest<AttrFlat>>
         ),
       ]);
       if (!active) return;
       const attrByLot = new Map<string, AttrFlat>();
-      for (const a of attrsData) if (a.lot_id) attrByLot.set(a.lot_id, a);
-      const list: LotEtat[] = lotsData.map((r) => {
+      for (const a of attrsData.rows) if (a.lot_id) attrByLot.set(a.lot_id, a);
+      const list: LotEtat[] = lotsData.rows.map((r) => {
         const act = attrByLot.get(r.id);
         return {
           lot_id: r.id,
@@ -236,6 +239,18 @@ export default function SaisiePage() {
         };
       });
       setEtats(list);
+      // 🔴 Une lecture refusée rendait un lotissement SANS AUCUN LOT : l'agent
+      // de saisie en concluait un périmètre vide, et une soumission fondée sur
+      // cet état porterait sur des lots qu'il n'a jamais vus.
+      const echecs = (
+        [
+          ["les lots de ce lotissement", lotsData.error],
+          ["les attributions actuelles", attrsData.error],
+        ] as const
+      )
+        .filter(([, e]) => !!e)
+        .map(([quoi, e]) => messageLecture(quoi, e!));
+      setEtatsErreur(echecs.length ? echecs.join(" · ") : null);
       setEtatsLoading(false);
     })();
     return () => {
@@ -603,6 +618,19 @@ export default function SaisiePage() {
                   </button>
                 ))}
               </div>
+
+              {/* 🔴 RENDU POUR LES DEUX MODES. Ce bandeau vivait à l'intérieur
+                  du bloc « manuel » et disparaissait donc en mode Import — or
+                  `ImportExcel` reçoit exactement le même `etats` et rapproche
+                  le fichier Excel de cette liste. Une liste amputée y produit
+                  des lignes « lot inconnu » silencieuses : c'est le mode où
+                  l'avertissement compte le PLUS. */}
+              {etatsErreur && (
+                <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
+                  {etatsErreur} — la liste des lots est incomplète : ne fondez pas
+                  une soumission dessus.
+                </p>
+              )}
 
               {modeSaisie === "import" && (
                 <ImportExcel

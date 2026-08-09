@@ -20,7 +20,7 @@ import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
 import { useProfile } from "@/hooks/useProfile";
 import { fadeUp, stagger } from "@/lib/motion";
-import { fetchAllPages } from "@/lib/supabase-pagination";
+import { fetchAllPages, messageLecture, type ReponsePostgrest } from "@/lib/supabase-pagination";
 
 type AttributionRecord = {
   id: string;
@@ -69,6 +69,8 @@ export default function AttributionsPage() {
   const [form, setForm] = useState(FORM_VIDE);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  /** Motif d'un chargement tombé (distinct de `errorMessage`, propre à la modale). */
+  const [chargeErreur, setChargeErreur] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadAttributions = async () => {
@@ -81,9 +83,14 @@ export default function AttributionsPage() {
         .select("id, lot_id, attributaire_id, qualite, actuel, depuis, observation, lots(numero_lot), attributaires(nom)")
         .order("depuis", { ascending: false })
         .order("id", { ascending: true })
-        .range(from, to) as unknown as PromiseLike<{ data: AttributionRecord[] | null }>
+        .range(from, to) as unknown as PromiseLike<ReponsePostgrest<AttributionRecord>>
     );
-    setAttributions(data);
+    setAttributions(data.rows);
+    // Un refus RLS rendait une liste vide : « aucune attribution » se lisait
+    // comme une base propre. Le registre national en compte 1352. Le message
+    // ne passe PAS par `errorMessage`, qui n'est rendu qu'à l'intérieur de la
+    // modale de création — un échec de chargement y serait resté invisible.
+    setChargeErreur(data.error ? messageLecture("les attributions", data.error) : null);
   };
 
   const { isLoading: dataLoading, recharger } = useChargement(async () => {
@@ -200,16 +207,27 @@ export default function AttributionsPage() {
         </p>
       )}
 
+      {chargeErreur && (
+        <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
+          {chargeErreur}
+        </p>
+      )}
+
       <motion.div variants={fadeUp} initial="hidden" animate="show">
         <Card className="overflow-hidden print:border-none print:shadow-none">
           {dataLoading ? (
             <p className="px-5 py-10 text-center text-sm text-muted-foreground">Chargement des attributions…</p>
           ) : attributions.length === 0 ? (
+            // « Aucune attribution » n'est affirmé que si la lecture a abouti :
+            // sinon la liste est vide faute d'avoir pu lire, ce que dit le
+            // bandeau ci-dessus.
+            chargeErreur ? null : (
             <EmptyState
               icon={Link2}
               title="Aucune attribution enregistrée"
               description="Aucun lot de votre périmètre n'a encore été attribué."
             />
+            )
           ) : (
             // 1 352 attributions sur la vue nationale : sans hauteur bornée, la
             // page dépasse les 70 000 px. Défilement interne, en overflow natif

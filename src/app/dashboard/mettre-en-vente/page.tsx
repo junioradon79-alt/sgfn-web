@@ -21,6 +21,7 @@ import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { useChargement } from "@/hooks/useChargement";
 import { createClient } from "@/utils/supabase/client";
 import { invokeEdge } from "@/lib/invoke-edge";
+import { messageLecture } from "@/lib/supabase-pagination";
 import { fadeUp, stagger } from "@/lib/motion";
 
 import PhotosAnnonce from "./_PhotosAnnonce";
@@ -116,6 +117,13 @@ function MettreEnVenteForm() {
 
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  /**
+   * 🔴 L'éligibilité était calculée sur deux lectures dont le `error` était
+   * jeté. Refusées, elles vidaient `docType` et l'écran annonçait « Aucun lot
+   * éligible » — un verdict sur le patrimoine, là où il n'y avait qu'une
+   * lecture tombée. Le vendeur en concluait que ses titres ne valaient rien.
+   */
+  const [chargeErreur, setChargeErreur] = useState<string | null>(null);
 
   /** Pose le lot et son préremplissage dans le formulaire. */
   const appliquer = useCallback(
@@ -142,6 +150,16 @@ function MettreEnVenteForm() {
       supabase.from("certificats_vente").select("lot_id").eq("statut", "delivree"),
     ]);
 
+    // 🔴 Le bilan est dressé À LA FIN, pas ici. Une première version le posait
+    // à cet endroit et n'inspectait donc que les DEUX premières lectures : si
+    // `lots` ou `annonces_marketplace` était refusée vingt lignes plus bas,
+    // `chargeErreur` restait null et « Aucun lot éligible pour le moment »
+    // s'affichait — le verdict sur le patrimoine qu'on cherchait à éviter,
+    // rétabli par la moitié du correctif qui manquait.
+    const echecs = ([["vos attestations de cession délivrées", att.error], ["vos certificats de vente délivrés", cert.error]] as const)
+      .filter(([, e]) => !!e)
+      .map(([quoi, e]) => messageLecture(quoi, e!));
+
     const docType = new Map<string, "attestation_cession" | "certificat_vente">();
     (att.data ?? []).forEach((r: { lot_id: string }) => docType.set(r.lot_id, "attestation_cession"));
     (cert.data ?? []).forEach((r: { lot_id: string }) => docType.set(r.lot_id, "certificat_vente"));
@@ -150,6 +168,7 @@ function MettreEnVenteForm() {
     if (lotIds.length === 0) {
       setLots([]);
       setAnnonces({});
+      setChargeErreur(echecs.length ? echecs.join(" · ") : null);
       return;
     }
 
@@ -185,8 +204,12 @@ function MettreEnVenteForm() {
     const annMap: Record<string, AnnonceExistante> = {};
     ((annRes.data ?? []) as unknown as AnnonceExistante[]).forEach((a) => { annMap[a.lot_id] = a; });
 
+    if (lotsRes.error) echecs.push(messageLecture("vos lots éligibles", lotsRes.error));
+    if (annRes.error) echecs.push(messageLecture("vos annonces déjà déposées", annRes.error));
+
     setLots(mapped);
     setAnnonces(annMap);
+    setChargeErreur(echecs.length ? echecs.join(" · ") : null);
 
     // Le lot passé en ?lot= n'est retenu que s'il est réellement éligible :
     // une URL forgée ne doit pas ouvrir le formulaire sur le lot d'autrui
@@ -295,7 +318,14 @@ function MettreEnVenteForm() {
         />
       </motion.section>
 
+      {chargeErreur && (
+        <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
+          {chargeErreur}
+        </p>
+      )}
+
       {loading ? null : lots.length === 0 ? (
+        chargeErreur ? null : (
         <Card>
           <EmptyState
             icon={FileCheck2}
@@ -304,6 +334,7 @@ function MettreEnVenteForm() {
             description="Un document foncier doit être au statut « délivré » pour qu'un lot puisse être mis en vente."
           />
         </Card>
+        )
       ) : (
         <motion.div variants={stagger(0.05, 0.06)} initial="hidden" animate="show" className="flex flex-col gap-5">
           {/* 1 — Lot */}

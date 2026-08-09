@@ -16,7 +16,7 @@ type Props = {
 };
 
 export function ParcelDetailScreen({ lotId, onBack, onVerify, onContact, onPurchase, onReport }: Props) {
-  const { loading, lot, litiges, score } = useParcelleDetail(lotId);
+  const { loading, lot, litiges, score, erreur } = useParcelleDetail(lotId);
 
   const attr = (lot?.attributions ?? []).find((a) => a.actuel) ?? lot?.attributions?.[0];
   const titulaire = attr?.attributaires?.nom ?? "—";
@@ -61,6 +61,18 @@ export function ParcelDetailScreen({ lotId, onBack, onVerify, onContact, onPurch
           </div>
         ) : (
           <>
+            {/* Une fiche muette (score « Non calculé », aucun litige, titulaire
+                « — ») ne doit jamais passer pour une parcelle saine quand c'est
+                la lecture qui a été refusée. */}
+            {erreur && (
+              <p
+                role="alert"
+                className="rounded-[18px] border border-danger/30 bg-danger-subtle px-4 py-3 text-[12.5px] font-medium leading-snug text-danger"
+              >
+                Fiche INCOMPLÈTE — {erreur}
+              </p>
+            )}
+
             {/* Indice de confiance */}
             <div className="flex items-center gap-[18px] rounded-[22px] border border-border bg-card p-[18px] shadow-panel">
               {scoreVal != null ? (

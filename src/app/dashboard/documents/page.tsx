@@ -45,6 +45,7 @@ import {
   libelleSignature,
 } from "@/lib/signatures-attestation";
 import { SEUIL_RATTRAPAGE } from "@/lib/rattrapage-attestations";
+import { messageLecture } from "@/lib/supabase-pagination";
 // Table des droits sur les attestations — miroir des gardes serveur, partagée
 // avec l'app mobile. Elle vit sous `features/mobile` parce qu'elle y a été
 // écrite, mais elle n'a rien de spécifique au mobile.
@@ -365,7 +366,7 @@ function ExceptionBadge({ att }: { att: AttestationRow }) {
 
 // ─── Onglet Attestations ──────────────────────────────────────────────────────
 
-function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer, onSigner, onRetirer, signaturesAutorisees, signatureEnCours, erreurAction }: {
+function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer, onSigner, onRetirer, signaturesAutorisees, signatureEnCours, erreurAction, chargeErreur }: {
   rows: AttestationRow[];
   dlState: DlState;
   remiseState: DlState;
@@ -382,12 +383,21 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
   signaturesAutorisees?: string[];
   signatureEnCours?: string | null;
   erreurAction?: string | null;
+  /** Motif d'une lecture refusée : « 0 attestation » ne doit jamais être
+   *  affirmé quand la liste est vide FAUTE D'AVOIR PU LIRE (dette #45). */
+  chargeErreur?: string | null;
 }) {
   if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-sm text-muted-foreground">
+      <div className="flex flex-col items-center justify-center py-16 text-center text-sm text-muted-foreground">
         <FileCheck className="mb-3 h-8 w-8 text-muted-2" />
-        Aucune attestation enregistrée.
+        {chargeErreur ? (
+          <span role="alert" className="max-w-xl font-medium text-danger">
+            Liste non lue — {chargeErreur}
+          </span>
+        ) : (
+          "Aucune attestation enregistrée."
+        )}
       </div>
     );
   }
@@ -512,7 +522,7 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
 // chefferie + 50 000 FCFA commission SGNF, requis avant que `sig_chefferie_le`
 // puisse être constatée — cf. migration du 23/07).
 
-function AttributionsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer, onSigner, onRetirer, signaturesAutorisees, signatureEnCours, erreurAction }: {
+function AttributionsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer, onSigner, onRetirer, signaturesAutorisees, signatureEnCours, erreurAction, chargeErreur }: {
   rows: AttributionRow[];
   dlState: DlState;
   remiseState: DlState;
@@ -529,12 +539,20 @@ function AttributionsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
   signaturesAutorisees?: string[];
   signatureEnCours?: string | null;
   erreurAction?: string | null;
+  /** Cf. `AttestationsTab` : « aucune » ne s'affirme que si la lecture a abouti. */
+  chargeErreur?: string | null;
 }) {
   if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-sm text-muted-foreground">
+      <div className="flex flex-col items-center justify-center py-16 text-center text-sm text-muted-foreground">
         <FileSignature className="mb-3 h-8 w-8 text-muted-2" />
-        Aucune Attestation d&apos;Attribution de Lot enregistrée.
+        {chargeErreur ? (
+          <span role="alert" className="max-w-xl font-medium text-danger">
+            Liste non lue — {chargeErreur}
+          </span>
+        ) : (
+          "Aucune Attestation d'Attribution de Lot enregistrée."
+        )}
       </div>
     );
   }
@@ -657,12 +675,18 @@ function AttributionsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
 
 // ─── Onglet PV de famille ─────────────────────────────────────────────────────
 
-function PvTab({ rows }: { rows: PvRow[] }) {
+function PvTab({ rows, chargeErreur }: { rows: PvRow[]; chargeErreur?: string | null }) {
   if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-sm text-muted-foreground">
+      <div className="flex flex-col items-center justify-center py-16 text-center text-sm text-muted-foreground">
         <FileSignature className="mb-3 h-8 w-8 text-muted-2" />
-        Aucun PV de famille enregistré.
+        {chargeErreur ? (
+          <span role="alert" className="max-w-xl font-medium text-danger">
+            Liste non lue — {chargeErreur}
+          </span>
+        ) : (
+          "Aucun PV de famille enregistré."
+        )}
       </div>
     );
   }
@@ -747,17 +771,24 @@ function PlanApercu({ doc, apercuUrl, onOpenLightbox }: {
   );
 }
 
-function DocumentsTab({ rows, apercuUrls, dlOriginal, onOpenLightbox }: {
+function DocumentsTab({ rows, apercuUrls, dlOriginal, onOpenLightbox, chargeErreur }: {
   rows: DocumentRow[];
   apercuUrls: Record<string, string>;
   dlOriginal: (id: string) => void;
   onOpenLightbox: (url: string) => void;
+  chargeErreur?: string | null;
 }) {
   if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-sm text-muted-foreground">
+      <div className="flex flex-col items-center justify-center py-16 text-center text-sm text-muted-foreground">
         <FileText className="mb-3 h-8 w-8 text-muted-2" />
-        Aucun document téléversé.
+        {chargeErreur ? (
+          <span role="alert" className="max-w-xl font-medium text-danger">
+            Liste non lue — {chargeErreur}
+          </span>
+        ) : (
+          "Aucun document téléversé."
+        )}
       </div>
     );
   }
@@ -1167,6 +1198,8 @@ export default function DocumentsPage() {
   const [blocagesParLotissement, setBlocagesParLotissement] = useState<BlocageLotissement[]>([]);
   const [genererEnCours, setGenererEnCours] = useState(false);
   const [genererErreur, setGenererErreur] = useState<string | null>(null);
+  /** Motif d'une des sept lectures tombée — cf. le bilan en fin de `load`. */
+  const [chargeErreur, setChargeErreur] = useState<string | null>(null);
   const [confirmRattrapage, setConfirmRattrapage] = useState(false);
   /** Constat de signature en cours de retrait (admin) — cf. `RetraitSignatureModal`. */
   const [retrait, setRetrait] = useState<{ att: AttestationRow; signature: string } | null>(null);
@@ -1239,6 +1272,27 @@ export default function DocumentsPage() {
       }
     }
     setBlocagesParLotissement([...parLotissement.values()]);
+
+    // 🔴 Le Coffre-fort documentaire est l'écran où la consigne « toute
+    // attestation doit être lisible par les parties concernées » se vérifiera.
+    // Aucune des sept lectures n'inspectait son `error` : un refus RLS y rendait
+    // « 0 attestation » — exactement la dette #45, où un refus se lisait comme
+    // une bonne nouvelle là où l'admin en voyait 822. Tant que ce bandeau
+    // n'existait pas, aucun élargissement de droit n'était vérifiable ici.
+    const echecs = (
+      [
+        ["les attestations de cession", attRes.error],
+        ["les attestations d'attribution de lot", attribRes.error],
+        ["les PV de réunion de famille", pvRes.error],
+        ["les documents téléversés", docRes.error],
+        ["le compte des attestations éligibles", eligiblesRes.error],
+        ["le compte des attestations bloquées", bloqueesRes.error],
+        ["le détail des blocages par lotissement", detailRes.error],
+      ] as const
+    )
+      .filter(([, e]) => !!e)
+      .map(([quoi, e]) => messageLecture(quoi, e!));
+    setChargeErreur(echecs.length ? echecs.join(" · ") : null);
   }, [supabase]);
 
   // Rattrapage permanent : reste affiché en continu (contrairement à l'alerte du
@@ -1535,6 +1589,12 @@ export default function DocumentsPage() {
         </div>
       </div>
 
+      {chargeErreur && (
+        <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-2.5 text-sm font-medium text-danger">
+          {chargeErreur}
+        </p>
+      )}
+
       {genererErreur && (
         <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-2.5 text-sm font-medium text-danger">
           Échec de la génération des attestations : {genererErreur}
@@ -1627,6 +1687,7 @@ export default function DocumentsPage() {
               signaturesAutorisees={actionsAttestation.signatures}
               signatureEnCours={signatureEnCours}
               erreurAction={erreurAction}
+              chargeErreur={chargeErreur}
               onDownload={telecharger}
               onShowQr={setQrAtt}
               onMarquerDelivree={marquerDelivree}
@@ -1642,18 +1703,20 @@ export default function DocumentsPage() {
               signaturesAutorisees={actionsAttestation.signatures}
               signatureEnCours={signatureEnCoursAttrib}
               erreurAction={erreurActionAttrib}
+              chargeErreur={chargeErreur}
               onDownload={telechargerAttrib}
               onShowQr={setQrAttrib}
               onMarquerDelivree={marquerDelivreeAttrib}
             />
           ) : activeTab === "pv" ? (
-            <PvTab rows={pvs} />
+            <PvTab rows={pvs} chargeErreur={chargeErreur} />
           ) : (
             <DocumentsTab
               rows={docs}
               apercuUrls={apercuUrls}
               dlOriginal={telechargerOriginalPlan}
               onOpenLightbox={setLightbox}
+              chargeErreur={chargeErreur}
             />
           )}
         </Card>

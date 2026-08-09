@@ -13,7 +13,7 @@ import {
 
 import { fadeUp, stagger } from "@/lib/motion";
 import { apfcAttendSignature, type ApfcSignable } from "@/lib/signatures-attestation";
-import { fetchAllPages } from "@/lib/supabase-pagination";
+import { fetchAllPages, messageLecture, type ReponsePostgrest } from "@/lib/supabase-pagination";
 import type { Profile } from "@/components/dashboard/chefferie/types";
 import { AppShell } from "@/components/pilotage/AppShell";
 import { Button } from "@/components/ds/button";
@@ -45,6 +45,14 @@ function ChefVillageView({ profile }: { profile: Profile }) {
   const [dossiersAduCount, setDossiersAduCount] = useState(0);
   const [litigesActifsCount, setLitigesActifsCount] = useState(0);
   const [concertationCount, setConcertationCount] = useState(0);
+  /**
+   * 🔴 Les huit lectures faisaient `.count ?? 0` ou jetaient `error` : un refus
+   * RLS peignait la juridiction entière à zéro — zéro lotissement, zéro APFC,
+   * zéro cession — et « Rien en attente » s'affichait en vert. Un chef de
+   * village n'aurait eu aucun moyen de distinguer un territoire calme d'un
+   * territoire qu'il ne peut plus lire.
+   */
+  const [chargeErreur, setChargeErreur] = useState<string | null>(null);
 
   // Toutes les valeurs sont scopées à la juridiction : soit par une RLS déjà
   // scopée via ma_chefferie_id() (cessions / dossiers ADU / litiges), soit par un
@@ -75,7 +83,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
           .select("id, sig_chef_famille_le, sig_chef_village_le, sig_cvgfr_le, cvgfr_id, lotissement:lotissement_id(signatures_requises)")
           .eq("autorite_coutumiere_id", profile.autorite_coutumiere_id!)
           .order("id", { ascending: true })
-          .range(de, a) as unknown as PromiseLike<{ data: ApfcSignable[] | null }>
+          .range(de, a) as unknown as PromiseLike<ReponsePostgrest<ApfcSignable>>
       ),
       // Les cessions, elles, se comptent SANS lire les lignes : le prédicat
       // « le lotissement exige la chefferie » tient dans un filtre sur l'embed,
@@ -94,12 +102,32 @@ function ChefVillageView({ profile }: { profile: Profile }) {
     setLotissementsCount(lotissementsRes.count ?? 0);
     setApfcTotal(apfcTotalRes.count ?? 0);
     setApfcPending(
-      apfcPendingLignes.filter((a) => apfcAttendSignature(a, "sig_chef_village_le")).length,
+      apfcPendingLignes.rows.filter((a) => apfcAttendSignature(a, "sig_chef_village_le")).length,
     );
     setCessionsPending(cessionsRes.count ?? 0);
     setDossiersAduCount(dossiersRes.count ?? 0);
     setLitigesActifsCount(litigesRes.count ?? 0);
     setConcertationCount(concertationRes.count ?? 0);
+
+    // Chaque compteur porte le nom de ce qu'il annonce : « 0 lotissement »
+    // affiché sans motif ne se distingue pas d'un refus de lecture. On nomme
+    // donc la ou les lectures tombées, plutôt qu'un « une erreur est survenue »
+    // qui n'aiderait ni le chef de village ni celui qui ouvrira le droit.
+    const echecs = (
+      [
+        ["votre autorité coutumière", autoriteRes.error],
+        ["les lotissements de votre juridiction", lotissementsRes.error],
+        ["le total des APFC", apfcTotalRes.error],
+        ["les APFC en attente de votre signature", apfcPendingLignes.error],
+        ["les cessions à valider", cessionsRes.error],
+        ["les dossiers ADU", dossiersRes.error],
+        ["les litiges", litigesRes.error],
+        ["vos échanges de concertation", concertationRes.error],
+      ] as const
+    )
+      .filter(([, e]) => !!e)
+      .map(([quoi, e]) => messageLecture(quoi, e!));
+    setChargeErreur(echecs.length ? echecs.join(" · ") : null);
   }, [profile.autorite_coutumiere_id, profile.id]);
 
   const { isLoading: loading, recharger } = useChargement(fetchData, [fetchData]);
@@ -183,6 +211,14 @@ function ChefVillageView({ profile }: { profile: Profile }) {
           une correction, soumise à l&apos;approbation du Super Admin.
         </p>
       </div>
+
+      {/* Sans ce bandeau, une lecture refusée descendait tous les compteurs à
+          zéro sans un mot : la juridiction paraissait vide. */}
+      {chargeErreur && (
+        <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
+          {chargeErreur}
+        </p>
+      )}
 
       <motion.section
         variants={stagger(0, 0.05)}
@@ -272,10 +308,16 @@ function ChefVillageView({ profile }: { profile: Profile }) {
 
             <div className="px-5 pt-4 pb-5">
               {priorites.length === 0 ? (
+                // Une file vide PARCE QU'ON N'A RIEN PU LIRE n'est pas une file
+                // soldée : on ne rassure pas sur des compteurs qu'on sait faux.
                 <EmptyState
                   icon={ShieldCheck}
-                  title="Rien en attente"
-                  description="Aucune signature, aucune cession et aucun litige ne requiert votre intervention."
+                  title={chargeErreur ? "File non lue" : "Rien en attente"}
+                  description={
+                    chargeErreur
+                      ? "Ces compteurs n'ont pas pu être établis — voir le message en haut de page."
+                      : "Aucune signature, aucune cession et aucun litige ne requiert votre intervention."
+                  }
                 />
               ) : (
                 <ul className="flex flex-col gap-2">

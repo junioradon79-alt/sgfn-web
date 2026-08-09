@@ -22,6 +22,7 @@ import { ChampSelect } from "@/components/dashboard/ModaleFormulaire";
 import { createClient } from "@/utils/supabase/client";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 import { invokeEdge } from "@/lib/invoke-edge";
+import { messageLecture } from "@/lib/supabase-pagination";
 import { stagger } from "@/lib/motion";
 import {
   MOYEN_OPTIONS, MOYEN_LABELS, STATUT_CONFIG, TYPE_DEMARCHE_LABELS, TYPE_OPTIONS, fcfa, isMoyenManuel,
@@ -114,6 +115,15 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
   const [moyen, setMoyen] = useState("especes");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  /**
+   * 🔴 Motif d'une LECTURE d'options refusée — distinct de `err`, qui porte les
+   * refus de SAISIE. Les deux partageaient le même état : `handleSubmit` fait
+   * `setErr("")` en préambule, ce qui effaçait le motif du refus RLS. Le
+   * guichetier recevait alors « Sélectionnez une attestation. » — un reproche
+   * de formulaire — là où la vraie cause était qu'aucune attestation n'avait
+   * pu être LUE, et qu'il n'y avait donc rien à sélectionner.
+   */
+  const [chargeErr, setChargeErr] = useState("");
 
   const [attestations, setAttestations] = useState<AttestationOption[]>([]);
   const [demarches, setDemarches] = useState<DemarcheOption[]>([]);
@@ -131,30 +141,37 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
   // Charger les options liées selon le type sélectionné
   useEffect(() => {
     const load = async () => {
-      setErr("");
+      setChargeErr("");
       if (type === "attestation_cession") {
-        const { data } = await supabase
+        // 🔴 Une liste d'options vidée par un refus RLS se présentait comme
+        // « rien à payer » : le guichetier concluait qu'aucune attestation
+        // n'était en attente, au lieu de savoir qu'il ne pouvait pas les lire.
+        const { data, error } = await supabase
           .from("attestations_cession")
           .select("id, reference, statut, cession_id, acquereur_id, attributaires(nom)")
           .neq("statut", "delivree");
+        if (error) setChargeErr(messageLecture("les attestations de cession", error));
         setAttestations((data ?? []) as unknown as AttestationOption[]);
       } else if (type === "honoraires") {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("demarches")
           .select("id, type, description, montant_honoraires, attributaire_id, attributaires(nom)")
           .is("terminee_le", null);
+        if (error) setChargeErr(messageLecture("les démarches", error));
         setDemarches((data ?? []) as unknown as DemarcheOption[]);
       } else if (type === "vente_terrain") {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("ventes")
           .select("id, lot_id, prix_total, solde, type_vente, acquereur_id, attributaires(nom)")
           .eq("statut", "en_cours");
+        if (error) setChargeErr(messageLecture("les ventes en cours", error));
         setVentes((data ?? []) as unknown as VenteOption[]);
       } else if (type === "autre") {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("attributaires")
           .select("id, nom")
           .order("nom", { ascending: true });
+        if (error) setChargeErr(messageLecture("les attributaires", error));
         setAttributaires((data ?? []) as AttributaireOption[]);
       }
     };
@@ -446,6 +463,15 @@ function NouveauPaiementModal({ onClose, onCreated }: NouveauPaiementModalProps)
             <ChampSelect id="pay-moyen" label="Moyen de paiement" value={moyen} onChange={setMoyen}>
               {MOYEN_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </ChampSelect>
+
+            {/* Les deux motifs coexistent : la liste d'options peut être
+                illisible ET la saisie invalide. Les afficher séparément évite
+                que l'un chasse l'autre. */}
+            {chargeErr && (
+              <p role="alert" className="rounded-md border border-danger/25 bg-danger-subtle px-3 py-2 text-xs font-medium text-danger">
+                {chargeErr} — la liste ci-dessus est donc incomplète.
+              </p>
+            )}
 
             {err && (
               <p role="alert" className="rounded-md border border-danger/25 bg-danger-subtle px-3 py-2 text-xs font-medium text-danger">
@@ -809,6 +835,8 @@ function PaiementsContenu() {
   const [showModal, setShowModal] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
+  /** Motif d'un registre non lu (distinct de `payError`, propre au paiement). */
+  const [chargeErreur, setChargeErreur] = useState<string | null>(null);
   const [validatingId, setValidatingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [openRepart, setOpenRepart] = useState<string | null>(null);
@@ -832,12 +860,15 @@ function PaiementsContenu() {
 
   const loadPaiements = useCallback(async () => {
     setDataLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("paiements")
       .select("id, type, montant_total, commission_sgfn, beneficiaire, moyen, statut, cree_le, acquereur_id, reference_externe, reference, echeance_id, vente_id, attributaires(nom), ventes(type_vente)")
       .order("cree_le", { ascending: false });
     const rows = (data ?? []) as unknown as PaiementRecord[];
     setPaiements(rows);
+    // 🔴 Le registre refusé s'affichait « aucun paiement » : une caisse vide
+    // et une caisse illisible ne peuvent pas se ressembler.
+    setChargeErreur(error ? messageLecture("le registre des paiements", error) : null);
     setDataLoading(false);
 
     // Ventilation (répartition) des paiements confirmés
@@ -846,7 +877,7 @@ function PaiementsContenu() {
       setRepartitions({});
       return;
     }
-    const { data: reps } = await supabase
+    const { data: reps, error: repsErr } = await supabase
       .from("repartitions_paiement")
       .select("paiement_id, beneficiaire_type, nom, montant")
       .in("paiement_id", confirmedIds);
@@ -855,6 +886,7 @@ function PaiementsContenu() {
       (map[r.paiement_id] ??= []).push({ beneficiaire_type: r.beneficiaire_type, nom: r.nom, montant: r.montant });
     }
     setRepartitions(map);
+    if (repsErr) setChargeErreur(messageLecture("la ventilation des paiements confirmés", repsErr));
   }, [supabase]);
 
   useEffect(() => {
@@ -978,6 +1010,12 @@ function PaiementsContenu() {
         )}
       </div>
 
+      {chargeErreur && (
+        <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
+          {chargeErreur}
+        </p>
+      )}
+
       {isAdmin && (
         <div className="flex gap-2">
           <button
@@ -1070,7 +1108,11 @@ function PaiementsContenu() {
                   <td colSpan={8} className="px-5 py-10 text-center text-sm text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
                       <Receipt className="h-6 w-6 text-muted-2" />
-                      {vue === "a_valider" ? "Aucun paiement à valider." : "Aucun paiement enregistré."}
+                      {chargeErreur
+                        ? "Registre non lu — voir le message ci-dessus."
+                        : vue === "a_valider"
+                          ? "Aucun paiement à valider."
+                          : "Aucun paiement enregistré."}
                     </div>
                   </td>
                 </tr>

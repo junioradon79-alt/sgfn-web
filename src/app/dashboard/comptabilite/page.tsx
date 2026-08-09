@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { HandCoins, PiggyBank, Plus, Receipt, Scale, Trash2, Wallet } from "lucide-react";
 
 import { fadeUp, stagger } from "@/lib/motion";
-import { fetchAllPages } from "@/lib/supabase-pagination";
+import { fetchAllPages, messageLecture } from "@/lib/supabase-pagination";
 import { createClient } from "@/utils/supabase/client";
 import { useChargement } from "@/hooks/useChargement";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
@@ -174,6 +174,8 @@ function ComptabiliteContenu() {
   const [apports, setApports] = useState<Apport[]>([]);
   const [modaleOuverte, setModaleOuverte] = useState(false);
   const [modaleApportOuverte, setModaleApportOuverte] = useState(false);
+  /** Motif d'une des trois lectures tombée : un solde amputé doit le dire. */
+  const [chargeErreur, setChargeErreur] = useState<string | null>(null);
 
   // ── Filtres du relevé (agissent sur l'écran ET sur l'impression) ──
   const [du, setDu] = useState("");
@@ -212,9 +214,24 @@ function ComptabiliteContenu() {
     ]);
     // Tri d'affichage côté client : `fetchAllPages` impose un ordre déterministe
     // (la clé primaire) pour que les pages ne se chevauchent pas.
-    setPaiements(p.sort((x, y) => (y.confirme_le ?? "").localeCompare(x.confirme_le ?? "")));
-    setDepenses(d.sort((x, y) => y.date_depense.localeCompare(x.date_depense)));
-    setApports(a.sort((x, y) => y.date_apport.localeCompare(x.date_apport)));
+    setPaiements(p.rows.sort((x, y) => (y.confirme_le ?? "").localeCompare(x.confirme_le ?? "")));
+    setDepenses(d.rows.sort((x, y) => y.date_depense.localeCompare(x.date_depense)));
+    setApports(a.rows.sort((x, y) => y.date_apport.localeCompare(x.date_apport)));
+
+    // 🔴 « Un relevé comptable amputé sans avertissement serait pire
+    // qu'absent » — c'est exactement ce qu'un refus de lecture produisait :
+    // une table refusée sortait à zéro, et le SOLDE affiché restait présenté
+    // comme un solde. On le dit désormais, table par table.
+    const echecs = (
+      [
+        ["les paiements confirmés", p.error],
+        ["les dépenses", d.error],
+        ["les apports", a.error],
+      ] as const
+    )
+      .filter(([, e]) => !!e)
+      .map(([quoi, e]) => messageLecture(quoi, e!));
+    setChargeErreur(echecs.length ? echecs.join(" · ") : null);
   }, [supabase]);
 
   const { isLoading: loading, recharger } = useChargement(charger, [charger]);
@@ -358,6 +375,15 @@ function ComptabiliteContenu() {
             <BoutonImprimer />
           </div>
         </motion.div>
+
+        {/* Visible AUSSI à l'impression : une feuille tirée d'un relevé
+            incomplet doit porter la mention, sinon elle circule comme un état
+            certifié. */}
+        {chargeErreur && (
+          <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
+            Relevé INCOMPLET — {chargeErreur}
+          </p>
+        )}
 
         {/* En-tête du document imprimé — une feuille sortie d'ici doit se décrire
             elle-même : périmètre, filtres appliqués, date d'édition. */}

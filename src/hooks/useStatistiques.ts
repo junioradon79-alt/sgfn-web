@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import { createClient } from "@/utils/supabase/client";
-import { fetchAllPages } from "@/lib/supabase-pagination";
+import { fetchAllPages, messageLecture, type ReponsePostgrest } from "@/lib/supabase-pagination";
 
 /** Un mois de l'axe temporel — toujours 12 points, même quand la base est jeune. */
 export type PointMois = { label: string; value: number };
@@ -170,25 +170,46 @@ export function useStatistiques(actif = true): Statistiques {
               order: (
                 colonne: string,
                 options: { ascending: boolean },
-              ) => { range: (de: number, a: number) => PromiseLike<{ data: unknown[] | null }> };
+              ) => {
+                range: (de: number, a: number) => PromiseLike<ReponsePostgrest<unknown>>;
+              };
             };
           };
         };
 
-        const page = <T,>(table: string, colonnes: string) =>
-          fetchAllPages<T>(
+        /**
+         * `page` NE LÈVE PAS.
+         *
+         * 🔴 Une première version levait au premier refus. Le `Promise.all`
+         * rejetait alors, `setEtat` n'était jamais atteint, et les QUATRE
+         * lectures réussies étaient jetées avec la cinquième : une table
+         * refusée mettait tout l'écran à zéro. C'était pire que le défaut
+         * qu'on corrigeait — on remplaçait un zéro partiel silencieux par un
+         * zéro TOTAL, sous une bannière qui n'expliquait qu'une des cinq
+         * séries.
+         *
+         * Les échecs sont donc accumulés, et ce qui a été lu est affiché.
+         * L'écran est alors juste : les séries lues sont vraies, celle qui
+         * manque est nommée, et rien n'affirme que la base est vide.
+         */
+        const echecs: string[] = [];
+        const page = async <T,>(table: string, colonnes: string, quoi: string) => {
+          const { rows, error } = await fetchAllPages<T>(
             (de, a) =>
-              client.from(table).select(colonnes).order("id", { ascending: true }).range(de, a) as PromiseLike<{
-                data: T[] | null;
-              }>,
+              client.from(table).select(colonnes).order("id", { ascending: true }).range(de, a) as PromiseLike<
+                ReponsePostgrest<T>
+              >,
           );
+          if (error) echecs.push(messageLecture(quoi, error));
+          return rows;
+        };
 
         const [lots, ilots, lotissements, attestations, ventes] = await Promise.all([
-          page<LigneLot>("lots", "id, statut, latitude, ilot_id, cree_le"),
-          page<LigneIlot>("ilots", "id, lotissement_id"),
-          page<LigneLotissement>("lotissements", "id, district, commune"),
-          page<{ cree_le: string | null }>("attestations_cession", "id, cree_le"),
-          page<{ cree_le: string | null }>("ventes", "id, cree_le"),
+          page<LigneLot>("lots", "id, statut, latitude, ilot_id, cree_le", "les lots"),
+          page<LigneIlot>("ilots", "id, lotissement_id", "les îlots"),
+          page<LigneLotissement>("lotissements", "id, district, commune", "les lotissements"),
+          page<{ cree_le: string | null }>("attestations_cession", "id, cree_le", "les attestations de cession"),
+          page<{ cree_le: string | null }>("ventes", "id, cree_le", "les ventes"),
         ]);
 
         if (annule) return;
@@ -209,6 +230,9 @@ export function useStatistiques(actif = true): Statistiques {
           districts: classer(lots, ilots, lotissements, "district"),
           communes: classer(lots, ilots, lotissements, "commune"),
         });
+        // Après `setEtat`, jamais avant : l'écran doit pouvoir afficher les
+        // séries lues ET le motif de celle qui manque, pas l'un ou l'autre.
+        setError(echecs.length ? echecs.join(" · ") : null);
       } catch (e) {
         if (!annule) setError(e instanceof Error ? e.message : "Erreur inconnue");
       } finally {

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { CheckCircle2, XCircle, Clock, ArrowLeft, RefreshCw } from "lucide-react";
+import { useProfile } from "@/hooks/useProfile";
+import { accueilDuRole, routeAutorisee } from "@/lib/navigation";
 import { TYPE_LABELS, fcfa } from "@/lib/paiements";
 
 type Statut = "en_attente" | "confirme" | "echoue" | "rembourse" | null;
@@ -12,6 +14,21 @@ export default function RetourPaiementPage() {
   const params = useSearchParams();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+  const { profile } = useProfile();
+
+  /**
+   * 🔴 Ce bouton poussait vers `/dashboard/paiements` en dur. Cette page de
+   * retour CinetPay est ouverte à TOUS les rôles (`ROUTES_TOUJOURS_OUVERTES` —
+   * la fermer casserait la confirmation de paiement), mais le registre des
+   * paiements, lui, est fermé aux HUIT rôles à liste fermée. Un acquéreur qui
+   * venait de payer et cliquait « Retour aux paiements » était renvoyé à son
+   * accueil par la garde de route : le seul bouton de l'écran ne faisait pas ce
+   * qu'il annonçait. On l'envoie donc là où il a le droit d'aller, et on le
+   * DIT — plutôt que d'ouvrir un registre que sa liste exclut délibérément.
+   */
+  const groupe = profile?.groupe ?? null;
+  const versRegistre = routeAutorisee(groupe, "/dashboard/paiements");
+  const cible = versRegistre ? "/dashboard/paiements" : accueilDuRole(groupe);
 
   const [statut, setStatut] = useState<Statut>(null);
   const [montant, setMontant] = useState<number | null>(null);
@@ -89,8 +106,10 @@ export default function RetourPaiementPage() {
               </p>
             )}
             <p className="mt-3 text-sm text-slate-500">
-              Un reçu a été enregistré dans votre espace. Vous pouvez consulter le
-              registre des paiements ci-dessous.
+              Un reçu a été enregistré dans votre espace.{" "}
+              {versRegistre
+                ? "Vous pouvez consulter le registre des paiements ci-dessous."
+                : "Vous le retrouverez dans votre espace, ci-dessous."}
             </p>
           </>
         ) : statut === "echoue" ? (
@@ -100,8 +119,8 @@ export default function RetourPaiementPage() {
             </div>
             <h2 className="text-lg font-bold text-[#0D3B66]">Paiement échoué</h2>
             <p className="mt-2 text-sm text-slate-500">
-              La transaction n&apos;a pas abouti. Vous pouvez réessayer depuis le registre
-              des paiements.
+              La transaction n&apos;a pas abouti. Vous pouvez réessayer depuis{" "}
+              {versRegistre ? "le registre des paiements." : "votre espace."}
             </p>
           </>
         ) : (
@@ -128,11 +147,11 @@ export default function RetourPaiementPage() {
         )}
 
         <button
-          onClick={() => router.push("/dashboard/paiements")}
+          onClick={() => router.push(cible)}
           className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#0D3B66] px-4 py-3 text-sm font-semibold text-white hover:bg-[#1E6091]"
         >
           <ArrowLeft className="h-4 w-4" />
-          Retour aux paiements
+          {versRegistre ? "Retour aux paiements" : "Retour à mon espace"}
         </button>
       </div>
     </div>

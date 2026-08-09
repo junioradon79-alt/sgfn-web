@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/client";
 import { actionAgenceRequise, type AgenceDemande } from "@/lib/agence-actions";
 import { JOUR_MS, serieParJour } from "@/lib/series";
+import { messageLecture } from "@/lib/supabase-pagination";
 
 /**
  * Source unique du Centre de pilotage.
@@ -252,8 +253,33 @@ async function chargerOverview(
 
   // Une lecture refusée par le RLS ne doit pas vider tout l'écran : on remonte
   // l'erreur, mais chaque bloc dégrade indépendamment vers 0/liste vide.
+  //
+  // 🔴 Seules TROIS des douze lectures étaient inspectées. Les neuf autres —
+  // dont les attestations, les paiements, les litiges et les dossiers ADU —
+  // pouvaient tomber en silence : le Centre de pilotage affichait alors « 0
+  // acte », « 0 FCFA », « 0 litige » sans un mot, et rien ne distinguait un
+  // pays calme d'un écran aveugle. On les nomme toutes, dans l'ordre où on les
+  // demande, et on dit LAQUELLE est tombée.
   const premiereErreur =
-    lotsRes.error ?? lotissementsRes.error ?? journalRes.error ?? null;
+    (
+      [
+        ["les lots", lotsRes.error],
+        ["les îlots", ilotsRes.error],
+        ["les lotissements", lotissementsRes.error],
+        ["le compte des attributaires", attributairesRes.error],
+        ["les attestations de cession", attestationsRes.error],
+        ["les paiements", paiementsRes.error],
+        ["les litiges", litigesRes.error],
+        ["les dossiers ADU", aduRes.error],
+        ["le journal d'audit", journalRes.error],
+        ["la série d'activité", journalSerieRes.error],
+        ["la file de saisie", saisieRes.error],
+        ["les demandes d'acquisition", demandesRes.error],
+      ] as const
+    )
+      .filter(([, e]) => !!e)
+      .map(([quoi, e]) => messageLecture(quoi, e!))
+      .join(" · ") || null;
 
   const lots = (lotsRes.data ?? []) as LotRow[];
   const ilots = (ilotsRes.data ?? []) as IlotRow[];
@@ -364,7 +390,7 @@ async function chargerOverview(
     },
   };
 
-  return { instantane, erreur: premiereErreur ? premiereErreur.message : null };
+  return { instantane, erreur: premiereErreur };
 }
 
 export function useAdminOverview(enabled: boolean): AdminOverview {

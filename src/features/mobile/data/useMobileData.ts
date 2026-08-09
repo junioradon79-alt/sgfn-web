@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import type { LotRecord, LitigeRow, ScoreConfiance } from "@/components/dashboard/lots/LotDetailModal";
 import type { NotifRow } from "./mappers";
+import { messageLecture } from "@/lib/supabase-pagination";
 
 export type MobileProfile = {
   id: string;
@@ -637,6 +638,14 @@ export type ParcelleDetail = {
   lot: LotRecord | null;
   litiges: LitigeRow[];
   score: ScoreConfiance | null;
+  /**
+   * 🔴 Les trois lectures jetaient leur `error`. Une parcelle refusée rendait
+   * `lot === null`, et l'écran affichait « Non calculé », « — » partout et
+   * AUCUN litige : la fiche d'une parcelle saine, pour une parcelle qu'on
+   * n'avait pas pu lire. Le pire cas est celui des litiges, dont l'absence se
+   * lit comme une bonne nouvelle.
+   */
+  erreur: string | null;
 };
 
 export function useParcelleDetail(lotId: string | null): ParcelleDetail {
@@ -646,17 +655,22 @@ export function useParcelleDetail(lotId: string | null): ParcelleDetail {
     lot: null,
     litiges: [],
     score: null,
+    erreur: null,
   });
 
   useEffect(() => {
     if (!lotId) {
-      setState({ loading: false, lot: null, litiges: [], score: null });
+      setState({ loading: false, lot: null, litiges: [], score: null, erreur: null });
       return;
     }
     let annule = false;
     setState((s) => ({ ...s, loading: true }));
     void (async () => {
-      const [{ data: lotData }, { data: litigesData }, { data: scoreData }] = await Promise.all([
+      const [
+        { data: lotData, error: lotErr },
+        { data: litigesData, error: litigesErr },
+        { data: scoreData, error: scoreErr },
+      ] = await Promise.all([
         supabase
           .from("lots")
           .select(
@@ -668,11 +682,21 @@ export function useParcelleDetail(lotId: string | null): ParcelleDetail {
         supabase.rpc("calculer_score_confiance", { p_lot_id: lotId }),
       ]);
       if (annule) return;
+      const echecs = (
+        [
+          ["cette parcelle", lotErr],
+          ["les litiges de cette parcelle", litigesErr],
+          ["son indice de confiance", scoreErr],
+        ] as const
+      )
+        .filter(([, e]) => !!e)
+        .map(([quoi, e]) => messageLecture(quoi, e!));
       setState({
         loading: false,
         lot: (lotData ?? null) as unknown as LotRecord | null,
         litiges: (litigesData ?? []) as LitigeRow[],
         score: (scoreData ?? null) as ScoreConfiance | null,
+        erreur: echecs.length ? echecs.join(" · ") : null,
       });
     })();
     return () => {

@@ -8,6 +8,7 @@ import { Button } from "@/components/ds/button";
 import { Card } from "@/components/ds/card";
 import { EmptyState } from "@/components/ds/empty-state";
 import { createClient } from "@/utils/supabase/client";
+import { messageLecture } from "@/lib/supabase-pagination";
 
 // Marketplace public (TerraCI Market) — la découverte des annonces y vit.
 const MARKETPLACE_BASE = "https://monterrain.sgfn.ci";
@@ -36,10 +37,24 @@ export default function ParcellesSuivies() {
 
   const [suivis, setSuivis] = useState<Suivi[]>([]);
   const [loading, setLoading] = useState(true);
+  /**
+   * 🔴 `mes_suivis` jetait son `error`. Un refus rendait la liste vide et
+   * l'écran affichait « Aucun terrain suivi pour le moment » — en vert, avec
+   * une invitation à aller en suivre. L'acquéreur en concluait qu'il n'en
+   * suivait aucun.
+   *
+   * Le garde-fou du parent (`page.tsx`) ne couvrait PAS ce cas : il n'inspecte
+   * `mes_suivis` qu'à l'intérieur de `if (lotIds.length > 0)`, donc seulement
+   * pour un acquéreur ayant déjà une demande rattachée à un lot. Le profil le
+   * plus courant — le lead capté par QR, qui suit des parcelles sans avoir
+   * déposé la moindre demande — passait entièrement au travers.
+   */
+  const [erreur, setErreur] = useState<string | null>(null);
 
   const charger = useCallback(async () => {
-    const { data } = await supabase.rpc("mes_suivis");
+    const { data, error } = await supabase.rpc("mes_suivis");
     setSuivis((data ?? []) as Suivi[]);
+    setErreur(error ? messageLecture("les terrains que vous suivez", error) : null);
     setLoading(false);
   }, [supabase]);
 
@@ -85,7 +100,19 @@ export default function ParcellesSuivies() {
         )}
       </div>
 
-      {suivis.length === 0 ? (
+      {/* Une liste vide PARCE QU'ON N'A RIEN PU LIRE n'est pas une liste vide :
+          on ne propose pas d'aller suivre des parcelles à quelqu'un qui en
+          suit peut-être déjà. */}
+      {erreur && (
+        <p
+          role="alert"
+          className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger"
+        >
+          {erreur}
+        </p>
+      )}
+
+      {suivis.length === 0 && erreur ? null : suivis.length === 0 ? (
         <Card className="pb-8">
           <EmptyState
             icon={Compass}

@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { Boxes, HandCoins, Landmark, MapPin, MessageSquare, PackageCheck } from "lucide-react";
 
 import { createClient } from "@/utils/supabase/client";
-import { fetchAllPages } from "@/lib/supabase-pagination";
+import { fetchAllPages, messageLecture, type ReponsePostgrest } from "@/lib/supabase-pagination";
 import { fadeUp, stagger } from "@/lib/motion";
 import { useBadgeCounts } from "@/hooks/useBadgeCounts";
 
@@ -68,6 +68,13 @@ export default function OperateurPage() {
   const [lots, setLots] = useState<LotRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
+  /**
+   * 🔴 `mon_operateur_id`, les lotissements et les deux lectures paginées
+   * jetaient toutes leur `error`. Un opérateur dont la RPC de périmètre échoue
+   * voyait « Aucun lotissement n'est rattaché à votre compte opérateur » —
+   * l'écran lui déniait son parc au lieu de dire qu'il n'avait pas pu le lire.
+   */
+  const [chargeErreur, setChargeErreur] = useState<string | null>(null);
 
   const { counts } = useBadgeCounts();
   const rafraichir = useCallback(() => setTick((t) => t + 1), []);
@@ -76,7 +83,7 @@ export default function OperateurPage() {
     (async () => {
       setLoading(true);
       // Périmètre opérateur : son identifiant + ses lotissements.
-      const { data: monOp } = await supabase.rpc("mon_operateur_id");
+      const { data: monOp, error: monOpErr } = await supabase.rpc("mon_operateur_id");
 
       const lotissPromise = monOp
         ? supabase
@@ -84,7 +91,7 @@ export default function OperateurPage() {
             .select("id, nom, village, commune, nb_lots, nb_ilots")
             .eq("operateur_id", monOp)
             .order("nom")
-        : Promise.resolve({ data: [] });
+        : Promise.resolve({ data: [], error: null });
 
       // Les lots sont déjà cantonnés à l'opérateur par le RLS (lots_read_scope).
       // L'embed imbriqué lots→attributions→attributaires timeoutait (8 s → HTTP
@@ -100,20 +107,20 @@ export default function OperateurPage() {
           .select("id, numero_lot, statut, ilots(numero, lotissement_id, lotissements(nom, operateur_id))")
           .order("numero_lot", { ascending: true })
           .order("id", { ascending: true })
-          .range(from, to) as unknown as PromiseLike<{ data: LotBase[] | null }>
+          .range(from, to) as unknown as PromiseLike<ReponsePostgrest<LotBase>>
       );
       const attrsPromise = fetchAllPages<AttrRow>((from, to) =>
         supabase
           .from("attributions")
           .select("lot_id, qualite, actuel, attributaires(nom)")
           .order("id", { ascending: true })
-          .range(from, to) as unknown as PromiseLike<{ data: AttrRow[] | null }>
+          .range(from, to) as unknown as PromiseLike<ReponsePostgrest<AttrRow>>
       );
 
       const [lotiss, lotsData, attrsData] = await Promise.all([lotissPromise, lotsPromise, attrsPromise]);
 
       const attrsByLot = new Map<string, NonNullable<LotRow["attributions"]>>();
-      for (const a of attrsData) {
+      for (const a of attrsData.rows) {
         if (!a.lot_id) continue;
         const { lot_id, ...rest } = a;
         const arr = attrsByLot.get(lot_id);
@@ -123,8 +130,19 @@ export default function OperateurPage() {
 
       setLotissements((lotiss.data ?? []) as unknown as LotissementRow[]);
       setLots(
-        lotsData.map((l) => ({ ...l, attributions: attrsByLot.get(l.id) ?? [] })) as unknown as LotRow[]
+        lotsData.rows.map((l) => ({ ...l, attributions: attrsByLot.get(l.id) ?? [] })) as unknown as LotRow[]
       );
+      const echecs = (
+        [
+          ["votre rattachement opérateur", monOpErr],
+          ["vos lotissements", lotiss.error],
+          ["les lots de votre périmètre", lotsData.error],
+          ["les attributions", attrsData.error],
+        ] as const
+      )
+        .filter(([, e]) => !!e)
+        .map(([quoi, e]) => messageLecture(quoi, e!));
+      setChargeErreur(echecs.length ? echecs.join(" · ") : null);
       setLoading(false);
     })();
   }, [supabase, tick]);
@@ -153,6 +171,12 @@ export default function OperateurPage() {
           </Link>
         </Button>
       </div>
+
+      {chargeErreur && (
+        <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
+          {chargeErreur}
+        </p>
+      )}
 
       <motion.section
         variants={stagger(0, 0.05)}
@@ -210,11 +234,15 @@ export default function OperateurPage() {
                   <Skeleton className="h-[104px]" />
                 </div>
               ) : lotissements.length === 0 ? (
+                // Ne pas affirmer « aucun lotissement rattaché » quand c'est la
+                // lecture du rattachement qui a échoué.
+                chargeErreur ? null : (
                 <EmptyState
                   icon={Landmark}
                   title="Aucun lotissement"
                   description="Aucun lotissement n'est rattaché à votre compte opérateur."
                 />
+                )
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {lotissements.map((lo) => (

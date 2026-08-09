@@ -26,6 +26,7 @@ import { useChargement } from "@/hooks/useChargement";
 import { useProfile } from "@/hooks/useProfile";
 import { createClient } from "@/utils/supabase/client";
 import { invokeEdge } from "@/lib/invoke-edge";
+import { messageLecture } from "@/lib/supabase-pagination";
 import { fadeUp, stagger } from "@/lib/motion";
 
 /**
@@ -132,6 +133,8 @@ export default function EspaceProprietairePage() {
   const [dlState, setDlState] = useState<Record<string, "idle" | "loading" | "error">>({});
   const [payingId, setPayingId] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
+  /** Motif d'une des quatre lectures tombée (distinct de `payError`). */
+  const [chargeErreur, setChargeErreur] = useState<string | null>(null);
 
   // `useChargement` porte l'état de chargement : au premier rendu il n'écrit
   // rien de façon synchrone (pas de cascade de rendus), et `recharger` sert le
@@ -161,6 +164,21 @@ export default function EspaceProprietairePage() {
     setAttestations((att.data ?? []) as unknown as AttestationRow[]);
     setPaiements((pai.data ?? []) as unknown as PaiementRow[]);
     setDemarches((dem.data ?? []) as unknown as DemarcheRow[]);
+
+    // 🔴 Les quatre lectures jetaient leur `error` : un refus RLS affichait un
+    // propriétaire sans lot, sans attestation et sans paiement — l'écran d'un
+    // compte vide, pas celui d'un compte qu'on n'a pas pu lire.
+    const echecs = (
+      [
+        ["vos attributions", attr.error],
+        ["vos attestations de cession", att.error],
+        ["vos paiements", pai.error],
+        ["vos démarches", dem.error],
+      ] as const
+    )
+      .filter(([, e]) => !!e)
+      .map(([quoi, e]) => messageLecture(quoi, e!));
+    setChargeErreur(echecs.length ? echecs.join(" · ") : null);
   }, [supabase]);
 
   const telecharger = async (reference: string) => {
@@ -284,6 +302,12 @@ export default function EspaceProprietairePage() {
           </Button>
         </div>
       </div>
+
+      {chargeErreur && (
+        <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
+          {chargeErreur}
+        </p>
+      )}
 
       <motion.section
         variants={stagger(0, 0.05)}

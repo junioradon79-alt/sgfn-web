@@ -32,7 +32,7 @@ import { useChargement } from "@/hooks/useChargement";
 import { useProfile } from "@/hooks/useProfile";
 import { fadeUp, stagger } from "@/lib/motion";
 import { MOYEN_OPTIONS, fcfa, type MoyenPaiement } from "@/lib/paiements";
-import { fetchAllPages } from "@/lib/supabase-pagination";
+import { fetchAllPages, messageLecture, type ReponsePostgrest } from "@/lib/supabase-pagination";
 import type { Database } from "../../../../database.types";
 
 // ─── Types (spécifiques à la page) ─────────────────────────────────────────────
@@ -576,6 +576,11 @@ export default function LotsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  /**
+   * Motif d'une des quatre lectures tombée. `errorMessage` ne sert qu'aux
+   * modales de création/transfert : un chargement en échec y serait invisible.
+   */
+  const [chargeErreur, setChargeErreur] = useState<string | null>(null);
 
   const loadLots = async () => {
     // Le registre était chargé en UN seul embed imbriqué à 2 niveaux depuis `lots`
@@ -601,33 +606,33 @@ export default function LotsPage() {
           )
           .order("numero_lot", { ascending: true })
           .order("id", { ascending: true })
-          .range(from, to) as unknown as PromiseLike<{ data: LotRecord[] | null }>
+          .range(from, to) as unknown as PromiseLike<ReponsePostgrest<LotRecord>>
       ),
       fetchAllPages<AttrRow>((from, to) =>
         supabase
           .from("attributions")
           .select("lot_id, rang, qualite, actuel, depuis, observation, attributaires(id, nom, type)")
           .order("id", { ascending: true })
-          .range(from, to) as unknown as PromiseLike<{ data: AttrRow[] | null }>
+          .range(from, to) as unknown as PromiseLike<ReponsePostgrest<AttrRow>>
       ),
       fetchAllPages<AttestRow>((from, to) =>
         supabase
           .from("attestations_cession")
           .select("lot_id, reference, statut, cession_id, exception, exception_le")
           .order("id", { ascending: true })
-          .range(from, to) as unknown as PromiseLike<{ data: AttestRow[] | null }>
+          .range(from, to) as unknown as PromiseLike<ReponsePostgrest<AttestRow>>
       ),
       fetchAllPages<AttribRow>((from, to) =>
         supabase
           .from("attestations_attribution_lot")
           .select("lot_id, reference, statut, niveau, gratuite, nom_identifie_physique, signature_payee_le, sig_chefferie_le")
           .order("id", { ascending: true })
-          .range(from, to) as unknown as PromiseLike<{ data: AttribRow[] | null }>
+          .range(from, to) as unknown as PromiseLike<ReponsePostgrest<AttribRow>>
       ),
     ]);
 
     const attrsByLot = new Map<string, NonNullable<LotRecord["attributions"]>>();
-    for (const a of attrsData) {
+    for (const a of attrsData.rows) {
       if (!a.lot_id) continue;
       const { lot_id, ...rest } = a;
       const arr = attrsByLot.get(lot_id);
@@ -636,7 +641,7 @@ export default function LotsPage() {
     }
 
     const attestByLot = new Map<string, NonNullable<LotRecord["attestations_cession"]>>();
-    for (const at of attestData) {
+    for (const at of attestData.rows) {
       if (!at.lot_id) continue;
       const { lot_id, ...rest } = at;
       const arr = attestByLot.get(lot_id);
@@ -645,7 +650,7 @@ export default function LotsPage() {
     }
 
     const attribByLot = new Map<string, NonNullable<LotRecord["attestations_attribution_lot"]>>();
-    for (const at of attribData) {
+    for (const at of attribData.rows) {
       if (!at.lot_id) continue;
       const { lot_id, ...rest } = at;
       const arr = attribByLot.get(lot_id);
@@ -653,13 +658,31 @@ export default function LotsPage() {
       else attribByLot.set(lot_id, [rest]);
     }
 
-    const merged = lotsData.map((l) => ({
+    const merged = lotsData.rows.map((l) => ({
       ...l,
       attributions: attrsByLot.get(l.id) ?? [],
       attestations_cession: attestByLot.get(l.id) ?? [],
       attestations_attribution_lot: attribByLot.get(l.id) ?? [],
     }));
     setLotRows(merged);
+
+    // 🔴 Les quatre lectures jetaient leur `error`. Le registre refusé
+    // s'affichait « Aucun lot enregistré · Le registre de votre périmètre est
+    // vide » — la formulation même d'un périmètre légitimement désert. Pire
+    // pour les trois lectures satellites : refusées seules, les lots
+    // s'affichaient tous « Non attribué », sans attestation ni cession, et
+    // rien à l'écran ne trahissait la lacune.
+    const echecs = (
+      [
+        ["les lots", lotsData.error],
+        ["les attributions", attrsData.error],
+        ["les attestations de cession", attestData.error],
+        ["les attestations d'attribution de lot", attribData.error],
+      ] as const
+    )
+      .filter(([, e]) => !!e)
+      .map(([quoi, e]) => messageLecture(quoi, e!));
+    setChargeErreur(echecs.length ? echecs.join(" · ") : null);
   };
 
   const { isLoading, recharger } = useChargement(loadLots);
@@ -1098,12 +1121,21 @@ export default function LotsPage() {
           </motion.div>
         )}
 
+        {chargeErreur && (
+          <p role="alert" className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm font-medium text-danger">
+            {chargeErreur}
+          </p>
+        )}
+
         {/* Tableau */}
         <motion.div variants={fadeUp}>
           <Card className="overflow-hidden print:border-none print:shadow-none">
             {isLoading ? (
               <p className="px-5 py-10 text-center text-sm text-muted-foreground">Chargement des lots…</p>
             ) : displayedRows.length === 0 ? (
+              // « Le registre de votre périmètre est vide » n'est affirmé que si
+              // la lecture a abouti — sinon c'est le bandeau ci-dessus qui parle.
+              chargeErreur && !vueFiltree ? null : (
               <EmptyState
                 icon={Boxes}
                 title={vueFiltree ? "Aucun lot ne correspond" : "Aucun lot enregistré"}
@@ -1113,6 +1145,7 @@ export default function LotsPage() {
                     : "Le registre de votre périmètre est vide."
                 }
               />
+              )
             ) : (
               // Défilement interne plutôt qu'une page à rallonge : le registre
               // compte ~900 lots, soit près de 50 000 px de haut si on laisse la
