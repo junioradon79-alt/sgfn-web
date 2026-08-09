@@ -250,7 +250,20 @@ begin
       (14, c.u_op_brignan,   c.koelea,  false, 'operateur de Brignan — Koelea (le VOISIN : doit etre refuse)'),
       (15, c.u_op_koelea,    c.koelea,  true,  'operateur de Koelea — Koelea (son lotissement)'),
       (16, c.u_op_koelea,    c.brignan, false, 'operateur de Koelea — Brignan (le VOISIN : doit etre refuse)'),
-      (17, c.u_attr_koelea,  c.koelea,  true,  'attributaire — Koelea (ou il detient des lots)'),
+      -- 🔴 CAS 17 RETOURNE LE 09/08/2026 : il attendait `true`, il attend
+      -- desormais `false`. La migration 20260808100000 a SORTI la 4e branche
+      -- (attributaire) de `peut_lire_documents_lotissement` : cette fonction
+      -- ne rend plus que les lecteurs INCONDITIONNELS (admin, chefferie de la
+      -- juridiction, operateur du parc). Le droit de l'attributaire n'a pas
+      -- disparu — il vit dans `est_attributaire_actuel_du_lotissement`, borne
+      -- au seul type `plan_lotissement` par la policy, et il est teste comme
+      -- tel juste en dessous (cas 17b/17c).
+      --
+      -- Laisser `true` ici aurait ete pire qu'un test rouge : le contrat
+      -- ANCIEN serait reste encode dans le contrôle qui garde precisement ce
+      -- predicat, et la « reparation » evidente aurait ete de reintroduire la
+      -- branche — c'est-a-dire de rouvrir la fuite que la migration ferme.
+      (17, c.u_attr_koelea,  c.koelea,  false, 'attributaire — Koelea : la fonction INCONDITIONNELLE le refuse depuis le 08/08'),
       (18, c.u_attr_koelea,  c.brignan, false, 'attributaire de Koelea — Brignan (aucun lot : doit etre refuse)'),
       (19, c.u_geometre,     c.brignan, false, 'geometre — refuse (aucun lien lotissement, cf. migration)'),
       (20, c.u_verificateur, c.brignan, false, 'verificateur — refuse'),
@@ -266,6 +279,55 @@ begin
            || ' / attendu=' || r.attendu::text;
   end loop;
   perform set_config('request.jwt.claims', '', true);
+end $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+--  17b / 17c — LE DROIT DE L'ATTRIBUTAIRE, LA OU IL VIT DESORMAIS
+--
+--  Le cas 17 ci-dessus prouve que la fonction inconditionnelle le refuse. Sans
+--  ce bloc-ci, le contrôle attesterait d'une FERMETURE sans jamais verifier
+--  que l'ouverture correspondante existe : on aurait un test vert sur un droit
+--  supprime, ce qui est exactement le faux vert que ce fichier combat.
+--
+--  ⚠️ `u_attr_koelea` designe « Compte Test — Proprietaire » (d1c26661), dont
+--  l'`attributaire_id` a ete mis a NULL le 31/07 : il partageait l'identite
+--  d'AKE AMAFIN NICODEME, personne reelle. Sur la production d'aujourd'hui,
+--  17b rend donc `false` — non parce que la regle est fausse, mais parce que
+--  ce compte n'est plus attributaire de rien. Le cas 17c le distingue : il
+--  releve l'etat du compte, pour qu'un rouge en 17b ne soit jamais lu comme
+--  une regression de la regle.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+do $$
+declare c record; v_pred boolean; v_attr uuid;
+begin
+  select * into c from ctx;
+
+  select attributaire_id into v_attr from profiles where id = c.u_attr_koelea;
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', c.u_attr_koelea, 'role', 'authenticated')::text, true);
+  v_pred := public.est_attributaire_actuel_du_lotissement(c.koelea);
+  perform set_config('request.jwt.claims', '', true);
+
+  insert into res values (
+    171,
+    'Predicat neuf : attributaire actuel — Koelea (droit deplace, pas supprime)',
+    v_pred = (v_attr is not null),
+    'rendu=' || coalesce(v_pred::text, '(null)')
+      || ' / attributaire_id du compte=' || coalesce(v_attr::text, '(null)')
+      || ' — les deux doivent concorder'
+  );
+
+  insert into res values (
+    172,
+    'Etat du compte de test : porte-t-il encore un attributaire ?',
+    true,
+    case when v_attr is null
+      then 'attributaire_id=NULL (detache le 31/07 — il partageait l''identite d''AKE). 17b a donc raison de rendre false.'
+      else 'attributaire_id=' || v_attr::text
+    end
+  );
 end $$;
 
 -- La garde NULL, celle qui a coûté trois fonctions le 28/07 : un profil sans
