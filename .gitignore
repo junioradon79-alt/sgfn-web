@@ -56,10 +56,28 @@ yarn-error.log*
 # vercel
 .vercel
 
-# Claude Code (config/permissions locales a la machine du developpeur, pas un artefact projet)
-.claude/
+# Claude Code — par defaut LOCAL a la machine (permissions, caches, skills
+# installes) : ce sont des reglages de poste, pas des artefacts projet.
+#
+# ⚠️ `.claude/*` et NON `.claude/` : git refuse de reinclure un fichier dont le
+# DOSSIER est exclu. Avec `.claude/`, les deux exceptions ci-dessous seraient
+# restees lettre morte ; avec `.claude/*`, git descend dans le dossier et seul
+# son contenu est ignore — ce qui rend les `!` operants.
+.claude/*
 .agents/
 skills-lock.json
+
+# ...SAUF ce qui porte une REGLE DE TRAVAIL de l'equipe, qui doit suivre le
+# depot et survivre a un changement de machine (ajout du 09/08/2026) :
+#   * le hook qui rappelle la routine « un verificateur tiers avant toute
+#     livraison » et arrete la main sur l'ecriture en production ;
+#   * la definition de l'agent verificateur, avec son mandat borne.
+# Sans ces exceptions, la regle ne vivait que sur un seul poste.
+#
+# Restent ignores, et c'est voulu : `settings.local.json` (permissions
+# personnelles), `skills/` (skills installes localement), et tout le reste.
+!.claude/settings.json
+!.claude/agents/
 
 # graphify (graphe de connaissance regenere localement via `graphify update .`, pas un artefact projet)
 /graphify-out/
