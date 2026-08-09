@@ -213,9 +213,13 @@ export default function DemandesAcquisitionPage() {
       setError(e.message);
       return;
     }
-    const r = (data ?? {}) as { rang?: number; montant_total?: number; statut_paiement?: string };
+    const r = (data ?? {}) as { rang?: number; palier?: number; montant_total?: number; statut_paiement?: string };
+    // `palier` et non `rang` : le libellé compte les ACTES DÉLIVRÉS, pas les
+    // changements de détenteur. Les deux divergent sur 854 lots sur 871 —
+    // voir migration 20260809105000. Repli sur `rang` tant qu'elle n'est pas
+    // appliquée, l'ancien retour ne portant pas de `palier`.
     setFlash(
-      `Attestation de cession facturée (${r.rang ?? "?"}e attestation — ${fcfa(r.montant_total)}). ` +
+      `Attestation de cession facturée (${r.palier ?? r.rang ?? "?"}e attestation — ${fcfa(r.montant_total)}). ` +
         (r.statut_paiement === "en_attente_validation"
           ? "À encaisser au guichet ci-dessous pour générer l'attestation."
           : "L'acquéreur la règle en ligne ; l'attestation est émise à la confirmation.")

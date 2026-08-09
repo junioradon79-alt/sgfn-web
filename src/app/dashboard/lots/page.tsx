@@ -199,12 +199,17 @@ function LitigeModal({ lot, onClose, onSubmit, isSubmitting }: {
 // cette modale ne s'occupe que des transferts payants.
 
 function CessionModal({
-  lot, attributaires, excludeAttributaireId, nextRang, tarifTier2, tarifChefferie, onClose, onSubmit, isSubmitting,
+  lot, attributaires, excludeAttributaireId, palier, tarifTier2, tarifChefferie, onClose, onSubmit, isSubmitting,
 }: {
   lot: LotRecord;
   attributaires: AttributaireOption[];
   excludeAttributaireId: string | null;
-  nextRang: number;
+  /**
+   * Rang TARIFAIRE de l'acte à créer = 1 + les attestations non révoquées déjà
+   * délivrées pour ce lot. Ce n'est PAS le rang d'attribution : voir le calcul
+   * au point d'appel, et `palier_attestation_du_lot` en base, qui fait foi.
+   */
+  palier: number;
   tarifTier2: TarifTier2 | null;
   tarifChefferie: TarifChefferie | null | undefined;
   onClose: () => void;
@@ -219,8 +224,15 @@ function CessionModal({
   });
   const [error, setError] = useState<string | null>(null);
 
-  const isTier2 = nextRang === 2;
-  const tarifDisponible = isTier2 ? !!tarifTier2?.actif : !!tarifChefferie?.actif;
+  // Au palier 1, la base REFUSE la cession : le premier acte du lot est
+  // gratuit, il doit être délivré avant qu'une cession puisse être vendue
+  // (arbitrage du 09/08/2026, migration 20260809105000). L'écran doit dire
+  // la même chose que la base — sinon l'agent remplit un formulaire pour
+  // récolter une erreur, ce qui est la définition d'un écran qui ment.
+  const premierActeManquant = palier <= 1;
+  const isTier2 = palier === 2;
+  const tarifDisponible =
+    !premierActeManquant && (isTier2 ? !!tarifTier2?.actif : !!tarifChefferie?.actif);
   const montantTotal = isTier2
     ? (tarifTier2?.montant_min ?? 0)
     : ((tarifChefferie?.montant_chefferie ?? 0) + (tarifChefferie?.commission_sgfn ?? 0));
@@ -240,7 +252,7 @@ function CessionModal({
   return (
     <ModaleFormulaire
       surTitre="Nouvelle cession"
-      titre={`Lot ${lot.numero_lot} — ${nextRang}e attestation`}
+      titre={`Lot ${lot.numero_lot} — ${palier}${palier === 1 ? "re" : "e"} attestation`}
       onClose={onClose}
       onSubmit={handleSubmit}
       error={error}
@@ -262,9 +274,11 @@ function CessionModal({
           </div>
         ) : (
           <Avertissement>
-            {isTier2
-              ? "Tarif de la 2e attestation non configuré — contactez l'équipe SGNF."
-              : "Tarif non défini pour la chefferie de ce lotissement (3e attestation et plus) — contactez l'équipe SGNF pour le fixer."}
+            {premierActeManquant
+              ? "Ce lot n'a encore reçu aucune attestation. La première est GRATUITE et doit être délivrée avant toute cession : ouvrez Documents et lancez le rattrapage des attestations gratuites, puis revenez ici — la cession sera alors au forfait national."
+              : isTier2
+                ? "Tarif de la 2e attestation non configuré — contactez l'équipe SGNF."
+                : "Tarif non défini pour la chefferie de ce lotissement (3e attestation et plus) — contactez l'équipe SGNF pour le fixer."}
           </Avertissement>
         )
       }
@@ -869,11 +883,22 @@ export default function LotsPage() {
     if (error) return error.message;
 
     const r = result as {
-      rang: number; montant_total: number; statut_paiement: string;
+      rang: number; palier?: number;
+      montant_total: number; statut_paiement: string | null;
     };
     setCessionLot(null);
+    // Le libellé annonce le PALIER (le rang de l'acte), pas le rang
+    // d'attribution : « 3e attestation » désigne le 3e document délivré. Les
+    // deux divergent sur 854 lots sur 871 — voir migration 20260809105000.
+    // `?? r.rang` pour rester lisible si la migration n'est pas encore
+    // appliquée : l'ancien retour ne porte pas de `palier`.
+    const n = r.palier ?? r.rang;
+    // Le palier 1 est refusé par la base (`creer_cession` lève) : on n'arrive
+    // donc jamais ici avec un montant nul, et il n'y a pas de cas « gratuit »
+    // à afficher. Une version intermédiaire créait une cession à 0 FCFA — elle
+    // laissait le lot verrouillé, sans attestation et sans cession possible.
     setSuccessMessage(
-      `Cession créée (${r.rang}e attestation) — ${fcfa(r.montant_total)}. ` +
+      `Cession créée (${n}${n === 1 ? "re" : "e"} attestation) — ${fcfa(r.montant_total)}. ` +
       (r.statut_paiement === "en_attente_validation"
         ? "Paiement en attente de validation au guichet (onglet Paiements)."
         : "Paiement en attente de règlement en ligne par l'acquéreur.")
@@ -1365,14 +1390,35 @@ export default function LotsPage() {
       {litigeLot && <LitigeModal lot={litigeLot} isSubmitting={isSubmitting} onClose={() => setLitigeLot(null)} onSubmit={handleLitigeSubmit} />}
       {cessionLot && (() => {
         const attrActuel = cessionLot.attributions?.find((a) => a.actuel) ?? cessionLot.attributions?.[0];
-        const nextRang = (attrActuel?.rang ?? 1) + 1;
+        // 🔴 LE PRIX NE SE DÉDUIT PLUS DU RANG D'ATTRIBUTION.
+        // Cet écran calculait son tarif sur `attrActuel.rang + 1`. C'est le
+        // rang de la prochaine ATTRIBUTION — il compte les changements de
+        // détenteur, pas les actes délivrés. Les deux divergent sur 854 lots
+        // sur 871, parce qu'un import a inscrit des chaînes de détention sans
+        // qu'aucune attestation ne soit émise. Laissé tel quel après les
+        // migrations du 09/08, l'écran aurait annoncé 380 000 FCFA au guichet
+        // sur 473 lots que la base facture 30 000.
+        // Le palier est donc calculé ici EXACTEMENT comme en base par
+        // `palier_attestation_du_lot` (migration 20260809105000) : 1 + les
+        // actes non révoqués des DEUX tables d'attestations, toutes deux déjà
+        // chargées par cet écran.
+        // Le filtre porte sur `statut` là où la base filtre sur `revoquee_le` :
+        // les deux colonnes sont cohérentes sur la totalité du stock (mesuré,
+        // 0 divergence sur 106 lignes), et `statut` est le champ déjà
+        // sélectionné. Si l'une des deux devait diverger un jour, c'est la
+        // BASE qui fait foi — elle seule facture.
+        const nonRevoquee = (s: string | null | undefined) => s !== "revoquee";
+        const palier =
+          1 +
+          (cessionLot.attestations_cession ?? []).filter((a) => nonRevoquee(a.statut)).length +
+          (cessionLot.attestations_attribution_lot ?? []).filter((a) => nonRevoquee(a.statut)).length;
         const autoriteId = cessionLot.ilots?.lotissements?.autorite_coutumiere_id ?? "";
         return (
           <CessionModal
             lot={cessionLot}
             attributaires={attributaireOptions}
             excludeAttributaireId={attrActuel?.attributaires?.id ?? null}
-            nextRang={nextRang}
+            palier={palier}
             tarifTier2={tarifTier2}
             tarifChefferie={tarifsChefferie.get(autoriteId)}
             isSubmitting={isSubmitting}
