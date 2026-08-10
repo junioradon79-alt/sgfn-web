@@ -21,7 +21,12 @@
 
 ## Référentiel foncier
 
-`lotissements`, `ilots`, `lots` (895 lignes), `attributaires` (39), `attributions` (68), `operateurs`, `geometres_experts`, `commissaires_justice`, `cvgfr`.
+`lotissements` (2), `ilots` (102), `lots` (898), `attributaires` (57), `attributions` (1360), `operateurs`, `geometres_experts`, `commissaires_justice`, `cvgfr`. *(Volumétries relues en production le 10/08/2026 ; les valeurs précédentes — 895 / 39 / 68 — dataient de la mise en place et étaient fortement périmées.)*
+
+🔴 **`attributions.rang` — convention, depuis le 10/08/2026 (migration `20260809110000`).** Position dans la **chaîne de détention** du lot, en **base 1** : le rang 1 est le détenteur d'origine, le rang le plus élevé est le titulaire actuel et porte `actuel = true`. Sans trou ni doublon — garanti par `attributions_lot_rang_uniq` (unique sur `lot_id, rang`) et `attributions_lot_actuel_uniq` (unique sur `lot_id where actuel`). Toute écriture suit `coalesce(max(rang), 0) + 1`.
+Ce n'est pas cosmétique : 441 chaînes commençaient auparavant au rang **0** et 11 portaient deux lignes au même rang, ce qui rendait faux tout calcul supposant un point de départ fixe. Les vues `v_attestations_gratuites_manquantes` et `v_attestations_bloquees_documents` filtrent sur `rang = 1 AND actuel` : **ce prédicat ne signifie « jamais transféré » que sous cette convention**. Ne pas réintroduire de rang 0.
+
+🔴 **Le rang n'est PAS le palier tarifaire.** `rang` compte les changements de détenteur ; le prix d'une attestation dépend du nombre d'**actes délivrés**. Les deux divergeaient sur **854 lots sur 871**. Le palier se lit désormais par `palier_attestation_du_lot(lot_id)` = 1 + les actes non révoqués de `attestations_cession` **et** `attestations_attribution_lot` — 1 = gratuite, 2 = forfait national (30 000), 3+ = tarif chefferie. `creer_cession` et `facturer_attestation_cession` l'appellent toutes deux ; elles portaient auparavant deux lectures divergentes de `rang`. La fonction est fermée à `anon` **et** à `authenticated` : ses seuls appelants sont `SECURITY DEFINER`.
 
 ## Hiérarchie familiale / coutumière
 
