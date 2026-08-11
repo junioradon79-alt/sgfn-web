@@ -721,7 +721,8 @@ declare
   v_job     record;
 
   -- Pour la sonde DIRECTE independante plus bas (§ TEST DIRECT) : declarees
-  -- ICI, au niveau du bloc do $$, PAS dans un sous-bloc — sinon elles
+  -- ICI, au niveau du bloc DO (pas la sequence dollar-dollar litterale : elle
+  -- refermerait prematurement CE bloc, lecon de ce fichier lui-meme), PAS dans un sous-bloc — sinon elles
   -- sortiraient de portee des la fin de leur propre `end;`, exactement comme
   -- `v_role_initial`/`v_role_sonde`/`v_sonde_ko` sont declarees au niveau de
   -- la FONCTION dans controle_exposition_anon(), pas dans son sous-bloc.
