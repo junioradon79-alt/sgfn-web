@@ -1410,6 +1410,64 @@ for (const [nomCopie, cheminCopie] of COPIES) verifierCablageStorage(nomCopie, c
     );
   }
 
+  // ── D3b (3e jumelle) : ni le NOM ni la VALEUR de 'cfg.type_doc' n'ont ──
+  //                       bouge d'ici la garde. Meme lecon que D3b de
+  //                       telecharger-document/convertir-plan-cad (dette
+  //                       #52) : `cfg` est declaree `const` (ligne ~976),
+  //                       ce qui empeche de reaffecter le BINDING — mais
+  //                       RIEN n'empeche de muter sa PROPRIETE
+  //                       `cfg.type_doc = …`, puisque `cfg` reste un objet
+  //                       ordinaire. Un vérificateur tiers rejouerait la
+  //                       meme mutation exacte que sur les deux jumelles
+  //                       (M15f) : `cfg.type_doc = evt.type_doc ??
+  //                       cfg.type_doc` juste avant l'appel laisserait D3
+  //                       ci-dessus au vert, puisqu'il ne lit que le TEXTE
+  //                       de l'argument ('cfg.type_doc'), jamais la valeur
+  //                       qu'il porte au moment de l'appel.
+  //
+  //  🔴 A LA DIFFERENCE des deux jumelles, ce controle ne peut PAS relire
+  //  `dep` (le corps de `deposer` SEUL) comme D3 le fait juste au-dessus :
+  //  `cfg` est declaree HORS de `deposer` (`const cfg = CONFIG[table]`,
+  //  dans la fonction englobante) et seulement CAPTUREE par fermeture. On
+  //  cherche donc dans `h` (le handler ENTIER) — mais PAS jusqu'a `iGarde`
+  //  (position TEXTUELLE de l'appel `motifDeRefusDuChemin(chemin, …)` a
+  //  l'INTERIEUR du corps de `deposer`). `deposer` est une fonction que
+  //  l'on peut appeler PLUSIEURS FOIS (deux points d'appel dans
+  //  index.ts : ~1086 avant la declaration textuelle de `deposer`, ~1321
+  //  bien APRES `iGarde`) ; chaque appel ré-execute le corps entier,
+  //  garde comprise, en lisant `cfg.type_doc` par fermeture au moment de
+  //  CET appel-la — pas au moment ou le texte de la garde apparait dans
+  //  le fichier. Une mutation inseree juste avant le SECOND point d'appel
+  //  (~1321) est donc textuellement APRES `iGarde`, mais s'execute AVANT
+  //  que la garde ne lise `cfg.type_doc` pour cet appel : borner la
+  //  fenetre a `iGarde` la manque entierement (mesure le 11/08 : EXIT=0,
+  //  ok, sur un code mute). Il n'y a AUCUNE reaffectation legitime de
+  //  `cfg.type_doc` nulle part dans le fichier (verifie par grep sur
+  //  index.ts : zero occurrence de `cfg.type_doc =` ou
+  //  `cfg["type_doc"] =`, en dehors des comparaisons `===` et lectures) ;
+  //  la fenetre peut donc courir SANS BORNE HAUTE jusqu'a la fin de `h`
+  //  sans risque de faux rouge.
+  if (iGarde < 0) {
+    fail("generation-document : D3b — appel a 'motifDeRefusDuChemin(chemin, …)' introuvable (fail-closed)");
+  } else {
+    const iCfgDecl = h.lastIndexOf("const cfg = CONFIG[table]", iGarde);
+    if (iCfgDecl < 0) {
+      fail("generation-document : D3b — declaration 'const cfg = CONFIG[table]' introuvable (fail-closed)");
+    } else {
+      const entreLectureEtGarde = sansContenuDeChaines(h.slice(iCfgDecl));
+      if (/\bcfg(?:\.type_doc|\[\s*["'`]type_doc["'`]\s*\])\s*=(?!=)/.test(entreLectureEtGarde)) {
+        fail(
+          "generation-document : D3b — 'cfg.type_doc' est REAFFECTE quelque part dans le handler, entre sa " +
+            "declaration et la fin du fichier : le texte de l'argument reste 'cfg.type_doc', mais la VALEUR " +
+            "qu'il porte au moment d'un appel a `deposer()` peut avoir change (mutation M15f/M15g, y compris " +
+            "inseree APRES la position textuelle de la garde mais AVANT un second point d'appel de `deposer`).",
+        );
+      } else {
+        ok("generation-document : D3b — aucune reaffectation DIRECTE ('cfg.type_doc = …') dans tout le handler (n'exclut pas un alias ou Object.assign, hors perimetre)");
+      }
+    }
+  }
+
   // ── B. UNE LIGNE PAR CHEMIN, PAS UNE PAR GENERATION ──────────────────
   //    L'`update` cible doit preceder l'`insert`, et l'`insert` ne doit pas
   //    etre atteignable sans lui : c'est ce qui a produit 57 doublons.
