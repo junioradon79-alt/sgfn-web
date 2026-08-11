@@ -34,6 +34,248 @@ const CONFIG: Record<string, { titre: string; type_doc: string; template: string
   pv_bornage:                { titre: "PROCES-VERBAL DE BORNAGE",                    type_doc: "pv_bornage",                     template: "pv_bornage.html",          pdfmonkeyEnv: "PDFMONKEY_TEMPLATE_ID_PV_BORNAGE", flipStatutDelivree: false },
 };
 
+// ═════════════════════════════════════════════════════════════════════
+//  ▼▼▼ GARDE DE CHEMIN (dette #49) — DEBUT DU BLOC RECOPIE ▼▼▼
+//  Ce bloc existe A L'IDENTIQUE dans TROIS fichiers :
+//     supabase/functions/telecharger-document/index.ts   (source de verite)
+//     supabase/functions/convertir-plan-cad/index.ts     (copie, appliquee
+//       AVANT le `.download()` du fichier original)
+//     supabase/functions/generation-document/index.ts    (copie EN
+//       ECRITURE, appliquee AVANT l'`.upload()` plutot qu'avant une
+//       lecture)
+//  Les trois fonctions se deploient fichier par fichier (un seul index.ts
+//  chacune), donc un module `_shared/` ne serait pas embarque : la
+//  duplication est imposee par la forme du deploiement, pas choisie.
+//  ⚠️ NE PAS EDITER LES COPIES A LA MAIN. Modifier la SOURCE
+//  (telecharger-document), puis relancer
+//  scripts/e2e-dette-49-chemin-signe.mjs --synchroniser, qui recopie le
+//  bloc octet par octet vers les deux copies. Sans argument, ce meme
+//  script ECHOUE si l'une des copies diverge — c'est ce qui remplace le
+//  module partage.
+// ═════════════════════════════════════════════════════════════════════
+
+/**
+ * Prefixe de stockage attendu pour chaque `documents.type`.
+ *
+ * ── D'OU VIENNENT CES VALEURS ────────────────────────────────────────
+ * Elles ne sont pas devinees : elles sont MESUREES en production le
+ * 10/08/2026 (179 lignes `documents`, 134 objets du bucket) et
+ * recoupees avec le code qui les ecrit. Chaque type observe porte UN
+ * SEUL prefixe, sur 100 % de ses lignes :
+ *
+ *   type_document                    | prefixe                      | lignes
+ *   ---------------------------------|------------------------------|-------
+ *   attestation_cession              | attestations_cession/        |   158
+ *   quittance                        | paiements/                   |    10
+ *   certificat_propriete_coutumiere  | attestations_coutumieres/    |     6
+ *   certificat_vente                 | certificats_vente/           |     2
+ *   plan_lot                         | plans-cad/                   |     2
+ *   pv_bornage                       | pv_bornage/                  |     1
+ *
+ * Les deux dernieres entrees de la table ci-dessous n'ont AUCUNE ligne
+ * en production, elles sont donc lues dans le code qui les produirait :
+ *   · `attestation_attribution` — `generation-document` construit
+ *     `${table}/${reference}.${ext}` a partir de la cle CONFIG
+ *     `attestations_attribution_lot` (index.ts:813). 0 ligne aujourd'hui
+ *     parce que la table `attestations_attribution_lot` est vide.
+ *   · `plan_lotissement` — `src/features/lotissements/services/
+ *     plans.service.ts:114` (`cheminStockage`) ecrit
+ *     `plans-lotissement/<lotissementId>/<documentId>.<ext>`.
+ * Les omettre aurait casse ces deux ecrans le jour de leur premier
+ * usage, sans qu'aucune mesure ne le signale — c'est exactement le
+ * genre de faux vert que ce depot paie a repetition.
+ *
+ * ── FAIL-CLOSED, ET CE QUE CA COUTE ──────────────────────────────────
+ * Les 13 autres valeurs de l'enum `type_document` (`apfc`,
+ * `piece_identite`, `acte_vente`, `acd`, `titre_foncier`, `autre`,
+ * `pv_constatation`, `attestation_non_contestation`,
+ * `plan_localisation`, `certificat_residence`, `demande_adu`, `adu`,
+ * `pv_reunion_famille`) ne sont PAS ici : elles portent 0 ligne en
+ * production et aucun code du depot n'en ecrit. Une ligne de l'un de
+ * ces types sera donc REFUSEE au telechargement. Cout mesure : ZERO
+ * ligne existante. Le jour ou l'un de ces types sera utilise, il faudra
+ * ajouter son prefixe ICI — et l'ecran le dira aussitot (404 + motif
+ * complet dans les logs de la fonction), au lieu de laisser un chemin
+ * libre etre signe en service_role.
+ */
+const PREFIXE_PAR_TYPE: Record<string, string> = {
+  attestation_cession:             "attestations_cession",
+  attestation_attribution:         "attestations_attribution_lot",
+  certificat_vente:                "certificats_vente",
+  certificat_propriete_coutumiere: "attestations_coutumieres",
+  quittance:                       "paiements",
+  pv_bornage:                      "pv_bornage",
+  plan_lot:                        "plans-cad",
+  plan_lotissement:                "plans-lotissement",
+};
+
+/**
+ * Types dont le second segment de chemin est l'ID DE LA LIGNE elle-meme.
+ *
+ * `plan_lot` est le seul : la convention est
+ * `plans-cad/<id du document>/original.<ext>` et l'apercu se range a
+ * cote (`plans-cad/<id>/apercu.png`). C'est aussi ce qu'impose deja le
+ * `with check` de `documents_geometre_plans_insert` depuis le 09/08
+ * (`url_fichier like 'plans-cad/' || id::text || '/%'`) — la fonction
+ * cesse ici d'etre plus permissive que la policy.
+ *
+ * ⚠️ `plan_lotissement` N'EST PAS dans cette liste, et ce n'est pas un
+ * oubli : son second segment est le `lotissement_id`, pas le
+ * `document_id` (`plans-lotissement/<lotissementId>/<documentId>.<ext>`).
+ * Plusieurs plans partagent donc un dossier. Y appliquer la meme regle
+ * aurait refuse 100 % des depots de lotissement.
+ */
+const DOSSIER_EST_L_ID_DE_LA_LIGNE: Record<string, true> = {
+  plan_lot: true,
+};
+
+/**
+ * Refuse tout chemin qui n'est pas EXACTEMENT celui qu'une ligne de ce
+ * type a le droit de designer. Rend le MOTIF REEL (destine aux logs
+ * serveur, jamais au client) ou `null` si le chemin est acceptable.
+ *
+ * ── POURQUOI LES GARDES PORTENT SUR LA CHAINE BRUTE ──────────────────
+ * `createSignedUrl(chemin)` de supabase-js concatene le chemin dans une
+ * URL puis appelle `fetch`. Le parseur d'URL (WHATWG) NORMALISE ce qu'il
+ * recoit AVANT l'envoi, et il le fait sur trois formes distinctes :
+ *   · `a/b/../../x`   -> `x`         (segment « double-dot »)
+ *   · `a/b/%2e%2e/x`  -> `a/x`       le spec traite `%2e`, `.%2e`, `%2e.`
+ *                                     et `%2e%2e` comme des points, en
+ *                                     ignorant la casse — d'ou
+ *                                     l'interdiction du caractere `%`
+ *   · `a\..\x`        -> `a/../x`    l'antislash vaut slash pour les
+ *                                     schemas speciaux (http/https)
+ * Une garde posee APRES normalisation ne verrait plus rien. Une garde
+ * de prefixe seule (`startsWith('plans-cad/')`) est satisfaite par
+ * `plans-cad/<id>/../../attestations_cession/ATT-CESS-2026-00846.pdf`
+ * et ne protege donc rien.
+ *
+ * ── 🔴 ET C'EST POURQUOI LA LISTE NOIRE NE DECIDE PLUS ────────────────
+ * La premiere redaction de cette garde s'arretait a une liste de
+ * caracteres bannis (`..`, `\`, `%`). Un verificateur tiers l'a
+ * DEBORDEE en une ligne, le 10/08 :
+ *     attestations_cession/ATT-CESS-2026-00846.pdf#zzz
+ * Aucun caractere banni, prefixe conforme, dossier conforme — ACCEPTE.
+ * Et l'objet reellement ouvert par `createSignedUrl` etait
+ * `attestations_cession/ATT-CESS-2026-00846.pdf`, le `#` ouvrant un
+ * FRAGMENT que le parseur d'URL retire du chemin. La garde validait A
+ * pendant que l'administration ouvrait B — la forme EXACTE du defaut
+ * que la dette #49 est censee fermer, reintroduite par le correctif
+ * lui-meme. Le confinement au dossier la rendait inexploitable ce
+ * jour-la ; ce n'est pas une raison de la laisser.
+ *
+ * Une liste noire se fait deborder : il faut connaitre a l'avance tous
+ * les caracteres que le parseur traite a part (`#`, `?`, et ce que la
+ * prochaine version du spec ajoutera). Une EGALITE, non. Le controle
+ * qui decide est donc devenu :
+ *     new URL(RACINE + chemin).pathname  ===  <racine> + chemin
+ * — « l'URL que fetch construira designe EXACTEMENT le chemin que j'ai
+ * valide, caractere pour caractere ». Tout ce que la normalisation
+ * retire, ajoute, deplace ou reencode fait echouer l'egalite, qu'on ait
+ * su le nommer ou pas.
+ *
+ * Les bannissements explicites sont CONSERVES en defense
+ * supplementaire : ils sont redondants avec l'egalite pour `..`, `\`,
+ * `%`, `#` et `?`, mais ils rendent un motif de log qui NOMME la cause,
+ * et ils couvrent `//` que la normalisation d'URL laisse passer.
+ * Cout mesure : 0 des 180 chemins reels de production n'en declenche un.
+ */
+/**
+ * Racine sous laquelle supabase-js compose le chemin avant de le confier
+ * a `fetch`. Le HOTE n'a aucune importance — seule compte la
+ * TRANSFORMATION que le parseur d'URL applique au chemin. On modelise
+ * donc la construction reelle
+ * (`${url}/object/sign/${bucket}/${chemin}`), avec un hote inexistant
+ * par construction : rien n'est jamais appele ici.
+ */
+const RACINE_SIGNATURE = "https://storage.invalid/storage/v1/object/sign/documents/";
+const CHEMIN_RACINE_SIGNATURE = "/storage/v1/object/sign/documents/";
+
+function motifDeRefusDuChemin(
+  chemin: unknown,
+  typeLigne: unknown,
+  idLigne: unknown,
+): string | null {
+  // 1. Le TYPE d'abord — il est relu dans la ligne, jamais recu du client.
+  if (typeof typeLigne !== "string" || typeLigne === "") {
+    return "type absent de la ligne";
+  }
+  // `Object.hasOwn` et non un simple acces : `PREFIXE_PAR_TYPE['constructor']`
+  // rend une valeur truthy heritee du prototype, ce qui produirait un motif de
+  // log absurde. Le type venant d'un enum PostgreSQL, le cas est inatteignable
+  // — il coute deux mots, on ne laisse pas un piege dormir pour si peu.
+  if (!Object.hasOwn(PREFIXE_PAR_TYPE, typeLigne)) {
+    return `type '${typeLigne}' sans prefixe declare — refus fail-closed`;
+  }
+  const prefixe = PREFIXE_PAR_TYPE[typeLigne];
+
+  // 2. La forme brute de la chaine.
+  //    Les motifs NOMMENT la cause reelle : ils ne servent qu'a
+  //    l'investigation cote serveur, et un motif faux y coute une heure.
+  if (typeof chemin !== "string") return `chemin absent ou non-chaine (${typeof chemin})`;
+  if (chemin === "") return "chemin vide";
+  if (chemin.length > 512) return `chemin trop long (${chemin.length})`;
+  for (let i = 0; i < chemin.length; i++) {
+    const code = chemin.charCodeAt(i);
+    if (code < 32 || code === 127) return "caractere de controle";
+  }
+  // Le test de schema passe AVANT celui du double slash : sans cela
+  // `https://exemple.test/x` etait refuse au motif « segment vide », ce qui
+  // envoie l'enqueteur dans le mur.
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(chemin)) return "URL absolue (schema present)";
+  if (chemin.includes("..")) return "remontee '..' dans le chemin";
+  if (chemin.includes("\\")) return "antislash (vaut slash apres parsing d'URL)";
+  if (chemin.includes("%")) return "caractere '%' (traversee possible par encodage)";
+  if (chemin.includes("#")) return "fragment '#' (tronque le chemin apres parsing d'URL)";
+  if (chemin.includes("?")) return "requete '?' (tronque le chemin apres parsing d'URL)";
+  if (chemin.startsWith("/")) return "slash initial (chemin absolu de bucket)";
+  if (chemin.includes("//")) return "segment vide";
+  if (chemin.endsWith("/")) return "chemin terminant par un slash";
+
+  // 3. 🔴 LE CONTROLE QUI DECIDE — egalite, et non liste noire.
+  //    « L'URL que fetch construira designe-t-elle EXACTEMENT le chemin que
+  //    je m'apprete a valider ? » Tout ce que la normalisation retire
+  //    (fragment, requete, segments de points), ajoute, deplace ou reencode
+  //    fait echouer cette egalite — y compris ce que personne n'a su nommer
+  //    au moment d'ecrire les lignes ci-dessus.
+  let url: URL;
+  try {
+    url = new URL(RACINE_SIGNATURE + chemin);
+  } catch {
+    return "chemin non representable dans une URL";
+  }
+  if (url.pathname !== CHEMIN_RACINE_SIGNATURE + chemin || url.search !== "" || url.hash !== "") {
+    return (
+      `chemin altere par la normalisation d'URL — valide ${JSON.stringify(chemin)}, ` +
+      `mais l'objet ouvert serait ${JSON.stringify(url.pathname.slice(CHEMIN_RACINE_SIGNATURE.length))}`
+    );
+  }
+
+  // 4. Le prefixe attendu POUR CE TYPE.
+  const segments = chemin.split("/");
+  if (segments.length < 2) return "chemin sans dossier";
+  if (segments[0] !== prefixe) {
+    return `prefixe '${segments[0]}' hors convention — '${prefixe}' attendu pour le type '${typeLigne}'`;
+  }
+  if (segments.some((s) => s === "" || s === ".")) return "segment vide ou '.'";
+
+  // 5. Pour les types ranges par document : le dossier est SON id.
+  if (Object.hasOwn(DOSSIER_EST_L_ID_DE_LA_LIGNE, typeLigne)) {
+    if (typeof idLigne !== "string" || idLigne === "") {
+      return `id de ligne absent, requis pour le type '${typeLigne}'`;
+    }
+    if (segments[1] !== idLigne) {
+      return `dossier '${segments[1]}' != id de la ligne '${idLigne}' (type '${typeLigne}')`;
+    }
+  }
+
+  return null;
+}
+
+// ═════════════════════════════════════════════════════════════════════
+//  ▲▲▲ GARDE DE CHEMIN — FIN DU BLOC RECOPIE ▲▲▲
+// ═════════════════════════════════════════════════════════════════════
+
 const TYPE_PAIEMENT_LABELS: Record<string, string> = {
   attestation_cession: "Attestation de cession",
   honoraires: "Honoraires geometre",
@@ -732,7 +974,26 @@ Deno.serve(async (req) => {
   const table: string = evt.table;
   const rec = evt.record;
   const cfg = CONFIG[table];
-  if (!cfg || !rec) return new Response("Table ignoree", { status: 200 });
+  if (!cfg || !rec) {
+    // 🔴 `status: 200` MENTAIT (dette #49, 5e tour) : rien n'est produit, et
+    // la reponse disait « succes ». Corrige au moins le code — 422, la table
+    // ou l'enregistrement ne correspondent a rien de traitable.
+    //
+    // PAS de `signalerIncident` ici, et c'est un jugement, pas un oubli :
+    // les six declencheurs reels (`sgfn_trigger_generation`,
+    // `paiements_trigger_generation`) n'appellent CETTE fonction QUE depuis
+    // les six tables de CONFIG — ce cas ne se produit dans l'usage normal
+    // qu'en cas de derive du schema (nouveau trigger sur une table hors
+    // perimetre) ou d'appel manuel malforme, jamais en train d'egarer un
+    // acte reel. Et si `!rec`, `rec.id` n'existe pas : `journal_audit`
+    // n'aurait rien de solide a rattacher. Un log suffit ; le journal
+    // d'incidents reste reserve aux echecs qui concernent un ACTE identifie.
+    console.error(`[dette#49] Requete ignoree — table=${JSON.stringify(table)} cfg=${!!cfg} rec=${!!rec}`);
+    return new Response(JSON.stringify({ ok: false, erreur: "Table ou enregistrement non traitable." }), {
+      status: 422,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
   const d = await chargerDonnees(table, rec);
 
@@ -801,7 +1062,23 @@ Deno.serve(async (req) => {
       const headers: Record<string, string> = {};
       if (GOTENBERG_USER && GOTENBERG_PASS) headers["Authorization"] = "Basic " + btoa(`${GOTENBERG_USER}:${GOTENBERG_PASS}`);
       const r = await fetch(`${GOTENBERG_URL.replace(/\/+$/, "")}/forms/chromium/convert/html`, { method: "POST", body: form, headers });
-      if (!r.ok) { console.error("Gotenberg", r.status, await r.text()); return new Response("Erreur rendu PDF", { status: 502 }); }
+      if (!r.ok) {
+        // 🔴 MEME RAIL QUE LE DEPOT REFUSE (dette #49, 5e tour). Un rendu
+        // Gotenberg en echec est de la MEME FAMILLE que le depot au bucket
+        // refuse : un acte qui n'existe nulle part et dont seul un
+        // `console.error` gardait trace — muet du point de vue du produit,
+        // pour la meme raison que `signalerIncident` a ete branchee ailleurs
+        // (`sgfn_call_edge` ne relit jamais la reponse HTTP).
+        const motifGotenberg = await r.text();
+        console.error("Gotenberg", r.status, motifGotenberg);
+        await signalerIncident("GENERATION_RENDU_REFUSE", {
+          table_source: table, type_doc: cfg.type_doc, statut_gotenberg: r.status, motif: motifGotenberg,
+        });
+        return new Response(JSON.stringify({ ok: false, erreur: "Le rendu du document a echoue." }), {
+          status: 502,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
       b = new Uint8Array(await r.arrayBuffer()); e = "pdf"; m = "application/pdf";
     } else {
       b = new TextEncoder().encode(html); e = "html"; m = "text/html";
@@ -809,15 +1086,233 @@ Deno.serve(async (req) => {
     return await deposer(b, e, m);
   }
 
+  /**
+   * Signale un incident LA OU QUELQU'UN LE VERRA.
+   *
+   * 🔴 UN `console.error` NE SIGNALE RIEN, ET LE PRETENDRE ETAIT FAUX.
+   * La redaction precedente de cette fonction affirmait que l'echec « est
+   * desormais SIGNALE ». Mesure du verificateur : les six declencheurs
+   * passent tous par `sgfn_call_edge`, qui fait
+   * `perform net.http_post(...)` et `returns void` — LA REPONSE N'EST
+   * JAMAIS RELUE. Aucun appelant dans `src/`, aucun dans l'APK, aucun
+   * `cron.job`. Le `500 ok:false` ne va donc nulle part, et la seule
+   * trace etait un journal que personne ne consulte : du point de vue du
+   * produit, l'echec restait exactement aussi muet qu'avant. C'est la
+   * forme de la dette #45 — un refus qui n'a pas l'air d'un refus.
+   *
+   * On ecrit donc dans `journal_audit`, qui est deja lu par DEUX ecrans
+   * reels. Pas de table neuve, pas de RLS neuve, pas d'ecran neuf — le
+   * rail existe, il suffisait de s'y brancher.
+   *
+   * ⚠️ MAIS LES DEUX ECRANS NE MONTRENT PAS LA MEME CHOSE, et une
+   * redaction precedente de ce commentaire ne citait que le mauvais :
+   *   · `/dashboard/administration` (`useAdministration.ts:86`) fait
+   *     `select id, table_concernee, action, effectue_par, effectue_le`
+   *     — il N'A PAS `nouvelle_valeur`. On y voit donc QU'un incident
+   *     `GENERATION_CHEMIN_REFUSE` a eu lieu sur `documents`, et RIEN
+   *     de ce qui suit : ni le chemin, ni le motif, ni la table source.
+   *   · `/dashboard` — Centre de Pilotage — (`useAdminOverview.ts:243`)
+   *     selectionne `nouvelle_valeur` et `ActivityCenter.tsx:249` la
+   *     rend en clair au clic sur la ligne. C'EST LE SEUL ECRAN OU LE
+   *     DETAIL DE L'INCIDENT EST LISIBLE.
+   * Les deux limitent le fil aux plus recentes (200 cote administration,
+   * 40 cote pilotage) sur une table qui porte 8 369 lignes alimentees en
+   * continu par les triggers d'audit : un incident isole peut sortir de
+   * la fenetre de 40 en quelques heures. Le rail est le bon, il n'est
+   * pas une alerte — le dire ici plutot que de laisser croire l'inverse.
+   *
+   * Mesure du 11/08/2026 en lecture seule sur la production, parce que
+   * cette ligne doit etre VRAIE et pas seulement rassurante :
+   * `journal_audit` porte bien les 4 colonnes ecrites ci-dessous ;
+   * `id` est `generated always as identity` (ne pas la fournir est
+   * correct) ; `effectue_le` vaut `now()` par defaut ; `action` est un
+   * `text` SANS contrainte de valeur (les noms d'actions neufs passent) ;
+   * et `service_role` porte `INSERT` + `rolbypassrls = true`, ce qui est
+   * NECESSAIRE ici : la seule policy de la table est `audit_admin_read`,
+   * en SELECT — aucune policy d'INSERT n'existe.
+   *
+   * `effectue_par` reste NULL : la fonction s'execute en `service_role`,
+   * il n'y a pas d'utilisateur derriere. C'est deja le cas de 7 767 des
+   * 8 369 lignes, ecrites par `enregistrer_audit()` hors session.
+   *
+   * L'ecriture de l'incident ne doit JAMAIS masquer l'incident : si elle
+   * echoue a son tour, on le journalise et on continue.
+   */
+  async function signalerIncident(action: string, details: Record<string, unknown>) {
+    const { error } = await supabase.from("journal_audit").insert({
+      table_concernee: "documents",
+      enregistrement_id: rec.id ?? null,
+      action,
+      nouvelle_valeur: details,
+    });
+    if (error) console.error(`[dette#49] Incident '${action}' NON journalise : ${error.message}`, details);
+  }
+
   async function deposer(b: Uint8Array, e: string, m: string): Promise<Response> {
     const chemin = `${table}/${rec.reference ?? rec.numero ?? rec.id}.${e}`;
-    const up = await supabase.storage.from("documents").upload(chemin, b, { contentType: m, upsert: true });
-    if (up.error) { console.error(up.error); return new Response("Erreur stockage", { status: 500 }); }
-    await supabase.from("documents").insert({ lot_id: rec.lot_id ?? null, type: cfg.type_doc, titre: cfg.titre, url_fichier: chemin });
-    if (cfg.flipStatutDelivree) {
-      await supabase.from(table).update({ statut: "delivree" }).eq("id", rec.id);
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  🔴 LE JUMEAU EN ECRITURE DE LA DETTE #49
+    //
+    //  L'enonce de #49 ne parlait que de LECTURE (« qui peut inserer une
+    //  ligne peut lire n'importe quel objet du bucket »). La moitie
+    //  ECRITURE etait ici, dans le fichier meme qu'on venait de corriger.
+    //
+    //  `rec` vient d'un trigger, donc de la base — ce qui rassure a tort.
+    //  `pv_bornage.reference` est ENTIEREMENT FOURNIE PAR LE CLIENT :
+    //  relu en catalogue le 10/08 — `text NOT NULL` sans defaut, AUCUN
+    //  CHECK de forme, AUCUN trigger BEFORE qui la fabrique (contrairement
+    //  a `paiements`, qui a `trg_reference_quittance`), policy
+    //  `pv_bornage_owner_all` dont le `with check` ne contraint QUE
+    //  `mission_id`, et `missions_geometre_owner_all` laisse le geometre
+    //  creer lui-meme la mission qui l'autorise. `authenticated` — et meme
+    //  `anon` — portent le grant INSERT sur les deux tables.
+    //
+    //  La chaine, telle qu'elle etait ouverte :
+    //    ① le geometre insere sa mission, puis un `pv_bornage` dont
+    //       reference = '../attestations_cession/ATT-CESS-2026-00846.pdf#'
+    //    ② le trigger appelle cette fonction, qui construit
+    //       "pv_bornage/../attestations_cession/ATT-CESS-2026-00846.pdf#.html"
+    //    ③ `upload(..., { upsert: true })` en service_role ; le parseur
+    //       d'URL normalise, et l'objet REELLEMENT ECRASE est
+    //       "attestations_cession/ATT-CESS-2026-00846.pdf"
+    //  → le PDF d'une attestation reelle est remplace par un faux, et la
+    //  verification QR continue de repondre « authentique ».
+    //
+    //  Latent aujourd'hui (`missions_geometre` porte 0 ligne, un seul
+    //  compte geometre et c'est un compte de demonstration), mais ouvert
+    //  au premier usage normal du module.
+    //
+    //  La garde est la MEME que cote lecture, et pour la meme raison : le
+    //  chemin d'ecriture merite la discipline du chemin de signature.
+    //  Elle est doublee en base par la contrainte de forme sur
+    //  `reference`/`numero` (migration 20260810110000) — ni l'un ni
+    //  l'autre ne suffit seul : la fonction peut etre redeployee sans la
+    //  migration, et la base ne connait pas le gabarit.
+    // ═══════════════════════════════════════════════════════════════════
+    const motifChemin = motifDeRefusDuChemin(chemin, cfg.type_doc, rec.id);
+    if (motifChemin) {
+      console.error(
+        `[dette#49] TELEVERSEMENT REFUSE — table=${table} type=${cfg.type_doc} motif="${motifChemin}" ` +
+        `chemin=${JSON.stringify(chemin)} (reference=${JSON.stringify(rec.reference ?? null)}, ` +
+        `numero=${JSON.stringify(rec.numero ?? null)})`,
+      );
+      await signalerIncident("GENERATION_CHEMIN_REFUSE", {
+        table_source: table, type_doc: cfg.type_doc, chemin, motif: motifChemin,
+        reference: rec.reference ?? null, numero: rec.numero ?? null,
+      });
+      return new Response(
+        JSON.stringify({ ok: false, erreur: "Le chemin de stockage de ce document est invalide." }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      );
     }
-    return new Response(JSON.stringify({ ok: true, fichier: chemin, format: e }), { headers: { "Content-Type": "application/json" } });
+
+    const up = await supabase.storage.from("documents").upload(chemin, b, { contentType: m, upsert: true });
+    if (up.error) {
+      // Derniere sortie MUETTE de `deposer` : elle ne rendait qu'un
+      // `console.error` et un 500 en texte brut. Or un depot refuse, c'est
+      // l'acte qui n'existe nulle part — ni au bucket, ni au registre —,
+      // exactement l'incident qu'il faut voir. Meme rail que les quatre
+      // autres branches.
+      console.error(`[dette#49] Depot AU BUCKET refuse — chemin=${JSON.stringify(chemin)} : ${up.error.message}`);
+      await signalerIncident("GENERATION_DEPOT_REFUSE", {
+        table_source: table, type_doc: cfg.type_doc, chemin, motif: up.error.message, etape: "upload",
+      });
+      return new Response(
+        JSON.stringify({ ok: false, erreur: "Le document n'a pas pu etre depose au stockage.", fichier: chemin }),
+        { status: 500, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  UNE LIGNE PAR CHEMIN, PAS UNE LIGNE PAR GENERATION
+    //
+    //  Mesure du 10/08 : 179 lignes `documents` pour 122 `url_fichier`
+    //  distincts — 57 doublons, dont 6 lignes pour le seul APFC. Cause
+    //  structurelle : le binaire etait ecrase (`upsert: true`) mais la
+    //  ligne etait AJOUTEE (`.insert()` sec). Chaque regeneration
+    //  produisait donc une ligne de plus et zero fichier de plus, et
+    //  `/dashboard/documents` affichait le meme acte deux fois — six fois
+    //  pour l'APFC.
+    //
+    //  Arbitrage du proprietaire (10/08) : on ferme la boucle, on ne
+    //  touche PAS a l'historique. Les 57 lignes existantes restent ; on ne
+    //  supprime pas des lignes d'un registre foncier sans decision ligne a
+    //  ligne.
+    //
+    //  ⚠️ PAS D'`upsert` POSTGREST ICI, ET C'EST UNE CONTRAINTE D'ORDRE :
+    //  `upsert` exige un index unique sur `url_fichier`, or il ne PEUT PAS
+    //  etre pose aujourd'hui — les 57 doublons existants le feraient
+    //  echouer. D'ou la sequence `update` puis `insert`.
+    //
+    //  L'`update` d'abord : quand des doublons existent deja, il les met
+    //  TOUS a jour, ce qui fait converger l'historique sans le supprimer.
+    // ═══════════════════════════════════════════════════════════════════
+    const champs = { lot_id: rec.lot_id ?? null, type: cfg.type_doc, titre: cfg.titre, url_fichier: chemin };
+
+    const maj = await supabase.from("documents").update(champs).eq("url_fichier", chemin).select("id");
+    if (maj.error) {
+      console.error(`[dette#49] Mise a jour de la ligne 'documents' refusee — chemin=${JSON.stringify(chemin)} : ${maj.error.message}`);
+      await signalerIncident("GENERATION_LIGNE_REFUSEE", {
+        table_source: table, type_doc: cfg.type_doc, chemin, motif: maj.error.message, etape: "update",
+      });
+      return new Response(
+        JSON.stringify({ ok: false, erreur: "Le document a ete genere mais son enregistrement au registre a ete refuse.", fichier: chemin }),
+        { status: 500, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    let lignes = maj.data?.length ?? 0;
+    if (lignes === 0) {
+      const ins = await supabase.from("documents").insert(champs);
+      if (ins.error) {
+        // ── LA COURSE, ET COMMENT ELLE EST TRAITEE ────────────────────
+        // Deux generations simultanees du meme acte peuvent toutes deux
+        // ne rien trouver a l'`update`, puis inserer. Sans index unique
+        // (impossible aujourd'hui, voir plus haut), rien ne les separe en
+        // base : la fenetre est reelle et elle est ASSUMEE — elle produit
+        // au pire le doublon qu'on produisait SYSTEMATIQUEMENT avant.
+        // On retente malgre tout l'`update` une fois : si l'insert a
+        // echoue parce qu'un concurrent avait deja ecrit la ligne, le
+        // resultat correct est deja en base et l'echec serait trompeur.
+        const maj2 = await supabase.from("documents").update(champs).eq("url_fichier", chemin).select("id");
+        lignes = maj2.error ? 0 : (maj2.data?.length ?? 0);
+        if (lignes === 0) {
+          console.error(
+            `[dette#49] Depot AU BUCKET reussi mais ligne 'documents' REFUSEE — table=${table} ` +
+            `type=${cfg.type_doc} chemin=${JSON.stringify(chemin)} : ${ins.error.message}. ` +
+            `Le binaire reste en place (upsert le remplacera) et le statut n'est PAS bascule.`,
+          );
+          await signalerIncident("GENERATION_LIGNE_REFUSEE", {
+            table_source: table, type_doc: cfg.type_doc, chemin, motif: ins.error.message, etape: "insert",
+          });
+          return new Response(
+            JSON.stringify({ ok: false, erreur: "Le document a ete genere mais son enregistrement au registre a ete refuse.", fichier: chemin }),
+            { status: 500, headers: { "Content-Type": "application/json" } },
+          );
+        }
+      } else {
+        lignes = 1;
+      }
+    }
+
+    if (cfg.flipStatutDelivree) {
+      // Ne bascule le statut qu'apres une ligne REELLEMENT ecrite : marquer
+      // « delivree » un acte dont le registre ne porte aucune trace serait pire
+      // que l'orphelin lui-meme.
+      const maj = await supabase.from(table).update({ statut: "delivree" }).eq("id", rec.id);
+      if (maj.error) {
+        console.error(`[dette#49] Statut 'delivree' NON bascule sur ${table}/${rec.id} : ${maj.error.message}`);
+        await signalerIncident("GENERATION_STATUT_NON_BASCULE", {
+          table_source: table, id: rec.id, motif: maj.error.message,
+        });
+        return new Response(
+          JSON.stringify({ ok: false, erreur: "Le document a ete enregistre mais son statut n'a pas pu etre mis a jour.", fichier: chemin }),
+          { status: 500, headers: { "Content-Type": "application/json" } },
+        );
+      }
+    }
+    return new Response(JSON.stringify({ ok: true, fichier: chemin, format: e, lignes }), { headers: { "Content-Type": "application/json" } });
   }
 
   if (PDFMONKEY_API_KEY && pdfmonkeyTemplateId) {

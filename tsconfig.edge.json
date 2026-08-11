@@ -1,0 +1,52 @@
+{
+  // ===================================================================
+  //  TYPAGE DES EDGE FUNCTIONS PORTANT LA GARDE DE CHEMIN (dette #49)
+  //
+  //  Le `tsconfig.json` racine EXCLUT `supabase/functions/**/*.ts` :
+  //  `npx tsc --noEmit` y analyse 908 fichiers et aucune edge function.
+  //  Un verificateur tiers l'a releve le 10/08/2026, apres qu'un
+  //  correctif de securite de plusieurs centaines de lignes eut ete
+  //  livre en annoncant « tsc exit 0 ».
+  //
+  //  Ce fichier ne touche pas au tsconfig racine (les fonctions tournent
+  //  sous Deno et importent par URL : les melanger casserait le build
+  //  Next). Il verifie separement le code livre.
+  //
+  //  ── PERIMETRE : TROIS FONCTIONS, PAS ONZE ─────────────────────────
+  //  Les trois qui portent la garde de chemin : `telecharger-document`,
+  //  `convertir-plan-cad` et `generation-document`. Les huit autres ne
+  //  sont PAS couvertes : elles utilisent une surface d'API bien plus
+  //  large que le shim `_types-deno.d.ts`, et les inclure produirait des
+  //  dizaines d'erreurs preexistantes qui noieraient le signal.
+  //  Etendre la couverture est un chantier distinct, a mener fonction
+  //  par fonction en elargissant le shim. Le dire ici plutot que de
+  //  laisser croire que `supabase/functions` est type.
+  //
+  //  🔴 `generation-document` a ete AJOUTE au 4e tour. C'etait le fichier
+  //  le plus modifie de la livraison, et il n'etait type NI par le
+  //  tsconfig racine (qui exclut `supabase/functions/**`) NI par
+  //  celui-ci. Un fichier livre que rien n'analyse est un fichier non
+  //  verifie, quelle que soit la couleur des autres controles.
+  //
+  //  Usage :  npx tsc -p tsconfig.edge.json --noEmit
+  // ===================================================================
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "dom"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "types": []
+  },
+  "include": [
+    "supabase/functions/_types-deno.d.ts",
+    "supabase/functions/telecharger-document/index.ts",
+    "supabase/functions/convertir-plan-cad/index.ts",
+    "supabase/functions/generation-document/index.ts"
+  ]
+}
