@@ -176,7 +176,15 @@ export function ProprietaireTerrienView({
           : Promise.resolve({ data: [], error: null }),
         // Litiges actifs (RLS scopée à ses parcelles) + concertations où il participe.
         supabase.from("litiges").select("id", { count: "exact", head: true }).neq("statut", "clos"),
-        supabase.from("conversation_participants").select("profile_id", { count: "exact", head: true }).eq("profile_id", profile.id),
+        // Seuls les espaces de CONCERTATION comptent ici — pas les messages
+        // directs 1-à-1 de `/dashboard/messages`, qui partagent la même table.
+        // Filtre sur l'embed `conversations!inner(type)`, même syntaxe que les
+        // comptages sur table jointe de `/dashboard/chefferie/page.tsx`.
+        supabase
+          .from("conversation_participants")
+          .select("conversation_id, conversations!inner(type)", { count: "exact", head: true })
+          .eq("profile_id", profile.id)
+          .eq("conversations.type", "concertation"),
         // Documents délivrés à SON nom. Le filtre explicite sur acquereur_id double
         // la RLS (`acquereur_id = mon_attributaire_id()`) : sans lui, un admin qui
         // ouvre cette page verrait tous les lots du pays comme « vendables ».

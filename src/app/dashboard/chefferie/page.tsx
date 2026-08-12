@@ -117,7 +117,15 @@ function ChefVillageView({ profile }: { profile: Profile }) {
         .contains("lot.ilots.lotissements.signatures_requises", ["chefferie"]),
       supabase.from("dossiers_adu").select("id", { count: "exact", head: true }),
       supabase.from("litiges").select("id", { count: "exact", head: true }).neq("statut", "clos"),
-      supabase.from("conversation_participants").select("profile_id", { count: "exact", head: true }).eq("profile_id", profile.id),
+      // Seuls les espaces de CONCERTATION comptent ici — pas les messages
+      // directs 1-à-1 de `/dashboard/messages`, qui partagent la même table.
+      // Filtre sur l'embed `conversations!inner(type)`, même syntaxe que
+      // `cessionsRes`/`attributionLotPendingRes` ci-dessus.
+      supabase
+        .from("conversation_participants")
+        .select("conversation_id, conversations!inner(type)", { count: "exact", head: true })
+        .eq("profile_id", profile.id)
+        .eq("conversations.type", "concertation"),
     ]);
     setAutorite(autoriteRes.data as AutoriteCoutumiere | null);
     setLotissementsCount(lotissementsRes.count ?? 0);
