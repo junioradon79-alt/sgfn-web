@@ -15,7 +15,7 @@
 // celle qui fait autorité.
 //
 // ⚠️ Le Niveau 2 (Attestation d'Attribution de Lot) est délibérément ABSENT :
-// sa génération crée aussitôt une créance de 550 000 FCFA, arbitrée comme
+// sa génération crée aussitôt une créance de 380 000 FCFA, arbitrée comme
 // devant rester au dashboard web.
 
 import { useCallback, useState } from "react";

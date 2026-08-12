@@ -432,7 +432,7 @@ function GenerationExceptionnelleModal({ lots, onClose, onConfirm }: {
 // de cession comme document de référence. Contrairement à la génération
 // exceptionnelle (multi-lots), une seule instance à la fois : le nom identifié
 // physiquement se saisit lot par lot. Cette signature reste bloquée tant que le
-// paiement de signature (500 000 FCFA chefferie + 50 000 FCFA commission
+// paiement de signature (360 000 FCFA chefferie + 20 000 FCFA commission
 // SGNF) n'est pas confirmé — cf. migration du 23/07.
 
 type ResultatAttributionLot = { succes: boolean; message?: string; reference?: string };
@@ -480,7 +480,7 @@ function GenerationAttributionLotModal({ lot, onClose, onConfirm }: {
             <>
               <Avertissement>
                 Document unique pour ce lot — signé par le chef de village une fois le paiement de signature
-                (500 000 FCFA chefferie + 50 000 FCFA commission SGNF) confirmé. Remplace l&apos;attestation
+                (360 000 FCFA chefferie + 20 000 FCFA commission SGNF) confirmé. Remplace l&apos;attestation
                 de cession comme document de référence pour ce lot.
               </Avertissement>
 

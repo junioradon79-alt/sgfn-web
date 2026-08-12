@@ -12,7 +12,7 @@
 // ⚠️ PÉRIMÈTRE — cet écran ne lit que `attestations_cession`. Les Attestations
 // d'Attribution de Lot (`attestations_attribution_lot`, Niveau 2/3) en sont
 // absentes, et il faut le dire : leur GÉNÉRATION est exclue par arbitrage
-// (créance de 550 000 FCFA, cf. `GenerationAttestationScreen`), mais leur
+// (créance de 380 000 FCFA, cf. `GenerationAttestationScreen`), mais leur
 // CONSTAT de signature est autorisé par le serveur avec exactement la même
 // garde de rôle que `signer_attestation`. La table compte 0 ligne en
 // production, si bien que l'écart ne se voit pas encore — la première

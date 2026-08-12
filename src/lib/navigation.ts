@@ -689,7 +689,7 @@ async function compterCessionsChefferie(supabase: SupabaseClient): Promise<numbe
  * doit RÉELLEMENT signer : même filtre que `compterCessionsChefferie`
  * ci-dessus, sur la table sœur, plus la garde de paiement de signature —
  * `signer_attestation_attribution_lot` refuse tant que `signature_payee_le`
- * n'est pas confirmé (500 000 FCFA chefferie + 50 000 FCFA commission SGNF).
+ * n'est pas confirmé (360 000 FCFA chefferie + 20 000 FCFA commission SGNF).
  * Cf. `attributionsSignables` dans `/dashboard/validations/page.tsx`, source de
  * vérité de ce prédicat.
  */

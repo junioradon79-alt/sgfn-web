@@ -60,8 +60,8 @@ type AttestationCession = {
 
 /**
  * Attestation d'Attribution de Lot (Niveau 2/3, 23/07/2026) — la signature
- * Chefferie est conditionnée au paiement de signature (500 000 FCFA chefferie
- * + 50 000 FCFA commission SGNF, `signature_payee_le`) : le bouton "Valider"
+ * Chefferie est conditionnée au paiement de signature (360 000 FCFA chefferie
+ * + 20 000 FCFA commission SGNF, `signature_payee_le`) : le bouton "Valider"
  * reste désactivé et l'explique tant qu'il n'est pas confirmé.
  */
 type AttestationAttributionLot = {
@@ -212,7 +212,7 @@ export default function ValidationsPage() {
 
   /**
    * Signature de l'Attestation d'Attribution de Lot — conditionnée au paiement
-   * de signature (500 000 FCFA chefferie + 50 000 FCFA commission SGNF) :
+   * de signature (360 000 FCFA chefferie + 20 000 FCFA commission SGNF) :
    * `signer_attestation_attribution_lot` refuse explicitement tant que
    * `signature_payee_le` n'est pas confirmé (cf. migration du 23/07).
    */
@@ -487,7 +487,7 @@ export default function ValidationsPage() {
               <div className="min-w-0">
                 <CardTitle>Attestations d&apos;Attribution de Lot — en attente de votre signature</CardTitle>
                 <CardDescription>
-                  Signature conditionnée au paiement (500 000 FCFA chefferie + 50 000 FCFA commission SGNF)
+                  Signature conditionnée au paiement (360 000 FCFA chefferie + 20 000 FCFA commission SGNF)
                 </CardDescription>
               </div>
               {!chargement && attributionsSignables > 0 && (
@@ -557,7 +557,7 @@ export default function ValidationsPage() {
                           disabled={!paye}
                           title={
                             !paye
-                              ? "La signature reste bloquée tant que le paiement de 550 000 FCFA n'est pas confirmé."
+                              ? "La signature reste bloquée tant que le paiement de 380 000 FCFA n'est pas confirmé."
                               : undefined
                           }
                           onClick={() => signerAttributionLot(a.id)}

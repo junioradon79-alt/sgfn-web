@@ -518,8 +518,8 @@ function AttestationsTab({ rows, dlState, remiseState, onDownload, onShowQr, onM
 // ─── Onglet Attributions de lot (Niveau 2/3) ───────────────────────────────────
 // Document unique par lot, mis à jour en place à chaque transfert — pas
 // d'historique de lignes soeurs comme pour les attestations de cession, mais
-// un badge Niveau + statut du paiement de signature Chefferie (500 000 FCFA
-// chefferie + 50 000 FCFA commission SGNF, requis avant que `sig_chefferie_le`
+// un badge Niveau + statut du paiement de signature Chefferie (360 000 FCFA
+// chefferie + 20 000 FCFA commission SGNF, requis avant que `sig_chefferie_le`
 // puisse être constatée — cf. migration du 23/07).
 
 function AttributionsTab({ rows, dlState, remiseState, onDownload, onShowQr, onMarquerDelivree, onRevoquer, onSigner, onRetirer, signaturesAutorisees, signatureEnCours, erreurAction, chargeErreur }: {

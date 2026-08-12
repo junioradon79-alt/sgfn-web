@@ -46,7 +46,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
    * Troisième file de signature chefferie (23/07/2026, N2/N3) — même prédicat
    * serveur que `cessionsRes` juste au-dessus, sur la table sœur : le
    * lotissement doit exiger la chefferie ET le paiement de signature
-   * (500 000 FCFA chefferie + 50 000 FCFA commission SGNF) doit être constaté.
+   * (360 000 FCFA chefferie + 20 000 FCFA commission SGNF) doit être constaté.
    * Cf. `/dashboard/validations`, qui traite déjà cette file.
    */
   const [attributionLotPending, setAttributionLotPending] = useState(0);
@@ -201,7 +201,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
     attributionLotPending > 0 && {
       cle: "attributions",
       titre: `${attributionLotPending} attestation${attributionLotPending > 1 ? "s" : ""} d'attribution de lot en attente de votre signature`,
-      detail: "Signature conditionnée au paiement (550 000 FCFA)",
+      detail: "Signature conditionnée au paiement (380 000 FCFA)",
       action: "Signer",
       href: "/dashboard/validations#attributions",
       icon: Banknote,
