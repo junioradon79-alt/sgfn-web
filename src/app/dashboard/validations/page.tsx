@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowLeft, CheckCircle2, FileSignature, MinusCircle, ScrollText, ShieldAlert } from "lucide-react";
@@ -136,6 +136,10 @@ export default function ValidationsPage() {
             "id, reference, statut, sig_chefferie_le, sig_proprietaire_le, sig_operateur_le, date_emission, lot:lot_id(numero_lot, ilots(numero, lotissements(id, nom, famille_id, signatures_requises)))"
           )
           .is("sig_chefferie_le", null)
+          // Une cession révoquée ne peut plus être signée : elle n'a plus rien
+          // à faire dans une file « à valider » — elle reste consultable dans
+          // son historique sur /dashboard/documents.
+          .neq("statut", "revoquee")
           .order("id", { ascending: true })
           .range(de, a) as unknown as PromiseLike<ReponsePostgrest<AttestationCession>>
       ),
@@ -146,6 +150,9 @@ export default function ValidationsPage() {
             "id, reference, statut, niveau, sig_chefferie_le, sig_proprietaire_le, sig_operateur_le, signature_payee_le, lot:lot_id(numero_lot, ilots(numero, lotissements(id, nom, famille_id, signatures_requises)))"
           )
           .is("sig_chefferie_le", null)
+          // Même garde que sur les cessions ci-dessus : une AAL révoquée ne
+          // peut plus être signée, elle sort de cette file.
+          .neq("statut", "revoquee")
           .order("id", { ascending: true })
           .range(de, a) as unknown as PromiseLike<ReponsePostgrest<AttestationAttributionLot>>
       ),
@@ -306,6 +313,29 @@ export default function ValidationsPage() {
       cessionAttendSignature(a, lotissementDe(a), "chefferie"),
   ).length;
 
+  /**
+   * 🔴 Sur un chargement direct de l'URL (F5, favori, lien partagé depuis
+   * `/dashboard/chefferie#apfc`), le HTML statique exporté ne porte aucun des
+   * trois `id` ci-dessous : ils n'existent qu'une fois les données chargées et
+   * les cartes effectivement rendues. Le saut natif du navigateur vers le
+   * fragment se joue donc AVANT que la cible n'existe et ne fait rien. On le
+   * rejoue nous-mêmes une fois `chargement` retombé à `false` — et ça aide
+   * AUSSI la navigation interne (`next/link`) : au premier rendu les 3 listes
+   * sont vides, donc `#apfc` (la carte la plus basse) atterrit au milieu de
+   * la page ; une fois les données là, la page s'allonge et il faut refaire
+   * le saut. `deja` empêche seulement de rejouer ce saut à chaque
+   * `recharger()` ultérieur (signature, bouton Actualiser) : sans lui, un chef
+   * qui a défilé ailleurs se ferait ramener de force vers l'ancre en boucle.
+   */
+  const ancreDejaJouee = useRef(false);
+  useEffect(() => {
+    if (chargement || ancreDejaJouee.current) return;
+    ancreDejaJouee.current = true;
+    const hash = window.location.hash.slice(1);
+    if (hash !== "apfc" && hash !== "cessions" && hash !== "attributions") return;
+    document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [chargement]);
+
   if (!profileLoading && (!isChefferie || !profile?.autorite_coutumiere_id)) {
     return (
       <AppShell loading={false} counts={counts} onRefresh={recharger}>
@@ -348,7 +378,7 @@ export default function ValidationsPage() {
           <Card
             id="cessions"
             tone={!chargement && cessionsAValider > 0 ? "alert" : "default"}
-            className="scroll-mt-6 overflow-hidden"
+            className="scroll-mt-24 overflow-hidden"
           >
             <CardHeader>
               <div className="min-w-0">
@@ -402,12 +432,6 @@ export default function ValidationsPage() {
                   const chefferieAttendue = etat.lignes.some(
                     (l) => l.cle === "chefferie" && l.requise && !l.signee
                   );
-                  // 🔴 `signer_attestation` refuse une cession `revoquee` —
-                  // le bouton « Valider » n'avait AUCUNE garde : ni sur le
-                  // statut, ni sur quoi que ce soit d'autre. Un clic sur une
-                  // cession révoquée levait donc systématiquement l'exception
-                  // serveur. Même garde que `revoquee` sur les AAL ci-dessous.
-                  const revoquee = a.statut === "revoquee";
                   return (
                   <li key={a.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
                     <div className="min-w-0 flex-1">
@@ -423,25 +447,12 @@ export default function ValidationsPage() {
                           requise: l.requise,
                         }))}
                       />
-                      {/* Le motif doit être VISIBLE, pas seulement porté par le
-                          `title` du bouton désactivé : `disabled:pointer-events-none`
-                          (cf. `src/components/ds/button.tsx`) empêche tout survol
-                          d'un bouton désactivé, donc son `title` ne s'affiche
-                          jamais. Même patron que le texte de paiement des AAL
-                          ci-dessous. */}
-                      {revoquee && (
-                        <p className="mt-1.5 text-xs font-semibold text-danger">
-                          Attestation révoquée : elle ne peut plus être signée.
-                        </p>
-                      )}
                     </div>
                     {chefferieAttendue ? (
                       <Button
                         variant="primary"
                         size="sm"
                         loading={signing === a.id}
-                        disabled={revoquee}
-                        title={revoquee ? "Cette attestation est révoquée : elle ne peut plus être signée." : undefined}
                         onClick={() => signerAttestation(a.id)}
                       >
                         <FileSignature />
@@ -470,7 +481,7 @@ export default function ValidationsPage() {
           <Card
             id="attributions"
             tone={!chargement && attributionsSignables > 0 ? "alert" : "default"}
-            className="scroll-mt-6 overflow-hidden"
+            className="scroll-mt-24 overflow-hidden"
           >
             <CardHeader>
               <div className="min-w-0">
@@ -504,12 +515,6 @@ export default function ValidationsPage() {
               <ul className="divide-y divide-border">
                 {attributionsLot.map((a) => {
                   const paye = !!a.signature_payee_le;
-                  // 🔴 `signer_attestation_attribution_lot` refuse une AAL
-                  // `revoquee` — même garde que sur `attributionsSignables`
-                  // ci-dessus, appliquée ici au bouton de la ligne : sans elle,
-                  // une attribution payée puis révoquée resterait listée avec
-                  // un bouton « Valider » actif qui échouerait à chaque essai.
-                  const revoquee = a.statut === "revoquee";
                   // Même table de signatures que les cessions, même règle : le
                   // jeu exigé vient du lotissement. (Zéro ligne en production au
                   // 29/07/2026 — le défaut était donc invisible, pas absent.)
@@ -533,18 +538,15 @@ export default function ValidationsPage() {
                             requise: l.requise,
                           }))}
                         />
-                        {/* 🔴 Le motif doit être VISIBLE, pas seulement porté par
+                        {/* Le motif doit être VISIBLE, pas seulement porté par
                             le `title` ci-dessous : `disabled:pointer-events-none`
                             (cf. `src/components/ds/button.tsx`) empêche tout
                             survol d'un bouton désactivé, donc son `title` ne
-                            s'affiche jamais. `revoquee` prime sur `paye` — une
-                            attestation révoquée reste révoquée, payée ou non. */}
-                        <p className={`mt-1.5 text-xs font-semibold ${revoquee ? "text-danger" : paye ? "text-success" : "text-warning"}`}>
-                          {revoquee
-                            ? "Attestation révoquée : elle ne peut plus être signée."
-                            : paye
-                              ? "Paiement de signature reçu"
-                              : "Paiement de signature en attente (guichet SGNF)"}
+                            s'affiche jamais. */}
+                        <p className={`mt-1.5 text-xs font-semibold ${paye ? "text-success" : "text-warning"}`}>
+                          {paye
+                            ? "Paiement de signature reçu"
+                            : "Paiement de signature en attente (guichet SGNF)"}
                         </p>
                       </div>
                       {chefferieAttendue ? (
@@ -552,13 +554,11 @@ export default function ValidationsPage() {
                           variant="primary"
                           size="sm"
                           loading={signingAttrib === a.id}
-                          disabled={!paye || revoquee}
+                          disabled={!paye}
                           title={
-                            revoquee
-                              ? "Cette attestation est révoquée : elle ne peut plus être signée."
-                              : !paye
-                                ? "La signature reste bloquée tant que le paiement de 550 000 FCFA n'est pas confirmé."
-                                : undefined
+                            !paye
+                              ? "La signature reste bloquée tant que le paiement de 550 000 FCFA n'est pas confirmé."
+                              : undefined
                           }
                           onClick={() => signerAttributionLot(a.id)}
                         >
@@ -588,7 +588,7 @@ export default function ValidationsPage() {
           <Card
             id="apfc"
             tone={!chargement && apfcACosigner > 0 ? "alert" : "default"}
-            className="scroll-mt-6 overflow-hidden"
+            className="scroll-mt-24 overflow-hidden"
           >
             <CardHeader>
               <div className="min-w-0">

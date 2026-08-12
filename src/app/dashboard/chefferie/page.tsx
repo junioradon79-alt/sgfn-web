@@ -183,7 +183,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
       titre: `${apfcPending} attestation${apfcPending > 1 ? "s" : ""} coutumière${apfcPending > 1 ? "s" : ""} en attente de votre signature`,
       detail: "APFC · co-signature chef de village",
       action: "Signer",
-      href: "/dashboard/validations",
+      href: "/dashboard/validations#apfc",
       icon: ShieldCheck,
       compte: apfcPending,
     },
@@ -194,7 +194,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
       // propre tableau de bord, la réponse est « vous ».
       detail: "En attente de votre validation (chef de village)",
       action: "Examiner",
-      href: "/dashboard/validations",
+      href: "/dashboard/validations#cessions",
       icon: Banknote,
       compte: cessionsPending,
     },
@@ -203,7 +203,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
       titre: `${attributionLotPending} attestation${attributionLotPending > 1 ? "s" : ""} d'attribution de lot en attente de votre signature`,
       detail: "Signature conditionnée au paiement (550 000 FCFA)",
       action: "Signer",
-      href: "/dashboard/validations",
+      href: "/dashboard/validations#attributions",
       icon: Banknote,
       compte: attributionLotPending,
     },
@@ -259,69 +259,6 @@ function ChefVillageView({ profile }: { profile: Profile }) {
           {chargeErreur}
         </p>
       )}
-
-      <motion.section
-        variants={stagger(0, 0.05)}
-        initial="hidden"
-        animate="show"
-        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
-        aria-label="Indicateurs de ma juridiction"
-      >
-        <Kpi
-          icon={Map}
-          label="Lotissements"
-          href="/lotissements"
-          loading={loading}
-          value={lotissementsCount}
-          legende={<>sous votre juridiction</>}
-        />
-        {/* Ces deux chiffres sont ceux de la carte « À traiter en priorité »
-            ci-dessous : les écrire en ambre ici et en brique là-bas ferait de la
-            couleur un hasard. Une même file, une seule couleur. */}
-        <Kpi
-          icon={ShieldCheck}
-          label="APFC"
-          href="/dashboard/validations"
-          loading={loading}
-          value={apfcTotal}
-          tone={apfcPending > 0 ? "alert" : "neutral"}
-          legende={apfcPending > 0 ? <>{apfcPending} à co-signer</> : <>toutes co-signées</>}
-        />
-        <Kpi
-          icon={Banknote}
-          label="Cessions à valider"
-          href="/dashboard/validations"
-          loading={loading}
-          value={cessionsPending}
-          tone={cessionsPending > 0 ? "alert" : "neutral"}
-          legende={cessionsPending > 0 ? <>en attente de votre validation</> : <>aucune cession en attente</>}
-        />
-        <Kpi
-          icon={ClipboardList}
-          label="Dossiers ADU"
-          href="/dashboard/dossiers-adu"
-          loading={loading}
-          value={dossiersAduCount}
-          legende={<>sur votre juridiction</>}
-        />
-        <Kpi
-          icon={FileWarning}
-          label="Litiges"
-          href="/dashboard/litiges"
-          loading={loading}
-          value={litigesActifsCount}
-          tone={litigesActifsCount > 0 ? "warning" : "neutral"}
-          legende={litigesActifsCount > 0 ? <>actifs sur votre juridiction</> : <>aucun litige actif</>}
-        />
-        <Kpi
-          icon={Handshake}
-          label="Concertation"
-          href="/dashboard/concertation"
-          loading={loading}
-          value={concertationCount}
-          legende={<>échanges en cours</>}
-        />
-      </motion.section>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)] xl:items-start">
         <motion.div variants={fadeUp} initial="hidden" animate="show" className="min-w-0">
@@ -430,6 +367,69 @@ function ChefVillageView({ profile }: { profile: Profile }) {
           </Card>
         </motion.div>
       </div>
+
+      <motion.section
+        variants={stagger(0.1, 0.05)}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+        aria-label="Indicateurs de ma juridiction"
+      >
+        <Kpi
+          icon={Map}
+          label="Lotissements"
+          href="/lotissements"
+          loading={loading}
+          value={lotissementsCount}
+          legende={<>sous votre juridiction</>}
+        />
+        {/* Ces deux chiffres sont ceux de la carte « À traiter en priorité »
+            ci-dessus : les écrire en ambre ici et en brique là-bas ferait de la
+            couleur un hasard. Une même file, une seule couleur. */}
+        <Kpi
+          icon={ShieldCheck}
+          label="APFC"
+          href="/dashboard/validations#apfc"
+          loading={loading}
+          value={apfcTotal}
+          tone={apfcPending > 0 ? "alert" : "neutral"}
+          legende={apfcPending > 0 ? <>{apfcPending} à co-signer</> : <>toutes co-signées</>}
+        />
+        <Kpi
+          icon={Banknote}
+          label="Cessions à valider"
+          href="/dashboard/validations#cessions"
+          loading={loading}
+          value={cessionsPending}
+          tone={cessionsPending > 0 ? "alert" : "neutral"}
+          legende={cessionsPending > 0 ? <>en attente de votre validation</> : <>aucune cession en attente</>}
+        />
+        <Kpi
+          icon={ClipboardList}
+          label="Dossiers ADU"
+          href="/dashboard/dossiers-adu"
+          loading={loading}
+          value={dossiersAduCount}
+          legende={<>sur votre juridiction</>}
+        />
+        <Kpi
+          icon={FileWarning}
+          label="Litiges"
+          href="/dashboard/litiges"
+          loading={loading}
+          value={litigesActifsCount}
+          tone={litigesActifsCount > 0 ? "warning" : "neutral"}
+          legende={litigesActifsCount > 0 ? <>actifs sur votre juridiction</> : <>aucun litige actif</>}
+        />
+        <Kpi
+          icon={Handshake}
+          label="Concertation"
+          href="/dashboard/concertation"
+          loading={loading}
+          value={concertationCount}
+          legende={<>échanges en cours</>}
+        />
+      </motion.section>
     </AppShell>
   );
 }
