@@ -772,10 +772,11 @@ export default function ConcertationPage() {
             ) : filteredEspaces.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-center">
                 <MessageSquare className="h-8 w-8 text-muted-2" />
-                <p className="text-sm text-muted-foreground">Aucun espace de concertation.</p>
-                <Button type="button" variant="primary" size="sm" onClick={() => setShowNouveau(true)}>
-                  Créer le premier
-                </Button>
+                <p className="text-sm text-muted-foreground">
+                  {search
+                    ? <>Aucun espace ne correspond à « {search} ».</>
+                    : "Aucun espace de concertation pour l'instant."}
+                </p>
               </div>
             ) : (
               <ul className="divide-y divide-border">
@@ -830,11 +831,8 @@ export default function ConcertationPage() {
               </div>
               <div>
                 <p className="font-semibold text-foreground">Sélectionnez un espace</p>
-                <p className="mt-1 text-sm text-muted-foreground">ou créez un nouvel espace de concertation entre SGNF, le Chef de village, le Chef de famille et l&apos;Opérateur.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Choisissez un espace dans la liste à gauche, ou créez-en un via le bouton « Nouveau ».</p>
               </div>
-              <Button type="button" variant="primary" onClick={() => setShowNouveau(true)}>
-                <Plus className="h-4 w-4" /> Nouvel espace
-              </Button>
             </div>
           )}
         </div>
