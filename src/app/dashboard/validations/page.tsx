@@ -273,9 +273,17 @@ export default function ValidationsPage() {
    * {proprietaire, chefferie}. Une cession dont le lotissement ne demande PAS
    * la chefferie ne l'attend pas : la compter teindrait la carte en brique pour
    * un geste sans objet.
+   *
+   * 🔴 Une cession `revoquee` ne peut plus être signée —
+   * `signer_attestation` lève une exception explicite. Sans ce filtre, une
+   * cession révoquée resterait comptée ici (pastille rouge permanente) alors
+   * que le bouton « Valider » qu'elle affiche échouerait à chaque tentative.
+   * Même garde que sur `attributionsSignables` ci-dessous.
    */
-  const cessionsAValider = attestations.filter((a) =>
-    cessionAttendSignature(a, lotissementDe(a), "chefferie"),
+  const cessionsAValider = attestations.filter(
+    (a) =>
+      a.statut !== "revoquee" &&
+      cessionAttendSignature(a, lotissementDe(a), "chefferie"),
   ).length;
   /**
    * Une attribution dont le paiement n'est pas reçu a son bouton désactivé :
@@ -285,9 +293,17 @@ export default function ValidationsPage() {
    *
    * S'y ajoute, depuis le 29/07, la même condition que sur les cessions : le
    * lotissement doit exiger la signature de la chefferie.
+   *
+   * 🔴 Une AAL `revoquee` ne peut plus être signée — `signer_attestation_attribution_lot`
+   * lève une exception explicite. Sans ce filtre, une attribution payée puis
+   * révoquée resterait comptée ici (pastille rouge permanente) alors que le
+   * bouton « Valider » qu'elle affiche échouerait à chaque tentative.
    */
   const attributionsSignables = attributionsLot.filter(
-    (a) => a.signature_payee_le && cessionAttendSignature(a, lotissementDe(a), "chefferie"),
+    (a) =>
+      a.statut !== "revoquee" &&
+      a.signature_payee_le &&
+      cessionAttendSignature(a, lotissementDe(a), "chefferie"),
   ).length;
 
   if (!profileLoading && (!isChefferie || !profile?.autorite_coutumiere_id)) {
@@ -386,6 +402,12 @@ export default function ValidationsPage() {
                   const chefferieAttendue = etat.lignes.some(
                     (l) => l.cle === "chefferie" && l.requise && !l.signee
                   );
+                  // 🔴 `signer_attestation` refuse une cession `revoquee` —
+                  // le bouton « Valider » n'avait AUCUNE garde : ni sur le
+                  // statut, ni sur quoi que ce soit d'autre. Un clic sur une
+                  // cession révoquée levait donc systématiquement l'exception
+                  // serveur. Même garde que `revoquee` sur les AAL ci-dessous.
+                  const revoquee = a.statut === "revoquee";
                   return (
                   <li key={a.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
                     <div className="min-w-0 flex-1">
@@ -401,12 +423,25 @@ export default function ValidationsPage() {
                           requise: l.requise,
                         }))}
                       />
+                      {/* Le motif doit être VISIBLE, pas seulement porté par le
+                          `title` du bouton désactivé : `disabled:pointer-events-none`
+                          (cf. `src/components/ds/button.tsx`) empêche tout survol
+                          d'un bouton désactivé, donc son `title` ne s'affiche
+                          jamais. Même patron que le texte de paiement des AAL
+                          ci-dessous. */}
+                      {revoquee && (
+                        <p className="mt-1.5 text-xs font-semibold text-danger">
+                          Attestation révoquée : elle ne peut plus être signée.
+                        </p>
+                      )}
                     </div>
                     {chefferieAttendue ? (
                       <Button
                         variant="primary"
                         size="sm"
                         loading={signing === a.id}
+                        disabled={revoquee}
+                        title={revoquee ? "Cette attestation est révoquée : elle ne peut plus être signée." : undefined}
                         onClick={() => signerAttestation(a.id)}
                       >
                         <FileSignature />
@@ -469,6 +504,12 @@ export default function ValidationsPage() {
               <ul className="divide-y divide-border">
                 {attributionsLot.map((a) => {
                   const paye = !!a.signature_payee_le;
+                  // 🔴 `signer_attestation_attribution_lot` refuse une AAL
+                  // `revoquee` — même garde que sur `attributionsSignables`
+                  // ci-dessus, appliquée ici au bouton de la ligne : sans elle,
+                  // une attribution payée puis révoquée resterait listée avec
+                  // un bouton « Valider » actif qui échouerait à chaque essai.
+                  const revoquee = a.statut === "revoquee";
                   // Même table de signatures que les cessions, même règle : le
                   // jeu exigé vient du lotissement. (Zéro ligne en production au
                   // 29/07/2026 — le défaut était donc invisible, pas absent.)
@@ -492,8 +533,18 @@ export default function ValidationsPage() {
                             requise: l.requise,
                           }))}
                         />
-                        <p className={`mt-1.5 text-xs font-semibold ${paye ? "text-success" : "text-warning"}`}>
-                          {paye ? "Paiement de signature reçu" : "Paiement de signature en attente (guichet SGNF)"}
+                        {/* 🔴 Le motif doit être VISIBLE, pas seulement porté par
+                            le `title` ci-dessous : `disabled:pointer-events-none`
+                            (cf. `src/components/ds/button.tsx`) empêche tout
+                            survol d'un bouton désactivé, donc son `title` ne
+                            s'affiche jamais. `revoquee` prime sur `paye` — une
+                            attestation révoquée reste révoquée, payée ou non. */}
+                        <p className={`mt-1.5 text-xs font-semibold ${revoquee ? "text-danger" : paye ? "text-success" : "text-warning"}`}>
+                          {revoquee
+                            ? "Attestation révoquée : elle ne peut plus être signée."
+                            : paye
+                              ? "Paiement de signature reçu"
+                              : "Paiement de signature en attente (guichet SGNF)"}
                         </p>
                       </div>
                       {chefferieAttendue ? (
@@ -501,8 +552,14 @@ export default function ValidationsPage() {
                           variant="primary"
                           size="sm"
                           loading={signingAttrib === a.id}
-                          disabled={!paye}
-                          title={!paye ? "La signature reste bloquée tant que le paiement de 550 000 FCFA n'est pas confirmé." : undefined}
+                          disabled={!paye || revoquee}
+                          title={
+                            revoquee
+                              ? "Cette attestation est révoquée : elle ne peut plus être signée."
+                              : !paye
+                                ? "La signature reste bloquée tant que le paiement de 550 000 FCFA n'est pas confirmé."
+                                : undefined
+                          }
                           onClick={() => signerAttributionLot(a.id)}
                         >
                           <FileSignature />

@@ -42,6 +42,14 @@ function ChefVillageView({ profile }: { profile: Profile }) {
   const [apfcTotal, setApfcTotal] = useState(0);
   const [apfcPending, setApfcPending] = useState(0);
   const [cessionsPending, setCessionsPending] = useState(0);
+  /**
+   * Troisième file de signature chefferie (23/07/2026, N2/N3) — même prédicat
+   * serveur que `cessionsRes` juste au-dessus, sur la table sœur : le
+   * lotissement doit exiger la chefferie ET le paiement de signature
+   * (500 000 FCFA chefferie + 50 000 FCFA commission SGNF) doit être constaté.
+   * Cf. `/dashboard/validations`, qui traite déjà cette file.
+   */
+  const [attributionLotPending, setAttributionLotPending] = useState(0);
   const [dossiersAduCount, setDossiersAduCount] = useState(0);
   const [litigesActifsCount, setLitigesActifsCount] = useState(0);
   const [concertationCount, setConcertationCount] = useState(0);
@@ -64,7 +72,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
   const fetchData = useCallback(async () => {
     const [
       autoriteRes, lotissementsRes, apfcTotalRes, apfcPendingLignes,
-      cessionsRes, dossiersRes, litigesRes, concertationRes,
+      cessionsRes, attributionLotPendingRes, dossiersRes, litigesRes, concertationRes,
     ] = await Promise.all([
       supabase.from("autorites_coutumieres").select("id, nom, type, village, chef").eq("id", profile.autorite_coutumiere_id!).single(),
       supabase.from("lotissements").select("id", { count: "exact", head: true }).eq("autorite_coutumiere_id", profile.autorite_coutumiere_id!),
@@ -93,6 +101,19 @@ function ChefVillageView({ profile }: { profile: Profile }) {
         .from("attestations_cession")
         .select("id, lot:lot_id!inner(ilots!inner(lotissements!inner(signatures_requises)))", { count: "exact", head: true })
         .is("sig_chefferie_le", null)
+        // 🔴 Une cession `revoquee` ne peut plus être signée — même garde que
+        // sur la requête AAL juste en dessous. Cf. `compterCessionsChefferie`.
+        .neq("statut", "revoquee")
+        .contains("lot.ilots.lotissements.signatures_requises", ["chefferie"]),
+      // Attestations d'Attribution de Lot (N2/N3) : même filtre embed que
+      // `cessionsRes` juste au-dessus, plus la garde de paiement de signature —
+      // cf. `attributionsSignables` dans `/dashboard/validations/page.tsx`.
+      supabase
+        .from("attestations_attribution_lot")
+        .select("id, lot:lot_id!inner(ilots!inner(lotissements!inner(signatures_requises)))", { count: "exact", head: true })
+        .not("signature_payee_le", "is", null)
+        .is("sig_chefferie_le", null)
+        .neq("statut", "revoquee")
         .contains("lot.ilots.lotissements.signatures_requises", ["chefferie"]),
       supabase.from("dossiers_adu").select("id", { count: "exact", head: true }),
       supabase.from("litiges").select("id", { count: "exact", head: true }).neq("statut", "clos"),
@@ -105,6 +126,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
       apfcPendingLignes.rows.filter((a) => apfcAttendSignature(a, "sig_chef_village_le")).length,
     );
     setCessionsPending(cessionsRes.count ?? 0);
+    setAttributionLotPending(attributionLotPendingRes.count ?? 0);
     setDossiersAduCount(dossiersRes.count ?? 0);
     setLitigesActifsCount(litigesRes.count ?? 0);
     setConcertationCount(concertationRes.count ?? 0);
@@ -120,6 +142,7 @@ function ChefVillageView({ profile }: { profile: Profile }) {
         ["le total des APFC", apfcTotalRes.error],
         ["les APFC en attente de votre signature", apfcPendingLignes.error],
         ["les cessions à valider", cessionsRes.error],
+        ["les attestations d'attribution de lot en attente de votre signature", attributionLotPendingRes.error],
         ["les dossiers ADU", dossiersRes.error],
         ["les litiges", litigesRes.error],
         ["vos échanges de concertation", concertationRes.error],
@@ -166,6 +189,15 @@ function ChefVillageView({ profile }: { profile: Profile }) {
       href: "/dashboard/validations",
       icon: Banknote,
       compte: cessionsPending,
+    },
+    attributionLotPending > 0 && {
+      cle: "attributions",
+      titre: `${attributionLotPending} attestation${attributionLotPending > 1 ? "s" : ""} d'attribution de lot en attente de votre signature`,
+      detail: "Signature conditionnée au paiement (550 000 FCFA)",
+      action: "Signer",
+      href: "/dashboard/validations",
+      icon: Banknote,
+      compte: attributionLotPending,
     },
     litigesActifsCount > 0 && {
       cle: "litiges",

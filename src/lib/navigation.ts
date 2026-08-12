@@ -674,6 +674,35 @@ async function compterCessionsChefferie(supabase: SupabaseClient): Promise<numbe
       head: true,
     })
     .is("sig_chefferie_le", null)
+    // 🔴 Une cession `revoquee` ne peut plus être signée —
+    // `signer_attestation` lève une exception explicite, même garde que sur
+    // `compterAttributionsLotChefferie` ci-dessous. Sans ce filtre, une
+    // cession révoquée restait comptée ici (pastille rouge permanente) alors
+    // que le bouton « Valider » qu'elle affiche échouerait à chaque tentative.
+    .neq("statut", "revoquee")
+    .contains("lot.ilots.lotissements.signatures_requises", ["chefferie"]);
+  return count ?? 0;
+}
+
+/**
+ * Attestations d'Attribution de Lot (N2/N3, 23/07/2026) que le chef de village
+ * doit RÉELLEMENT signer : même filtre que `compterCessionsChefferie`
+ * ci-dessus, sur la table sœur, plus la garde de paiement de signature —
+ * `signer_attestation_attribution_lot` refuse tant que `signature_payee_le`
+ * n'est pas confirmé (500 000 FCFA chefferie + 50 000 FCFA commission SGNF).
+ * Cf. `attributionsSignables` dans `/dashboard/validations/page.tsx`, source de
+ * vérité de ce prédicat.
+ */
+async function compterAttributionsLotChefferie(supabase: SupabaseClient): Promise<number> {
+  const { count } = await supabase
+    .from("attestations_attribution_lot")
+    .select("id, lot:lot_id!inner(ilots!inner(lotissements!inner(signatures_requises)))", {
+      count: "exact",
+      head: true,
+    })
+    .not("signature_payee_le", "is", null)
+    .is("sig_chefferie_le", null)
+    .neq("statut", "revoquee")
     .contains("lot.ilots.lotissements.signatures_requises", ["chefferie"]);
   return count ?? 0;
 }
@@ -770,9 +799,10 @@ export async function fetchBadgeCounts(
   switch (groupe) {
     // ── Chefferie (chef de village) — RLS scopée par juridiction (ma_chefferie_id()). ──
     case "chefferie": {
-      const [cessions, apfcs, litiges, adu, rejetees] = await Promise.all([
+      const [cessions, apfcs, attributionsLot, litiges, adu, rejetees] = await Promise.all([
         compterCessionsChefferie(supabase),
         compterApfcEnAttente(supabase, "sig_chef_village_le"),
+        compterAttributionsLotChefferie(supabase),
         compterLitiges(supabase),
         compterDossiersAdu(supabase),
         // Même sémantique que pour `operateur_saisie` : la pastille de « Saisie
@@ -785,7 +815,7 @@ export async function fetchBadgeCounts(
           .select("id", { count: "exact", head: true })
           .eq("statut", "rejetee"),
       ]);
-      next.chefferieValidations = cessions + apfcs;
+      next.chefferieValidations = cessions + apfcs + attributionsLot;
       next.litigesActifs = litiges;
       next.dossiersAdu = adu;
       next.saisie = rejetees.count ?? 0;
