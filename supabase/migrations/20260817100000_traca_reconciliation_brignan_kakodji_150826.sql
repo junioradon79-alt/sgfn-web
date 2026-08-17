@@ -1,0 +1,82 @@
+-- =====================================================================
+--  TRAÇABILITÉ -- réconciliation Brignan Kakodji, guide du 15/08/2026
+-- =====================================================================
+--
+--  🔴 CE FICHIER NE RÉÉCRIT RIEN. C'est un enregistrement a posteriori,
+--  écrit le 17/08/2026, d'une écriture déjà réalisée le 15/08/2026 par un
+--  agent en dehors de tout fichier suivi par git -- constat déjà relevé
+--  comme dette de traçabilité : « aucune migration, aucun script dans
+--  scripts/, aucun commit git » pour cette opération. Ce fichier comble ce
+--  trou pour la mémoire du dépôt ; il ne contient AUCUNE instruction
+--  exécutable (voir plus bas) pour ne prendre aucun risque de rejouer une
+--  opération métier déjà faite.
+--
+--  ⚠️ Aucun nom d'attributaire ci-dessous, conformément à la règle du dépôt
+--  (public sur GitHub) : seules des références techniques (îlot/lot, UUID
+--  déjà public dans `20260729160000_superficies_manquantes_brignan_kakodji.sql`
+--  et `20260729180000_nb_lots_brignan_kakodji_846_vers_849.sql`).
+--
+--  ── Contexte ──
+--  Lotissement Brignan Kakodji, UUID '8820c6b8-8ced-468f-bbcc-b63542d79621'.
+--  Le propriétaire du projet a déposé une nouvelle version du Guide de
+--  Répartition officiel (`Lotissement BRIGNAN-KAKODJI-150826.xlsx`, 17
+--  feuilles) via l'UI self-service « Mettre à jour un lotissement → Import
+--  Excel » -- outil inadapté pour ce fichier (il attend le modèle
+--  simplifié Ilot/Lot/Action de l'app, pas le Guide officiel en mise en
+--  page d'impression). Reconduite en méthode manuelle déjà éprouvée en
+--  juillet 2026 pour ce même lotissement (diff JS du guide vs état réel de
+--  la base, SQL généré depuis le diff, testé en transaction annulée,
+--  rejoué en écriture réelle après confirmation explicite du propriétaire
+--  du projet).
+--
+--  ── Diff mesuré ──
+--  822 lots réels comparés terme à terme entre la feuille maîtresse
+--  « GUIDE KAKODJI » et l'état de la base : 802 inchangés, 20 divergents
+--  (19 réassignations + 1 remise à libre). `nb_lots`/`nb_ilots` (849/92)
+--  inchangés. Qualités du guide toutes mappées sans ambiguïté (PROPRIETAIRE
+--  -> ayant_droit, OPERATEUR -> operateur, URBANISTE -> operateur, même
+--  règle qu'en juillet 2026).
+--
+--  🟡 Motif inhabituel relevé et signalé au propriétaire du projet AVANT
+--  application : sur les 20 lots, le guide ne fait jamais progresser
+--  l'historique vers un nom inédit -- il repointe systématiquement vers un
+--  attributaire déjà présent plus tôt dans l'historique du lot (retour en
+--  arrière), sauf sur 3 lots où le nom proposé n'avait jamais détenu ces
+--  lots auparavant. Un lot (73/644) est en outre requalifié en équipement
+--  par le guide alors qu'il portait un numéro de lot réel et une
+--  attribution active -- cas unique parmi les 849 blocs du guide.
+--  Confirmation explicite obtenue (« Appliquer les 20 lots tels quels »)
+--  avant toute écriture.
+--
+--  ── Lots concernés (référence technique uniquement, sans nom) ──
+--  Réassignations (ancienne ligne fermée `actuel=false`, nouvelle ligne
+--  insérée `actuel=true` avec `rang+1`, jamais d'UPDATE en place) :
+--    îlot 01 -- lots 012, 013, 014, 015, 016
+--    îlot 04 -- lots 045, 046, 047
+--    îlot 11 -- lots 076, 077, 078, 079, 080, 081, 082, 083, 084, 085
+--    îlot 22 -- lot 159
+--  Remise à libre (`lots.statut = 'libre'`, attribution actuelle fermée,
+--  aucune nouvelle ligne d'attribution) :
+--    îlot 73 -- lot 644
+--
+--  ── Vérifications ──
+--  Testé d'abord en transaction annulée (`begin; ... rollback;`), résultat
+--  comparé aux totaux attendus, rejoué en écriture réelle après
+--  confirmation. Vérifié ensuite par un vérificateur tiers indépendant qui
+--  a reparsé lui-même le guide et reconstruit l'état antérieur par mutation
+--  inverse (20 écarts détectés avant, 0 après -- preuve que son contrôle
+--  savait échouer). Les 802 autres lots réels confirmés strictement
+--  inchangés (échantillonnage + comptages agrégés). `attestations_cession`
+--  pour ce lotissement : 0 avant et après (aucune généré à tort par
+--  `trg_gen_attestation_gratuite`, jamais déclenché -- les 19 insertions
+--  sont toutes aux rangs 3 ou 4, jamais rang 1). Verdict : CONFORME.
+--
+--  ── Ce qui reste ouvert, signalé séparément ──
+--  Le lot 73/644 avait déjà été remis `libre` le 10/07/2026 puis
+--  discrètement réattribué le 12/07/2026, sans qu'aucune trace ne le
+--  signale -- resté ainsi cinq semaines avant cette réconciliation. Aucun
+--  contrôle récurrent guide<->base n'existe à ce jour pour attraper ce type
+--  de régression silencieuse plus tôt.
+--
+--  Ce fichier existe uniquement pour la mémoire du dépôt -- rien à exécuter.
+select 1;
