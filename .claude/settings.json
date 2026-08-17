@@ -479,6 +479,18 @@
     ]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"c:/Dev/sgfn-web/scripts/hook-rappel-dettes-invitations.mjs\"",
+            "timeout": 10,
+            "statusMessage": "Rappel dettes #53/#54"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
