@@ -56,6 +56,7 @@ const GROUPES_ATTRIBUTAIRE_REQUIS = ["proprietaire"];
 const GROUPES_AUTORITE_REQUIS = ["chefferie"];
 const GROUPES_FAMILLE_REQUIS = ["proprietaire_terrien"];
 const GROUPES_COLLABORATEUR_REQUIS = ["collaborateur"];
+const GROUPES_COMMISSAIRE_REQUIS = ["commissaire"];
 
 type Option = { id: string; nom: string };
 
@@ -127,11 +128,14 @@ export default function InvitationsPage() {
   const [familles, setFamilles] = useState<Option[]>([]);
   const [collaborateurId, setCollaborateurId] = useState("");
   const [collaborateursDisponibles, setCollaborateursDisponibles] = useState<Option[]>([]);
+  const [commissaireId, setCommissaireId] = useState("");
+  const [commissaires, setCommissaires] = useState<Option[]>([]);
 
   const attributaireRequis = GROUPES_ATTRIBUTAIRE_REQUIS.includes(groupe);
   const autoriteRequise = GROUPES_AUTORITE_REQUIS.includes(groupe);
   const familleRequise = GROUPES_FAMILLE_REQUIS.includes(groupe);
   const collaborateurRequis = GROUPES_COLLABORATEUR_REQUIS.includes(groupe);
+  const commissaireRequis = GROUPES_COMMISSAIRE_REQUIS.includes(groupe);
 
   useEffect(() => {
     supabase.from("attributaires").select("id, nom").order("nom")
@@ -152,6 +156,8 @@ export default function InvitationsPage() {
         .map((c) => ({ id: c.id, nom: c.nom_complet }));
       setCollaborateursDisponibles(options);
     });
+    supabase.from("commissaires_justice").select("id, nom").order("nom")
+      .then(({ data }) => setCommissaires((data as Option[]) ?? []));
   }, [supabase]);
 
   const fetchInvitations = async () => {
@@ -186,6 +192,7 @@ export default function InvitationsPage() {
       autorite_coutumiere_id: autoriteRequise ? autoriteCoutumiereId : null,
       famille_id: familleRequise ? familleId : null,
       collaborateur_id: collaborateurRequis ? collaborateurId : null,
+      commissaire_id: commissaireRequis ? commissaireId : null,
       cree_par: user.id,
     });
 
@@ -201,6 +208,7 @@ export default function InvitationsPage() {
       setAutoriteCoutumiereId("");
       setFamilleId("");
       setCollaborateurId("");
+      setCommissaireId("");
       // Le collaborateur choisi n'est plus disponible pour une prochaine invitation.
       setCollaborateursDisponibles((prev) => prev.filter((c) => c.id !== collaborateurId));
       await recharger();
@@ -305,6 +313,7 @@ export default function InvitationsPage() {
                     setAutoriteCoutumiereId("");
                     setFamilleId("");
                     setCollaborateurId("");
+                    setCommissaireId("");
                   }}
                 >
                   {GROUPES.map((g) => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
@@ -367,12 +376,26 @@ export default function InvitationsPage() {
                   </ChampSelect>
                 )}
 
-                {(attributaireRequis || autoriteRequise || familleRequise || collaborateurRequis) && (
+                {commissaireRequis && (
+                  <ChampSelect
+                    id="inv-commissaire"
+                    label="Commissaire concerné"
+                    required
+                    placeholder="Sélectionner un commissaire de justice…"
+                    value={commissaireId}
+                    onChange={setCommissaireId}
+                  >
+                    {commissaires.map((c) => <SelectItem key={c.id} value={c.id}>{c.nom}</SelectItem>)}
+                  </ChampSelect>
+                )}
+
+                {(attributaireRequis || autoriteRequise || familleRequise || collaborateurRequis || commissaireRequis) && (
                   <p className="text-xs text-muted-foreground sm:col-span-2">
                     {attributaireRequis && "Un compte propriétaire ou acquéreur doit être rattaché à un attributaire existant."}
                     {autoriteRequise && "Un compte Chefferie doit être rattaché à son autorité coutumière dès l'invitation."}
                     {familleRequise && "Un compte Propriétaire terrien doit être rattaché à sa famille dès l'invitation."}
                     {collaborateurRequis && "Seuls les collaborateurs actifs n'ayant pas déjà de compte sont proposés. Ajoutez-le d'abord depuis la page Collaborateurs si besoin."}
+                    {commissaireRequis && "Un compte Commissaire doit être rattaché à sa fiche du référentiel dès l'invitation."}
                   </p>
                 )}
 
@@ -408,7 +431,8 @@ export default function InvitationsPage() {
                       (attributaireRequis && !attributaireId) ||
                       (autoriteRequise && !autoriteCoutumiereId) ||
                       (familleRequise && !familleId) ||
-                      (collaborateurRequis && !collaborateurId)
+                      (collaborateurRequis && !collaborateurId) ||
+                      (commissaireRequis && !commissaireId)
                     }
                   >
                     {isPending ? "Génération…" : "Générer le code"}
