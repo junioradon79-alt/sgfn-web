@@ -156,8 +156,13 @@ export default function InvitationsPage() {
         .map((c) => ({ id: c.id, nom: c.nom_complet }));
       setCollaborateursDisponibles(options);
     });
-    supabase.from("commissaires_justice").select("id, nom").order("nom")
-      .then(({ data }) => setCommissaires((data as Option[]) ?? []));
+    // Étude affichée dans le libellé : le nom seul ne suffit pas à choisir
+    // entre deux fiches quand l'une ne couvre encore aucun lotissement.
+    supabase.from("commissaires_justice").select("id, nom, etude").order("nom")
+      .then(({ data }) => setCommissaires(
+        ((data as { id: string; nom: string; etude: string | null }[]) ?? [])
+          .map((c) => ({ id: c.id, nom: c.etude ? `${c.nom} — ${c.etude}` : c.nom })),
+      ));
   }, [supabase]);
 
   const fetchInvitations = async () => {
