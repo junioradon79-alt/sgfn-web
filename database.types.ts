@@ -2480,6 +2480,7 @@ export type Database = {
           superficie_m2: number | null
           superficie_texte: string | null
           tf_numero: string | null
+          type_lotissement: Database["public"]["Enums"]["type_lotissement"]
           village: string | null
         }
         Insert: {
@@ -2519,6 +2520,7 @@ export type Database = {
           superficie_m2?: number | null
           superficie_texte?: string | null
           tf_numero?: string | null
+          type_lotissement: Database["public"]["Enums"]["type_lotissement"]
           village?: string | null
         }
         Update: {
@@ -2558,6 +2560,7 @@ export type Database = {
           superficie_m2?: number | null
           superficie_texte?: string | null
           tf_numero?: string | null
+          type_lotissement?: Database["public"]["Enums"]["type_lotissement"]
           village?: string | null
         }
         Relationships: [
@@ -4521,6 +4524,14 @@ export type Database = {
         Returns: Json
       }
       debug_mon_contexte: { Args: never; Returns: Json }
+      definir_type_lotissement: {
+        Args: {
+          p_lotissement_id: string
+          p_motif: string
+          p_nouveau_type: Database["public"]["Enums"]["type_lotissement"]
+        }
+        Returns: undefined
+      }
       demander_inscription_geometre: {
         Args: {
           p_cabinet?: string
@@ -5014,6 +5025,7 @@ export type Database = {
         | "pv_reunion_famille"
         | "pv_bornage"
         | "attestation_attribution"
+      type_lotissement: "villageois" | "approuve" | "acd"
       type_mission_geometre:
         | "bornage"
         | "morcellement"
@@ -5334,6 +5346,7 @@ export const Constants = {
         "pv_bornage",
         "attestation_attribution",
       ],
+      type_lotissement: ["villageois", "approuve", "acd"],
       type_mission_geometre: [
         "bornage",
         "morcellement",
