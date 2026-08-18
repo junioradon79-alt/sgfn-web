@@ -33,7 +33,7 @@ import {
   type Apfc,
   type NewApfc,
 } from "../services/apfc.service";
-import type { Lotissement, NewLotissement } from "../types";
+import type { Lotissement, NewLotissement, UpdateLotissement } from "../types";
 
 const PAGE_SIZE = 8;
 
@@ -120,7 +120,7 @@ export default function LotissementsPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async (values: NewLotissement) => {
+  const handleSubmit = async (values: NewLotissement | UpdateLotissement) => {
     if (isChefferie && !isAdmin) {
       const { error: submitError } = selected
         ? await proposerLotissement("modification_lotissement", selected.id, { ...values, lotissement_id: selected.id }, `Correction — ${values.nom}`)
@@ -140,7 +140,12 @@ export default function LotissementsPage() {
       await update(selected.id, values);
       showToast("Lotissement modifié avec succès.");
     } else {
-      await create(values);
+      // `values` est type en union avec UpdateLotissement pour que
+      // LotissementForm partage `onSubmit` entre creation et edition ; en
+      // creation (`!selected`), le formulaire fournit toujours
+      // `type_lotissement` (champ obligatoire, affiche uniquement !isEdit —
+      // voir LotissementForm.tsx), donc `values` satisfait bien NewLotissement.
+      await create(values as NewLotissement);
       showToast("Lotissement créé avec succès.");
     }
     setSelected(null);

@@ -4,14 +4,26 @@ import { useEffect, useState, type FormEvent } from "react";
 import { X, Loader2, FileText } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { createClient } from "@/utils/supabase/client";
-import type { Lotissement, NewLotissement } from "../types";
+import type { Lotissement, NewLotissement, UpdateLotissement } from "../types";
 
 type CommissaireOption = { id: string; nom: string };
+
+// `type_lotissement` est NOT NULL sans defaut (migration 20260818120000) :
+// obligatoire a la creation. Options limitees a l'enum, source unique via
+// l'index NewLotissement["type_lotissement"] (jamais de copie a la main).
+const TYPES_LOTISSEMENT: { value: NewLotissement["type_lotissement"]; label: string }[] = [
+  { value: "villageois", label: "Villageois" },
+  { value: "approuve", label: "Approuvé" },
+  { value: "acd", label: "ACD" },
+];
 
 type Props = {
   initialData?: Lotissement | null;
   onClose: () => void;
-  onSubmit: (values: NewLotissement) => void;
+  // Union avec UpdateLotissement : le mode edition ne fournit jamais
+  // `type_lotissement` (voir handleSubmit) — seule la RPC admin
+  // definir_type_lotissement() le change, tracee dans journal_audit.
+  onSubmit: (values: NewLotissement | UpdateLotissement) => void;
 };
 
 export default function LotissementForm({ initialData, onClose, onSubmit }: Props) {
@@ -20,6 +32,12 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
 
   const [form, setForm] = useState({
     nom: initialData?.nom ?? "",
+    // Pertinent seulement a la creation (champ masque en edition) : valeur
+    // par defaut villageois, le cas le plus courant (ex. Koelea-Accor).
+    // Type `string` en etat local comme les autres champs (le `set()`
+    // generique ci-dessous assigne `e.target.value`, toujours une string) ;
+    // cast vers l'enum seulement au moment de construire le payload.
+    type_lotissement: "villageois",
     village: initialData?.village ?? "",
     commune: initialData?.commune ?? "",
     district: initialData?.district ?? "",
@@ -107,7 +125,7 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
       setEnvoiEnCours(false);
     }
 
-    onSubmit({
+    const base = {
       nom: form.nom.trim(),
       village: form.village.trim() || null,
       commune: form.commune.trim() || null,
@@ -125,7 +143,18 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
       pv_identification_physique_numero: form.pv_identification_physique_numero.trim() || null,
       pv_identification_physique_date: form.pv_identification_physique_date || null,
       pv_identification_physique_scan_url: finalScanUrl,
-    });
+    };
+
+    // `type_lotissement` uniquement a la creation : en edition, l'envoyer
+    // reviendrait a le modifier par un simple UPDATE de formulaire, ce que la
+    // decision produit reserve a definir_type_lotissement() (motif trace dans
+    // journal_audit). `base` seul satisfait deja UpdateLotissement (tous ses
+    // champs y sont optionnels) ; NewLotissement exige explicitement le champ.
+    if (isEdit) {
+      onSubmit(base);
+    } else {
+      onSubmit({ ...base, type_lotissement: form.type_lotissement as NewLotissement["type_lotissement"] });
+    }
   };
 
   return (
@@ -168,6 +197,31 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
               required
             />
           </div>
+
+          {/* Type de lotissement — creation uniquement. Le type se modifie
+              ensuite exclusivement via la RPC admin definir_type_lotissement()
+              (motif obligatoire, trace dans journal_audit) : ce formulaire
+              d'edition n'y touche jamais. */}
+          {!isEdit && (
+            <div className="space-y-1.5">
+              <label htmlFor="lot-type" className="text-sm font-medium text-slate-700">
+                Type de lotissement <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="lot-type"
+                value={form.type_lotissement}
+                onChange={set("type_lotissement")}
+                required
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:border-[#0D3B66] focus:outline-none focus:ring-2 focus:ring-[#0D3B66]/10"
+              >
+                {TYPES_LOTISSEMENT.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Village + Commune */}
           <div className="grid grid-cols-2 gap-3">
