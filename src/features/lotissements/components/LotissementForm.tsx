@@ -24,9 +24,17 @@ type Props = {
   // `type_lotissement` (voir handleSubmit) — seule la RPC admin
   // definir_type_lotissement() le change, tracee dans journal_audit.
   onSubmit: (values: NewLotissement | UpdateLotissement) => void;
+  // true quand la creation part vers proposerLotissement() (chefferie/
+  // operateur, en attente d'approbation) : _appliquer_creation_lotissement
+  // force 'villageois' cote base quoi que le formulaire envoie (decision
+  // produit du 18/08 — une soumission chefferie/operateur est toujours un
+  // lotissement villageois a l'origine). Proposer un select dont la valeur
+  // est silencieusement ignoree serait trompeur ; ce mode remplace le select
+  // par une ligne d'info et fige la valeur envoyee a 'villageois'.
+  soumissionChefferie?: boolean;
 };
 
-export default function LotissementForm({ initialData, onClose, onSubmit }: Props) {
+export default function LotissementForm({ initialData, onClose, onSubmit, soumissionChefferie = false }: Props) {
   const isEdit = Boolean(initialData);
   const supabase = createClient();
 
@@ -202,7 +210,7 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
               ensuite exclusivement via la RPC admin definir_type_lotissement()
               (motif obligatoire, trace dans journal_audit) : ce formulaire
               d'edition n'y touche jamais. */}
-          {!isEdit && (
+          {!isEdit && !soumissionChefferie && (
             <div className="space-y-1.5">
               <label htmlFor="lot-type" className="text-sm font-medium text-slate-700">
                 Type de lotissement <span className="text-red-500">*</span>
@@ -221,6 +229,17 @@ export default function LotissementForm({ initialData, onClose, onSubmit }: Prop
                 ))}
               </select>
             </div>
+          )}
+
+          {/* Soumission chefferie/operateur : le type n'est pas un choix ici
+              (force 'villageois' a l'approbation, voir le commentaire sur
+              soumissionChefferie plus haut) — informer plutot que proposer un
+              select trompeur. */}
+          {!isEdit && soumissionChefferie && (
+            <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-600">
+              Type de lotissement : <strong>Villageois</strong>. Les statuts « Approuvé »
+              et « ACD » sont attribués ensuite par un administrateur.
+            </p>
           )}
 
           {/* Village + Commune */}

@@ -401,7 +401,12 @@ export default function LotissementsPage() {
       </motion.div>
 
       {isModalOpen && (
-        <LotissementForm initialData={selected} onClose={() => setIsModalOpen(false)} onSubmit={handleSubmit} />
+        <LotissementForm
+          initialData={selected}
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handleSubmit}
+          soumissionChefferie={isChefferie && !isAdmin}
+        />
       )}
 
       {apfcCible && (
