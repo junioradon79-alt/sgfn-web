@@ -187,7 +187,12 @@ as $$
     case when (s.j->>'pv_guide_repartition')::int = 0 then 'PV du guide de repartition' end,
     case when p_niveau = 2 and (s.j->>'pv_identification_physique')::int = 0 then 'PV d''identification physique' end
   ], null)
-  from s, t;
+  -- LEFT JOIN, pas un produit cartésien `s, t` : si `t` ne resout aucune
+  -- ligne (lot orphelin), `s` doit quand meme porter la ligne, sinon la
+  -- fonction rend NULL au lieu d'un tableau -- constat verificateur du 20/08.
+  -- Sans consequence mesuree aujourd'hui (0 lot orphelin, lots.ilot_id et
+  -- ilots.lotissement_id sont NOT NULL), corrige par prudence.
+  from s left join t on true;
 $$;
 
 comment on function public.manques_documentaires_lot(uuid, int) is

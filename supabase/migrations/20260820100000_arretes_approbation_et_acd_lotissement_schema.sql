@@ -213,4 +213,10 @@ create policy arretes_acd_read on public.arretes_acd_lotissement
 --    20260730010000 (default ACL), une table neuve NE NAÎT PLUS ouverte à
 --    anon. `authenticated` reçoit le défaut de schéma habituel (RLS ci-dessus
 --    est le filtre réel), exactement comme attestations_coutumieres.
+--    TRUNCATE échappe cependant à la RLS (constat vérificateur du 20/08,
+--    parité pré-existante avec attestations_coutumieres) : fermé ici sur les
+--    2 tables neuves, sans attendre un chantier séparé.
 -- ---------------------------------------------------------------------------
+
+revoke truncate on table public.arretes_approbation_lotissement from authenticated;
+revoke truncate on table public.arretes_acd_lotissement from authenticated;
