@@ -115,6 +115,100 @@ export type Database = {
           },
         ]
       }
+      arretes_acd_lotissement: {
+        Row: {
+          autorite_signataire: string | null
+          cree_le: string
+          date_arrete: string | null
+          date_delivrance: string | null
+          id: string
+          lotissement_id: string
+          modifie_le: string
+          numero: string | null
+          scan_url: string | null
+          statut: Database["public"]["Enums"]["statut_piece_administrative"]
+        }
+        Insert: {
+          autorite_signataire?: string | null
+          cree_le?: string
+          date_arrete?: string | null
+          date_delivrance?: string | null
+          id?: string
+          lotissement_id: string
+          modifie_le?: string
+          numero?: string | null
+          scan_url?: string | null
+          statut?: Database["public"]["Enums"]["statut_piece_administrative"]
+        }
+        Update: {
+          autorite_signataire?: string | null
+          cree_le?: string
+          date_arrete?: string | null
+          date_delivrance?: string | null
+          id?: string
+          lotissement_id?: string
+          modifie_le?: string
+          numero?: string | null
+          scan_url?: string | null
+          statut?: Database["public"]["Enums"]["statut_piece_administrative"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "arretes_acd_lotissement_lotissement_id_fkey"
+            columns: ["lotissement_id"]
+            isOneToOne: true
+            referencedRelation: "lotissements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      arretes_approbation_lotissement: {
+        Row: {
+          autorite_signataire: string | null
+          cree_le: string
+          date_arrete: string | null
+          date_delivrance: string | null
+          id: string
+          lotissement_id: string
+          modifie_le: string
+          numero: string | null
+          scan_url: string | null
+          statut: Database["public"]["Enums"]["statut_piece_administrative"]
+        }
+        Insert: {
+          autorite_signataire?: string | null
+          cree_le?: string
+          date_arrete?: string | null
+          date_delivrance?: string | null
+          id?: string
+          lotissement_id: string
+          modifie_le?: string
+          numero?: string | null
+          scan_url?: string | null
+          statut?: Database["public"]["Enums"]["statut_piece_administrative"]
+        }
+        Update: {
+          autorite_signataire?: string | null
+          cree_le?: string
+          date_arrete?: string | null
+          date_delivrance?: string | null
+          id?: string
+          lotissement_id?: string
+          modifie_le?: string
+          numero?: string | null
+          scan_url?: string | null
+          statut?: Database["public"]["Enums"]["statut_piece_administrative"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "arretes_approbation_lotissement_lotissement_id_fkey"
+            columns: ["lotissement_id"]
+            isOneToOne: true
+            referencedRelation: "lotissements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attestations_attribution_lot: {
         Row: {
           antecedent_attestation_cession_id: string | null
@@ -4980,6 +5074,7 @@ export type Database = {
         | "rembourse"
         | "initie"
         | "en_attente_validation"
+      statut_piece_administrative: "a_delivrer" | "en_cours" | "delivree"
       statut_pv_bornage: "generee" | "delivree" | "revoquee"
       statut_pv_famille: "a_fournir" | "fourni" | "valide" | "rejete"
       statut_vente: "en_cours" | "soldee" | "annulee"
@@ -5297,6 +5392,7 @@ export const Constants = {
         "initie",
         "en_attente_validation",
       ],
+      statut_piece_administrative: ["a_delivrer", "en_cours", "delivree"],
       statut_pv_bornage: ["generee", "delivree", "revoquee"],
       statut_pv_famille: ["a_fournir", "fourni", "valide", "rejete"],
       statut_vente: ["en_cours", "soldee", "annulee"],

@@ -18,6 +18,8 @@ import { useLotissements } from "../hooks/useLotissements";
 import LotissementTable from "../components/LotissementTable";
 import LotissementForm from "../components/LotissementForm";
 import ApfcForm from "../components/ApfcForm";
+import ArreteApprobationForm from "../components/ArreteApprobationForm";
+import ArreteAcdForm from "../components/ArreteAcdForm";
 import DerogationDocumentsForm from "../components/DerogationDocumentsForm";
 import {
   proposerLotissement,
@@ -33,6 +35,20 @@ import {
   type Apfc,
   type NewApfc,
 } from "../services/apfc.service";
+import {
+  getArretesApprobationParLotissement,
+  createArreteApprobation,
+  updateArreteApprobation,
+  type ArreteApprobation,
+  type NewArreteApprobation,
+} from "../services/arreteApprobation.service";
+import {
+  getArretesAcdParLotissement,
+  createArreteAcd,
+  updateArreteAcd,
+  type ArreteAcd,
+  type NewArreteAcd,
+} from "../services/arreteAcd.service";
 import type { Lotissement, NewLotissement, UpdateLotissement } from "../types";
 
 const PAGE_SIZE = 8;
@@ -72,11 +88,26 @@ export default function LotissementsPage() {
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [mesSoumissions, setMesSoumissions] = useState<SoumissionLotissement[]>([]);
 
-  // APFC par lotissement : lecture ouverte (chefferie, opérateur, vérificateur,
-  // géomètre y ont accès en RLS), écriture réservée à l'admin.
+  // APFC par lotissement (type villageois) : lecture ouverte (chefferie,
+  // opérateur, vérificateur, géomètre y ont accès en RLS), écriture réservée
+  // à l'admin.
   const [apfcParLotissement, setApfcParLotissement] = useState<Map<string, Apfc>>(new Map());
   const [apfcCible, setApfcCible] = useState<Lotissement | null>(null);
   const [apfcSaving, setApfcSaving] = useState(false);
+
+  // Arrêtés d'approbation (type approuve) et arrêtés ACD (type acd) --
+  // 2 tables séparées créées en Phase B (migration 20260820100000), même
+  // patron de lecture/écriture que l'APFC, pas de généralisation.
+  const [arretesApprobationParLotissement, setArretesApprobationParLotissement] = useState<
+    Map<string, ArreteApprobation>
+  >(new Map());
+  const [arreteApprobationCible, setArreteApprobationCible] = useState<Lotissement | null>(null);
+  const [arreteApprobationSaving, setArreteApprobationSaving] = useState(false);
+
+  const [arretesAcdParLotissement, setArretesAcdParLotissement] = useState<Map<string, ArreteAcd>>(new Map());
+  const [arreteAcdCible, setArreteAcdCible] = useState<Lotissement | null>(null);
+  const [arreteAcdSaving, setArreteAcdSaving] = useState(false);
+
   const [derogationCible, setDerogationCible] = useState<Lotissement | null>(null);
   const [derogationSaving, setDerogationSaving] = useState(false);
   const [derogationErreur, setDerogationErreur] = useState<string | null>(null);
@@ -90,13 +121,34 @@ export default function LotissementsPage() {
     setApfcParLotissement(data);
   }, []);
 
+  const rechargerArreteApprobation = useCallback(async (ids: string[]) => {
+    const { data, error: arreteError } = await getArretesApprobationParLotissement(ids);
+    if (arreteError) console.error("Lecture des arrêtés d'approbation impossible", arreteError);
+    setArretesApprobationParLotissement(data);
+  }, []);
+
+  const rechargerArreteAcd = useCallback(async (ids: string[]) => {
+    const { data, error: arreteError } = await getArretesAcdParLotissement(ids);
+    if (arreteError) console.error("Lecture des arrêtés ACD impossible", arreteError);
+    setArretesAcdParLotissement(data);
+  }, []);
+
   useEffect(() => {
     if (lotissements.length === 0) return;
+    const ids = lotissements.map((l) => l.id);
     // Même forme que l'effet des soumissions plus bas : la mise à jour d'état
     // vit dans le `.then`, pas dans le corps de l'effet.
-    void getApfcParLotissement(lotissements.map((l) => l.id)).then(({ data, error: apfcError }) => {
+    void getApfcParLotissement(ids).then(({ data, error: apfcError }) => {
       if (apfcError) console.error("Lecture des APFC impossible", apfcError);
       setApfcParLotissement(data);
+    });
+    void getArretesApprobationParLotissement(ids).then(({ data, error: arreteError }) => {
+      if (arreteError) console.error("Lecture des arrêtés d'approbation impossible", arreteError);
+      setArretesApprobationParLotissement(data);
+    });
+    void getArretesAcdParLotissement(ids).then(({ data, error: arreteError }) => {
+      if (arreteError) console.error("Lecture des arrêtés ACD impossible", arreteError);
+      setArretesAcdParLotissement(data);
     });
   }, [lotissements]);
 
@@ -167,6 +219,40 @@ export default function LotissementsPage() {
     showToast(existante ? "APFC modifiée." : "APFC enregistrée.");
     setApfcCible(null);
     await rechargerApfc(lotissements.map((l) => l.id));
+  };
+
+  const handleArreteApprobationSubmit = async (values: NewArreteApprobation) => {
+    if (!arreteApprobationCible) return;
+    setArreteApprobationSaving(true);
+    const existant = arretesApprobationParLotissement.get(arreteApprobationCible.id);
+    const { error: arreteError } = existant
+      ? await updateArreteApprobation(existant.id, values)
+      : await createArreteApprobation(values);
+    setArreteApprobationSaving(false);
+    if (arreteError) {
+      showToast(`Échec de l'enregistrement : ${arreteError.message}`, "error");
+      return;
+    }
+    showToast(existant ? "Arrêté d'approbation modifié." : "Arrêté d'approbation enregistré.");
+    setArreteApprobationCible(null);
+    await rechargerArreteApprobation(lotissements.map((l) => l.id));
+  };
+
+  const handleArreteAcdSubmit = async (values: NewArreteAcd) => {
+    if (!arreteAcdCible) return;
+    setArreteAcdSaving(true);
+    const existant = arretesAcdParLotissement.get(arreteAcdCible.id);
+    const { error: arreteError } = existant
+      ? await updateArreteAcd(existant.id, values)
+      : await createArreteAcd(values);
+    setArreteAcdSaving(false);
+    if (arreteError) {
+      showToast(`Échec de l'enregistrement : ${arreteError.message}`, "error");
+      return;
+    }
+    showToast(existant ? "Arrêté ACD modifié." : "Arrêté ACD enregistré.");
+    setArreteAcdCible(null);
+    await rechargerArreteAcd(lotissements.map((l) => l.id));
   };
 
   // Dérogation à l'exigence de dossier complet. Les deux RPC sont admin-only ;
@@ -364,6 +450,10 @@ export default function LotissementsPage() {
                 onDelete={isAdmin ? handleDelete : undefined}
                 apfcParLotissement={apfcParLotissement}
                 onApfc={isAdmin ? setApfcCible : undefined}
+                arretesApprobationParLotissement={arretesApprobationParLotissement}
+                onArreteApprobation={isAdmin ? setArreteApprobationCible : undefined}
+                arretesAcdParLotissement={arretesAcdParLotissement}
+                onArreteAcd={isAdmin ? setArreteAcdCible : undefined}
                 onDeroger={isAdmin ? setDerogationCible : undefined}
                 onRetirerDerogation={isAdmin ? handleRetirerDerogation : undefined}
               />
@@ -416,6 +506,26 @@ export default function LotissementsPage() {
           onClose={() => setApfcCible(null)}
           onSubmit={handleApfcSubmit}
           saving={apfcSaving}
+        />
+      )}
+
+      {arreteApprobationCible && (
+        <ArreteApprobationForm
+          lotissement={arreteApprobationCible}
+          initialData={arretesApprobationParLotissement.get(arreteApprobationCible.id) ?? null}
+          onClose={() => setArreteApprobationCible(null)}
+          onSubmit={handleArreteApprobationSubmit}
+          saving={arreteApprobationSaving}
+        />
+      )}
+
+      {arreteAcdCible && (
+        <ArreteAcdForm
+          lotissement={arreteAcdCible}
+          initialData={arretesAcdParLotissement.get(arreteAcdCible.id) ?? null}
+          onClose={() => setArreteAcdCible(null)}
+          onSubmit={handleArreteAcdSubmit}
+          saving={arreteAcdSaving}
         />
       )}
 
