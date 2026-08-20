@@ -548,9 +548,12 @@ export default function SaisiePage() {
       {tab === "saisie" ? (
         isChefferie ? (
           /* La chefferie a ses propres types, bornés à sa juridiction. Elle
-             n'a NI `maj_attributions` NI `creation_structure` : le module
-             ci-dessous ne les propose donc pas — offrir un formulaire que le
-             serveur refuse coûte une fiche entière remplie pour rien. */
+             n'a PAS `creation_structure` (fabriquer des îlots et des lots
+             reste un acte du registre national) : le module ci-dessous ne le
+             propose donc pas — offrir un formulaire que le serveur refuse
+             coûte une fiche entière remplie pour rien. `maj_attributions`
+             (réattribuer un lot) lui est ouvert depuis le 20/08/2026, via
+             l'onglet « Attribution d'un lot » de `SaisieChefferie`. */
           <SaisieChefferie
             juridictionId={profile?.autorite_coutumiere_id ?? null}
             onFlash={setMessage}

@@ -5,6 +5,7 @@ import Image from "next/image";
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRightLeft,
   Building2,
   Check,
   ClipboardCheck,
@@ -12,6 +13,7 @@ import {
   FileSpreadsheet,
   HelpCircle,
   Layers,
+  Lock,
   Printer,
   Search,
   Send,
@@ -22,16 +24,28 @@ import {
 } from "lucide-react";
 
 /**
- * Mode d'emploi du module « Opérateur de saisie » (maker-checker) — pensé pour
- * l'opérateur qui saisit les attributions et l'administrateur qui valide.
- * Même famille visuelle que /guide-achat (pictogrammes, une action à la fois,
- * reproductions fidèles des boutons réels) mais structuré en chapitres de
- * référence plutôt qu'en parcours linéaire, car le module a plusieurs usages
- * indépendants (mise à jour, création, validation).
+ * Mode d'emploi du module « Saisie Assistée » (maker-checker) — pensé pour
+ * l'opérateur ou la chefferie qui saisissent les attributions et
+ * l'administrateur qui valide. Même famille visuelle que /guide-achat
+ * (pictogrammes, une action à la fois, reproductions fidèles des boutons
+ * réels) mais structuré en chapitres de référence plutôt qu'en parcours
+ * linéaire, car le module a plusieurs usages indépendants (mise à jour,
+ * création, validation).
+ *
+ * 🆕 20/08/2026 — Chapitre 3 : le 5e type de saisie, ouvert à la chefferie
+ * (attribuer/céder un lot depuis son propre dashboard, `SaisieChefferie` /
+ * `FormAttribution`, un des 5 onglets réels de ce module pour ce rôle :
+ * lotissement, lot, îlot, attributaire, attribution). Les chapitres 2
+ * (import Excel) et 5 (création de lotissement) restent le parcours de
+ * l'opérateur de saisie SEUL — la chefferie n'y a pas accès. Les chapitres 1
+ * (arrivée sur le module), 4 (aperçu avant soumission) et 6 (suivi des
+ * soumissions, onglet « Mes soumissions » partagé par les deux rôles,
+ * `dashboard/saisie/page.tsx`) concernent en revanche LES DEUX rôles —
+ * l'aiguillage en tête de page indique qui lit quoi.
  *
  * Page autonome (hors layout /dashboard) : aucune donnée privée, uniquement
  * le mode d'emploi → imprimable proprement et consultable avant même d'avoir
- * un compte (utile pour former un nouvel opérateur).
+ * un compte (utile pour former un nouvel opérateur ou une nouvelle chefferie).
  */
 
 const BLEU = "#0D3B66";
@@ -97,6 +111,22 @@ export default function ModeEmploiSaisiePage() {
           </p>
         </header>
 
+        {/* Aiguillage — deux profils lisent ce guide, pas le même parcours */}
+        <section className="guide-note mb-8 rounded-2xl border border-[#0D3B66]/20 bg-[#0D3B66]/[0.04] p-5">
+          <p className="text-sm font-bold text-[#0D3B66]">Ce guide sert deux profils. Repérez le vôtre :</p>
+          <ul className="mt-2 space-y-1 text-sm text-slate-700">
+            <li>
+              <span className="font-semibold">Vous êtes opérateur de saisie</span> → chapitres 1, 2, 4, 5, 6.
+            </li>
+            <li>
+              <span className="font-semibold">Vous êtes chefferie</span> → chapitres 1, 3, 4, 6.
+            </li>
+          </ul>
+          <p className="mt-2 text-xs text-slate-500">
+            Le chapitre 7 (approuver ou rejeter) est réservé aux administrateurs.
+          </p>
+        </section>
+
         {/* Principe : double validation */}
         <section className="guide-chapter mb-8 rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm sm:p-6">
           <div className="mb-3 flex items-center gap-3">
@@ -125,14 +155,25 @@ export default function ModeEmploiSaisiePage() {
         {/* Chapitre 1 */}
         <Chapter n={1} color={BLEU} icon={<Users className="h-7 w-7" />} titre="Arriver sur le module">
           <ul className="space-y-1.5">
-            <Puce>Connectez-vous avec votre compte d&apos;opérateur de saisie.</Puce>
-            <Puce>Le menu ne montre qu&apos;un seul élément : « Saisie foncière ». C&apos;est normal, votre compte n&apos;a accès qu&apos;à ce module.</Puce>
-            <Puce>En haut de la page, choisissez ce que vous voulez faire :</Puce>
+            <Puce>Connectez-vous avec votre compte (opérateur de saisie ou chefferie).</Puce>
+            <Puce>Si vous êtes opérateur de saisie, le menu ne montre qu&apos;un seul élément : «&nbsp;Saisie assistée&nbsp;» — c&apos;est normal, votre compte n&apos;a accès qu&apos;à ce module. Si vous êtes chefferie, le menu affiche plusieurs entrées (Lotissements, Dossiers ADU/ACD, Litiges, Concertation, Espace Chefferie…) ; repérez «&nbsp;Saisie assistée&nbsp;» parmi elles.</Puce>
+            <Puce>Ce que vous voyez ensuite dépend de votre profil :</Puce>
           </ul>
-          <Legende>Les deux modes :</Legende>
-          <div className="flex flex-wrap gap-2">
-            <PillVisuel active>Mettre à jour un lotissement</PillVisuel>
-            <PillVisuel>Créer un nouveau lotissement</PillVisuel>
+          <div className="mt-4 rounded-xl border border-slate-200/70 bg-slate-50/70 p-4">
+            <p className="text-sm font-bold text-[#0D3B66]">Opérateur de saisie</p>
+            <p className="mt-1 text-sm text-slate-600">En haut de la page, choisissez ce que vous voulez faire :</p>
+            <Legende>Les deux modes :</Legende>
+            <div className="flex flex-wrap gap-2">
+              <PillVisuel active>Mettre à jour un lotissement</PillVisuel>
+              <PillVisuel>Créer un nouveau lotissement</PillVisuel>
+            </div>
+          </div>
+          <div className="mt-3 rounded-xl border border-slate-200/70 bg-slate-50/70 p-4">
+            <p className="text-sm font-bold text-[#0D3B66]">Chefferie</p>
+            <p className="mt-1 text-sm text-slate-600">
+              Pas de choix de mode : la page ouvre directement sur vos propres onglets, bornés à votre
+              juridiction — voir le chapitre 3.
+            </p>
           </div>
         </Chapter>
 
@@ -190,10 +231,56 @@ export default function ModeEmploiSaisiePage() {
           </div>
         </Chapter>
 
-        {/* Chapitre 3 */}
-        <Chapter n={3} color={ORANGE} icon={<AlertTriangle className="h-7 w-7" />} titre="Vérifier l'aperçu avant de soumettre">
+        {/* Chapitre 3 — réservé chefferie, 5e type de saisie ouvert le 20/08/2026 */}
+        <Chapter n={3} color={BLEU} icon={<ArrowRightLeft className="h-7 w-7" />} titre="Chefferie : attribuer ou libérer un lot" note="Depuis le dashboard Chefferie">
           <p className="text-sm leading-relaxed text-slate-700">
-            Chaque ligne ajoutée apparaît dans un tableau « Avant / Après », classée automatiquement :
+            Un compte chefferie ne voit pas l&apos;import Excel ni la création de lotissement
+            (chapitres 2 et 5, réservés à l&apos;opérateur de saisie). Il dispose en revanche de son
+            propre écran, borné à sa juridiction, avec 5 onglets : Fiche du lotissement, Attribution
+            d&apos;un lot, Fiche d&apos;un lot, Numéro d&apos;un îlot, Fiche d&apos;un attributaire. Ce
+            chapitre couvre l&apos;onglet « Attribution d&apos;un lot » — réattribuer un lot (changement
+            de titulaire, cession) ou le remettre en disponibilité ; les quatre autres onglets
+            corrigent ce que le registre décrit d&apos;un lotissement, d&apos;un lot, d&apos;un îlot ou
+            d&apos;un attributaire, sans toucher à qui détient quoi.
+          </p>
+          <ul className="mt-3 space-y-1.5">
+            <Puce>Depuis le menu, ouvrez «&nbsp;Saisie assistée&nbsp;», choisissez le lotissement puis l&apos;onglet «&nbsp;Attribution d&apos;un lot&nbsp;».</Puce>
+            <Puce>Recherchez le lot par son numéro. La fiche affiche sa <span className="font-semibold">situation actuelle</span> : titulaire et qualité, ou « libre ».</Puce>
+            <Puce>Choisissez ce que le lot doit devenir : « Attribué à… » ou « Libre ».</Puce>
+            <Puce>Si attribué : recherchez d&apos;abord l&apos;attributaire par son nom (« Attributaire connu »). Absent du registre ? Basculez sur « Nouveau » pour créer sa fiche <span className="font-semibold">en même temps que</span> l&apos;attribution.</Puce>
+            <Puce>Précisez sa qualité (propriétaire d&apos;origine, ayant droit, acquéreur…) : elle détermine la portée juridique de l&apos;acte et figure sur l&apos;attestation.</Puce>
+            <Puce>Le module indique la nature exacte de l&apos;acte avant l&apos;envoi (nouvelle attribution, réassignation, remise en disponibilité) — puis « Soumettre pour validation ».</Puce>
+          </ul>
+          <div className="mt-4 flex gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-slate-700">
+            <Lock className="mt-px h-4 w-4 flex-none text-amber-600" />
+            <div>
+              <b>Un lot sous gel juridique</b> ne peut être ni réattribué ni remis en disponibilité :
+              l&apos;écran le signale et le serveur refuse la soumission. Le gel se lève depuis le
+              dashboard, par un administrateur.
+            </div>
+          </div>
+          <p className="mt-4 text-sm leading-relaxed text-slate-700">
+            <span className="font-semibold">Une chefferie ne crée jamais un attributaire seul</span> :
+            la fiche « Nouveau » n&apos;existe que rattachée au lot déjà choisi dans cet écran. Une
+            soumission qui ne contiendrait aucune attribution — seulement la création d&apos;une fiche —
+            est refusée d&apos;emblée par le serveur.
+          </p>
+          <Legende>Les deux cibles :</Legende>
+          <div className="flex flex-wrap gap-2">
+            <PillVisuel active>Attribué à…</PillVisuel>
+            <PillVisuel>Libre</PillVisuel>
+          </div>
+          <p className="mt-4 text-xs font-semibold text-slate-500">
+            Comme pour toute saisie : rien n&apos;est appliqué avant l&apos;approbation d&apos;un
+            administrateur.
+          </p>
+        </Chapter>
+
+        {/* Chapitre 4 */}
+        <Chapter n={4} color={ORANGE} icon={<AlertTriangle className="h-7 w-7" />} titre="Vérifier l'aperçu avant de soumettre">
+          <p className="text-sm leading-relaxed text-slate-700">
+            Chez l&apos;opérateur de saisie, chaque ligne ajoutée apparaît dans un tableau « Avant / Après »,
+            classée automatiquement :
           </p>
           <div className="mt-3 flex flex-col gap-2">
             <LigneApercu couleur="emerald" label="Nouvelle attribution">Le lot était libre, il est maintenant attribué.</LigneApercu>
@@ -201,17 +288,22 @@ export default function ModeEmploiSaisiePage() {
             <LigneApercu couleur="slate" label="Remise en disponibilité">Le lot redevient libre.</LigneApercu>
             <LigneApercu couleur="slate" label="Sans effet">Rien ne change réellement — ne sera pas envoyé à la validation.</LigneApercu>
           </div>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600">
+            <span className="font-semibold">Côté chefferie</span>, la même classification existe mais s&apos;affiche
+            directement sur l&apos;écran « Attribution d&apos;un lot » (un lot à la fois, sous la mention « Acte
+            soumis : … ») plutôt que dans un tableau — voir chapitre 3.
+          </p>
           <ul className="mt-4 space-y-1.5">
-            <Puce>Une ligne ajoutée par erreur ? Retirez-la avec l&apos;icône poubelle.</Puce>
-            <Puce>Donnez un titre à votre soumission (optionnel — un titre par défaut est proposé).</Puce>
+            <Puce>Une ligne ajoutée par erreur ? Retirez-la avec l&apos;icône poubelle. (Opérateur de saisie uniquement.)</Puce>
+            <Puce>Donnez un titre à votre soumission (optionnel — un titre par défaut est proposé). (Opérateur de saisie uniquement.)</Puce>
             <Puce>Cliquez sur « Soumettre pour validation ». Un message confirme l&apos;envoi.</Puce>
           </ul>
           <Legende>Le bouton final :</Legende>
           <BoutonVisuel color={BLEU} icon={<Send className="h-4 w-4" />}>Soumettre pour validation</BoutonVisuel>
         </Chapter>
 
-        {/* Chapitre 4 */}
-        <Chapter n={4} color={BLEU} icon={<Building2 className="h-7 w-7" />} titre="Créer un nouveau lotissement">
+        {/* Chapitre 5 */}
+        <Chapter n={5} color={BLEU} icon={<Building2 className="h-7 w-7" />} titre="Créer un nouveau lotissement">
           <p className="text-sm leading-relaxed text-slate-700">
             À utiliser uniquement pour un lotissement qui n&apos;existe pas encore dans la base (formulaire séparé —
             l&apos;import Excel ne sert qu&apos;aux attributions).
@@ -229,8 +321,8 @@ export default function ModeEmploiSaisiePage() {
           </div>
         </Chapter>
 
-        {/* Chapitre 5 */}
-        <Chapter n={5} color={VERT} icon={<ClipboardCheck className="h-7 w-7" />} titre="Suivre vos soumissions">
+        {/* Chapitre 6 */}
+        <Chapter n={6} color={VERT} icon={<ClipboardCheck className="h-7 w-7" />} titre="Suivre vos soumissions">
           <p className="text-sm leading-relaxed text-slate-700">
             L&apos;onglet « Mes soumissions » liste tout ce que vous avez envoyé, avec son statut :
           </p>
@@ -245,10 +337,10 @@ export default function ModeEmploiSaisiePage() {
           </p>
         </Chapter>
 
-        {/* Chapitre 6 — réservé admin */}
-        <Chapter n={6} color={VERT} icon={<ShieldCheck className="h-7 w-7" />} titre="Valider une soumission" note="Réservé aux administrateurs" last>
+        {/* Chapitre 7 — réservé admin */}
+        <Chapter n={7} color={VERT} icon={<ShieldCheck className="h-7 w-7" />} titre="Valider une soumission" note="Réservé aux administrateurs" last>
           <ul className="space-y-1.5">
-            <Puce>Une pastille rouge apparaît sur « Saisie foncière » dans le menu dès qu&apos;une soumission attend une validation.</Puce>
+            <Puce>Une pastille rouge apparaît sur «&nbsp;Saisie assistée&nbsp;» dans le menu dès qu&apos;une soumission attend une validation.</Puce>
             <Puce>Dans l&apos;onglet « File de validation », cliquez sur « Voir le détail » pour revoir chaque changement (tableau Avant/Après, ou aperçu complet pour une création de lotissement).</Puce>
             <Puce>Deux choix : approuver (la base est mise à jour immédiatement) ou rejeter (rien ne change, un motif peut être ajouté pour l&apos;opérateur).</Puce>
             <Puce>Toutes les soumissions traitées restent visibles dans l&apos;historique, pour garder une trace.</Puce>

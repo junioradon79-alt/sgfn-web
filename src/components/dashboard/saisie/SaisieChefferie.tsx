@@ -13,32 +13,67 @@
 // un succès, rien n'a bougé. Ce dépôt a payé ce piège trois fois (cessions
 // 22/07, APFC 28/07, dette #28 encore ouverte).
 //
-// 🔴 CE QUI N'EST PAS ICI, et ne doit pas y arriver : `maj_attributions`
-// (réattribuer un lot) et `creation_structure` (fabriquer des îlots et des
-// lots). `soumettre_saisie` les refuse à la chefferie — réattribuer déplace la
-// propriété et déclenche cession puis attestation. La symétrie apparente avec
-// les quatre formulaires ci-dessous est un piège.
+// 🆕 20/08/2026 — `maj_attributions` (réattribuer un lot : changement de
+// propriétaire, cession, remise en disponibilité) est OUVERT à la chefferie
+// (migration 20260820120000_reouverture_maj_attributions_chefferie.sql — le
+// nom du fichier dit « réouverture », mais ce type n'avait JAMAIS été ouvert
+// à la chefferie avant ce jour), borné à SA juridiction, avec au moins une
+// opération exigée (une chefferie ne crée pas d'attributaire seul — arbitrage
+// du propriétaire du projet) et le gel juridique refusé dès la soumission —
+// toujours en maker-checker, jamais d'application directe. Demande du
+// propriétaire du projet, verbatim : « Impossible de saisir manuellement les
+// changements de propriétaires, cessions, etc. » puis, confirmation
+// explicite : « Oui, rouvrir maj_attributions ».
+//
+// 🔴 CE QUI N'EST PAS ICI, et ne doit pas y arriver : `creation_structure`
+// (fabriquer des îlots et des lots). `soumettre_saisie` le refuse à la
+// chefferie — c'est un acte du registre national, la symétrie apparente avec
+// les cinq formulaires ci-dessous est un piège.
 //
 // La couche de données est celle de l'app mobile (`useSaisieRegistre`) : c'est
 // le même contrat serveur, et deux copies auraient divergé au premier champ
 // ajouté.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Building2, Grid2x2, Loader2, Lock, Search, Send, SquarePen, UserCog } from "lucide-react";
+import {
+  ArrowRightLeft,
+  Building2,
+  Grid2x2,
+  Loader2,
+  Lock,
+  PackageSearch,
+  Search,
+  Send,
+  SquarePen,
+  UserCog,
+  UserPlus,
+} from "lucide-react";
 
 import { Button } from "@/components/ds/button";
 import { createClient } from "@/utils/supabase/client";
 import {
+  CLASSE_LABELS,
   NATURE_DROIT_OPTIONS,
+  QUALITE_OPTIONS,
   TYPE_ATTRIBUTAIRE_OPTIONS,
+  classifier,
+  labelQualite,
+  type CibleChoisie,
+  type LotEtat,
   type NatureDroit,
+  type NouvelAttributaire,
+  type OperationCible,
+  type PayloadMajAttributions,
   type PayloadModificationIlot,
   type PayloadModificationLot,
   type PayloadModificationLotissement,
+  type Qualite,
   type ResumeAttributaire,
   type ResumeIlot,
   type ResumeLot,
   type ResumeLotissement,
+  type ResumeMaj,
+  type TypeAttributaire,
 } from "@/lib/saisie";
 import {
   useSaisieRegistre,
@@ -50,10 +85,11 @@ import {
 } from "@/features/mobile/data/useSaisieRegistre";
 import { AvertissementDocumentaire } from "./AvertissementDocumentaire";
 
-type Onglet = "lotissement" | "lot" | "ilot" | "attributaire";
+type Onglet = "lotissement" | "attribution" | "lot" | "ilot" | "attributaire";
 
 const ONGLETS: { key: Onglet; label: string; icon: typeof Building2 }[] = [
   { key: "lotissement", label: "Fiche du lotissement", icon: Building2 },
+  { key: "attribution", label: "Attribution d'un lot", icon: ArrowRightLeft },
   { key: "lot", label: "Fiche d'un lot", icon: SquarePen },
   { key: "ilot", label: "Numéro d'un îlot", icon: Grid2x2 },
   { key: "attributaire", label: "Fiche d'un attributaire", icon: UserCog },
@@ -188,6 +224,9 @@ export function SaisieChefferie({
               d'un effet. */}
           {onglet === "lotissement" && (
             <FormLotissement key={lotissementId} api={api} lotissementId={lotissementId} onFlash={onFlash} />
+          )}
+          {onglet === "attribution" && (
+            <FormAttribution key={lotissementId} api={api} lotissementId={lotissementId} onFlash={onFlash} />
           )}
           {onglet === "lot" && (
             <FormLot key={lotissementId} api={api} lotissementId={lotissementId} onFlash={onFlash} />
@@ -440,6 +479,551 @@ function FormLotissement({
         ))}
       </div>
       <BoutonSoumettre onClick={soumettre} disabled={!v.nom?.trim()} enCours={enCours} />
+    </Panneau>
+  );
+}
+
+// ── Attribution d'un lot (maj_attributions) ─────────────────────────────────
+//
+// 🆕 20/08/2026. Une opération à la fois — jamais de panier multi-lots —, sur
+// le gabarit exact de l'écran mobile (`LotScreen.tsx`, app Pro, dossier
+// `admin/saisie`) : un lot, un acte, un résumé vérifiable avant l'envoi.
+// `_appliquer_maj_attributions` est pilotée par l'état CIBLE du lot (« ce lot
+// doit finir libre / attribué à X »), jamais par un diff calculé ici — ce qui
+// la rend résiliente à un état légèrement périmé.
+//
+// Le bandeau « Rien n'est appliqué avant l'approbation… » et l'avertissement
+// documentaire sont déjà rendus par les composants communs du fichier
+// (`BoutonSoumettre`, `AvertissementDocumentaire` au niveau du parent) : rien
+// à dupliquer ici.
+const REF_NOUVEAU = "nouveau-1";
+
+function FormAttribution({
+  api,
+  lotissementId,
+  onFlash,
+}: {
+  api: Api;
+  lotissementId: string;
+  onFlash: (f: Flash | null) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [lots, setLots] = useState<LotEtat[]>([]);
+  const [lot, setLot] = useState<LotEtat | null>(null);
+  const { enCours, envoyer } = useEnvoiWeb(api, onFlash);
+  const { chercherLots, chercherAttributaires } = api;
+
+  const [cible, setCible] = useState<"libre" | "attribue">("attribue");
+  const [source, setSource] = useState<"existant" | "nouveau">("existant");
+  const [qualite, setQualite] = useState<Qualite | null>(null);
+
+  const [rechercheAtt, setRechercheAtt] = useState("");
+  const [attributaires, setAttributaires] = useState<AttributaireFiche[]>([]);
+  const [attributaire, setAttributaire] = useState<AttributaireFiche | null>(null);
+
+  const [nom, setNom] = useState("");
+  const [type, setType] = useState<TypeAttributaire>("personne_physique");
+  const [pieceNature, setPieceNature] = useState("");
+  const [pieceNum, setPieceNum] = useState("");
+  const [telephone, setTelephone] = useState("");
+
+  // Recherche des lots. Le motif vide est légitime : il ramène les premiers
+  // lots du lotissement — point de départ pour qui ne connaît pas encore le
+  // numéro. `chercherLots` filtre déjà par lotissement, mais ce bornage est
+  // fait CÔTÉ CLIENT (`.eq("ilots.lotissement_id", …)` dans
+  // `useSaisieRegistre.ts`), pas par la RLS : `select count(*) from lots` sous
+  // le rôle chefferie rend le parc ENTIER (mesuré, 898 lignes). Le bornage
+  // réel, celui qui empêche d'ÉCRIRE hors juridiction, est la garde serveur de
+  // `soumettre_saisie` (migration 20260820120000) — celle-ci reste correcte.
+  //
+  // 🔴 Dette #45 : un échec de lecture (`r.ok === false`) doit être distingué
+  // d'une liste vide, sur le modèle de l'écran mobile (`LotScreen.tsx`,
+  // lignes ~370-373) — sinon un incident réseau ou une policy en défaut
+  // s'affiche « Aucun lot ne correspond. », qui est un mensonge actif.
+  const [erreurLots, setErreurLots] = useState<string | null>(null);
+  useEffect(() => {
+    if (lot) return;
+    let actif = true;
+    const t = setTimeout(() => {
+      void (async () => {
+        const r = await chercherLots(lotissementId, q);
+        if (!actif) return;
+        if (!r.ok) {
+          setErreurLots(r.error);
+          setLots([]);
+          return;
+        }
+        setErreurLots(null);
+        setLots(r.valeur);
+      })();
+    }, 250);
+    return () => {
+      actif = false;
+      clearTimeout(t);
+    };
+  }, [lotissementId, q, lot, chercherLots]);
+
+  const motifAtt = rechercheAtt.trim();
+  // 🔴 Même correctif dette #45, ici plus grave : un échec silencieux
+  // (`if (actif && r.ok) …`) laissait `attributaires` vide, et l'écran
+  // affichait « Personne ne porte ce nom au registre. Basculez sur
+  // 'Nouveau' » — poussant activement à créer un doublon d'attributaire à
+  // cause d'une lecture ratée, pas d'une absence réelle.
+  const [erreurAttributaires, setErreurAttributaires] = useState<string | null>(null);
+  useEffect(() => {
+    if (source !== "existant" || cible !== "attribue" || attributaire) return;
+    if (motifAtt.length < 2) return;
+    let actif = true;
+    const t = setTimeout(() => {
+      void (async () => {
+        const r = await chercherAttributaires(motifAtt);
+        if (!actif) return;
+        if (!r.ok) {
+          setErreurAttributaires(r.error);
+          setAttributaires([]);
+          return;
+        }
+        setErreurAttributaires(null);
+        setAttributaires(r.valeur);
+      })();
+    }, 250);
+    return () => {
+      actif = false;
+      clearTimeout(t);
+    };
+  }, [source, cible, attributaire, motifAtt, chercherAttributaires]);
+
+  const oublierCible = () => {
+    setCible("attribue");
+    setSource("existant");
+    setQualite(null);
+    setRechercheAtt("");
+    setAttributaires([]);
+    setErreurAttributaires(null);
+    setAttributaire(null);
+    setNom("");
+    setType("personne_physique");
+    setPieceNature("");
+    setPieceNum("");
+    setTelephone("");
+  };
+
+  const choisirLot = (l: LotEtat) => {
+    setLot(l);
+    oublierCible();
+  };
+
+  // Nom affiché de la cible — celui qui apparaît dans le récapitulatif et le
+  // titre de la soumission.
+  const nomCible = source === "existant" ? (attributaire?.nom ?? "") : nom.trim();
+
+  const cibleChoisie: CibleChoisie | null =
+    cible === "libre"
+      ? { type: "libre" }
+      : qualite && nomCible
+        ? {
+            type: "attribue",
+            ...(source === "existant"
+              ? { attributaire_id: attributaire?.id }
+              : { attributaire_ref: REF_NOUVEAU }),
+            attributaire_nom: nomCible,
+            qualite,
+          }
+        : null;
+
+  const classeBrute = lot && cibleChoisie ? classifier(lot, cibleChoisie) : null;
+  // `classifier` (partagée avec le mobile) ne compare que l'attributaire. Un
+  // lot sans attributaire mais dont le statut n'est pas « libre » (ex.
+  // reserve_equipement) serait donc classé « aucun changement », alors que
+  // `_appliquer_maj_attributions` fait bien `update lots set statut =
+  // 'libre'`. Même correction que côté mobile (`LotScreen.tsx`), sur l'appelant
+  // plutôt que dans `classifier`, dont le mobile dépend aussi.
+  const classeCalculee =
+    classeBrute === "inchange" && cible === "libre" && lot && lot.statut !== "libre"
+      ? ("remise_libre" as const)
+      : classeBrute;
+  // Un lot gelé n'aura AUCUN acte : afficher « Remise en disponibilité » sous
+  // l'avertissement qui dit que ce lot ne peut pas être remis en
+  // disponibilité serait se contredire sur l'écran qui porte la règle.
+  const classe = lot?.verrouille ? null : classeCalculee;
+
+  // Une opération « inchangée » occuperait la file d'un administrateur pour
+  // n'appliquer strictement rien : on l'arrête ici. Un lot sous gel juridique
+  // est refusé pour une autre raison — un acte interdit, pas un acte inutile —
+  // et la base le refuse désormais dès la soumission (migration
+  // 20260820120000).
+  const pret = !!lot && !lot.verrouille && !!cibleChoisie && classe !== null && classe !== "inchange";
+
+  if (!lot) {
+    return (
+      <Panneau>
+        <h2 className="text-sm font-semibold text-primary">Quel lot attribuer ?</h2>
+        <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">
+          Une opération à la fois : un lot, un acte, un résumé vérifiable avant l&apos;envoi.
+        </p>
+        <div className="relative mt-3">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-2" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Numéro de lot…"
+            className={`${CHAMP} pl-9 sm:max-w-md`}
+          />
+        </div>
+        {erreurLots ? (
+          <p className="mt-3 text-sm text-danger">Recherche impossible : {erreurLots}</p>
+        ) : (
+          <div className="mt-3 max-h-72 overflow-y-auto rounded-xl border border-border">
+            {lots.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+                <PackageSearch className="h-7 w-7 text-muted-2" />
+                <div className="text-sm text-muted-2">Aucun lot ne correspond.</div>
+              </div>
+            ) : (
+              lots.map((l) => (
+                <button
+                  key={l.lot_id}
+                  type="button"
+                  onClick={() => choisirLot(l)}
+                  className="flex w-full items-center justify-between gap-3 border-b border-border px-3 py-2.5 text-left text-sm last:border-b-0 hover:bg-inset"
+                >
+                  <span className="font-medium text-foreground">
+                    {l.verrouille ? "🔒 " : ""}Îlot {l.ilot} · Lot {l.numero_lot}
+                  </span>
+                  <span className="truncate text-xs text-muted-2">
+                    {l.verrouille
+                      ? "gel juridique"
+                      : l.attributaire_nom
+                        ? `${l.attributaire_nom} — ${labelQualite(l.qualite)}`
+                        : "libre"}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </Panneau>
+    );
+  }
+
+  const soumettre = () => {
+    if (!pret || !lot) return;
+
+    const nouveaux: NouvelAttributaire[] =
+      cible === "attribue" && source === "nouveau"
+        ? [
+            {
+              ref: REF_NOUVEAU,
+              nom: nom.trim(),
+              type,
+              ...(pieceNature.trim() ? { piece_nature: pieceNature.trim() } : {}),
+              ...(pieceNum.trim() ? { piece_num: pieceNum.trim() } : {}),
+              ...(telephone.trim() ? { telephone: telephone.trim() } : {}),
+            },
+          ]
+        : [];
+
+    // Les retours anticipés qui suivent sont inatteignables — `pret` exige
+    // déjà une qualité et un attributaire résolu. Ils satisfont le typage de
+    // `OperationCible` sans assertion `!`.
+    let operation: OperationCible;
+    if (cible === "libre") {
+      operation = { lot_id: lot.lot_id, cible: "libre" };
+    } else if (!qualite) {
+      return;
+    } else if (source === "existant") {
+      if (!attributaire) return;
+      operation = { lot_id: lot.lot_id, cible: "attribue", attributaire_id: attributaire.id, qualite };
+    } else {
+      operation = { lot_id: lot.lot_id, cible: "attribue", attributaire_ref: REF_NOUVEAU, qualite };
+    }
+
+    const payload: PayloadMajAttributions = {
+      lotissement_id: lotissementId,
+      nouveaux_attributaires: nouveaux,
+      operations: [operation],
+    };
+    const resume: ResumeMaj = {
+      nouvelles_attributions: classe === "nouvelle_attribution" ? 1 : 0,
+      reassignations: classe === "reassignation" ? 1 : 0,
+      remises_libre: classe === "remise_libre" ? 1 : 0,
+      inchanges: 0,
+      nouveaux_attributaires: nouveaux.length,
+    };
+
+    const ouLot = `îlot ${lot.ilot} · lot ${lot.numero_lot}`;
+    void envoyer(
+      {
+        type: "maj_attributions",
+        lotissementId,
+        titre: `Attribution — ${ouLot}`,
+        payload,
+        resume,
+      },
+      cible === "libre"
+        ? `Le ${ouLot} sera remis en disponibilité après approbation.`
+        : `Le ${ouLot} sera attribué à ${nomCible} (${labelQualite(qualite)}) après approbation.`,
+    );
+  };
+
+  return (
+    <Panneau>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-primary">
+          Îlot {lot.ilot} · Lot {lot.numero_lot}
+        </h2>
+        <button
+          type="button"
+          onClick={() => setLot(null)}
+          className="text-sm font-medium text-primary hover:underline"
+        >
+          Choisir un autre lot
+        </button>
+      </div>
+
+      <div className="mt-3 rounded-xl border border-border bg-inset/60 px-3.5 py-2.5 text-sm">
+        <span className="font-medium text-foreground">{lot.attributaire_nom ?? "Aucun attributaire"}</span>
+        <span className="ml-1.5 text-muted-foreground">
+          {lot.attributaire_nom
+            ? `— ${labelQualite(lot.qualite)} · statut « ${lot.statut} »`
+            : `Statut « ${lot.statut} »`}
+        </span>
+      </div>
+
+      {/* Le gel n'est pas une nuance d'affichage : il ferme le formulaire.
+          Placé juste sous la situation actuelle, avant les choix, pour ne pas
+          faire remplir une cible qui ne partira jamais — refus dès la
+          soumission depuis la migration 20260820120000. */}
+      {lot.verrouille && (
+        <div className="mt-3 flex gap-2.5 rounded-xl border border-warning/45 bg-warning-subtle px-3.5 py-2.5 text-sm text-foreground">
+          <Lock className="mt-px h-4 w-4 flex-none text-warning" />
+          <div>
+            <b>Ce lot est sous gel juridique.</b> Il ne peut être ni réattribué ni remis en
+            disponibilité : le serveur refuse la soumission. Le gel se lève depuis la fiche du lot,
+            par un administrateur.
+          </div>
+        </div>
+      )}
+
+      {!lot.verrouille && (
+        <>
+          <div className="mt-4 flex gap-2">
+            {[
+              { key: "attribue" as const, label: "Attribué à…" },
+              { key: "libre" as const, label: "Libre" },
+            ].map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                onClick={() => {
+                  setCible(o.key);
+                  onFlash(null);
+                }}
+                className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+                  cible === o.key
+                    ? "border-primary bg-primary text-white"
+                    : "border-border text-muted-foreground hover:bg-inset"
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+
+          {cible === "libre" ? (
+            <p className="mt-3 text-[12.5px] leading-relaxed text-muted-foreground">
+              {lot.attributaire_id ? (
+                <>
+                  L&apos;attribution en cours sera close et le lot repassera en <b>libre</b>.
+                  L&apos;historique des attributions est conservé — rien n&apos;est effacé.
+                </>
+              ) : (
+                <>
+                  Le lot n&apos;a pas d&apos;attributaire : seul son <b>statut</b> changera, de «&nbsp;
+                  {lot.statut}&nbsp;» à «&nbsp;libre&nbsp;».
+                </>
+              )}
+            </p>
+          ) : (
+            <>
+              <div className="mt-3 flex gap-2">
+                {[
+                  { key: "existant" as const, label: "Attributaire connu" },
+                  { key: "nouveau" as const, label: "Nouveau" },
+                ].map((o) => (
+                  <button
+                    key={o.key}
+                    type="button"
+                    onClick={() => {
+                      setSource(o.key);
+                      setAttributaire(null);
+                      setRechercheAtt("");
+                      setAttributaires([]);
+                    }}
+                    className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+                      source === o.key
+                        ? "border-primary bg-primary text-white"
+                        : "border-border text-muted-foreground hover:bg-inset"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+
+              {source === "existant" ? (
+                <div className="mt-3">
+                  {attributaire ? (
+                    <div className="flex items-center justify-between rounded-xl border border-success/30 bg-success-subtle px-3 py-2 text-sm">
+                      <span className="font-medium text-success">{attributaire.nom}</span>
+                      <button
+                        type="button"
+                        onClick={() => setAttributaire(null)}
+                        className="rounded-full p-1 text-success hover:bg-card"
+                      >
+                        Changer
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-2" />
+                        <input
+                          value={rechercheAtt}
+                          onChange={(e) => setRechercheAtt(e.target.value)}
+                          placeholder="Nom de l'attributaire…"
+                          className={`${CHAMP} pl-9`}
+                        />
+                      </div>
+                      {/* 🔴 Dette #45 : une erreur de lecture n'est PAS une absence de
+                          résultat — la confondre pousse activement à créer un doublon.
+                          Distinction reprise du gabarit mobile (`LotScreen.tsx`, ~563-566) :
+                          erreur d'abord, résultats ensuite, absence de résultat seulement
+                          quand la recherche a RÉUSSI et n'a rien trouvé. */}
+                      {motifAtt.length >= 2 && erreurAttributaires && (
+                        <p className="mt-2 text-[11.5px] text-danger">
+                          Recherche impossible : {erreurAttributaires}
+                        </p>
+                      )}
+                      {motifAtt.length >= 2 && !erreurAttributaires && attributaires.length > 0 && (
+                        <div className="mt-1 max-h-48 overflow-y-auto rounded-xl border border-border bg-card shadow-sm">
+                          {attributaires.map((a) => (
+                            <button
+                              key={a.id}
+                              type="button"
+                              onClick={() => setAttributaire(a)}
+                              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-inset"
+                            >
+                              <span className="font-medium text-foreground">{a.nom}</span>
+                              <span className="truncate text-xs text-muted-2">{a.piece_num ?? ""}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {motifAtt.length >= 2 && !erreurAttributaires && attributaires.length === 0 && (
+                        <p className="mt-2 flex items-center gap-1.5 px-1 text-[11.5px] text-muted-foreground">
+                          <UserPlus className="h-3.5 w-3.5" /> Personne ne porte ce nom au registre.
+                          Basculez sur « Nouveau » pour créer la fiche en même temps que
+                          l&apos;attribution.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <p className="mt-3 text-[11.5px] leading-relaxed text-muted-foreground">
+                    La fiche sera créée <b>à l&apos;approbation</b>, en même temps que
+                    l&apos;attribution. Vérifiez d&apos;abord dans « Attributaire connu » que la
+                    personne n&apos;existe pas déjà.
+                  </p>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                    <Ligne label="Nom" aide="Prénom NOM, ou raison sociale">
+                      <input value={nom} onChange={(e) => setNom(e.target.value)} className={CHAMP} />
+                    </Ligne>
+                    <Ligne label="Type">
+                      <select
+                        value={type}
+                        onChange={(e) => setType(e.target.value as TypeAttributaire)}
+                        className={CHAMP}
+                      >
+                        {TYPE_ATTRIBUTAIRE_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </Ligne>
+                    <Ligne label="Nature de la pièce">
+                      <input
+                        value={pieceNature}
+                        onChange={(e) => setPieceNature(e.target.value)}
+                        placeholder="CNI, passeport…"
+                        className={CHAMP}
+                      />
+                    </Ligne>
+                    <Ligne label="Numéro de la pièce">
+                      <input value={pieceNum} onChange={(e) => setPieceNum(e.target.value)} className={CHAMP} />
+                    </Ligne>
+                    <Ligne label="Téléphone">
+                      <input
+                        value={telephone}
+                        onChange={(e) => setTelephone(e.target.value)}
+                        type="tel"
+                        placeholder="+225 07 00 00 00 00"
+                        className={CHAMP}
+                      />
+                    </Ligne>
+                  </div>
+                </>
+              )}
+
+              <div className="mt-4">
+                <Ligne
+                  label="Qualité de l'attribution"
+                  aide="Elle détermine la portée juridique de l'acte et figure sur l'attestation."
+                >
+                  <select
+                    value={qualite ?? ""}
+                    onChange={(e) => setQualite((e.target.value || null) as Qualite | null)}
+                    className={CHAMP}
+                  >
+                    <option value="">— Sélectionner —</option>
+                    {QUALITE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </Ligne>
+              </div>
+            </>
+          )}
+
+          {/* Nature exacte de l'acte, calculée par `classifier` — la même
+              fonction que le mobile : « attribuer » à un lot déjà attribué
+              n'est pas une attribution mais une réassignation. */}
+          {classe && (
+            <div className="mt-4">
+              {classe === "inchange" ? (
+                <p className="rounded-xl border border-border bg-inset/60 px-3.5 py-2.5 text-[12.5px] text-muted-foreground">
+                  <b>{CLASSE_LABELS.inchange}.</b> Le lot est déjà exactement dans cet état : la
+                  soumission n&apos;appliquerait rien et occuperait la file pour rien.
+                </p>
+              ) : (
+                <p className="rounded-xl border border-accent/40 bg-accent-subtle px-3.5 py-2.5 text-[12.5px] text-foreground">
+                  Acte soumis : <b>{CLASSE_LABELS[classe]}</b>
+                  {classe === "reassignation" && lot.attributaire_nom && (
+                    <> — l&apos;attribution de {lot.attributaire_nom} sera close.</>
+                  )}
+                </p>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      <BoutonSoumettre onClick={soumettre} disabled={!pret} enCours={enCours} />
     </Panneau>
   );
 }

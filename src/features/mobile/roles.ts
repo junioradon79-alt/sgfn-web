@@ -17,7 +17,9 @@
  *
  * ⚠️ `lot` = **attribuer** un lot (`maj_attributions`) ; `fiche_lot` =
  * corriger ce que le registre **dit** d'un lot (`modification_lot`). Deux actes
- * de nature différente, et un seul des deux est ouvert à la chefferie.
+ * de nature différente. Les deux sont ouverts à la chefferie depuis le
+ * 20/08/2026 (`lot` était fermé jusque-là — cf. `SAISIES_PAR_ROLE`
+ * ci-dessous pour l'arbitrage).
  */
 export type EcranSaisie =
   | "lot"
@@ -76,10 +78,30 @@ export function ongletsPour(groupe: string | null | undefined): OngletPro[] {
 
 /**
  * 🔴 Formulaires ouverts à chaque rôle. Cette table doit rester le MIROIR EXACT
- * de la garde de `soumettre_saisie`, relue en production le 30/07/2026
- * (migration 20260730090000, qui resserre celle du 20260730080000) :
+ * de la garde de `soumettre_saisie`, relue en production le 20/08/2026
+ * (migration 20260820120000, qui ouvre `maj_attributions` par-dessus celle du
+ * 30/07/2026, migration 20260730090000) :
  *
- *   maj_attributions | creation_structure       → admin ou operateur_saisie
+ *   creation_structure                          → admin ou operateur_saisie
+ *                                                 SEULEMENT — fabrique des
+ *                                                 îlots et des lots, acte du
+ *                                                 registre national
+ *   maj_attributions                            → admin, operateur_saisie,
+ *                                                 ou chefferie bornée à sa
+ *                                                 JURIDICTION, avec au moins
+ *                                                 une opération exigée (une
+ *                                                 chefferie ne crée pas
+ *                                                 d'attributaire seul) et le
+ *                                                 gel juridique refusé dès la
+ *                                                 SOUMISSION sur chaque lot du
+ *                                                 payload (🆕 20/08/2026 :
+ *                                                 ouvert à la chefferie pour
+ *                                                 la première fois, sur
+ *                                                 demande du propriétaire du
+ *                                                 projet — « Impossible de
+ *                                                 saisir manuellement les
+ *                                                 changements de propriétaires,
+ *                                                 cessions, etc. »)
  *   maj_attributaire                            → admin, operateur_saisie,
  *                                                 ou chefferie bornée à sa
  *                                                 JURIDICTION et en CORRECTION
@@ -95,7 +117,10 @@ export function ongletsPour(groupe: string | null | undefined): OngletPro[] {
  * faisait refuser sur les trois autres, pour le même lotissement. Arbitrage du
  * propriétaire du projet le 30/07 — une chefferie n'agit que sur le territoire
  * dont elle est l'autorité coutumière, jamais par appartenance familiale. C'est
- * sa directive du 29/07 : **chefferie ≠ chef de famille**.
+ * sa directive du 29/07 : **chefferie ≠ chef de famille**. `maj_attributions`
+ * suit la même règle depuis son ouverture du 20/08 : borné au
+ * `lotissement_id` du PAYLOAD comparé à `ma_chefferie_id()`, jamais à
+ * `lot_ids_chefferie()`.
  *
  * ⚠️ `lot_ids_chefferie()` **a depuis changé** : la migration `20260731110000`
  * lui a retiré la branche famille, et elle ne rend plus que les lots de la
@@ -110,10 +135,10 @@ export function ongletsPour(groupe: string | null | undefined): OngletPro[] {
  * rattachée à aucune autorité coutumière. Voir `chefferieSansJuridiction`
  * ci-dessous : les deux disent la même chose, l'un à l'écran, l'autre en base.
  *
- * ❌ `maj_attributions` et `creation_structure` restent FERMÉS à la chefferie,
- * et la symétrie apparente est un piège : réattribuer déplace la propriété et
- * déclenche cession puis attestation ; créer une structure fabrique des lots.
- * Ce sont des actes du registre national.
+ * ❌ `creation_structure` reste FERMÉ à la chefferie, et la symétrie apparente
+ * avec `maj_attributions` est un piège : fabriquer une structure crée des
+ * lots, c'est un acte du registre national — réattribuer un lot déjà existant,
+ * dans sa propre juridiction, n'en est plus un depuis le 20/08.
  *
  * Offrir ici un formulaire que le serveur refuse ne produit pas un bug visible
  * à la compilation : la personne remplit une fiche entière, puis se fait
@@ -123,7 +148,7 @@ export function ongletsPour(groupe: string | null | undefined): OngletPro[] {
 const SAISIES_PAR_ROLE: Record<string, EcranSaisie[]> = {
   admin: ["lot", "fiche_lot", "ilot", "attributaire", "lotissement", "structure"],
   operateur_saisie: ["lot", "attributaire", "structure"],
-  chefferie: ["fiche_lot", "ilot", "attributaire", "lotissement"],
+  chefferie: ["lot", "fiche_lot", "ilot", "attributaire", "lotissement"],
 };
 
 export function saisiesPour(groupe: string | null | undefined): EcranSaisie[] {
