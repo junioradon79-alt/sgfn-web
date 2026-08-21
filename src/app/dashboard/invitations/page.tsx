@@ -188,11 +188,17 @@ export default function InvitationsPage() {
       return;
     }
 
+    if (!telephone.trim()) {
+      setError("Le téléphone est obligatoire.");
+      setIsPending(false);
+      return;
+    }
+
     const { error: insertError } = await supabase.from("invitations").insert({
       groupe: groupe as Database["public"]["Enums"]["groupe_utilisateur"],
       nom_complet: nomComplet || null,
       email: email || null,
-      telephone: telephone || null,
+      telephone: telephone.trim(),
       attributaire_id: attributaireRequis ? attributaireId : null,
       autorite_coutumiere_id: autoriteRequise ? autoriteCoutumiereId : null,
       famille_id: familleRequise ? familleId : null,
@@ -414,9 +420,9 @@ export default function InvitationsPage() {
                     onChange={(e) => setEmail(e.target.value)} />
                 </Field>
 
-                <Field label="Téléphone (optionnel)" htmlFor="inv-tel" className="sm:col-span-2">
+                <Field label="Téléphone" htmlFor="inv-tel" className="sm:col-span-2" required>
                   <Input id="inv-tel" type="tel" placeholder="+225 07 00 00 00 00" value={telephone}
-                    onChange={(e) => setTelephone(e.target.value)} />
+                    onChange={(e) => setTelephone(e.target.value)} required />
                 </Field>
 
                 {error && (
