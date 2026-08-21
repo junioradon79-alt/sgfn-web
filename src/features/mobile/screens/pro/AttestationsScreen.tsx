@@ -2,10 +2,12 @@
 
 // Les attestations DE CESSION, depuis le terrain.
 //
-// Ce que cet écran sert, précisément : 48 attestations de cession attendent
-// aujourd'hui en production une signature qui se constate sur papier, devant
-// la parcelle ou dans la cour de la chefferie — pas devant un ordinateur (une
-// 49e porte déjà ses deux signatures et n'attend que sa remise). La chefferie
+// Ce que cet écran sert, précisément : les attestations de cession attendent
+// une signature qui se constate sur papier, devant la parcelle ou dans la
+// cour de la chefferie — pas devant un ordinateur — puis une remise physique
+// une fois les signatures requises réunies. Le nombre d'attestations dans
+// chaque état varie au fil de l'eau ; ne pas le figer ici en dur — l'onglet
+// « À constater » de l'écran lui-même en donne le compte à jour. La chefferie
 // qui les voit toutes (`attcess_chefferie_read`, scopée à sa juridiction)
 // n'avait jusqu'ici aucun écran pour le dire.
 //
@@ -40,8 +42,10 @@ import { useCallback, useState } from "react";
 import {
   CheckCircle2,
   FileCheck2,
+  FileSignature,
   Loader2,
   PenLine,
+  ScrollText,
   ShieldAlert,
   Stamp,
   TriangleAlert,
@@ -49,6 +53,7 @@ import {
 
 import { useBackHandler } from "@/lib/android-back";
 import { Badge } from "@/components/ds/badge";
+import { cessionAttendSignature, etatSignaturesApfc, etatSignaturesCession } from "@/lib/signatures-attestation";
 import {
   estSignable,
   libelleSignature,
@@ -61,6 +66,15 @@ import {
   type Signature,
   type StatutAttestation,
 } from "../../data/useAttestations";
+import {
+  aalActionnable,
+  apfcActionnable,
+  type ApfcMobile,
+  type AttributionLotMobile,
+  type FileApfc,
+  type FileAttributionLot,
+  type ValidationsChefferie,
+} from "../../data/useValidationsChefferie";
 import type { ActionsAttestation, RattachementManquant } from "../../roles";
 
 /** Libellés et tons repris du Coffre-fort documentaire (`dashboard/documents`). */
@@ -73,8 +87,41 @@ const STATUT: Record<StatutAttestation, { label: string; tone: "warning" | "acce
 
 type Filtre = "signer" | "remettre" | "toutes";
 
-/** Acte engageant en cours de confirmation sur une carte. */
+/** Acte engageant en cours de confirmation sur une carte de cession. */
 type Acte = { kind: "constater"; signature: Signature } | { kind: "remise" };
+
+/**
+ * 🔴 État de confirmation UNIQUE pour tout l'écran — cessions, APFC, AAL.
+ *
+ * Les trois sections posent chacune le même panneau engageant (« Vous
+ * attestez que cette signature figure sur le document papier »), et
+ * l'invariante posée pour les cessions dès l'origine de cet écran — un seul
+ * panneau ouvert à la fois — doit tenir pour les trois, pas seulement pour la
+ * première : sinon jusqu'à trois panneaux peuvent rester dépliés en même
+ * temps, et le geste retour Android n'en referme qu'un (le plus récent).
+ * `setConfirmation` remplace toujours la valeur entière : ouvrir une
+ * confirmation ferme donc automatiquement celle d'une autre section.
+ */
+type Confirmation =
+  | { section: "cession"; id: string; acte: Acte }
+  | { section: "apfc"; id: string }
+  | { section: "aal"; id: string };
+
+/**
+ * 🔴 Envoi en vol UNIQUE pour tout l'écran — cessions, APFC, AAL.
+ *
+ * Correctif D8 : avant lui, chaque section gelait ses propres cartes pendant
+ * son propre envoi (`enCours`, local aux cessions ; `busyId`, local à
+ * `SectionApfc` et `SectionAal`) mais ignorait totalement les deux autres —
+ * une chefferie pouvait lancer un constat APFC pendant qu'une signature de
+ * cession était en vol, deux RPC partaient en parallèle, et le message de
+ * retour (flash) n'était plus rattachable à l'acte qui l'avait produit.
+ * `enVol` est désormais LE SEUL état qui gèle des cartes, partagé par les
+ * trois sections exactement comme `confirmation` ci-dessus : un envoi en vol
+ * QUELLE QUE SOIT SA SECTION D'ORIGINE gèle toutes les cartes des trois
+ * sections, sauf celle qui est en train d'envoyer (qui affiche son spinner).
+ */
+type EnVol = { section: Confirmation["section"]; id: string };
 
 function dateCourte(iso: string | null): string {
   if (!iso) return "—";
@@ -98,6 +145,7 @@ export function AttestationsScreen({
    */
   blocage = null,
   onOuvrirGeneration,
+  validations,
 }: {
   file: FileAttestations;
   actions: ActionsAttestation;
@@ -106,35 +154,58 @@ export function AttestationsScreen({
   blocage?: RattachementManquant;
   /** Génération par dérogation — réservée à l'admin (`generation`). */
   onOuvrirGeneration?: () => void;
+  /**
+   * APFC à co-signer et AAL à signer — portage « Tier 2 » (17/08/2026),
+   * chefferie uniquement. Absent pour les autres rôles (`actions.apfc` et
+   * `actions.attributionLot` valent alors `false`, cf. `../../roles`) : les
+   * deux sections ci-dessous ne s'affichent que si LE DROIT **et** LA FILE
+   * sont là, jamais l'un sans l'autre.
+   */
+  validations?: ValidationsChefferie;
 }) {
   const { attestations, loading, erreur, aSigner, aRemettre, recharger, constater, remettre } = file;
 
   const [filtre, setFiltre] = useState<Filtre>("signer");
-  // Une seule confirmation ouverte à la fois : deux panneaux dépliés sur un
-  // écran de téléphone, et l'on ne sait plus lequel on confirme.
-  const [confirmation, setConfirmation] = useState<{ id: string; acte: Acte } | null>(null);
-  const [enCours, setEnCours] = useState<string | null>(null);
+  // Une seule confirmation ouverte à la fois, tout l'écran confondu : deux
+  // panneaux dépliés sur un écran de téléphone, et l'on ne sait plus lequel on
+  // confirme. Partagé par les trois sections (cession, APFC, AAL) — cf.
+  // `Confirmation` ci-dessus.
+  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  // Un seul envoi en vol pour tout l'écran, toutes sections confondues — cf.
+  // `EnVol` ci-dessus.
+  const [enVol, setEnVol] = useState<EnVol | null>(null);
   const [flash, setFlash] = useState<{ ok: boolean; texte: string } | null>(null);
 
   // Le geste de retour referme d'abord la confirmation : sinon un réflexe de
   // sortie ferait constater — ou manquer — un acte qu'on s'apprêtait à relire.
+  // 🔴 Sauf pendant un envoi en vol (`enVol`) : le fermer sous la requête
+  // rouvrirait la carte à un nouveau clic (elle n'est plus « self » gelée)
+  // pendant que l'ancienne requête est toujours en cours, et la réponse de
+  // celle-ci pourrait ensuite refermer une confirmation rouverte entre-temps.
+  // Même garde que le bouton « Annuler » du panneau (`disabled={busy}`).
   useBackHandler(
     useCallback(() => {
-      if (confirmation) {
+      if (confirmation && !enVol) {
         setConfirmation(null);
         return true;
       }
+      // Un envoi en vol : on avale le retour plutôt que de le laisser
+      // remonter la pile. Sinon `false` fait fermer l'écran entier
+      // (ProApp.tsx) pendant que la requête tourne encore, et le flash
+      // de retour (succès, échec, ou « envoi interrompu ») ne trouve
+      // plus personne pour l'afficher.
+      if (enVol) return true;
       return false;
-    }, [confirmation]),
+    }, [confirmation, enVol]),
   );
 
   const confirmer = async () => {
-    if (!confirmation || enCours) return;
+    if (!confirmation || confirmation.section !== "cession" || enVol) return;
     const { id, acte } = confirmation;
-    setEnCours(id);
+    setEnVol({ section: "cession", id });
     const res =
       acte.kind === "constater" ? await constater(id, acte.signature) : await remettre(id);
-    setEnCours(null);
+    setEnVol(null);
     if (!res.ok) {
       // Le message du serveur est conservé tel quel : « Signature(s)
       // manquante(s) avant remise : chefferie » ou « Ce lotissement ne releve
@@ -150,7 +221,13 @@ export function AttestationsScreen({
       });
       return;
     }
-    setConfirmation(null);
+    // Ne referme QUE la confirmation qui correspond à l'acte qui vient de
+    // réussir (même id, même section) — défensif : `enVol` bloque déjà toute
+    // AUTRE carte pendant l'envoi, mais ne referme pas ici sans comparer
+    // laisserait une confirmation rouverte entre-temps sur CETTE carte (cf.
+    // le garde-fou posé sur `useBackHandler`, ci-dessus) se faire fermer sous
+    // le doigt de l'utilisateur par un envoi qui n'est plus le sien.
+    setConfirmation((prev) => (prev && prev.section === "cession" && prev.id === id ? null : prev));
     setFlash({
       ok: true,
       texte:
@@ -252,6 +329,44 @@ export function AttestationsScreen({
               </button>
             )}
 
+            {/* APFC à co-signer et AAL à signer — portage « Tier 2 » (17/08/2026),
+                chefferie uniquement. Deux files INDÉPENDANTES de celle des
+                cessions ci-dessous : sources, colonnes de signature et cycle de
+                paiement diffèrent (cf. `useValidationsChefferie`). Contenu
+                équivalent à `/dashboard/validations` côté web — même RPC, même
+                doctrine « signature constatée, jamais électronique ». */}
+            {actions.apfc && validations && (
+              <SectionApfc
+                file={validations.apfc}
+                confirmationId={confirmation?.section === "apfc" ? confirmation.id : null}
+                onOuvrirConfirmation={(id) => setConfirmation({ section: "apfc", id })}
+                onFermerConfirmation={(id) =>
+                  setConfirmation((prev) =>
+                    prev && prev.section === "apfc" && prev.id === id ? null : prev,
+                  )
+                }
+                enVol={enVol}
+                setEnVol={setEnVol}
+              />
+            )}
+            {actions.attributionLot && validations && (
+              <SectionAal
+                file={validations.attributionLot}
+                confirmationId={confirmation?.section === "aal" ? confirmation.id : null}
+                onOuvrirConfirmation={(id) => setConfirmation({ section: "aal", id })}
+                onFermerConfirmation={(id) =>
+                  setConfirmation((prev) =>
+                    prev && prev.section === "aal" && prev.id === id ? null : prev,
+                  )
+                }
+                enVol={enVol}
+                setEnVol={setEnVol}
+              />
+            )}
+            {(actions.apfc || actions.attributionLot) && validations && (
+              <div className="mt-1 mb-2.5 text-[15px] font-bold text-foreground">Cessions — Niveau 1</div>
+            )}
+
             <div className="mb-3 flex gap-1.5">
               {onglets.map((o) => (
                 <button
@@ -320,14 +435,20 @@ export function AttestationsScreen({
                     key={a.id}
                     attestation={a}
                     actions={actions}
-                    acte={confirmation?.id === a.id ? confirmation.acte : null}
-                    busy={enCours === a.id}
-                    // Un envoi en vol ailleurs fige les autres cartes : en
-                    // lancer un second rendrait le message de retour impossible
-                    // à rattacher à l'acte qui l'a produit.
-                    gele={enCours !== null && enCours !== a.id}
+                    acte={
+                      confirmation?.section === "cession" && confirmation.id === a.id
+                        ? confirmation.acte
+                        : null
+                    }
+                    busy={enVol?.section === "cession" && enVol.id === a.id}
+                    // Un envoi en vol ailleurs fige les autres cartes — cession,
+                    // APFC ou AAL confondues (`enVol` est partagé par les trois
+                    // sections, cf. `EnVol` plus haut) : en lancer un second
+                    // rendrait le message de retour impossible à rattacher à
+                    // l'acte qui l'a produit.
+                    gele={enVol !== null && !(enVol.section === "cession" && enVol.id === a.id)}
                     onDemander={(acte) => {
-                      setConfirmation({ id: a.id, acte });
+                      setConfirmation({ section: "cession", id: a.id, acte });
                       setFlash(null);
                     }}
                     onAnnuler={() => setConfirmation(null)}
@@ -540,6 +661,512 @@ function CarteAttestation({
                   .map((sig) => libelleSignature(sig, a.lotissementAUneFamille))
                   .join(", ")}. Hors de votre ressort.`
               : "Signatures complètes — la remise revient à l'administration."}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── APFC à co-signer (portage « Tier 2 », 17/08/2026) ─────────────────────
+//
+// Section indépendante de la FILE de cessions ci-dessus : sa propre lecture,
+// ses propres colonnes de signature (cf. `useValidationsChefferie`). L'état de
+// CONFIRMATION et l'état d'ENVOI EN VOL, en revanche, ne sont plus les siens :
+// ils viennent de l'écran parent (`confirmationId`/`onOuvrirConfirmation`/
+// `onFermerConfirmation` pour le premier, `enVol`/`setEnVol` pour le second),
+// pour que les trois sections partagent un seul panneau ouvert à la fois, une
+// seule requête en vol à la fois, et un seul geste de retour Android — cf. les
+// types `Confirmation` et `EnVol`, plus haut. Le contenu reprend celui de la
+// carte APFC de `/dashboard/validations` (numéro, chef de famille, pastilles
+// de signature via `etatSignaturesApfc`), condensé au format carte déjà
+// utilisé pour la cession.
+
+function SectionApfc({
+  file,
+  confirmationId,
+  onOuvrirConfirmation,
+  onFermerConfirmation,
+  enVol,
+  setEnVol,
+}: {
+  file: FileApfc;
+  /** Id de l'APFC dont le panneau de confirmation est ouvert, ou `null`. */
+  confirmationId: string | null;
+  onOuvrirConfirmation: (id: string) => void;
+  /** Ne referme QUE si la confirmation ouverte porte encore cet id — cf. `EnVol`. */
+  onFermerConfirmation: (id: string) => void;
+  /** Envoi en vol partagé par tout l'écran (cession/APFC/AAL) — cf. `EnVol`. */
+  enVol: EnVol | null;
+  setEnVol: (v: EnVol | null) => void;
+}) {
+  const [flash, setFlash] = useState<{ ok: boolean; texte: string } | null>(null);
+
+  const confirmer = async (id: string) => {
+    if (enVol) return;
+    setEnVol({ section: "apfc", id });
+    const res = await file.constater(id);
+    setEnVol(null);
+    if (!res.ok) {
+      setFlash({
+        ok: false,
+        texte: res.incertain
+          ? `Envoi interrompu : ${res.error}. Le constat a peut-être été enregistré — rafraîchissez avant de recommencer.`
+          : `Refusé : ${res.error}`,
+      });
+      return;
+    }
+    onFermerConfirmation(id);
+    setFlash({ ok: true, texte: "Signature du chef de village constatée." });
+  };
+
+  return (
+    <div className="mb-4">
+      <div className="mb-2 flex items-center gap-1.5 text-[15px] font-bold text-foreground">
+        <ScrollText className="size-4 text-primary" strokeWidth={2} />
+        APFC — à co-signer
+      </div>
+      {flash && (
+        <div
+          role="alert"
+          className={`mb-2.5 flex items-start gap-2 rounded-2xl px-3.5 py-3 text-[12.5px] font-medium ${
+            flash.ok ? "bg-success-subtle text-success" : "bg-danger-subtle text-danger"
+          }`}
+        >
+          {flash.ok ? (
+            <CheckCircle2 className="mt-px size-4 flex-none" />
+          ) : (
+            <TriangleAlert className="mt-px size-4 flex-none" />
+          )}
+          <span className="min-w-0">{flash.texte}</span>
+        </div>
+      )}
+      {file.loading ? (
+        <div className="flex items-center justify-center gap-2 py-6 text-[12.5px] text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" /> Chargement…
+        </div>
+      ) : file.erreur && file.items.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 rounded-2xl border border-danger/25 bg-danger-subtle px-3.5 py-4 text-center">
+          <TriangleAlert className="size-5 flex-none text-danger" />
+          <div className="text-[12.5px] font-medium text-danger">{file.erreur}</div>
+          {/* Même motif que la file de cessions, ci-dessus : sans ce bouton,
+              changer d'onglet puis revenir n'émet AUCUNE nouvelle requête et
+              l'erreur reste affichée indéfiniment. */}
+          <button
+            type="button"
+            onClick={() => void file.recharger()}
+            className="mt-1 rounded-full border border-border bg-card px-4 py-1.5 text-[12.5px] font-semibold text-foreground"
+          >
+            Réessayer
+          </button>
+        </div>
+      ) : file.items.length === 0 ? (
+        <div className="rounded-2xl border border-border bg-card px-3.5 py-3 text-[12.5px] text-muted-foreground">
+          Aucune APFC sur votre territoire.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {/* Un rechargement raté APRÈS un constat réussi ne doit pas
+              retomber en silence derrière le toast vert : sinon la carte
+              reste inchangée, bouton "Constater" toujours affiché, sans
+              aucun signal de ce qui a échoué. Même motif que les cessions. */}
+          {file.erreur && (
+            <div className="flex items-start gap-2 rounded-2xl bg-warning-subtle px-3.5 py-3 text-[12px] text-foreground">
+              <TriangleAlert className="mt-px size-4 flex-none text-warning" />
+              <span className="min-w-0">
+                Liste peut-être dépassée — le rechargement a échoué ({file.erreur}).
+              </span>
+            </div>
+          )}
+          {file.items.map((a) => (
+            <CarteApfc
+              key={a.id}
+              apfc={a}
+              confirmer={confirmationId === a.id}
+              busy={enVol?.section === "apfc" && enVol.id === a.id}
+              // Un envoi en vol ailleurs fige les autres cartes — cession,
+              // APFC ou AAL confondues, même règle que `CarteAttestation`.
+              gele={enVol !== null && !(enVol.section === "apfc" && enVol.id === a.id)}
+              onDemander={() => {
+                onOuvrirConfirmation(a.id);
+                setFlash(null);
+              }}
+              onAnnuler={() => onFermerConfirmation(a.id)}
+              onConfirmer={() => void confirmer(a.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CarteApfc({
+  apfc: a,
+  confirmer,
+  busy,
+  gele,
+  onDemander,
+  onAnnuler,
+  onConfirmer,
+}: {
+  apfc: ApfcMobile;
+  confirmer: boolean;
+  busy: boolean;
+  gele: boolean;
+  onDemander: () => void;
+  onAnnuler: () => void;
+  onConfirmer: () => void;
+}) {
+  // Même calcul que l'écran web : ce que le lotissement exige vient de
+  // `etatSignaturesApfc`, jamais d'un jeu de trois pastilles codé en dur.
+  const etat = etatSignaturesApfc(a);
+  const actionnable = apfcActionnable(a);
+  const dejaSignee = Boolean(a.sig_chef_village_le);
+
+  return (
+    <div className="rounded-[20px] border border-border bg-card p-4 shadow-panel">
+      <div className="min-w-0">
+        <div className="truncate text-[14.5px] font-bold text-foreground">
+          {a.numero ?? a.reference ?? "APFC"}
+        </div>
+        <div className="mt-0.5 truncate text-[11.5px] text-muted-foreground">{a.lotissementNom ?? "—"}</div>
+      </div>
+
+      <div className="mt-2 text-[12.5px] text-foreground">
+        <span className="text-muted-foreground">Chef de famille : </span>
+        {a.chefDeFamille ?? "—"}
+      </div>
+
+      {/* Les créneaux non requis par ce lotissement restent affichés, en
+          pointillés — même convention que les pastilles de la cession
+          ci-dessus : masquer laisserait croire à une norme unique. */}
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
+        {etat.lignes.map((l) => (
+          <span
+            key={l.colonne}
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${
+              !l.requise
+                ? "border border-dashed border-border text-muted-2"
+                : l.signee
+                  ? "bg-success-subtle text-foreground"
+                  : "bg-inset text-foreground"
+            }`}
+          >
+            <span
+              className={`size-[6px] flex-none rounded-full ${
+                l.requise && l.signee ? "bg-success" : "bg-muted-2"
+              }`}
+            />
+            {l.label}
+            {!l.requise ? " · non requise" : ""}
+          </span>
+        ))}
+      </div>
+
+      {confirmer ? (
+        <div className="mt-3.5 rounded-2xl border border-warning/45 bg-warning-subtle p-3">
+          <div className="flex items-start gap-2">
+            <Stamp className="mt-px size-4 flex-none text-warning" />
+            <div className="min-w-0">
+              <div className="text-[13px] font-bold text-foreground">
+                Constater la signature « Chef de village » ?
+              </div>
+              <div className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                Vous attestez que cette signature figure bien sur le document papier.
+                L&apos;acte est horodaté à votre nom et n&apos;est pas annulable depuis l&apos;application.
+              </div>
+            </div>
+          </div>
+          <div className="mt-2.5 flex gap-2">
+            <button
+              type="button"
+              onClick={onAnnuler}
+              disabled={busy}
+              className="flex-1 rounded-full border border-border bg-card py-2.5 text-[13.5px] font-semibold text-foreground disabled:opacity-50"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={onConfirmer}
+              disabled={busy}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-primary py-2.5 text-[13.5px] font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              {busy && <Loader2 className="size-4 animate-spin" />}
+              Confirmer
+            </button>
+          </div>
+        </div>
+      ) : actionnable ? (
+        <button
+          type="button"
+          disabled={gele}
+          onClick={onDemander}
+          className="mt-3.5 w-full rounded-full border border-border py-2.5 text-[13px] font-semibold text-foreground disabled:opacity-50"
+        >
+          Constater : Chef de village
+        </button>
+      ) : dejaSignee ? (
+        <div className="mt-3 inline-flex items-center gap-1 rounded-lg border border-success/25 bg-success-subtle px-3 py-2 text-[11.5px] font-semibold text-success">
+          <CheckCircle2 className="size-3.5" aria-hidden /> Validé
+        </div>
+      ) : (
+        <div className="mt-3 text-[11.5px] leading-snug text-muted-2">
+          Signature du chef de village non requise sur ce lotissement.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Attestation d'Attribution de Lot — Niveau 2/3 (portage « Tier 2 ») ────
+//
+// Même structure que `SectionApfc` ci-dessus, y compris les états de
+// CONFIRMATION et d'ENVOI EN VOL désormais partagés avec l'écran parent (cf.
+// `Confirmation` et `EnVol`, plus haut). Différence de fond : la signature
+// Chefferie reste bloquée tant que le paiement (360 000 FCFA chefferie +
+// 20 000 FCFA commission SGNF) n'est pas confirmé — le bouton existe mais
+// reste désactivé, et le motif est
+// écrit en toutes lettres (un `title` sur un bouton désactivé ne s'affiche
+// jamais, cf. le même correctif sur `/dashboard/validations`).
+
+function SectionAal({
+  file,
+  confirmationId,
+  onOuvrirConfirmation,
+  onFermerConfirmation,
+  enVol,
+  setEnVol,
+}: {
+  file: FileAttributionLot;
+  /** Id de l'AAL dont le panneau de confirmation est ouvert, ou `null`. */
+  confirmationId: string | null;
+  onOuvrirConfirmation: (id: string) => void;
+  /** Ne referme QUE si la confirmation ouverte porte encore cet id — cf. `EnVol`. */
+  onFermerConfirmation: (id: string) => void;
+  /** Envoi en vol partagé par tout l'écran (cession/APFC/AAL) — cf. `EnVol`. */
+  enVol: EnVol | null;
+  setEnVol: (v: EnVol | null) => void;
+}) {
+  const [flash, setFlash] = useState<{ ok: boolean; texte: string } | null>(null);
+
+  const confirmer = async (id: string) => {
+    if (enVol) return;
+    setEnVol({ section: "aal", id });
+    const res = await file.constater(id);
+    setEnVol(null);
+    if (!res.ok) {
+      setFlash({
+        ok: false,
+        texte: res.incertain
+          ? `Envoi interrompu : ${res.error}. Le constat a peut-être été enregistré — rafraîchissez avant de recommencer.`
+          : `Refusé : ${res.error}`,
+      });
+      return;
+    }
+    onFermerConfirmation(id);
+    setFlash({ ok: true, texte: "Signature de la chefferie constatée." });
+  };
+
+  return (
+    <div className="mb-4">
+      <div className="mb-2 flex items-center gap-1.5 text-[15px] font-bold text-foreground">
+        <FileSignature className="size-4 text-primary" strokeWidth={2} />
+        Attribution de lot — à signer
+      </div>
+      {flash && (
+        <div
+          role="alert"
+          className={`mb-2.5 flex items-start gap-2 rounded-2xl px-3.5 py-3 text-[12.5px] font-medium ${
+            flash.ok ? "bg-success-subtle text-success" : "bg-danger-subtle text-danger"
+          }`}
+        >
+          {flash.ok ? (
+            <CheckCircle2 className="mt-px size-4 flex-none" />
+          ) : (
+            <TriangleAlert className="mt-px size-4 flex-none" />
+          )}
+          <span className="min-w-0">{flash.texte}</span>
+        </div>
+      )}
+      {file.loading ? (
+        <div className="flex items-center justify-center gap-2 py-6 text-[12.5px] text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" /> Chargement…
+        </div>
+      ) : file.erreur && file.items.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 rounded-2xl border border-danger/25 bg-danger-subtle px-3.5 py-4 text-center">
+          <TriangleAlert className="size-5 flex-none text-danger" />
+          <div className="text-[12.5px] font-medium text-danger">{file.erreur}</div>
+          {/* Même motif que la file de cessions et la section APFC,
+              ci-dessus : sans ce bouton, changer d'onglet puis revenir
+              n'émet AUCUNE nouvelle requête. */}
+          <button
+            type="button"
+            onClick={() => void file.recharger()}
+            className="mt-1 rounded-full border border-border bg-card px-4 py-1.5 text-[12.5px] font-semibold text-foreground"
+          >
+            Réessayer
+          </button>
+        </div>
+      ) : file.items.length === 0 ? (
+        <div className="rounded-2xl border border-border bg-card px-3.5 py-3 text-[12.5px] text-muted-foreground">
+          Aucune Attestation d&apos;Attribution de Lot en attente.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {/* Même motif que les cessions et la section APFC, ci-dessus : un
+              rechargement raté APRÈS une signature constatée ne doit pas
+              retomber en silence derrière le toast vert. */}
+          {file.erreur && (
+            <div className="flex items-start gap-2 rounded-2xl bg-warning-subtle px-3.5 py-3 text-[12px] text-foreground">
+              <TriangleAlert className="mt-px size-4 flex-none text-warning" />
+              <span className="min-w-0">
+                Liste peut-être dépassée — le rechargement a échoué ({file.erreur}).
+              </span>
+            </div>
+          )}
+          {file.items.map((a) => (
+            <CarteAal
+              key={a.id}
+              aal={a}
+              confirmer={confirmationId === a.id}
+              busy={enVol?.section === "aal" && enVol.id === a.id}
+              // Un envoi en vol ailleurs fige les autres cartes — cession,
+              // APFC ou AAL confondues, même règle que `CarteAttestation`.
+              gele={enVol !== null && !(enVol.section === "aal" && enVol.id === a.id)}
+              onDemander={() => {
+                onOuvrirConfirmation(a.id);
+                setFlash(null);
+              }}
+              onAnnuler={() => onFermerConfirmation(a.id)}
+              onConfirmer={() => void confirmer(a.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CarteAal({
+  aal: a,
+  confirmer,
+  busy,
+  gele,
+  onDemander,
+  onAnnuler,
+  onConfirmer,
+}: {
+  aal: AttributionLotMobile;
+  confirmer: boolean;
+  busy: boolean;
+  gele: boolean;
+  onDemander: () => void;
+  onAnnuler: () => void;
+  onConfirmer: () => void;
+}) {
+  // Même table de signatures que la cession (`etatSignaturesCession`) : les
+  // deux tables portent les trois mêmes colonnes `sig_*_le`.
+  const etat = etatSignaturesCession(a, a.lotissement);
+  const paye = Boolean(a.signaturePayeeLe);
+  // Requise et non signée, SANS le gel du paiement — c'est cette condition,
+  // et elle seule, qui décide d'afficher le bouton (désactivé tant que
+  // `paye` est faux) plutôt que « Non requise ». `aalActionnable` ci-dessous
+  // ajoute le gel du paiement : c'est lui qui active réellement le bouton.
+  const chefferieAttendue = cessionAttendSignature(a, a.lotissement, "chefferie");
+  const actionnable = aalActionnable(a);
+
+  return (
+    <div className="rounded-[20px] border border-border bg-card p-4 shadow-panel">
+      <div className="min-w-0">
+        <div className="truncate text-[14.5px] font-bold text-foreground">{a.reference}</div>
+        <div className="mt-0.5 truncate text-[11.5px] text-muted-foreground">
+          Lot {a.numeroLot ?? "—"} · Îlot {a.ilot ?? "—"} · {a.lotissementNom ?? "—"} · Niveau {a.niveau}
+        </div>
+      </div>
+
+      <div className="mt-2 text-[12.5px] text-foreground">
+        <span className="text-muted-foreground">Titulaire : </span>
+        {a.titulaire ?? "—"}
+      </div>
+
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
+        {etat.lignes.map((l) => (
+          <span
+            key={l.cle}
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${
+              !l.requise
+                ? "border border-dashed border-border text-muted-2"
+                : l.signee
+                  ? "bg-success-subtle text-foreground"
+                  : "bg-inset text-foreground"
+            }`}
+          >
+            <span
+              className={`size-[6px] flex-none rounded-full ${
+                l.requise && l.signee ? "bg-success" : "bg-muted-2"
+              }`}
+            />
+            {libelleSignature(l.cle, a.lotissementAUneFamille)}
+            {!l.requise ? " · non requise" : ""}
+          </span>
+        ))}
+      </div>
+
+      {/* Visible dans tous les cas, pas seulement au survol d'un bouton
+          désactivé : `disabled:pointer-events-none` empêche tout survol, donc
+          un `title` seul ne s'afficherait jamais (même correctif que sur
+          `/dashboard/validations`). */}
+      <p className={`mt-2 text-[11.5px] font-semibold ${paye ? "text-success" : "text-warning"}`}>
+        {paye ? "Paiement de signature reçu" : "Paiement de signature en attente (guichet SGNF)"}
+      </p>
+
+      {confirmer ? (
+        <div className="mt-3.5 rounded-2xl border border-warning/45 bg-warning-subtle p-3">
+          <div className="flex items-start gap-2">
+            <Stamp className="mt-px size-4 flex-none text-warning" />
+            <div className="min-w-0">
+              <div className="text-[13px] font-bold text-foreground">
+                Constater la signature « Chefferie » ?
+              </div>
+              <div className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                Vous attestez que cette signature figure bien sur le document papier.
+                L&apos;acte est horodaté à votre nom et n&apos;est pas annulable depuis l&apos;application.
+              </div>
+            </div>
+          </div>
+          <div className="mt-2.5 flex gap-2">
+            <button
+              type="button"
+              onClick={onAnnuler}
+              disabled={busy}
+              className="flex-1 rounded-full border border-border bg-card py-2.5 text-[13.5px] font-semibold text-foreground disabled:opacity-50"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={onConfirmer}
+              disabled={busy}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-primary py-2.5 text-[13.5px] font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              {busy && <Loader2 className="size-4 animate-spin" />}
+              Confirmer
+            </button>
+          </div>
+        </div>
+      ) : chefferieAttendue ? (
+        <button
+          type="button"
+          disabled={gele || !paye}
+          onClick={onDemander}
+          className="mt-3.5 w-full rounded-full bg-primary py-2.5 text-[13px] font-semibold text-primary-foreground disabled:opacity-50"
+        >
+          {actionnable ? "Signer" : "Signature bloquée — paiement requis"}
+        </button>
+      ) : (
+        <div className="mt-3 text-[11.5px] leading-snug text-muted-2">
+          Signature de la chefferie non requise sur ce lotissement.
         </div>
       )}
     </div>

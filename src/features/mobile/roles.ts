@@ -176,6 +176,13 @@ export function saisiesPour(groupe: string | null | undefined): EcranSaisie[] {
  *
  * ⚠️ Ne pas confondre `operateur` et `operateur_saisie` : ce dernier est dans
  * la coquille métier mais n'a AUCUN droit sur les attestations.
+ *
+ * 🆕 17/08/2026 — `apfc` et `attributionLot` (portage « Tier 2 ») FONT
+ * EXCEPTION à la discipline « miroir exact » ci-dessus : contrairement aux
+ * champs plus anciens, ils sont volontairement PLUS ÉTROITS que ce que
+ * `signer_apfc`/`signer_attestation_attribution_lot` autorisent côté serveur
+ * (qui ouvrent aussi l'admin, et l'opérateur sur son périmètre pour la
+ * seconde). Voir le commentaire sur chaque champ, plus bas.
  */
 export type ActionsAttestation = {
   /** Signatures que le rôle peut constater. Vide = aucun accès aux attestations. */
@@ -184,6 +191,32 @@ export type ActionsAttestation = {
   remise: boolean;
   /** Peut générer par dérogation (`generer_attestation_exceptionnelle`). */
   generation: boolean;
+  /**
+   * Peut co-signer une APFC en tant que chef de village (`signer_apfc`,
+   * `p_signature = 'chef_village'`) — portage « Tier 2 », 17/08/2026.
+   *
+   * 🔴 `false` sur `admin` n'est PAS un miroir de la garde serveur,
+   * contrairement au reste de cette table : `signer_apfc` autorise aussi
+   * `est_admin()` à constater les trois signatures (cf.
+   * `20260728120000_signer_apfc.sql`). C'est une restriction VOLONTAIRE, en
+   * deçà de ce que le serveur permettrait — ce portage mobile ne couvre que
+   * l'expérience de terrain de la chefferie ; l'admin garde le web pour ce
+   * geste.
+   *
+   * `false` sur `operateur`, en revanche, EST un miroir exact : `signer_apfc`
+   * refuse ce rôle côté serveur (`P0001`, vérifié en production) — contrairement
+   * à l'admin, il n'a jamais eu ce droit à restreindre.
+   */
+  apfc: boolean;
+  /**
+   * Peut signer une Attestation d'Attribution de Lot (Niveau 2/3) en tant que
+   * chefferie (`signer_attestation_attribution_lot`, `p_signature =
+   * 'chefferie'`) — même portage, même restriction volontaire que `apfc`
+   * ci-dessus : le serveur autorise aussi l'admin et l'opérateur (sur son
+   * périmètre, cf. `20260728140000_perimetre_operateur_attestations.sql`),
+   * mais seule la chefferie l'a ici.
+   */
+  attributionLot: boolean;
 };
 
 /** Reprise de `useAttestations` sans l'importer : `roles.ts` ne dépend d'aucun écran. */
@@ -194,6 +227,8 @@ const ATTESTATIONS_PAR_ROLE: Record<string, ActionsAttestation> = {
     signatures: ["proprietaire", "operateur", "chefferie"],
     remise: true,
     generation: true,
+    apfc: false,
+    attributionLot: false,
   },
   chefferie: {
     // `signer_attestation` refuse à une chefferie toute signature autre que la
@@ -202,6 +237,8 @@ const ATTESTATIONS_PAR_ROLE: Record<string, ActionsAttestation> = {
     signatures: ["chefferie"],
     remise: false,
     generation: false,
+    apfc: true,
+    attributionLot: true,
   },
   operateur: {
     // Comme l'admin sur le papier — il tient le document — mais borné à son
@@ -209,10 +246,18 @@ const ATTESTATIONS_PAR_ROLE: Record<string, ActionsAttestation> = {
     signatures: ["proprietaire", "operateur", "chefferie"],
     remise: true,
     generation: false,
+    apfc: false,
+    attributionLot: false,
   },
 };
 
-const AUCUNE_ACTION: ActionsAttestation = { signatures: [], remise: false, generation: false };
+const AUCUNE_ACTION: ActionsAttestation = {
+  signatures: [],
+  remise: false,
+  generation: false,
+  apfc: false,
+  attributionLot: false,
+};
 
 export function attestationsPour(groupe: string | null | undefined): ActionsAttestation {
   return (groupe ? ATTESTATIONS_PAR_ROLE[groupe] : undefined) ?? AUCUNE_ACTION;

@@ -36,6 +36,7 @@ import { AttestationsScreen } from "./screens/pro/AttestationsScreen";
 import { GenerationAttestationScreen } from "./screens/pro/GenerationAttestationScreen";
 import { useSaisieRegistre } from "./data/useSaisieRegistre";
 import { useAttestations } from "./data/useAttestations";
+import { useValidationsChefferie } from "./data/useValidationsChefferie";
 import { AttributaireScreen } from "./screens/admin/saisie/AttributaireScreen";
 import { FicheLotScreen, IlotScreen } from "./screens/admin/saisie/FicheParcelleScreen";
 import { LotScreen } from "./screens/admin/saisie/LotScreen";
@@ -136,6 +137,13 @@ export function ProApp({
   // ses signatures doit voir sa pastille tomber à zéro, même si les documents
   // attendent encore le chef de famille.
   const attestations = useAttestations(voitLesAttestations(groupe), actionsAttestation);
+  // Portage « Tier 2 » (17/08/2026) : APFC à co-signer et AAL à signer,
+  // chefferie uniquement (`actionsAttestation.apfc`/`attributionLot`, cf.
+  // `./roles`). Pour tout autre rôle les deux valent `false` : le hook reste
+  // inactif et ne paie aucune lecture.
+  const validationsChefferie = useValidationsChefferie(
+    actionsAttestation.apfc || actionsAttestation.attributionLot,
+  );
   // Sans rattachement, la policy ne renvoie rien ET tout constat serait refusé.
   // Vaut pour la chefferie (juridiction) comme pour l'opérateur (périmètre).
   const attestationsBloquees = rattachementManquant(
@@ -233,6 +241,12 @@ export function ProApp({
 
   const conv = overlay?.kind === "chat" ? data.convos.find((c) => c.id === overlay.convId) ?? null : null;
 
+  // Pastille de l'onglet « Attestations » : cession + APFC + AAL. Les deux
+  // derniers valent 0 pour tout rôle hors chefferie (hook inactif, cf.
+  // `validationsChefferie` ci-dessus) — cette somme ne change donc rien pour
+  // l'admin ni pour l'opérateur.
+  const validationsASigner = validationsChefferie.apfc.aSigner + validationsChefferie.attributionLot.aSigner;
+
   // Le FAB « Vérifier » se glisse au milieu des onglets. Pour l'admin (4
   // onglets) il retrouve exactement sa place d'avant, en 3e position.
   const items: TabItem[] = useMemo(() => {
@@ -250,12 +264,12 @@ export function ProApp({
               // donc à zéro quand il a fini, et non quand les documents sont
               // complets.
               cle === "attestations"
-              ? attestations.aSigner
+              ? attestations.aSigner + validationsASigner
               : undefined,
     }));
     const fab: TabItem = { key: "verify", label: "Vérifier", icon: ScanLine, fab: true, onPress: verify };
     return [...base.slice(0, Math.floor(base.length / 2)), fab, ...base.slice(Math.floor(base.length / 2))];
-  }, [onglets, aFaire, unread, attestations.aSigner, verify]);
+  }, [onglets, aFaire, unread, attestations.aSigner, validationsASigner, verify]);
 
   return (
     <>
@@ -320,6 +334,7 @@ export function ProApp({
           <AttestationsScreen
             file={attestations}
             actions={actionsAttestation}
+            validations={validationsChefferie}
             blocage={attestationsBloquees}
             onOuvrirGeneration={openGeneration}
             header={
@@ -397,6 +412,7 @@ export function ProApp({
           <AttestationsScreen
             file={attestations}
             actions={actionsAttestation}
+            validations={validationsChefferie}
             blocage={attestationsBloquees}
             onOuvrirGeneration={actionsAttestation.generation ? openGeneration : undefined}
             header={

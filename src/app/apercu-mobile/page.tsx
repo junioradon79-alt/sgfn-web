@@ -23,6 +23,13 @@ import {
 } from "@/features/mobile/data/useAttestations";
 import { ParcelsScreen } from "@/features/mobile/screens/ParcelsScreen";
 import {
+  aalActionnable,
+  apfcActionnable,
+  type ApfcMobile,
+  type AttributionLotMobile,
+  type ValidationsChefferie,
+} from "@/features/mobile/data/useValidationsChefferie";
+import {
   attestationsPour,
   saisiesPour,
   type ActionsAttestation,
@@ -758,6 +765,128 @@ const FILE_ADMIN = fileAttestationsPour(attestationsPour("admin"));
 const FILE_CHEFFERIE = fileAttestationsPour(attestationsPour("chefferie"));
 const FILE_OPERATEUR = fileAttestationsPour(attestationsPour("operateur"));
 
+/**
+ * APFC et Attribution de Lot (Niveau 2/3) — portage « Tier 2 » (17/08/2026).
+ *
+ * 🔴 La production ne montre aujourd'hui qu'une seule ligne de chaque table, et
+ * dans l'état le moins intéressant à regarder : l'unique APFC est déjà
+ * ENTIÈREMENT signée (rien à constater), et la table des attributions de lot
+ * est VIDE (0 ligne). Sans ces lignes simulées, ni le bouton « Constater : Chef
+ * de village », ni le badge « Validé », ni le gel « Signature bloquée —
+ * paiement requis » — le seul endroit où ce portage retient réellement un
+ * geste — ne seraient jamais vus avant d'être livrés.
+ */
+const APFC_ITEMS: ApfcMobile[] = [
+  {
+    // Cas illustratif inspiré du parc réel (Ebimpe) : les deux signatures
+    // requises sont constatées. `apfcActionnable` doit y répondre faux, et la
+    // carte doit montrer « Validé », pas un bouton.
+    // 🔴 Référence, numéro et chef de famille sont FICTIFS — volontairement
+    // distincts du vrai dossier de production (`APFC-EBIMPE-2022-001`) pour
+    // ne pas se lire comme lui dans un dépôt public. Le nom de famille choisi
+    // ici évite aussi délibérément ceux déjà utilisés ailleurs dans ce fichier
+    // (`Collectif Ako Djebe` / `Famille Ako Djebe`) — les répéter sans prénom
+    // fabriquerait un nom de personne plausible, ce qu'aucune donnée simulée
+    // de cet écran ne doit faire.
+    id: "apc-apfc-1",
+    reference: "APFC-DEMO-001",
+    numero: "APFC-DEMO-001",
+    statut: "delivree",
+    dateDelivrance: "2026-06-02",
+    chefDeFamille: "N'Guessan Koffi Armand",
+    sig_chef_famille_le: "2026-05-28T09:00:00Z",
+    sig_chef_village_le: "2026-06-01T10:30:00Z",
+    sig_cvgfr_le: null,
+    cvgfr_id: null,
+    lotissement: { signatures_requises: ["proprietaire", "chefferie"] },
+    lotissementNom: "Ebimpe Résidentiel",
+  },
+  {
+    // Le cas que la chefferie doit pouvoir CONSTATER : chef de famille déjà
+    // signé, chef de village qui attend encore la sienne. C'est le seul état
+    // qui rend le bouton visible dans tout l'aperçu.
+    id: "apc-apfc-2",
+    // 🔴 Référence FICTIVE, format volontairement différent d'un vrai numéro
+    // de série (`APFC-<site>-<année>-<NNN>`) et sans nom de lotissement réel
+    // — même logique que `APFC-DEMO-001` ci-dessus.
+    reference: "APFC-DEMO-002",
+    numero: "APFC-DEMO-002",
+    statut: "generee",
+    dateDelivrance: null,
+    chefDeFamille: "Brou Akissi Delphine",
+    sig_chef_famille_le: "2026-08-10T08:00:00Z",
+    sig_chef_village_le: null,
+    sig_cvgfr_le: null,
+    cvgfr_id: null,
+    lotissement: { signatures_requises: ["proprietaire", "operateur", "chefferie"] },
+    lotissementNom: "Brignan Kakodji",
+  },
+];
+
+const AAL_ITEMS: AttributionLotMobile[] = [
+  {
+    // Paiement de signature confirmé : c'est le seul état où « Signer »
+    // s'active réellement.
+    id: "apc-aal-1",
+    reference: "AAL-2026-00042",
+    statut: "generee",
+    niveau: 2,
+    signaturePayeeLe: "2026-08-15T14:00:00Z",
+    dateEmission: "2026-08-14",
+    titulaire: "Konan Yao Bernard",
+    lotId: "apc-l-1",
+    numeroLot: "142",
+    ilot: "07",
+    lotissement: { signatures_requises: ["proprietaire", "chefferie"], famille_id: "apc-fam-1" },
+    lotissementNom: "Koelea-Accor revu",
+    lotissementAUneFamille: true,
+    sig_proprietaire_le: "2026-08-14T09:00:00Z",
+    sig_operateur_le: null,
+    sig_chefferie_le: null,
+  },
+  {
+    // 🔴 Paiement NON confirmé : le bouton reste visible mais désactivé, avec
+    // son motif écrit en toutes lettres — c'est le geste que ce portage
+    // bloque, et sans cette ligne il ne se verrait nulle part.
+    id: "apc-aal-2",
+    reference: "AAL-2026-00043",
+    statut: "generee",
+    niveau: 2,
+    signaturePayeeLe: null,
+    dateEmission: "2026-08-16",
+    titulaire: "SCI Les Palmiers",
+    lotId: "apc-l-3",
+    numeroLot: "045",
+    ilot: "02",
+    lotissement: { signatures_requises: ["proprietaire", "operateur", "chefferie"], famille_id: null },
+    lotissementNom: "Brignan Kakodji",
+    lotissementAUneFamille: false,
+    sig_proprietaire_le: "2026-08-16T09:00:00Z",
+    sig_operateur_le: "2026-08-17T09:00:00Z",
+    sig_chefferie_le: null,
+  },
+];
+
+/** Mêmes règles d'inertie que `fileAttestationsPour` : rien ne part vers la base. */
+const VALIDATIONS_CHEFFERIE: ValidationsChefferie = {
+  apfc: {
+    items: APFC_ITEMS,
+    loading: false,
+    erreur: null,
+    aSigner: APFC_ITEMS.filter(apfcActionnable).length,
+    recharger: async () => {},
+    constater: async () => ({ ok: false, error: "Aperçu : aucun acte n'est envoyé." }),
+  },
+  attributionLot: {
+    items: AAL_ITEMS,
+    loading: false,
+    erreur: null,
+    aSigner: AAL_ITEMS.filter(aalActionnable).length,
+    recharger: async () => {},
+    constater: async () => ({ ok: false, error: "Aperçu : aucun acte n'est envoyé." }),
+  },
+};
+
 /** En-tête léger, suffisant pour l'aperçu — la coquille en pose un vrai. */
 function EnteteApercu({ titre, sousTitre }: { titre: string; sousTitre: string }) {
   return (
@@ -1009,6 +1138,11 @@ export default function ApercuMobilePage() {
             <AttestationsScreen
               file={FILE_CHEFFERIE}
               actions={attestationsPour("chefferie")}
+              // Portage « Tier 2 » (17/08/2026) : sans cette prop, les sections
+              // APFC et Attribution de Lot ne s'affichent jamais ici — le seul
+              // rendu de l'aperçu où `attestationsPour("chefferie")` ouvre
+              // pourtant les deux (`apfc: true, attributionLot: true`).
+              validations={VALIDATIONS_CHEFFERIE}
               header={<EnteteApercu titre="Attestations" sousTitre="Chefferie · juridiction" />}
             />
           )}
