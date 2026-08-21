@@ -138,7 +138,7 @@ export default function CentrePilotagePage() {
 
           <div className="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)] xl:items-start">
             <div id="activite" className="min-w-0 scroll-mt-24">
-              <ActivityCenter activite={overview.activite} loading={overview.loading} />
+              <ActivityCenter activite={overview.activite} loading={overview.loading} enDirect={overview.activiteEnDirect} />
             </div>
             <QuickActions onNouveauDossier={() => setAduOuvert(true)} />
           </div>

@@ -82,7 +82,15 @@ function grouperParJour(entries: AuditEntry[]) {
  * accessible au clic, parce que c'est ce qui fait la valeur probante du
  * journal.
  */
-export function ActivityCenter({ activite, loading }: { activite: AdminOverview["activite"]; loading: boolean }) {
+export function ActivityCenter({
+  activite,
+  loading,
+  enDirect,
+}: {
+  activite: AdminOverview["activite"];
+  loading: boolean;
+  enDirect: boolean;
+}) {
   const [filtre, setFiltre] = React.useState<string>("tout");
   const [detail, setDetail] = React.useState<AuditEntry | null>(null);
 
@@ -109,7 +117,15 @@ export function ActivityCenter({ activite, loading }: { activite: AdminOverview[
         <Card className="h-full">
           <CardHeader>
             <div className="min-w-0">
-              <CardTitle>Activité</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle>Activité</CardTitle>
+                {!loading && enDirect && (
+                  <span className="flex items-center gap-1 text-[10.5px] font-bold tracking-wider text-success uppercase">
+                    <StatusDot tone="success" />
+                    En direct
+                  </span>
+                )}
+              </div>
               <CardDescription>
                 {loading ? (
                   "Chargement du journal…"

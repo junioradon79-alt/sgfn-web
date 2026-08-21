@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -119,6 +119,8 @@ export type AdminOverview = {
   /** Instant du dernier chargement réussi — affiché dans l'en-tête. */
   majLe: Date | null;
   refresh: () => void;
+  /** Le channel Realtime de la carte "Activité" est SUBSCRIBED — et rien d'autre. */
+  activiteEnDirect: boolean;
 
   patrimoine: {
     lots: number;
@@ -182,7 +184,7 @@ export const LOT_OCCUPE = ["attribue", "vendu", "occupe"];
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-const VIDE: Omit<AdminOverview, "loading" | "error" | "majLe" | "refresh"> = {
+const VIDE: Omit<AdminOverview, "loading" | "error" | "majLe" | "refresh" | "activiteEnDirect"> = {
   patrimoine: { lots: 0, ilots: 0, lotissements: 0, attributaires: 0, libres: 0, occupes: 0, enLitige: 0, serie: [] },
   couverture: { lotsGeolocalises: 0, perimetresGeolocalises: 0, taux: 0, perimetres: [], lotsGeo: [] },
   actes: { attestations: 0, delivrees: 0, serie: [] },
@@ -400,6 +402,12 @@ export function useAdminOverview(enabled: boolean): AdminOverview {
   const [error, setError] = useState<string | null>(null);
   const [majLe, setMajLe] = useState<Date | null>(null);
   const [tick, setTick] = useState(0);
+  const [activiteEnDirect, setActiviteEnDirect] = useState(false);
+  // Un topic par montage : sans ça, un démontage encore en train de fermer
+  // son channel (removeChannel est asynchrone) peut couper celui d'un
+  // remontage immédiat qui réutiliserait le même nom (StrictMode, retour
+  // arrière navigateur).
+  const instanceId = useId();
 
   /** Relance un chargement. Le compteur est le seul déclencheur de l'effet. */
   const refresh = useCallback(() => {
@@ -428,5 +436,40 @@ export function useAdminOverview(enabled: boolean): AdminOverview {
     };
   }, [enabled, supabase, tick]);
 
-  return { ...data, loading, error, majLe, refresh };
+  // La carte "Activité" suit le journal en direct. Une incrémentation locale
+  // évite un refetch à chaque écriture d'un utilisateur quelconque du SaaS —
+  // conforme au principe de source unique posé en tête de ce fichier.
+  useEffect(() => {
+    if (!enabled) return;
+
+    const channel = supabase
+      .channel(`journal_audit-realtime-${instanceId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "journal_audit" },
+        (payload) => {
+          const entree = payload.new as AuditEntry;
+          setData((d) => ({
+            ...d,
+            activite: {
+              journal: [entree, ...d.activite.journal].slice(0, 40),
+              serie: d.activite.serie.map((point, i) =>
+                i === d.activite.serie.length - 1 ? { ...point, value: point.value + 1 } : point,
+              ),
+              total14j: d.activite.total14j + 1,
+            },
+          }));
+        },
+      )
+      .subscribe((statut) => {
+        setActiviteEnDirect(statut === "SUBSCRIBED");
+      });
+
+    return () => {
+      setActiviteEnDirect(false);
+      void supabase.removeChannel(channel);
+    };
+  }, [enabled, instanceId, supabase]);
+
+  return { ...data, loading, error, majLe, refresh, activiteEnDirect };
 }
