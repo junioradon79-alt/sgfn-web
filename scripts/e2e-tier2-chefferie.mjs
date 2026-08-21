@@ -1,16 +1,19 @@
 // Vérification navigateur du portage "Tier 2" (APFC + AAL) côté mobile
 // chefferie, sur le modèle des scripts scripts/e2e-app-*.mjs du dépôt.
 //
-// 🔴 Cible locale par défaut, et pour une raison précise : au 20-21/08/2026 ce
+// ✅ Déployé depuis le 21/08/2026 (commit 9c0f586, poussé sur master). Ce
 // portage (`ProApp.tsx`, `roles.ts`, `AttestationsScreen.tsx`,
-// `useValidationsChefferie.ts`) n'existe QUE dans l'arbre de travail — non
-// commité, donc absent de tout ce que `sgfn.ci` sert. Lancer ce script contre
-// la prod (comme la première tentative, échouée en silence le 17/08) ne peut
-// que traverser un `page.goto` mort : la fonctionnalité n'y est pas encore.
-// Une fois ces fichiers commités ET poussés sur `master` (ce qui déploie),
-// `E2E_BASE=https://sgfn.ci node scripts/e2e-tier2-chefferie.mjs` redevient le
-// bon choix — `.env.local` pointe le serveur local vers le MÊME projet
-// Supabase que la prod, donc les données lues sont déjà les données réelles.
+// `useValidationsChefferie.ts`) fait désormais partie de ce que `sgfn.ci`
+// sert sur le WEB — vérifié 9/9 contre la prod le jour du commit. Cible
+// locale par défaut ci-dessous, mais `E2E_BASE=https://sgfn.ci node
+// scripts/e2e-tier2-chefferie.mjs` est maintenant le bon choix pour vérifier
+// directement contre la production — `.env.local` pointe de toute façon le
+// serveur local vers le MÊME projet Supabase que la prod, donc les données
+// lues sont déjà les données réelles des deux côtés.
+//
+// ⚠️ Ce que ce déploiement NE couvre PAS : l'APK Android n'a pas été
+// reconstruite depuis le 28/07 (1.4.0) — une chefferie sur l'app installée
+// ne voit ni APFC ni AAL tant qu'une nouvelle APK n'est pas produite.
 import { readFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -78,8 +81,10 @@ await step("section-aal-presente", async () => {
 });
 
 await step("apfc-carte-visible", async () => {
-  // La seule APFC de production (Ebimpe) est déjà entièrement signée : elle
-  // doit apparaître avec le badge "Validé", pas de bouton actionnable.
+  // La seule APFC de production (Ebimpe) a déjà sa signature chef de village
+  // posée (la signature CVGFR, elle, manque toujours — sans effet ici, la
+  // chefferie mobile n'appelle que p_signature: "chef_village") : elle doit
+  // donc apparaître avec le badge "Validé", pas de bouton actionnable.
   await page.getByText("APFC-EBIMPE-2022-001").waitFor({ timeout: 20000 });
 });
 
@@ -107,7 +112,8 @@ await step("badge-onglet-coherent", async () => {
   // le badge numérique de l'onglet "Attestations" (TabBar, bas d'écran) doit
   // correspondre à la somme cessions + APFC actionnables + AAL actionnables.
   // Les deux derniers valent 0 dans l'état de production connu (étapes
-  // ci-dessus : l'unique APFC est déjà entièrement signée, l'AAL est vide) —
+  // ci-dessus : l'unique APFC a déjà sa signature chef de village posée
+  // (0 actionnable côté chefferie mobile), l'AAL est vide) —
   // le badge doit donc être EXACTEMENT égal au chiffre du chip "À constater",
   // qui compte les mêmes cessions (cf. `AttestationsScreen`, onglet `signer`).
   const chipTexte = await page.locator("button", { hasText: "À constater" }).first().innerText();
