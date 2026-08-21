@@ -37,14 +37,14 @@ const GROUPES = [
 const STATUT_TONE: Record<string, "warning" | "success" | "danger" | "neutral"> = {
   en_attente: "warning",
   utilisee: "success",
-  revoquee: "danger",
+  annulee: "danger",
   expiree: "neutral",
 };
 
 const STATUT_LABELS: Record<string, string> = {
   en_attente: "En attente",
   utilisee: "Utilisée",
-  revoquee: "Révoquée",
+  annulee: "Révoquée",
   expiree: "Expirée",
 };
 
@@ -227,7 +227,7 @@ export default function InvitationsPage() {
     setRevokeError("");
     const { error: revErr } = await supabase
       .from("invitations")
-      .update({ statut: "revoquee" })
+      .update({ statut: "annulee" })
       .eq("id", id)
       .eq("statut", "en_attente");
     if (revErr) setRevokeError(`Révocation non enregistrée — le code reste actif : ${revErr.message}`);
