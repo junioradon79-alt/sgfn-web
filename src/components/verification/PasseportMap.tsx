@@ -13,7 +13,7 @@ export default function PasseportMap({ point }: { point: [number, number] }) {
     <MapContainer
       center={point}
       zoom={13}
-      className="h-full w-full"
+      className="h-full w-full z-0"
       style={{ cursor: "grab" }}
       scrollWheelZoom={false}
     >

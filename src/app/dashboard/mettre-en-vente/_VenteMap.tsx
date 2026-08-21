@@ -53,7 +53,7 @@ export default function VenteMap({
     <MapContainer
       center={center}
       zoom={point ? 14 : 11}
-      className="h-full w-full"
+      className="h-full w-full z-0"
       style={{ cursor: mode === "exact" ? "crosshair" : "grab" }}
       scrollWheelZoom={false}
     >

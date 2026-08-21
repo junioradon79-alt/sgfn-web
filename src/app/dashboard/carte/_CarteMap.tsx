@@ -93,7 +93,7 @@ export default function CarteMap({
     <MapContainer
       center={defaultCenter}
       zoom={avecCoords.length > 0 ? 14 : 11}
-      className="h-full w-full"
+      className="h-full w-full z-0"
       style={{ cursor: placementMode ? "crosshair" : "grab" }}
       ref={mapRef}
     >

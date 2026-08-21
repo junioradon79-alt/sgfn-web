@@ -120,7 +120,7 @@ export default function TerritoryCanvas({
     <MapContainer
       center={centre}
       zoom={amas.length > 0 ? 13 : 7}
-      className="size-full"
+      className="size-full z-0"
       scrollWheelZoom
       // Le fond est déjà résumé par les KPI : la carte sert à situer, pas à
       // remplacer le tableau — on garde donc les contrôles au minimum.

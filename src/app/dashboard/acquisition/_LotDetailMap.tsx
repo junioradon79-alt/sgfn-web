@@ -44,7 +44,7 @@ export default function LotDetailMap({
       center={[lat, lng]}
       zoom={15}
       scrollWheelZoom={false}
-      className="h-full w-full"
+      className="h-full w-full z-0"
       attributionControl={false}
     >
       <SizeFix />
